@@ -93,6 +93,9 @@ async def test_register_authorize_token_and_call_mcp(db, http):
     client = await register(http)
     verifier, challenge = pkce()
     url = authorize_url(client["client_id"], challenge)
+    # Not claimed yet: no connecting, and it says why (not the setup form).
+    early = await http.get(url)
+    assert early.status_code == 409 and "Not claimed yet" in early.text
     # The owner signs in first; the request survives the trip.
     await claimed(db)
     gate = await http.get(url)

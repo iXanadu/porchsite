@@ -95,6 +95,13 @@ with an assistant key in its secret field. Without either, it can still
 hand you everything as one import file, once; after that you'll want an
 assistant that can connect.
 
+## Connecting after the claim
+
+Add your site as a connector only after you've claimed it: before that, it
+refuses, and some apps keep a broken connector. In many chat apps a
+connector added during a conversation only works in a new conversation,
+so start a fresh one once it's added.
+
 ## After the site is up
 
 Just talk to it: "add the photos from Saturday", "change the dinner time".

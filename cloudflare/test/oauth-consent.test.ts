@@ -32,9 +32,13 @@ describe("connecting an assistant", () => {
     const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
     const q = new URLSearchParams({ response_type: "code", client_id, redirect_uri: REDIRECT, state: "s1", scope: "site:draft", code_challenge: challenge, code_challenge_method: "S256" });
 
-    // Not signed in: off to sign in first.
-    expect((await go(`/authorize?${q}`)).status).toBe(303);
+    // Not claimed yet: no connecting, and it says why (not the setup form).
+    const early = await go(`/authorize?${q}`);
+    expect(early.status).toBe(409);
+    expect(await early.text()).toContain("Not claimed yet");
     const owner = await signedIn();
+    // Claimed but not signed in: off to sign in first.
+    expect((await go(`/authorize?${q}`)).status).toBe(303);
     const page = await go(`/authorize?${q}`, { headers: { Cookie: owner } });
     expect(page.status).toBe(200);
     const text = await page.text();

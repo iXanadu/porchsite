@@ -53,7 +53,10 @@ their yes.
 Your way in is the site's tool server, `https://<your site>/mcp`. In order
 of preference:
 1. **A connector that signs in.** Your person adds it in your app with that
-   address and approves it with their passkey.
+   address and approves it with their passkey, after they've claimed the
+   site (before that it refuses). In many chat apps a connector added
+   during a conversation only shows its tools in a new one: if yours don't
+   appear, ask your person to start a new conversation, not to reinstall.
 2. **An assistant key**, if your app can't add a connector that signs in
    (or its sign-in fails). Your person makes one on the site's
    `/review/assistants` and puts it in your app's secret or credential

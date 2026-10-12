@@ -733,6 +733,14 @@ def _issuer(req: Request, cx: Context) -> str:
 
 
 async def authorize_get(req: Request, cx: Context) -> Response:
+    # Connecting before the claim would leave the app with a broken connector:
+    # say so, rather than sending them to the setup form.
+    if not await owner.has_owner(cx.db):
+        return owner_page(
+            "Not claimed yet",
+            "<h1>Not claimed yet</h1><p>This site hasn&#39;t been claimed by its owner yet, so no assistant can connect to it. Claim it first, with the claim link from the installer (or the setup link your assistant gave you). Then connect again: remove this connector and add it anew, so your app picks up the site&#39;s tools.</p>",
+            status=409,
+        )
     gate = await require_owner(req, cx)
     if gate:
         return gate
@@ -847,12 +855,14 @@ async def assistants_page(
 # --- owner: the site as it will look --------------------------------------------------------
 
 
-async def review_preview(req: Request, cx: Context, id: str) -> Response:
-    """The home page with this approval's items published on top of what's live,
-    in the theme it would have."""
+async def review_preview(req: Request, cx: Context, id: str, path: str = "/") -> Response:
+    """The site with this approval's items published on top of what's live, in
+    the theme it would have: every page, with its links kept inside the preview."""
     a = await approvals.get(cx.db, id)
     origin = origin_of(req)
-    body = await site.preview_page(cx.db, id, origin)
+    body = await site.preview_page(cx.db, id, origin, path)
+    if body == "":
+        return await not_found_page(req, cx)
     if body is None:
         v = await site.proposed_view(
             cx.db,
@@ -862,7 +872,16 @@ async def review_preview(req: Request, cx: Context, id: str) -> Response:
                 if i["status"] in ("pending", "published")
             ],
         )
-        body = builtin.home(v).body.decode("utf-8")
+        page = builtin.home(v) if path == "/" else builtin.entry_page(v, path)
+        if page is None:
+            return await not_found_page(req, cx)
+        body = page.body.decode("utf-8")
+    base = f"/review/{a['id']}/preview"
+    body = re.sub(
+        r'(href=")/(?!/|static/|media/|review/)([^"]*")',
+        lambda m: f"{m.group(1)}{base}/{m.group(2)}",
+        body,
+    )
     pending = any(i["status"] == "pending" for i in a["items"])
     raised = await visibility.raises(cx.db, [i for i in a["items"] if i["status"] == "pending"])
     shows = "".join(
@@ -1354,7 +1373,7 @@ _ENTRY = re.compile(r"^/[a-z][a-z0-9-]{0,29}/[a-z0-9-]{1,80}/\Z")
 _IMG = re.compile(r"^/media/([0-9a-f]{32}\.(?:jpg|png|webp))\Z")
 _UPLOAD = re.compile(r"^/upload/([A-Za-z0-9_-]{32})\Z")
 _ADD = re.compile(r"^/passkey/([A-Za-z0-9_-]{32})(/options|/verify)?\Z")
-_PREVIEW = re.compile(r"^/review/([A-Za-z0-9_-]{8,40})/preview\Z")
+_PREVIEW = re.compile(r"^/review/([A-Za-z0-9_-]{8,40})/preview(/.*)?\Z")
 _REVIEW = re.compile(r"^/review/([A-Za-z0-9_-]{8,40})\Z")
 _BACK = re.compile(r"^/review/history/(\d{1,12})\Z")
 _WRITE_PREVIEW = re.compile(r"^/review/write/([a-z]{2,8}_[0-9a-f]{4,40})/preview\Z")
@@ -1564,7 +1583,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 )
             pv = _PREVIEW.search(path)
             if pv and m == "GET":
-                return await review_preview(req, cx, pv.group(1))
+                return await review_preview(req, cx, pv.group(1), pv.group(2) or "/")
             rid = _REVIEW.search(path)
             if rid:
                 return await (

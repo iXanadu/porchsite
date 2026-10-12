@@ -60,3 +60,22 @@ describe("review preview", () => {
     expect(await (await handle(new Request("https://site.example/"), e)).text()).toContain("Tea, on time.");
   });
 });
+
+describe("review preview of new pages", () => {
+  it("shows a new entry's own page, with links kept inside the preview", async () => {
+    const cookie = await signedIn();
+    const en = await content.createItem(db, who, "entry", { title: "The photo album", date: "2026-10-11", body: "Pictures from the weekend." }, undefined);
+    const r = await approvals.request(db, who, [en.id], "");
+    const home = await (await handle(new Request(`https://site.example/review/${r.id}/preview`, { headers: { Cookie: cookie } }), e)).text();
+    const link = /href="(\/review\/[^"]+\/preview\/[^"]*photo-album[^"]*)"/.exec(home);
+    expect(link).not.toBeNull();
+    const page = await handle(new Request(`https://site.example${link![1]}`, { headers: { Cookie: cookie } }), e);
+    expect(page.status).toBe(200);
+    const text = await page.text();
+    expect(text).toContain("Pictures from the weekend.");
+    expect(text).toContain("Preview: nothing is live yet.");
+    expect(text).not.toMatch(/href="\/(?!review\/|static\/|media\/|\/)/);
+    // Still the owner's only: signed out, it sends you to sign in.
+    expect((await handle(new Request(`https://site.example${link![1]}`), e)).status).toBe(303);
+  });
+});

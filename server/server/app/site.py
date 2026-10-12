@@ -119,7 +119,7 @@ async def home_page(db: Db, origin: str) -> str | None:
     return render(t, "home", views.home_view(v, release_of(v), origin))
 
 
-async def preview_page(db: Db, approval_id: str, origin: str) -> str | None:
+async def preview_page(db: Db, approval_id: str, origin: str, path: str = "/") -> str | None:
     """The home page with this approval's items published on top of what's
     live, in the theme it would have, its stylesheet and palette inline (a
     page's /static/ serves the LIVE theme, which before a first approval or a
@@ -137,7 +137,16 @@ async def preview_page(db: Db, approval_id: str, origin: str) -> str | None:
     t = await themes.load(db, str(v.site["theme"]))
     if not t:
         return None
-    return inline_css(t, v, render(t, "home", views.home_view(v, "preview", origin)))
+    if path == "/":
+        return inline_css(t, v, render(t, "home", views.home_view(v, "preview", origin)))
+    e = next((x for x in v.entries if x.get("page") == path and not x.get("external_url")), None)
+    if e:
+        return inline_css(t, v, render(t, "entry", views.entry_view(v, e, "preview", origin)))
+    arch = re.match(r"^/([a-z][a-z0-9-]{0,29})/(?:tags/([a-z0-9-]{1,30})/)?\Z", path)
+    av = views.archive_view(v, arch.group(1), "preview", origin, arch.group(2)) if arch else None
+    if av:
+        return inline_css(t, v, render(t, "tag" if arch.group(2) else "archive", av))
+    return ""
 
 
 def inline_css(t: Any, v: SiteView, body: str) -> str:

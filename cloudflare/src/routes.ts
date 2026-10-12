@@ -428,6 +428,11 @@ function oauthError(error: unknown, status = 400): Response {
 }
 
 async function authorizeGet(env: Env, req: Request): Promise<Response> {
+  // Connecting before the claim would leave the app with a broken connector:
+  // say so, rather than sending them to the setup form.
+  if (!(await owner.hasOwner(env.DB))) {
+    return ownerPage("Not claimed yet", html`<h1>Not claimed yet</h1><p>This site hasn't been claimed by its owner yet, so no assistant can connect to it. Claim it first, with the claim link from the installer (or the setup link your assistant gave you). Then connect again: remove this connector and add it anew, so your app picks up the site's tools.</p>`, { status: 409 });
+  }
   const gate = await requireOwner(req, env);
   if (gate) return gate;
   try {
@@ -531,13 +536,29 @@ ${keyList.map(
 
 // --- owner: the site as it will look ------------------------------------------------
 
-/** The home page with this approval's items published on top of what's live, in the theme it would have. */
-async function reviewPreview(env: Env, req: Request, id: string): Promise<Response> {
+/** One page of the site as it will look in the theme it would have, or null if it has no such page. */
+function previewBody(t: themes.Theme | null, v: site.SiteView, path: string, origin: string): Promise<string> | string | null {
+  if (path === "/") return t ? theme.render(t, "home", theme.homeView(v, "preview", origin)) : site.home(v).text();
+  const e = v.entries.find((x) => x.page === path && !x.external_url);
+  if (e) return t ? theme.render(t, "entry", theme.entryView(v, e, "preview", origin)) : (site.entryPage(v, e.page)?.text() ?? null);
+  const arch = /^\/([a-z][a-z0-9-]{0,29})\/(?:tags\/([a-z0-9-]{1,30})\/)?$/.exec(path);
+  const av = t && arch ? theme.archiveView(v, arch[1], "preview", origin, arch[2]) : null;
+  return av ? theme.render(t!, arch![2] ? "tag" : "archive", av) : null;
+}
+
+/**
+ * The site with this approval's items published on top of what's live, in the
+ * theme it would have: every page, with its links kept inside the preview.
+ */
+async function reviewPreview(env: Env, req: Request, id: string, path = "/"): Promise<Response> {
   const a = await approvals.get(env.DB, id);
   const v = await site.proposedView(env.DB, a.items.filter((i) => i.status === "pending" || i.status === "published").map((i) => ({ id: i.id, version: i.version })));
   const t = await themes.load(env.DB, String(v.site.theme));
   const origin = new URL(req.url).origin;
-  const body = await inlineCss(t, v, t ? theme.render(t, "home", theme.homeView(v, "preview", origin)) : await site.home(v).text());
+  const page = await previewBody(t, v, path, origin);
+  if (page === null) return await notFoundPage(req, env);
+  const base = `/review/${a.id}/preview`;
+  const body = (await inlineCss(t, v, page)).replace(/(href=")\/(?!\/|static\/|media\/|review\/)([^"]*")/g, `$1${base}/$2`);
   const pending = a.items.some((i) => i.status === "pending");
   const raised = await visibility.raises(env.DB, a.items.filter((i) => i.status === "pending"));
   const csrf = await owner.csrf(req);
@@ -1041,8 +1062,8 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (wp && m === "GET") return await writePreview(env, req, wp[1]);
       const w = /^\/review\/write\/(new|[a-z]{2,8}_[0-9a-f]{4,40})$/.exec(path);
       if (w) return await (m === "POST" ? writeSave(env, req, w[1]) : writeEdit(env, req, w[1]));
-      const pv = /^\/review\/([A-Za-z0-9_-]{8,40})\/preview$/.exec(path);
-      if (pv && m === "GET") return await reviewPreview(env, req, pv[1]);
+      const pv = /^\/review\/([A-Za-z0-9_-]{8,40})\/preview(\/.*)?$/.exec(path);
+      if (pv && m === "GET") return await reviewPreview(env, req, pv[1], pv[2] || "/");
       const rid = /^\/review\/([A-Za-z0-9_-]{8,40})$/.exec(path);
       if (rid) return await (m === "POST" ? reviewDecide(env, req, rid[1]) : reviewShow(env, req, rid[1]));
     }
