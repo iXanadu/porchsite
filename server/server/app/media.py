@@ -219,8 +219,14 @@ async def localize(
 
 async def published(db: Db, name: str) -> bool:
     """Whether a published item uses this image: only then may anyone see it (S1)."""
+    if await db.fetchrow("SELECT 1 FROM live WHERE strpos(data, $1) > 0 LIMIT 1", f"/media/{name}"):
+        return True
+    # A published entry's share card is public too.
     return bool(
-        await db.fetchrow("SELECT 1 FROM live WHERE strpos(data, $1) > 0 LIMIT 1", f"/media/{name}")
+        await db.fetchrow(
+            "SELECT 1 FROM share_cards s JOIN live l ON l.item_id = s.item_id WHERE s.name = $1 LIMIT 1",
+            name,
+        )
     )
 
 

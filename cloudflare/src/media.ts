@@ -187,7 +187,9 @@ export async function localize(
 
 /** Whether a published item uses this image: only then may anyone see it (S1). */
 export async function published(db: D1Database, name: string): Promise<boolean> {
-  return !!(await db.prepare("SELECT 1 FROM live WHERE instr(data, ?) > 0 LIMIT 1").bind(`/media/${name}`).first());
+  if (await db.prepare("SELECT 1 FROM live WHERE instr(data, ?) > 0 LIMIT 1").bind(`/media/${name}`).first()) return true;
+  // A published entry's share card is public too.
+  return !!(await db.prepare("SELECT 1 FROM share_cards s JOIN live l ON l.item_id = s.item_id WHERE s.name = ? LIMIT 1").bind(name).first());
 }
 
 async function bytesOf(db: D1Database, name: string): Promise<Uint8Array> {

@@ -29,6 +29,8 @@ export interface SiteView {
   updated: string;
   /** The hero image's pixel size, when known. */
   hero_size: [number, number];
+  /** Each entry's share card, /media/<name>, when it matches the entry's version. */
+  share_cards?: Record<string, string>;
   /** When the page is being made (tests set it); default: now. */
   now?: Date;
 }
@@ -75,7 +77,7 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
     .prepare("SELECT l.*, i.created_at FROM live l LEFT JOIN items i ON i.id = l.item_id ORDER BY l.item_id")
     .all<LiveRow & { created_at: string | null }>();
   const rows = new Map(
-    results.map((r) => [r.item_id, { id: r.item_id, kind: r.kind, slug: r.slug, data: JSON.parse(r.data) as Data, published_at: r.published_at, created: r.created_at ?? "" }]),
+    results.map((r) => [r.item_id, { id: r.item_id, kind: r.kind, slug: r.slug, data: JSON.parse(r.data) as Data, published_at: r.published_at, created: r.created_at ?? "", version: r.version }]),
   );
   const now = new Date().toISOString();
   // Every change's revision in one query.
@@ -92,7 +94,7 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
     const rev = byChange.get(`${c.id}@${c.version}`);
     if (!rev) continue;
     if (rev.deleted) rows.delete(c.id);
-    else rows.set(c.id, { id: c.id, kind: rev.kind, slug: rev.slug, data: JSON.parse(rev.data), published_at: now, created: rev.created_at });
+    else rows.set(c.id, { id: c.id, kind: rev.kind, slug: rev.slug, data: JSON.parse(rev.data), published_at: now, created: rev.created_at, version: c.version });
   }
   // The writing desk's preview shows a draft as it will look once published.
   const shown = ready ? rows.get(ready) : undefined;
@@ -100,6 +102,8 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   const siteRow = rows.get(SITE_ID);
   const site = validate("site", siteRow ? siteRow.data : {});
   const v = view(site, [...rows.values()].filter((r) => r.kind !== "site"));
+  const { results: cards } = await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>();
+  v.share_cards = Object.fromEntries(cards.filter((c) => rows.get(c.item_id)?.version === c.version).map((c) => [c.item_id, `/media/${c.name}`]));
   const hero = /^\/media\/([0-9a-f]{32}\.(?:jpg|png|webp))$/.exec(String(site.hero));
   if (hero) {
     v.hero_size = await sizeOf(db, hero[1]);

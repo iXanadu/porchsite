@@ -18,6 +18,7 @@ import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
 import * as owner from "./owner";
 import * as requests from "./requests";
+import * as sharecards from "./sharecards";
 import * as site from "./site";
 import * as theme from "./theme";
 import * as themes from "./themes";
@@ -265,8 +266,9 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     "Review",
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
-<form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>`,
-    { signedIn: true },
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
+<div id="share-cards" hidden data-csrf="${await owner.csrf(req)}"></div>`,
+    { signedIn: true, script: sharecards.CARD_JS },
   );
 }
 
@@ -383,7 +385,11 @@ async function reviewDecide(env: Env, req: Request, id: string): Promise<Respons
   }
   const origin = new URL(req.url).origin;
   if (all === "approve") {
-    return ownerPage("Live", html`<h1>Your site is updated</h1><p>The changes are live now at <a href="/">${origin.replace(/^https:\/\//, "")}</a>.</p><p><a class="button" href="/">See your site</a></p><p><a href="/review">Back to your reviews</a></p>`, { signedIn: true });
+    return ownerPage(
+      "Live",
+      html`<h1>Your site is updated</h1><p>The changes are live now at <a href="/">${origin.replace(/^https:\/\//, "")}</a>.</p><p><a class="button" href="/">See your site</a></p><p><a href="/review">Back to your reviews</a></p><div id="share-cards" hidden data-csrf="${await owner.csrf(req)}"></div>`,
+      { signedIn: true, script: sharecards.CARD_JS },
+    );
   }
   if (all === "changes") {
     return ownerPage("Sent back", html`<h1>Your assistant has been told</h1><p>Nothing changed on your site. Your assistant will see your note and send you the changes to look at again.</p><p><a href="/review">Back to your reviews</a></p>`, { signedIn: true });
@@ -952,6 +958,15 @@ async function route(req: Request, env: Env): Promise<Response> {
       const gate = await requireOwner(req, env);
       if (gate) return gate;
       if (path === "/review" && m === "GET") return await reviewIndex(env, req);
+      // Share cards: the owner's browser draws them (sharecards.ts).
+      if (path === "/review/cards.json" && m === "GET") return json({ cards: await sharecards.missing(env.DB, url.hostname) });
+      const card = /^\/review\/cards\/([a-z]{2,8}_[0-9a-f]{4,40})$/.exec(path);
+      if (card && m === "POST") {
+        if (req.headers.get("X-CSRF") !== (await owner.csrf(req))) return json({ error: "csrf", message: "This page expired. Reload it." }, 403);
+        const version = Number(url.searchParams.get("version"));
+        await sharecards.save(env.DB, card[1], version, new Uint8Array(await req.arrayBuffer()));
+        return new Response(null, { status: 204 });
+      }
       if (path === "/review/passkeys") {
         if (m === "POST") {
           const form = await req.formData();

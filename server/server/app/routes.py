@@ -31,6 +31,7 @@ from . import (
     old_addresses,
     owner,
     requests,
+    sharecards,
     site,
     themes,
     updates,
@@ -452,6 +453,9 @@ def _unsent_line(n: int) -> str:
     return f'<p class="meta">{what} not yet sent to you for review. Nothing goes live until you approve it.</p>'
 
 
+_CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
+
+
 async def review_index(req: Request, cx: Context) -> Response:
     every = await approvals.list(cx.db)
     open_ = [a for a in every if any(i["status"] == "pending" for i in a["items"])]
@@ -479,8 +483,10 @@ async def review_index(req: Request, cx: Context) -> Response:
         "Review",
         f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{_unsent_line(await approvals.unsent(cx.db))}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
-<form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>""",
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
+<div id="share-cards" hidden data-csrf="{esc(owner.csrf(req))}"></div>""",
         signed_in=True,
+        script=sharecards.CARD_JS,
     )
 
 
@@ -665,8 +671,10 @@ async def review_decide(req: Request, cx: Context, id: str) -> Response:
         shown = re.sub(r"^https://", "", origin)
         return owner_page(
             "Live",
-            f'<h1>Your site is updated</h1><p>The changes are live now at <a href="/">{esc(shown)}</a>.</p><p><a class="button" href="/">See your site</a></p><p><a href="/review">Back to your reviews</a></p>',
+            f'<h1>Your site is updated</h1><p>The changes are live now at <a href="/">{esc(shown)}</a>.</p><p><a class="button" href="/">See your site</a></p><p><a href="/review">Back to your reviews</a></p>'
+            f'<div id="share-cards" hidden data-csrf="{esc(owner.csrf(req))}"></div>',
             signed_in=True,
+            script=sharecards.CARD_JS,
         )
     if every == "changes":
         return owner_page(
@@ -1437,6 +1445,22 @@ async def _route(req: Request, cx: Context) -> Response:
                 return gate
             if path == "/review" and m == "GET":
                 return await review_index(req, cx)
+            # Share cards: the owner's browser draws them (sharecards.py).
+            if path == "/review/cards.json" and m == "GET":
+                host = urlsplit(origin_of(req)).hostname or ""
+                return json_response({"cards": await sharecards.missing(cx.db, host)})
+            card = _CARD.search(path)
+            if card and m == "POST":
+                if req.headers.get("x-csrf") != owner.csrf(req):
+                    return json_response(
+                        {"error": "csrf", "message": "This page expired. Reload it."}, 403
+                    )
+                try:
+                    version = int(req.query_params.get("version") or "0")
+                except ValueError:
+                    version = 0
+                await sharecards.save(cx.db, card.group(1), version, await req.body())
+                return Response(status_code=204)
             if path == "/review/passkeys":
                 if m == "POST":
                     form = await _form(req)

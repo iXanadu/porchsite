@@ -102,7 +102,7 @@ Every page gets:
 | `nav` | `[{href, label}]` in the owner's section order, only sections with something in them (a stream with entries, any cards, a non-empty About) |
 | `feeds` | `[{title, url}]` the site's Atom feeds |
 | `kit` | `css_url`, `beacon_url` (the kit's analytics beacon, SPEC §8; a template includes it with `<script src="{{kit.beacon_url}}" defer>` and puts `data-kind="{{meta.kind}}" data-id="{{meta.content_id}}"` on `<body>`), `filter_url`, `search_url` |
-| `meta` | `title`, `description`, `og_type`, `url`, `image`, `image_alt`, `kind`, `content_id`. `image` is the page's share picture: an entry's cover; on an archive or tag page, the cover of its newest entry that has one; otherwise the site's share image, else its hero |
+| `meta` | `title`, `description`, `og_type`, `url`, `image`, `image_alt`, `kind`, `content_id`. `image` is the page's share picture: an entry's share card (SPEC §5), else its cover; on an archive or tag page, the cover of its newest entry that has one; otherwise the site's share image, else its hero |
 
 **Blocks** (on `site`, display-ready in the site's timezone, computed when
 the page is served):

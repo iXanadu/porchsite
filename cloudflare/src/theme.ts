@@ -264,7 +264,7 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
 export function entryView(v: SiteView, e: Data, release: string, origin: string): Data {
   const stream = streams(v.site).find((x) => x.id === e.stream)!;
   return {
-    ...base(v, release, origin, { kind: "entry", content_id: e.id, title: `${e.title} · ${v.site.title}`, description: e.summary || e.title, path: e.url, og_type: "article", image: e.cover || undefined }),
+    ...base(v, release, origin, { kind: "entry", content_id: e.id, title: `${e.title} · ${v.site.title}`, description: e.summary || e.title, path: e.url, og_type: "article", image: v.share_cards?.[e.id] || e.cover || undefined }),
     entry: entry(e, stream, "", ctxOf(v)),
     stream,
     // Where to go next from this page: the site's main button, or the second

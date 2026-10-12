@@ -54,6 +54,7 @@ async def proposed_view(
             "data": json.loads(r["data"]),
             "published_at": r["published_at"],
             "created": r["created_at"] or "",
+            "version": r["version"],
         }
         for r in await db.fetch(
             "SELECT l.*, i.created_at FROM live l LEFT JOIN items i ON i.id = l.item_id"
@@ -80,6 +81,7 @@ async def proposed_view(
                 "data": json.loads(rev["data"]),
                 "published_at": at,
                 "created": rev["created_at"],
+                "version": c["version"],
             }
     # The writing desk's preview shows a draft as it will look once published.
     shown = rows.get(ready) if ready else None
@@ -88,6 +90,11 @@ async def proposed_view(
     site_row = rows.get(SITE_ID)
     site = validate("site", site_row["data"] if site_row else {})
     v = view(site, [r for r in rows.values() if r["kind"] != "site"])
+    v.share_cards = {
+        c["item_id"]: f"/media/{c['name']}"
+        for c in await db.fetch("SELECT item_id, version, name FROM share_cards")
+        if c["item_id"] in rows and rows[c["item_id"]].get("version") == c["version"]
+    }
     hero = LOCAL.search(str(site.get("hero")))
     if hero:
         v.hero_size = await size_of(db, hero.group(1))

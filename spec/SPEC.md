@@ -252,6 +252,16 @@ instead. No button: the assistant updates, when the owner says so.
   added and removed entries for lists), with a count of the unchanged
   ones; a new item shows all it says; a removal says it will be taken off.
   The confirm step of a revert shows the same rows.
+- **Share cards.** A published entry's share picture (`og:image`) is its
+  share card when it has one for its current version: its photo (the
+  cover, else the site's share image or hero) filling 1200 x 630, with its
+  title over the bottom in large type and the stream's name and the site's
+  address above it. The owner's browser draws them: owner pages fetch
+  `GET /review/cards.json` (published entries whose card is missing or
+  older than the entry) and send each card back as a JPEG to
+  `POST /review/cards/<id>?version=<n>` (owner only, with the page's CSRF
+  token; exactly 1200 x 630, at most 800 KB). A card is public once its
+  entry is. The site itself does no image work.
 - `/review/history`: every publish, newest first (when, who, what went live
   or came off, and the owner's note). "Put the site back to this", after a
   confirm step, restores every item to its version at that publish: each

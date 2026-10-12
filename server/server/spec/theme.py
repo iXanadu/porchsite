@@ -422,7 +422,7 @@ def entry_view(v: SiteView, e: Data, release: str, origin: str) -> Data:
         "description": e.get("summary") or e["title"],
         "path": e["url"],
         "og_type": "article",
-        "image": e.get("cover") or None,
+        "image": v.share_cards.get(e["id"]) or e.get("cover") or None,
     }
     return {
         **base(v, release, origin, meta),

@@ -165,6 +165,19 @@ CREATE TABLE analytics_daily (
 );
 """,
     ),
+    (
+        # cloudflare/migrations/0014_share_cards.sql: which stored image is
+        # each entry's share card, at which version (SPEC §5).
+        "0008_share_cards",
+        """
+CREATE TABLE share_cards (
+  item_id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+""",
+    ),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

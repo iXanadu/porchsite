@@ -19,6 +19,8 @@ class SiteView:
     updated: str = ""
     # The hero image's pixel size, when known.
     hero_size: tuple[int, int] = (0, 0)
+    # Each entry's share card, /media/<name>, when it matches the entry's version.
+    share_cards: dict[str, str] = field(default_factory=dict)
     # When the page is being made; None: now.
     now: datetime | None = field(default=None)
 
