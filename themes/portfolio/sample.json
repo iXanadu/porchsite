@@ -1,0 +1,355 @@
+{
+ "site": {
+  "title": "Ines Calder",
+  "logo_text": "Ines Calder",
+  "theme": "portfolio",
+  "palette": "",
+  "timezone": "America/Chicago",
+  "tagline": "Ines Calder draws maps, covers and quiet places.",
+  "intro": "Illustrator and map-maker. I draw places that are easy to get lost in, and signs that help you out of them.",
+  "description": "The work of Ines Calder, illustrator and map-maker.",
+  "footer_line": "© Ines Calder",
+  "notice": {
+   "text": "Booking commissions for spring 2027.",
+   "until": "2099-12-31"
+  },
+  "contact": {
+   "email": "hello@example.com",
+   "social": [
+    {
+     "kind": "Instagram",
+     "url": "https://example.com/instagram"
+    },
+    {
+     "kind": "Behance",
+     "url": "https://example.com/behance"
+    },
+    {
+     "kind": "Newsletter",
+     "url": "https://example.com/news"
+    }
+   ]
+  },
+  "buttons": [
+   {
+    "label": "Download CV",
+    "url": "https://example.com/cv.pdf",
+    "note": "PDF, 2 pages"
+   }
+  ],
+  "streams": [
+   {
+    "id": "projects",
+    "title": "Projects",
+    "layout": "list",
+    "intro": "The longer story behind some of the work."
+   },
+   {
+    "id": "shows",
+    "title": "Exhibitions",
+    "layout": "list"
+   }
+  ],
+  "sections": [
+   "cards",
+   "projects",
+   "shows",
+   "about"
+  ],
+  "cards_title": "Work",
+  "about": "I grew up on a coast that changed shape every winter, and I have been drawing maps of it ever since.\n\nI work in pencil and ink, then print by risograph or screen. Clients include publishers, small museums and one very patient ferry company."
+ },
+ "items": [
+  {
+   "kind": "entry",
+   "slug": "harbour-atlas",
+   "data": {
+    "stream": "projects",
+    "title": "The Harbour Atlas",
+    "date": "2026-09-14",
+    "summary": "Twelve hand-drawn charts of an imaginary coast, printed as a folding atlas.",
+    "tags": [
+     "maps",
+     "print"
+    ],
+    "body": "A year of drawing one coast, a bay at a time.\n\n## How it was made\n\nPencil first, then ink on drafting film, then two-colour risograph.\n\n> Every map is a decision about what to leave out.",
+    "stats": [
+     {
+      "value": "12",
+      "label": "charts"
+     },
+     {
+      "value": "2",
+      "label": "inks"
+     },
+     {
+      "value": "300",
+      "label": "copies"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "night-garden",
+   "data": {
+    "stream": "projects",
+    "title": "Night Garden",
+    "date": "2026-06-02",
+    "summary": "Covers and chapter openers for a novel set in a greenhouse.",
+    "tags": [
+     "books"
+    ],
+    "body": "Eight drawings in a palette of two greens and a lamp yellow."
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "river-signs",
+   "data": {
+    "stream": "projects",
+    "title": "River signs",
+    "date": "2026-03-20",
+    "summary": "Wayfinding for a riverside walk: forty signs and one map.",
+    "tags": [
+     "maps",
+     "signs"
+    ],
+    "body": "Signs a walker can read from a bicycle."
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "show-2027",
+   "data": {
+    "stream": "shows",
+    "title": "Lines of the Coast",
+    "date": "2027-03-12",
+    "summary": "A show of the Harbour Atlas drawings, with the plates.",
+    "body": "The original drawings and the printing plates, side by side.",
+    "event": {
+     "start": "2027-03-12T18:00",
+     "end": "2027-03-12T21:00",
+     "place": {
+      "name": "Northlight Gallery",
+      "address": "12 Example Street, Rivertown",
+      "map_link": "https://example.com/map"
+     },
+     "rsvp": {
+      "label": "RSVP for the opening",
+      "link": "https://example.com/rsvp",
+      "deadline": "2027-03-05"
+     },
+     "schedule": [
+      {
+       "time": "18:00",
+       "title": "Doors open"
+      },
+      {
+       "time": "19:00",
+       "title": "A short talk",
+       "note": "about drawing coasts"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "fair-2027",
+   "data": {
+    "stream": "shows",
+    "title": "Small Press Fair",
+    "date": "2027-05-08",
+    "summary": "A table of prints and atlases.",
+    "body": "Table 14.",
+    "event": {
+     "start": "2027-05-08T10:00",
+     "end": "2027-05-08T17:00",
+     "place": {
+      "name": "Old Corn Exchange",
+      "address": "Market Square, Rivertown"
+     }
+    }
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "show-2025",
+   "data": {
+    "stream": "shows",
+    "title": "Paper Weather",
+    "date": "2025-11-07",
+    "summary": "A group show of drawn weather.",
+    "body": "Three prints.",
+    "event": {
+     "start": "2025-11-07T18:00",
+     "end": "2025-11-07T20:00",
+     "place": {
+      "name": "Studio Seven"
+     }
+    }
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "The Harbour Atlas",
+    "description": "A folding atlas of twelve charts of a coast that doesn't exist.",
+    "group": "Selected work",
+    "sort": 10,
+    "subtitle": "Risograph atlas · 2026",
+    "link": "/projects/harbour-atlas/",
+    "tags": [
+     "maps",
+     "print"
+    ]
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Night Garden",
+    "description": "Covers and chapter openers for a greenhouse novel.",
+    "group": "Selected work",
+    "sort": 20,
+    "subtitle": "Book covers · 2026",
+    "link": "/projects/night-garden/"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "River signs",
+    "description": "Forty signs and one map for a riverside walk.",
+    "group": "Selected work",
+    "sort": 30,
+    "subtitle": "Wayfinding · 2026",
+    "link": "/projects/river-signs/"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Small birds",
+    "description": "A set of six bird prints for a nature trust.",
+    "group": "Selected work",
+    "sort": 40,
+    "subtitle": "Screen prints · 2025"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Tidal clock",
+    "description": "A poster that tells the tide by the hour.",
+    "group": "Selected work",
+    "sort": 50,
+    "subtitle": "Poster · 2025",
+    "badge": "Prints left",
+    "badge_tone": "live"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Field notes",
+    "description": "Sketchbook pages from a summer of walking.",
+    "group": "Selected work",
+    "sort": 60,
+    "subtitle": "Sketchbook · 2024"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "A map of your place",
+    "description": "A drawn map of a town, a campus or a garden, ready to print.",
+    "group": "Commissions",
+    "sort": 110,
+    "price": "From $1,200",
+    "link": "#contact",
+    "link_label": "Ask about a map"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Book cover",
+    "description": "A cover and spine, with two rounds of sketches.",
+    "group": "Commissions",
+    "sort": 120,
+    "price": "From $900"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Editorial drawing",
+    "description": "One drawing for an article, in a week.",
+    "group": "Commissions",
+    "sort": 130,
+    "price": "From $350"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Freelance illustrator",
+    "description": "Maps, covers and editorial drawings for publishers and studios.",
+    "group": "Experience",
+    "sort": 210,
+    "subtitle": "Self-employed",
+    "period": "2021 – now"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Senior designer",
+    "description": "Led the maps and wayfinding team; drew the city's cycle map.",
+    "group": "Experience",
+    "sort": 220,
+    "subtitle": "Example Design Studio",
+    "period": "2016 – 2021",
+    "tags": [
+     "wayfinding",
+     "maps"
+    ]
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Junior designer",
+    "description": "Books, posters and a lot of kerning.",
+    "group": "Experience",
+    "sort": 230,
+    "subtitle": "Example Press",
+    "period": "2013 – 2016"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "MA Illustration",
+    "description": "Thesis on hand-drawn maps in the age of satellites.",
+    "group": "Education",
+    "sort": 310,
+    "subtitle": "Example School of Art",
+    "period": "2011 – 2013"
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "BA Graphic Design",
+    "description": "First-class honours.",
+    "group": "Education",
+    "sort": 320,
+    "subtitle": "Example University",
+    "period": "2008 – 2011"
+   }
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+{{#site.hours.has}}<div class="times">
+<ul class="days">
+{{#site.hours.days}}{{^closed}}<li{{#today}} class="today"{{/today}}><b>{{day}}</b><span>{{hours}}</span></li>
+{{/closed}}{{/site.hours.days}}</ul>
+{{#site.hours.note}}<p class="times-note">{{site.hours.note}}</p>
+{{/site.hours.note}}{{#site.hours.has_exceptions}}<div class="exceptions">
+<h3>{{strings.holiday_hours}}</h3>
+<ul>
+{{#site.hours.exceptions}}<li><b>{{when}}</b> <span>{{label}}</span> <em>{{hours}}</em></li>
+{{/site.hours.exceptions}}</ul>
+</div>
+{{/site.hours.has_exceptions}}</div>
+{{/site.hours.has}}

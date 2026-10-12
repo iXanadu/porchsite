@@ -1,0 +1,16 @@
+</main>
+<footer class="foot">
+<div class="w">
+<p class="orn" aria-hidden="true">✦</p>
+{{#site.footer_line}}<p class="foot-line">{{site.footer_line}}</p>{{/site.footer_line}}
+<p class="foot-name">{{site.site_name}}</p>
+{{#site.contact.has_address}}<p>{{site.contact.address_one_line}}</p>{{/site.contact.has_address}}
+<p>{{#site.contact.phone}}<a href="{{site.contact.phone_href}}">{{site.contact.phone}}</a>{{/site.contact.phone}}{{#site.contact.email}} · <a href="{{site.contact.email_href}}">{{site.contact.email}}</a>{{/site.contact.email}}</p>
+{{#site.contact_line}}<p>{{site.contact_line}}</p>{{/site.contact_line}}
+{{#site.contact.has_social}}<p class="social">{{#site.contact.social}}<a href="{{url}}">{{kind}}</a> {{/site.contact.social}}</p>{{/site.contact.has_social}}
+<p><a href="#top">{{strings.back_to_top}}</a></p>
+</div>
+</footer>
+<script src="{{kit.beacon_url}}" defer></script>
+</body>
+</html>

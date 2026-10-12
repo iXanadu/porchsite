@@ -1,0 +1,42 @@
+{{> head}}
+<header class="me">
+{{#site.logo}}<img class="avatar" src="{{site.logo}}" alt="{{site.logo_alt}}" width="112" height="112">{{/site.logo}}
+<h1>{{site.site_name}}</h1>
+{{#site.tagline}}<p class="line">{{site.tagline}}</p>{{/site.tagline}}
+{{#page.lede}}<p class="lede">{{page.lede}}</p>{{/page.lede}}
+</header>
+{{#site.has_buttons}}<ul class="buttons">
+{{#site.buttons}}<li><a class="button" href="{{url}}"><span class="button-label">{{label}}</span>{{#note}}<span class="button-note">{{note}}</span>{{/note}}</a></li>
+{{/site.buttons}}</ul>
+{{/site.has_buttons}}
+{{#site.contact.has_social}}<ul class="social">{{#site.contact.social}}<li><a href="{{url}}">{{kind}}</a></li>{{/site.contact.social}}</ul>
+{{/site.contact.has_social}}
+{{#sections}}
+{{#is_entries}}{{#show}}
+<section class="block" id="{{stream.anchor}}">
+<h2>{{stream.title}}</h2>
+<ul class="updates">
+{{#has_upcoming}}{{#upcoming}}{{> update}}{{/upcoming}}{{/has_upcoming}}{{^has_upcoming}}{{#items}}{{> update}}{{/items}}{{/has_upcoming}}
+</ul>
+<p class="all"><a href="{{stream.archive_url}}">{{stream.all_label}}{{count_suffix}}</a></p>
+</section>
+{{/show}}{{/is_entries}}
+{{#is_cards}}{{#show}}
+<section class="block" id="{{anchor}}">
+<h2>{{title}}</h2>
+{{#by_group}}{{#label}}<h3>{{label}}</h3>{{/label}}
+<ul class="cards">
+{{#cards}}<li class="card">{{#link}}<a href="{{link}}">{{/link}}<span class="card-top"><span class="card-name">{{name}}</span>{{#price}}<span class="card-price">{{price}}</span>{{/price}}{{#period}}<span class="card-price">{{period}}</span>{{/period}}</span>
+{{#subtitle}}<span class="card-sub">{{subtitle}}</span>{{/subtitle}}<span class="card-desc">{{description}}</span>{{#link}}</a>{{/link}}</li>
+{{/cards}}</ul>
+{{/by_group}}
+</section>
+{{/show}}{{/is_cards}}
+{{#is_about}}
+<section class="block about" id="{{anchor}}">
+<h2>{{title}}</h2>
+{{#paragraphs}}<p>{{.}}</p>
+{{/paragraphs}}</section>
+{{/is_about}}
+{{/sections}}
+{{> foot}}

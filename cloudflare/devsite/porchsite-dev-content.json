@@ -1,0 +1,137 @@
+{
+ "site": {
+  "title": "Porchsite",
+  "tagline": "Your website, kept by your assistant.",
+  "intro": "Tell your AI assistant what's new. It writes the page, and nothing goes live until you tap approve. Free, on your own Cloudflare account.",
+  "description": "A personal website your AI assistant builds and keeps up to date. Free on your own Cloudflare account; nothing goes live without your yes.",
+  "hero_caption": "Vol. I — October 2026 · A website your assistant keeps · Free on Cloudflare · Passkey approval · MIT",
+  "theme": "product-page",
+  "handle": "cooksbayouboy",
+  "follow_label": "Follow the author",
+  "footer_line": "Porchsite · MIT licence · This site was built and is kept by an assistant",
+  "cta_label": "Install it",
+  "cta_link": "/pages/2026-10-07-install/",
+  "cta2_label": "How it works",
+  "cta2_link": "/pages/2026-10-09-how-it-works/",
+  "links": [
+   {
+    "label": "How it works",
+    "url": "/pages/2026-10-09-how-it-works/"
+   },
+   {
+    "label": "For assistants",
+    "url": "/pages/2026-10-08-for-assistants/"
+   },
+   {
+    "label": "Install",
+    "url": "/pages/2026-10-07-install/"
+   }
+  ],
+  "streams": [
+   {
+    "id": "front",
+    "title": "Overview",
+    "layout": "feature"
+   },
+   {
+    "id": "pages",
+    "title": "Read more",
+    "layout": "list"
+   }
+  ],
+  "sections": [
+   "front",
+   "cards",
+   "pages"
+  ],
+  "cards_title": "Nothing goes live without your yes",
+  "palette": "slate"
+ },
+ "items": [
+  {
+   "kind": "entry",
+   "data": {
+    "stream": "front",
+    "title": "Overview",
+    "date": "2026-10-10",
+    "stats": [
+     {
+      "value": "$0",
+      "label": "a month, on Cloudflare's free plan"
+     },
+     {
+      "value": "1",
+      "label": "sentence to your assistant to start"
+     },
+     {
+      "value": "4",
+      "label": "things you do yourself, once"
+     },
+     {
+      "value": "0",
+      "label": "changes live without your tap"
+     }
+    ],
+    "body": "> A bowerbird doesn't build its display once. It keeps it, every day, one blue feather at a time.\n\n## This page is the proof\n\nAn AI assistant built this site from the public install guide and keeps it up to date. No one wrote code for it. Every change you see here was approved by its owner with a passkey before it went live.\n\n## Say it out loud\n\nTell your assistant: *Set up Porchsite from porchsite.dev.* It sets up the site on your own Cloudflare account, one step at a time, and asks you only for what it can't do itself.\n\nAfter that you talk, it writes. A trip, a project, a photo from your phone: your assistant drafts the page and sends you a link to approve.\n\n## What it is instead of\n\n- **A website builder** — you drag boxes around, then stop updating it\n- **A blog platform** — another login, another editor, another thing to remember\n- **Paying a developer** — every change is an email and an invoice\n- **Letting an AI publish for you** — fast, until it posts something you never saw\n\nPorchsite does one thing: it lets your assistant keep your site, and keeps you in charge of what goes live."
+   }
+  },
+  {
+   "kind": "entry",
+   "data": {
+    "stream": "pages",
+    "title": "How it works",
+    "date": "2026-10-09",
+    "summary": "From one sentence to a live site, and what happens after.",
+    "body": "## 1. Install\n\nYour assistant follows the install guide at porchsite.dev. Every step is one call to Cloudflare. No git, no terminal.\n\n## 2. Claim it\n\nYou open your new site once and save a passkey. From then on, that passkey is the only thing that can approve a change.\n\n## 3. Connect\n\nYour assistant connects to your site's tools. You approve the connection with the same passkey.\n\n## 4. Keep it\n\nTell it what's new. It drafts, you approve, the page goes live."
+   }
+  },
+  {
+   "kind": "entry",
+   "data": {
+    "stream": "pages",
+    "title": "For assistants",
+    "date": "2026-10-08",
+    "summary": "Start at llms.txt. Everything an assistant needs is there.",
+    "body": "Read [llms.txt](https://get.porchsite.dev/llms.txt), then the [install guide](https://get.porchsite.dev/install.md). The current version and its file hashes are in [latest.json](https://get.porchsite.dev/latest.json).\n\nAfter installing, connect to the site's tool server at `https://<site>/mcp` and call `site_state` first."
+   }
+  },
+  {
+   "kind": "entry",
+   "data": {
+    "stream": "pages",
+    "title": "Install",
+    "date": "2026-10-07",
+    "summary": "Tell your assistant: Set up Porchsite from porchsite.dev.",
+    "body": "That's the whole instruction. Your assistant will ask you to make a free Cloudflare account if you don't have one, and to let it in.\n\nTested with Grok and Claude. Others are being tested."
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Every change waits for you",
+    "description": "Your assistant drafts. The page stays as it was until you approve, on your phone, with your passkey."
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Your account, your site",
+    "description": "It runs on your own Cloudflare account. Nobody else hosts it, and you can take it anywhere."
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Secrets never enter the chat",
+    "description": "Tokens go through your assistant's secret field, never into a message, a memory or a file."
+   }
+  },
+  {
+   "kind": "card",
+   "data": {
+    "name": "Every version kept",
+    "description": "Each change is kept. Your assistant can put anything back the way it was."
+   }
+  }
+ ]
+}

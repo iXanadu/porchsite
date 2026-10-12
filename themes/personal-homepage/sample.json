@@ -1,0 +1,27 @@
+{
+  "site": {
+    "title": "Sam Rivera",
+    "tagline": "I build wooden boats.",
+    "intro": "Small boats, mostly by hand, on the river behind the shop. My assistant keeps the log; I do the planing.",
+    "handle": "example_handle",
+    "footer_line": "Open to commissions.",
+    "contact_line": "DM me on X",
+    "cta_label": "Read my writing",
+    "cta_link": "/writing/",
+    "timezone": "America/Chicago",
+    "streams": [
+      {"id": "journal", "title": "The shop log", "byline": "Kept by my assistant", "layout": "feature", "author": "Helper", "intro": "What happened in the shop this week."},
+      {"id": "writing", "title": "Writing", "byline": "Written by me", "layout": "list", "link_label": "Read on Substack"}
+    ],
+    "sections": ["journal", "cards", "writing", "about"],
+    "cards_title": "Boats",
+    "about": "I started with a canoe kit in 2019 and never stopped.\n\nEvery boat here was built in the shop behind my house."
+  },
+  "items": [
+    {"kind": "entry", "data": {"stream": "journal", "title": "Hull planked", "date": "2026-10-08", "summary": "The last cedar strip went on Thursday.", "body": "All **planked**, faired by Saturday.", "stats": [{"value": "86", "label": "strips"}, {"value": "14", "label": "days"}]}},
+    {"kind": "entry", "data": {"stream": "writing", "title": "Why wood still wins", "date": "2026-10-05", "summary": "An essay on cedar, epoxy and patience.", "external_url": "https://example.com/why-wood"}},
+    {"kind": "entry", "data": {"stream": "writing", "title": "The first canoe", "date": "2026-09-20", "summary": "What a kit taught me about doing it twice.", "external_url": "https://example.com/first"}},
+    {"kind": "card", "data": {"name": "River skiff", "description": "A 14-foot skiff for two.", "badge": "Launched", "badge_tone": "live"}},
+    {"kind": "card", "data": {"name": "Cedar canoe", "description": "Strip-built, 16 feet.", "badge": "Building", "badge_tone": "building"}}
+  ]
+}

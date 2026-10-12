@@ -1,0 +1,62 @@
+# Porchsite, server edition: the app, its PostgreSQL database and Caddy in
+# front (automatic HTTPS for your domain). Settings come from .env beside
+# this file (copy .env.example). See README.md.
+#   docker compose up -d --build
+
+name: porchsite
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: server/Dockerfile
+    image: porchsite-server:local
+    restart: unless-stopped
+    environment:
+      PORCHSITE_DSN: postgresql://porchsite:${PORCHSITE_DB_PASSWORD:?set PORCHSITE_DB_PASSWORD in .env}@db:5432/porchsite
+      PORCHSITE_SETUP_CODE: ${PORCHSITE_SETUP_CODE:-}
+      PORCHSITE_SITE_URL: ${PORCHSITE_SITE_URL:-https://${PORCHSITE_DOMAIN}}
+      PORCHSITE_RELEASE: ${PORCHSITE_RELEASE:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    # No published port: only Caddy reaches the app (the app trusts the
+    # forwarding headers of whoever reaches it).
+    expose:
+      - "8000"
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: porchsite
+      POSTGRES_DB: porchsite
+      POSTGRES_PASSWORD: ${PORCHSITE_DB_PASSWORD:?set PORCHSITE_DB_PASSWORD in .env}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U porchsite -d porchsite"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      PORCHSITE_DOMAIN: ${PORCHSITE_DOMAIN:?set PORCHSITE_DOMAIN in .env}
+    ports:
+      - "${PORCHSITE_HTTP_PORT:-80}:80"
+      - "${PORCHSITE_HTTPS_PORT:-443}:443"
+      - "${PORCHSITE_HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  db:
+  caddy_data:
+  caddy_config:

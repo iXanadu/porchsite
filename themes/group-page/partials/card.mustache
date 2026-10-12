@@ -1,0 +1,12 @@
+<div class="card{{#has_image}} has-image{{/has_image}}">
+{{#has_image}}<img src="{{image_src}}" alt="{{image_alt}}" width="96" height="96">
+{{/has_image}}<div>
+<h3>{{#link}}<a href="{{link}}">{{name}}</a>{{/link}}{{^link}}{{name}}{{/link}}{{#status}} <span class="flag">{{status}}</span>{{/status}}</h3>
+{{#subtitle}}<p class="sub">{{subtitle}}</p>
+{{/subtitle}}<p>{{description}}</p>
+{{#period}}<p class="meta">{{period}}</p>
+{{/period}}{{#price}}<p class="price">{{price}}</p>
+{{/price}}{{#has_tags}}<p class="chips">{{#tags}}<span>{{name}}</span>{{/tags}}</p>
+{{/has_tags}}{{#link}}<a class="more" href="{{link}}">{{link_text}} →</a>
+{{/link}}</div>
+</div>

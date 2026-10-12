@@ -1,0 +1,8 @@
+{{> head}}
+<article class="entry wide">
+<a class="back" href="{{stream.archive_url}}">← {{strings.all_writing}}</a>
+<h1>#{{tag}}</h1>
+<div class="writing-list">
+{{#entries}}{{> writing_card}}{{/entries}}</div>
+</article>
+{{> foot}}

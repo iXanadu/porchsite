@@ -1,0 +1,8 @@
+# Server tests of an earlier release that may fail on a newer schema for a
+# reason that doesn't touch a rollback. scripts/upgrade-check.sh skips a test
+# listed here only when the previous release is the listed one or older (its
+# commit is an ancestor of the listed release's). Keep this list short: each
+# line says why the failure is harmless, and what fixed it going forward.
+#
+# <release id> <pytest node id>  <why>
+2026.10.11-13513a3 tests/app/test_legacy.py::test_an_empty_schema_is_fine  The converter from the older engine (a one-time tool run into a fresh database, not part of serving a site) refused any table it didn't know, so a newer release's kv_cache table looked foreign. A rolled-back site never runs it. Fixed forward: legacy.ensure_empty accepts a newer release's tables when schema_migrations records migrations it doesn't know.

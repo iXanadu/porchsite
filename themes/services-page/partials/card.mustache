@@ -1,0 +1,12 @@
+<article class="c">
+{{#has_image}}<img class="c-img" src="{{image_src}}" alt="{{image_alt}}" loading="lazy">
+{{/has_image}}<div class="c-head">
+{{#period}}<p class="len">{{period}}</p>
+{{/period}}<h3>{{name}}{{#status}} <span class="badge badge-{{status_tone}}">{{status}}</span>{{/status}}</h3>
+{{#subtitle}}<p class="who">{{subtitle}}</p>
+{{/subtitle}}</div>
+<p class="d">{{description}}</p>
+{{#has_tags}}<ul class="tags">{{#tags}}<li>{{name}}</li>{{/tags}}</ul>
+{{/has_tags}}{{#price}}<p class="price">{{price}}</p>
+{{/price}}{{#link}}<a class="c-link" href="{{link}}">{{link_text}} →</a>
+{{/link}}</article>

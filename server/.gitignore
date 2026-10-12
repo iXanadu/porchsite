@@ -1,0 +1,50 @@
+# Secrets
+.env
+.keys
+.env.*
+.keys.*
+!.env.example
+!.keys.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+Icon?
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local, per-box hygiene denylist. NEVER tracked: a committed denylist is
+# both the leak and the map of what you consider sensitive.
+.hygiene-denylist
+
+# A local throwaway Postgres
+.pgdata/

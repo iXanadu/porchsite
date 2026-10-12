@@ -1,0 +1,17 @@
+// get.porchsite.dev: the downloads an assistant fetches to install
+// Sitekeeper (static files in dist/, built by scripts/downloads.sh), and the
+// private theme request queue and the public /ask form (board/index.ts, its own D1).
+// get.sitekeeper.dev, until it lapses at the end of 2026, redirects here
+// (movedFrom in board/index.ts); every request runs the Worker first for that.
+// The database id here is a placeholder: the real one stays out of the repo,
+// in wrangler.local.jsonc next to this file (untracked; a copy of this file
+// with the id filled in). Deploy with: npx wrangler deploy -c wrangler.local.jsonc
+{
+  "name": "sitekeeper-downloads",
+  "main": "board/index.ts",
+  "compatibility_date": "2026-08-15",
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [{ "binding": "DB", "database_name": "sitekeeper-requests", "database_id": "00000000-0000-0000-0000-000000000000" }],
+  "routes": [{ "pattern": "get.porchsite.dev", "custom_domain": true }, { "pattern": "porchsite.dev/docs*", "zone_name": "porchsite.dev" }, { "pattern": "porchsite.dev/ask*", "zone_name": "porchsite.dev" }, { "pattern": "get.sitekeeper.dev", "custom_domain": true }],
+  "workers_dev": false
+}

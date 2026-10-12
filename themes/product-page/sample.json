@@ -1,0 +1,114 @@
+{
+  "site": {
+    "title": "Kettle",
+    "tagline": "Tea, on time, every time.",
+    "intro": "A timer that knows the leaf. Tell it what you're brewing; it tells you when to pour.",
+    "hero_caption": "Vol. I — October 2026 · A tea timer · Free and open · MIT",
+    "footer_line": "Kettle · MIT licence",
+    "cta_label": "Get it",
+    "cta_link": "/pages/get/",
+    "cta2_label": "How it works",
+    "cta2_link": "/pages/how/",
+    "links": [
+      {
+        "label": "How it works",
+        "url": "/pages/how/"
+      },
+      {
+        "label": "Get it",
+        "url": "/pages/get/"
+      }
+    ],
+    "streams": [
+      {
+        "id": "front",
+        "title": "Overview",
+        "layout": "feature"
+      },
+      {
+        "id": "pages",
+        "title": "Read more",
+        "layout": "list"
+      }
+    ],
+    "sections": [
+      "front",
+      "cards",
+      "pages"
+    ],
+    "cards_title": "Why people keep it"
+  },
+  "items": [
+    {
+      "kind": "entry",
+      "slug": "overview",
+      "data": {
+        "stream": "front",
+        "title": "Overview",
+        "date": "2026-10-10",
+        "stats": [
+          {
+            "value": "42",
+            "label": "teas it knows"
+          },
+          {
+            "value": "1",
+            "label": "button"
+          },
+          {
+            "value": "0",
+            "label": "bitter cups"
+          },
+          {
+            "value": "$0",
+            "label": "to start"
+          }
+        ],
+        "body": "> Patience is a leaf. It opens when it's ready, not before.\n\n## Say what's in the pot\n\nGreen, black, oolong or herbal: pick it once and Kettle times every steep after.\n\n## What it is instead of\n\n- **A kitchen timer** — it doesn't know the leaf\n- **Guessing** — fine until the third bitter cup"
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "how",
+      "data": {
+        "stream": "pages",
+        "title": "How it works",
+        "date": "2026-10-09",
+        "summary": "Pick the tea, press once, pour when it chimes.",
+        "body": "1. **Pick the tea.** Green, black, oolong or herbal.\n2. **Press once.** Kettle starts the steep.\n3. **Pour when it chimes.** Every cup, the same."
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "get",
+      "data": {
+        "stream": "pages",
+        "title": "Get it",
+        "date": "2026-10-08",
+        "summary": "Free for your phone and your kitchen.",
+        "body": "Download it."
+      }
+    },
+    {
+      "kind": "card",
+      "data": {
+        "name": "It knows the leaf",
+        "description": "Each tea has its own time and temperature."
+      }
+    },
+    {
+      "kind": "card",
+      "data": {
+        "name": "One button",
+        "description": "Nothing to set up after the first cup."
+      }
+    },
+    {
+      "kind": "card",
+      "data": {
+        "name": "Yours to keep",
+        "description": "Open source, no account, no ads."
+      }
+    }
+  ]
+}

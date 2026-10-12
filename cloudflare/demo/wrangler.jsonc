@@ -1,0 +1,10 @@
+// Read-only demo sites, one per look: <look>-demo.porchsite.dev.
+// Build: node scripts/themes.mjs && node scripts/demo-gen.mjs; deploy from this folder.
+{
+  "name": "porchsite-demos",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "catalogue-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "event-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "group-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "link-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "local-business-demo.porchsite.dev", "custom_domain": true },{ "pattern": "menu-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "personal-homepage-demo.porchsite.dev", "custom_domain": true },{ "pattern": "portfolio-demo.porchsite.dev", "custom_domain": true },{ "pattern": "product-page-demo.porchsite.dev", "custom_domain": true },{ "pattern": "services-page-demo.porchsite.dev", "custom_domain": true }],
+  "workers_dev": false
+}

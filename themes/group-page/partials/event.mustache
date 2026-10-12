@@ -1,0 +1,14 @@
+<article class="ev{{#event.is_changed}} is-changed{{/event.is_changed}}{{#event.is_cancelled}} is-cancelled{{/event.is_cancelled}}">
+<p class="ev-date">{{event.date_short}}</p>
+<div class="ev-body">
+{{#event.status}}<p class="ev-status">{{event.status}}</p>
+{{/event.status}}<h3 class="ev-title"><a href="{{url}}">{{title}}</a></h3>
+<p class="ev-when">{{event.time}}{{#event.place_name}} · {{event.place_name}}{{/event.place_name}}</p>
+{{#event.place_address}}<p class="ev-addr">{{event.place_address}}{{^event.is_cancelled}}{{#event.map_link}} · <a href="{{event.map_link}}">{{strings.directions}}</a>{{/event.map_link}}{{/event.is_cancelled}}</p>
+{{/event.place_address}}{{#summary}}<p class="ev-sum">{{summary}}</p>
+{{/summary}}{{^event.is_cancelled}}{{#event.has_schedule}}<ol class="ev-sched">
+{{#event.schedule}}<li><time>{{time}}</time> <span>{{title}}{{#note}} <small>{{note}}</small>{{/note}}</span></li>
+{{/event.schedule}}</ol>
+{{/event.has_schedule}}{{#event.rsvp_link}}<p class="ev-rsvp"><a class="b" href="{{event.rsvp_link}}">{{event.rsvp_label}}{{^event.rsvp_label}}{{page.cta_label}}{{/event.rsvp_label}}</a>{{#event.rsvp_deadline}} <span>{{event.rsvp_deadline}}</span>{{/event.rsvp_deadline}}</p>
+{{/event.rsvp_link}}{{/event.is_cancelled}}</div>
+</article>

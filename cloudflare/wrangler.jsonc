@@ -1,0 +1,14 @@
+// Sitekeeper on Cloudflare. One Worker; content in D1, OAuth state in KV.
+{
+  "name": "sitekeeper",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "sitekeeper", "migrations_dir": "migrations" }
+  ],
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "observability": { "enabled": true }
+  // Secrets (wrangler secret put): SETUP_CODE, the one-time code that lets
+  // the owner create their passkey on a fresh site.
+}

@@ -1,0 +1,11 @@
+{{> head}}
+<article class="page">
+<a class="back" href="{{stream.archive_url}}">← {{stream.nav_label}}</a>
+<h1>{{entry.title}}</h1>
+{{#entry.summary}}<p class="lede">{{entry.summary}}</p>{{/entry.summary}}
+{{#entry}}{{> figures}}{{/entry}}
+{{#entry.cover_src}}<img class="cover" src="{{entry.cover_src}}" alt="{{entry.cover_alt}}">{{/entry.cover_src}}
+<div class="body">{{{entry.body_html}}}</div>
+{{#next}}<p class="row next"><a class="b" href="{{href}}">{{label}}</a></p>{{/next}}
+</article>
+{{> foot}}

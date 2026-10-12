@@ -1,0 +1,73 @@
+{
+  "site": {
+    "title": "Alder & Pine Bike Works",
+    "logo_text": "Alder & Pine",
+    "tagline": "Bike repair in Millbrook, done the same week.",
+    "intro": "Tune-ups, wheels, brakes and e-bikes, fixed by two mechanics who ride every day. Walk in or call ahead.",
+    "description": "Bike repair and tune-ups on Market Street, Millbrook. Hours, prices and directions.",
+    "theme": "local-business",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "cta_label": "See prices",
+    "cta_link": "#services",
+    "notice": { "text": "Winter tune-up booking opens November 1. Book early: last year we were full by the 10th.", "until": "2099-12-31" },
+    "contact": {
+      "phone": "+1 202 555 0100",
+      "email": "shop@example.com",
+      "address": { "line1": "214 Market Street", "line2": "", "city": "Millbrook", "region": "IL", "postcode": "60000", "country": "" },
+      "map_link": "https://example.com/map/alder-and-pine",
+      "social": [{ "kind": "Instagram", "url": "https://example.com/instagram" }, { "kind": "Facebook", "url": "https://example.com/facebook" }]
+    },
+    "hours": {
+      "weekly": [
+        { "day": "tue", "open": "09:00", "close": "18:00" },
+        { "day": "wed", "open": "09:00", "close": "18:00" },
+        { "day": "thu", "open": "09:00", "close": "19:00" },
+        { "day": "fri", "open": "09:00", "close": "18:00" },
+        { "day": "sat", "open": "09:00", "close": "16:00" },
+        { "day": "sun", "closed": true },
+        { "day": "mon", "closed": true }
+      ],
+      "exceptions": [
+        { "from": "2026-11-26", "label": "Thanksgiving", "closed": true },
+        { "from": "2026-11-27", "label": "Day after Thanksgiving", "open": "10:00", "close": "14:00", "closed": false }
+      ],
+      "note": "Drop-offs until 30 minutes before close."
+    },
+    "buttons": [
+      { "label": "Book a tune-up", "url": "https://example.com/book", "note": "Pick a drop-off day online" },
+      { "label": "Gift cards", "url": "https://example.com/gift", "note": "Any amount, by email" }
+    ],
+    "links": [],
+    "streams": [
+      { "id": "news", "title": "News & specials", "layout": "list" },
+      { "id": "events", "title": "Workshops & rides", "layout": "list", "intro": "Free, open to everyone, bring your own bike." }
+    ],
+    "sections": ["cards", "about", "events", "news"],
+    "cards_title": "Services",
+    "cards_anchor": "services",
+    "about_title": "About the shop",
+    "about": "Alder & Pine opened in 2014 in the old hardware store on Market Street. Two mechanics, one dog, and a back room full of parts for bikes older than we are.\n\nWe fix what you bring us and tell you what it will cost before we start. No upselling: if your chain has another thousand miles in it, we'll say so.\n\nFully insured. Certified for the e-bike systems most shops in town won't touch.",
+    "footer_line": "Licensed and insured · Business licence 2014-0381 · Pickup and drop-off across Millbrook and the river towns"
+  },
+  "items": [
+    { "kind": "card", "data": { "group": "Services", "sort": 10, "name": "Basic tune-up", "price": "From $65", "description": "Gears and brakes adjusted, wheels trued, chain cleaned and lubed, a safety check bolt to bolt.", "tags": ["Same week"] } },
+    { "kind": "card", "data": { "group": "Services", "sort": 11, "name": "Full overhaul", "price": "$180", "description": "Strip down, deep clean, new cables and housing, bearings serviced. Your bike comes back like new.", "tags": ["3–5 days"] } },
+    { "kind": "card", "data": { "group": "Services", "sort": 12, "name": "Flat fix", "price": "$15 + tube", "description": "While you wait, most of the time. Tubeless set-ups too.", "tags": ["While you wait"] } },
+    { "kind": "card", "data": { "group": "Services", "sort": 13, "name": "E-bike service", "price": "From $95", "description": "Motor and battery check, firmware updates, brake bleed. Most major systems.", "badge": "New", "badge_tone": "live" } },
+    { "kind": "card", "data": { "group": "Services", "sort": 14, "name": "Wheel build", "price": "Quote", "description": "Hand-built wheels to your weight, riding and budget. Ask for a quote." } },
+    { "kind": "card", "data": { "group": "Services", "sort": 15, "name": "Bike fit", "price": "$90", "description": "An hour on the stand: saddle, bars and cleats set for your body, notes to take home." } },
+    { "kind": "card", "data": { "group": "Reviews", "sort": 20, "name": "Dana R.", "subtitle": "Customer since 2019", "description": "They told me my old bike was worth fixing when the big shop said to buy a new one. Rides better than it did new." } },
+    { "kind": "card", "data": { "group": "Reviews", "sort": 21, "name": "Marcus T.", "subtitle": "Commutes every day", "description": "Dropped it off Tuesday morning, had it back Wednesday. Honest price, written down before they started." } },
+    { "kind": "card", "data": { "group": "Reviews", "sort": 22, "name": "Priya K.", "subtitle": "E-bike rider", "description": "The only shop in town that would look at my e-bike. Fixed in a day." } },
+    { "kind": "card", "data": { "group": "FAQ", "sort": 30, "name": "Do I need an appointment?", "description": "No. Walk in any time we're open. For a tune-up in spring, booking ahead gets it back sooner." } },
+    { "kind": "card", "data": { "group": "FAQ", "sort": 31, "name": "Do you work on e-bikes?", "description": "Yes, most major motor systems. Bring the charger if the battery is involved." } },
+    { "kind": "card", "data": { "group": "FAQ", "sort": 32, "name": "Can you pick up my bike?", "description": "Yes, anywhere in Millbrook for $20 each way, free with a full overhaul." } },
+    { "kind": "entry", "slug": "winter-tune-ups", "data": { "stream": "news", "title": "Winter tune-ups: book from November 1", "date": "2026-10-08", "summary": "Twenty percent off a basic tune-up from November to February.", "body": "Winter is the quiet season, so it's the best time to get your bike ready for spring.\n\n- **Basic tune-up**: $52 instead of $65\n- **Full overhaul**: $150 instead of $180\n\nBook online or call the shop.", "tags": ["specials"] } },
+    { "kind": "entry", "slug": "new-e-bike-stand", "data": { "stream": "news", "title": "We now service e-bikes", "date": "2026-09-14", "summary": "A new stand, new tools and two weeks of training.", "body": "Bring it in and we'll have a look.", "tags": ["e-bikes"] } },
+    { "kind": "entry", "slug": "summer-hours", "data": { "stream": "news", "title": "Late Thursdays all year", "date": "2026-08-02", "summary": "Open until 7 PM every Thursday, so you can drop off after work.", "body": "Thursdays until seven, from now on." } },
+    { "kind": "entry", "slug": "flat-fix-clinic", "data": { "stream": "events", "title": "Flat-fix clinic", "date": "2026-10-01", "summary": "Learn to fix a flat in ten minutes.", "body": "Bring your bike. We supply tubes and levers.", "event": { "start": "2027-03-13T10:00", "end": "2027-03-13T12:00", "place": { "name": "Alder & Pine Bike Works", "address": "214 Market Street, Millbrook", "map_link": "https://example.com/map/alder-and-pine" }, "rsvp": { "label": "Save a spot", "link": "https://example.com/rsvp", "deadline": "2027-03-10" }, "schedule": [{ "time": "10:00", "title": "Tubes and tyres", "note": "Taking a wheel off" }, { "time": "11:00", "title": "Your turn", "note": "Fix one yourself" }] } } },
+    { "kind": "entry", "slug": "spring-ride", "data": { "stream": "events", "title": "Spring river ride", "date": "2026-10-02", "summary": "An easy 20 miles along the river, coffee after.", "body": "No-drop pace.", "event": { "start": "2027-04-17T08:30", "end": "2027-04-17T11:30", "place": { "name": "Riverside Park, north gate", "address": "Riverside Drive, Millbrook", "map_link": "https://example.com/map/riverside" } } } },
+    { "kind": "entry", "slug": "fall-ride-2025", "data": { "stream": "events", "title": "Fall colours ride", "date": "2025-10-01", "summary": "Thirty riders, one flat.", "body": "Thanks to everyone who came.", "event": { "start": "2025-10-18T09:00", "end": "2025-10-18T12:00", "place": { "name": "Riverside Park, north gate", "address": "Riverside Drive, Millbrook" } } } }
+  ]
+}

@@ -1,0 +1,14 @@
+<article class="item{{#has_image}} has-img{{/has_image}}">
+{{#has_image}}<div class="ph"><img src="{{image_src}}" alt="{{image_alt}}" loading="lazy" width="600" height="600"></div>
+{{/has_image}}<div class="item-body">
+<div class="item-top">
+<h3>{{name}}</h3>
+{{#price}}<p class="price">{{price}}</p>
+{{/price}}</div>
+{{#subtitle}}<p class="item-sub">{{subtitle}}</p>
+{{/subtitle}}<p class="d">{{description}}</p>
+{{#has_tags}}<ul class="tags">{{#tags}}<li>{{name}}</li>{{/tags}}</ul>
+{{/has_tags}}{{#status}}<p class="badge badge-{{status_tone}}">{{status}}</p>
+{{/status}}{{#link}}<a class="buy" href="{{link}}">{{link_text}} →</a>
+{{/link}}</div>
+</article>

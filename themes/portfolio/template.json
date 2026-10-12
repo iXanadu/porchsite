@@ -1,0 +1,220 @@
+{
+  "name": "portfolio",
+  "title": "Portfolio",
+  "licence": "MIT",
+  "version": "1.0.2",
+  "type": "portfolio",
+  "description": "A plain gallery wall for your own work: your name and what you do set large, a grid of pieces grouped into series, then an optional CV (Experience, Education), commissions with prices, and a big email address to reach you.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "ink": {
+      "title": "Ink",
+      "colors": {
+        "bg": "#ffffff",
+        "ink": "#111111",
+        "muted": "#555555",
+        "accent": "#1a3fb4",
+        "accent-2": "#b3261e",
+        "line": "#d4d4d4",
+        "on-accent": "#ffffff"
+      }
+    },
+    "slate": {
+      "title": "Slate",
+      "colors": {
+        "bg": "#eef0f3",
+        "ink": "#1e2329",
+        "muted": "#555d68",
+        "accent": "#37597d",
+        "accent-2": "#9a4a1c",
+        "line": "#c8ced6",
+        "on-accent": "#ffffff"
+      }
+    },
+    "midnight": {
+      "title": "Midnight",
+      "colors": {
+        "bg": "#10162a",
+        "ink": "#eef1fa",
+        "muted": "#aab3cc",
+        "accent": "#7cc4ff",
+        "accent-2": "#ffb86b",
+        "line": "#2f3a5c",
+        "on-accent": "#0b1224"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "the signature piece, full width under your name; without it the name and line stand alone",
+        "alt_hint": "what the piece shows, e.g. A cyanotype of fern leaves on blue paper",
+        "prompt": "the person's own best piece, cropped wide; never generated"
+      },
+      {
+        "field": "card.image",
+        "alt": "card.image_alt",
+        "size": [
+          1600,
+          1200
+        ],
+        "need": "recommended",
+        "purpose": "one piece of work per card in the work grid (6-60, 1600 px on the long edge; shown 4:3, the first one large); a card without a picture shows its name set large on a tinted plate",
+        "alt_hint": "what is in the piece, not 'photo', e.g. Poster: a red heron over a grey harbour",
+        "prompt": "the person's own work, photographed or exported flat; never generated"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "optional",
+        "purpose": "a small round mark beside your name in the masthead (32 px) and the browser icon",
+        "alt_hint": "e.g. The initials I C in a circle",
+        "prompt": "a simple monogram of the person's initials, flat, in the palette's accent colour on white"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "the lead picture on a project's own page",
+        "alt_hint": "what the piece shows",
+        "prompt": "the project's lead piece, from the person's own work"
+      },
+      {
+        "field": "body",
+        "size": [
+          1600,
+          1067
+        ],
+        "need": "optional",
+        "purpose": "more pictures inside a project page: put ![description](image) on its own line",
+        "alt_hint": "what the piece shows",
+        "prompt": "further pieces or details from the same project, from the person's own work"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link is shared; empty uses the hero",
+        "alt_hint": "what the picture shows",
+        "prompt": "the hero piece cropped to 1200x630"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the big line at the top: your name and what you do, e.g. Ines Calder draws maps and book covers"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "a sentence or two under it"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "required",
+        "purpose": "the work grid's heading when cards have no group; with groups each group is its own block under its group name"
+      },
+      {
+        "field": "card.group",
+        "need": "recommended",
+        "purpose": "sorts cards into blocks, in card sort order: series of work (e.g. Selected work, Posters), commissions, and for a CV: Experience, Education"
+      },
+      {
+        "field": "card.period",
+        "need": "optional",
+        "purpose": "CV mode: a card with a period (e.g. 2021 – now) prints as a CV line: period, then name (the role or degree), subtitle (the employer or school) and description"
+      },
+      {
+        "field": "card.price",
+        "need": "optional",
+        "purpose": "a card with a price (and no period) prints as a commission or service: name, price, description, link"
+      },
+      {
+        "field": "card.subtitle",
+        "need": "optional",
+        "purpose": "on a work card: a small line like the medium and year; on a CV line: the employer or school"
+      },
+      {
+        "field": "card.link",
+        "need": "recommended",
+        "purpose": "on a work card, makes the whole piece a link, usually to its project page in a stream"
+      },
+      {
+        "field": "site.streams",
+        "need": "recommended",
+        "purpose": "list streams print as dated lists (projects, exhibitions, news); entries with an event split into upcoming and earlier. A feature stream shows its newest entry in full"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "the About block; its first paragraph is set large"
+      },
+      {
+        "field": "site.contact",
+        "need": "required",
+        "purpose": "the Contact block: the email set large, phone, address, and social links"
+      },
+      {
+        "field": "site.buttons",
+        "need": "optional",
+        "purpose": "small buttons under the contact details, e.g. Download CV (PDF), with a note"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "one line across the top, e.g. your availability: Booking commissions for spring"
+      },
+      {
+        "field": "site.links",
+        "need": "optional",
+        "purpose": "the menu; empty uses the home sections and Contact"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer line, e.g. your name and a copyright"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for the person's best 6-12 pieces and which one leads. The work stays theirs; the assistant never generates samples of it.",
+    "style": "The person's own work, shown on a plain page; nothing competes with it. The palette is neutral (Ink, Slate) so colours in the work read true; Midnight suits photography. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Collect the pieces from the person, with which one leads (it becomes the hero, and the first card shows large).",
+      "Check each: at least 1600 px on the long edge, sharp, sRGB, nothing cropped that matters. Don't recompress below the site's own resizing.",
+      "Agree the order and the groups (series, commissions, Experience, Education) with the person; set each card's sort.",
+      "Write alt text for each piece: what is in it, not 'photo' or 'image'.",
+      "Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+      "Upload each one (an https link in its field, or photo_upload_link), then call theme_needs: every slot should say filled."
+    ]
+  }
+}

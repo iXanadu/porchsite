@@ -1,0 +1,58 @@
+{{> head}}
+<section class="hero{{#site.hero_image}} has-img{{/site.hero_image}}">
+<div class="hero-copy">
+{{#site.hours.has}}<p class="status pill{{#site.hours.open_now}} is-open{{/site.hours.open_now}}"><span class="dot"></span>{{site.hours.status}}</p>{{/site.hours.has}}
+<h1>{{site.tagline}}</h1>
+{{#page.lede}}<p class="lede">{{page.lede}}</p>{{/page.lede}}
+<div class="acts">
+{{#site.contact.phone}}<a class="b" href="{{site.contact.phone_href}}">{{strings.call}} {{site.contact.phone}}</a>{{/site.contact.phone}}
+{{#site.contact.map_link}}<a class="b b2" href="{{site.contact.map_link}}">{{strings.directions}}</a>{{/site.contact.map_link}}
+{{#has_writing}}<a class="b b2" href="{{page.cta_link}}">{{page.cta_label}}</a>{{/has_writing}}
+{{#hero_more}}<a class="b b2" href="{{href}}">{{label}}</a>{{/hero_more}}
+</div>
+{{#site.contact.has_address}}<p class="where">{{site.contact.address_one_line}}</p>{{/site.contact.has_address}}
+</div>
+{{#site.hero_image}}<img class="hero-img" src="{{site.hero_image}}" alt="{{page.hero_alt}}" width="{{site.hero_width}}" height="{{site.hero_height}}">{{/site.hero_image}}
+</section>
+<section class="visit">
+{{> visit}}
+</section>
+{{#site.has_buttons}}<ul class="links">
+{{#site.buttons}}<li><a class="link-btn" href="{{url}}"><strong>{{label}}</strong>{{#note}}<span>{{note}}</span>{{/note}}</a></li>
+{{/site.buttons}}</ul>
+{{/site.has_buttons}}
+{{#sections}}
+{{#is_cards}}{{#show}}<div class="cards-wrap" id="{{anchor}}">
+{{#by_group}}<section class="group g-{{key}}">
+<h2>{{#label}}{{label}}{{/label}}{{^label}}{{title}}{{/label}}</h2>
+<div class="grid">
+{{#cards}}{{> card}}
+{{/cards}}</div>
+</section>
+{{/by_group}}</div>
+{{/show}}{{/is_cards}}
+{{#is_entries}}{{#show}}<section class="stream" id="{{stream.anchor}}">
+<h2>{{stream.title}}</h2>
+{{#stream.byline}}<p class="byline">{{stream.byline}}</p>{{/stream.byline}}
+{{#stream.intro}}<p>{{stream.intro}}</p>{{/stream.intro}}
+{{#has_upcoming}}<h3 class="k">{{strings.upcoming}}</h3>
+<ul class="posts">{{#upcoming}}{{> post_row}}{{/upcoming}}</ul>
+{{/has_upcoming}}{{#has_earlier}}<h3 class="k">{{strings.earlier}}</h3>
+<ul class="posts past">{{#earlier}}{{> post_row}}{{/earlier}}</ul>
+{{/has_earlier}}{{^has_upcoming}}{{^has_earlier}}{{#stream.is_feature}}{{#latest}}<article class="feature">
+<h3><a href="{{url}}">{{title}}</a></h3>
+<p class="m">{{date_long}}</p>
+<div class="body">{{{body_html}}}</div>
+</article>
+{{/latest}}{{/stream.is_feature}}{{#stream.is_list}}<ul class="posts">{{#items}}{{> post_row}}{{/items}}</ul>
+{{/stream.is_list}}{{/has_earlier}}{{/has_upcoming}}{{#more_than_one}}<p class="all"><a href="{{stream.archive_url}}">{{stream.all_label}}{{count_suffix}} →</a></p>{{/more_than_one}}
+</section>
+{{/show}}{{/is_entries}}
+{{#is_about}}<section class="about" id="{{anchor}}">
+<h2>{{title}}</h2>
+<div class="about-body">{{#paragraphs}}<p>{{.}}</p>
+{{/paragraphs}}</div>
+</section>
+{{/is_about}}
+{{/sections}}
+{{> foot}}

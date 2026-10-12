@@ -1,0 +1,7 @@
+# Caddy gets and renews the HTTPS certificate for the domain and its www.
+# name on its own (ports 80 and 443 must reach this machine). The app sends
+# www. to the bare domain itself, so both names just go to the app.
+{$PORCHSITE_DOMAIN}, www.{$PORCHSITE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8000
+}

@@ -1,0 +1,205 @@
+{
+  "name": "local-business",
+  "title": "Local business",
+  "licence": "MIT",
+  "version": "1.0.3",
+  "type": "business",
+  "description": "For a shop, salon, clinic, studio or trade: your name and what you do, then your hours (open now, holiday closures) and how to call or find you, right at the top. Services follow as cards with prices, then reviews, news and questions.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "paper": {
+      "title": "Paper",
+      "colors": {
+        "bg": "#f3f2f2",
+        "ink": "#201e1d",
+        "muted": "#5c5855",
+        "accent": "#00647f",
+        "accent-2": "#a8470f",
+        "line": "#cfcbc9",
+        "on-accent": "#ffffff"
+      }
+    },
+    "ocean": {
+      "title": "Ocean",
+      "colors": {
+        "bg": "#eef6f8",
+        "ink": "#10262e",
+        "muted": "#486068",
+        "accent": "#006f8e",
+        "accent-2": "#b4501c",
+        "line": "#bcd3da",
+        "on-accent": "#ffffff"
+      }
+    },
+    "forest": {
+      "title": "Forest",
+      "colors": {
+        "bg": "#f0f4ec",
+        "ink": "#1c2a1f",
+        "muted": "#505f52",
+        "accent": "#2d6a3e",
+        "accent-2": "#8a5a12",
+        "line": "#c6d3c1",
+        "on-accent": "#ffffff"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "beside the headline on wide screens, under it on phones: the shopfront, the team or the work; without it the headline and buttons stand alone",
+        "alt_hint": "what the photo shows, e.g. The front of the shop on Market Street, bikes in the window",
+        "prompt": "a real photo of {subject}: the shopfront from across the street, the team at work, or a finished job; wide, bright, natural light"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "optional",
+        "purpose": "the mark beside the name in the top bar (36 px) and the browser icon; flat, on transparent",
+        "alt_hint": "e.g. A pine tree in a circle",
+        "prompt": "a flat, simple mark for {subject}, one shape, in the palette's accent colour, on transparent; must read at 32 px"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link is shared; empty uses the hero",
+        "alt_hint": "what it shows",
+        "prompt": "the hero photo cropped to 1200x630"
+      },
+      {
+        "field": "card.image",
+        "alt": "card.image_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a photo across the top of a service card; leave every card without one or give every card in a group one",
+        "alt_hint": "the work shown, e.g. A wheel being trued on the stand",
+        "prompt": "a real photo of this service being done at {subject}"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a photo at the top of a news post or event page",
+        "alt_hint": "what it shows",
+        "prompt": "a real photo from the day or the thing announced"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the headline: what you do and where, e.g. Bike repair in Millbrook, done the same week"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "a line or two under the headline"
+      },
+      {
+        "field": "site.contact",
+        "need": "required",
+        "purpose": "phone, address and map link: the Call and Get directions buttons in the hero and the Contact panel beside the hours; with no premises, leave the address empty and name the service area in footer_line"
+      },
+      {
+        "field": "site.hours",
+        "need": "recommended",
+        "purpose": "the Hours panel straight after the hero: the week with today marked, open now or when you open next, holiday closures for the next 60 days, and the note under it"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "a band across the top of every page, e.g. Closed Friday for a family wedding"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "recommended",
+        "purpose": "the heading for cards without a group, and the menu item for the cards"
+      },
+      {
+        "field": "card.group",
+        "need": "recommended",
+        "purpose": "each group prints as its own section with the group as heading, in the order the cards sort. A group named Services shows price cards; one named Reviews (or Testimonials) prints each card as a quote (name = who said it, description = the quote, subtitle = e.g. customer since 2019); one named FAQ prints question (name) and answer (description)"
+      },
+      {
+        "field": "card.price",
+        "need": "recommended",
+        "purpose": "the price on a service card, exactly as written, e.g. From $45"
+      },
+      {
+        "field": "site.buttons",
+        "need": "optional",
+        "purpose": "a row of link buttons under the hours and contact, e.g. Book online, Gift cards; note prints under each"
+      },
+      {
+        "field": "site.streams",
+        "need": "recommended",
+        "purpose": "news and specials as a list stream; an events stream (entries with event) shows coming-up and earlier events with time and place"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "who is behind it, how long, licences and insurance"
+      },
+      {
+        "field": "site.cta_label",
+        "need": "optional",
+        "purpose": "a third hero button after Call and Get directions (with cta_link), e.g. See prices to #cards"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer: licence numbers, service area"
+      },
+      {
+        "field": "site.links",
+        "need": "optional",
+        "purpose": "the menu in the top bar; empty uses the home sections"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for one real photo of the shopfront, the team or the work. People trust a real place.",
+    "style": "Photographs, bright and natural; the logo flat on transparent. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Get the hero photo from your person: the shopfront, the team or the work. Never make one up.",
+      "Check it: wide (landscape, at least 2080x1160), sharp, not dark, nothing private in frame (customers' faces, number plates, addresses).",
+      "Write the alt text: what the photo shows, in plain words.",
+      "If there is no logo, use none; if one is made, it is a flat mark in the palette's accent colour, never a picture of a real place or person.",
+      "Upload each picture (an https link in its field, or photo_upload_link).",
+      "Read the phone number, address, map link and every day's hours back to your person and get a yes before anything goes live: these are the facts small-business sites most often get wrong.",
+      "Call theme_needs: every required slot should say filled."
+    ]
+  }
+}

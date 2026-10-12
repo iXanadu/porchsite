@@ -1,0 +1,107 @@
+{
+  "site": {
+    "title": "Eastside Community Choir",
+    "logo_text": "Eastside Choir",
+    "theme": "group-page",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "tagline": "Anyone can sing. Come and find out.",
+    "intro": "Sixty neighbours who meet every week to sing together. No auditions, no reading music needed, and the first month is free.",
+    "description": "Eastside Community Choir: a free-to-try, no-audition choir that meets every Tuesday and Saturday.",
+    "cta_label": "Come to a rehearsal",
+    "cta_link": "#meet",
+    "cta2_label": "Support the choir",
+    "cta2_link": "https://example.com/donate",
+    "footer_line": "Eastside Community Choir · a volunteer-run nonprofit",
+    "contact_line": "Registered charity no. 000000",
+    "notice": { "text": "Saturday's open sing is cancelled this week: the hall is closed for repairs. Tuesday rehearsal is on as usual.", "until": "2099-12-31" },
+    "hours": {
+      "weekly": [
+        { "day": "tue", "open": "19:00", "close": "21:00" },
+        { "day": "sat", "open": "10:00", "close": "11:30" }
+      ],
+      "exceptions": [
+        { "from": "2026-11-24", "to": "2026-11-28", "label": "Thanksgiving week: no rehearsals", "closed": true }
+      ],
+      "note": "Tuesdays are full rehearsals; Saturdays are an open sing for anyone."
+    },
+    "contact": {
+      "phone": "+1 202 555 0100",
+      "email": "hello@example.com",
+      "address": { "line1": "St. Brendan's Hall", "line2": "40 Orchard Street", "city": "Eastside", "region": "IL", "postcode": "60000", "country": "" },
+      "map_link": "https://example.com/map/hall",
+      "social": [{ "kind": "Newsletter", "url": "https://example.com/newsletter" }, { "kind": "Recordings", "url": "https://example.com/listen" }]
+    },
+    "buttons": [
+      { "label": "Donate", "url": "https://example.com/donate", "note": "Keeps the first month free for everyone" },
+      { "label": "Volunteer", "url": "https://example.com/volunteer", "note": "Ushers, bakers, set-up crew" }
+    ],
+    "streams": [
+      { "id": "meet", "title": "Coming up", "layout": "list" },
+      { "id": "news", "title": "News", "layout": "feature" }
+    ],
+    "sections": ["meet", "news", "cards", "about"],
+    "cards_title": "What we do",
+    "about_title": "Our story",
+    "about": "The choir started in 2009 with eleven people around a borrowed piano in the church hall. We still rehearse in the same room.\n\nWe sing everything from gospel to folk to the odd pop song, and we perform four times a year, always free. Dues keep the lights on; nobody is turned away for not paying them."
+  },
+  "items": [
+    { "kind": "entry", "slug": "new-singers-night", "data": {
+      "stream": "meet", "title": "New singers' night", "date": "2027-01-12",
+      "summary": "Never sung in a choir? Start here. We'll find your part with you.",
+      "event": {
+        "start": "2027-01-12T19:00", "end": "2027-01-12T21:00",
+        "place": { "name": "St. Brendan's Hall", "address": "40 Orchard Street, Eastside", "map_link": "https://example.com/map/hall" },
+        "rsvp": { "label": "Save me a seat", "link": "https://example.com/signup", "deadline": "2027-01-08" }
+      } } },
+    { "kind": "entry", "slug": "valentines-benefit", "data": {
+      "stream": "meet", "title": "Valentine's benefit sing", "date": "2027-02-13",
+      "summary": "Love songs for the food pantry. Moved to the library: more seats, same time.",
+      "event": {
+        "start": "2027-02-13T15:00", "end": "2027-02-13T17:00",
+        "place": { "name": "Eastside Library, main hall", "address": "12 Linden Avenue, Eastside", "map_link": "https://example.com/map/library" },
+        "status": "changed"
+      } } },
+    { "kind": "entry", "slug": "spring-concert", "data": {
+      "stream": "meet", "title": "Spring concert", "date": "2027-04-17",
+      "summary": "Our big one. Free, all ages, cake at the interval.",
+      "body": "Doors open at 6:30. Bring a friend who thinks they can't sing.",
+      "event": {
+        "start": "2027-04-17T19:00", "end": "2027-04-17T21:00",
+        "place": { "name": "St. Brendan's Church", "address": "40 Orchard Street, Eastside", "map_link": "https://example.com/map/hall" },
+        "rsvp": { "label": "Reserve free seats", "link": "https://example.com/tickets", "deadline": "" },
+        "schedule": [
+          { "time": "19:00", "title": "First half", "note": "Gospel and spirituals" },
+          { "time": "19:50", "title": "Interval", "note": "Cake and coffee in the hall" },
+          { "time": "20:10", "title": "Second half", "note": "Folk, and one pop song" }
+        ]
+      } } },
+    { "kind": "entry", "slug": "winter-concert-2025", "data": {
+      "stream": "meet", "title": "Winter concert 2025", "date": "2025-12-13",
+      "summary": "Two hundred people and a packed hall.",
+      "event": {
+        "start": "2025-12-13T19:00", "end": "2025-12-13T21:00",
+        "place": { "name": "St. Brendan's Church", "address": "", "map_link": "" }
+      } } },
+    { "kind": "entry", "slug": "new-director", "data": {
+      "stream": "news", "title": "Welcome to our new director", "date": "2026-09-30",
+      "summary": "Maria takes the baton this autumn.",
+      "tags": ["people"],
+      "body": "After twelve years, our founding director is handing over to **Maria Ortega**, who has led the youth choir since 2019.\n\nMaria's first rehearsal is Tuesday. Come and say hello; there will be cake."
+    } },
+    { "kind": "entry", "slug": "recordings-online", "data": {
+      "stream": "news", "title": "Last season's recordings are online", "date": "2026-08-14",
+      "summary": "Listen back to the spring and winter concerts."
+    } },
+    { "kind": "entry", "slug": "robes", "data": {
+      "stream": "news", "title": "New robes, thanks to you", "date": "2026-06-02",
+      "summary": "The spring appeal paid for sixty new robes."
+    } },
+    { "kind": "card", "data": { "group": "Programs", "name": "Main choir", "description": "Our full choir: four parts, four concerts a year, everyone welcome.", "period": "Tuesdays 7 PM", "price": "$40 a season", "sort": 10 } },
+    { "kind": "card", "data": { "group": "Programs", "name": "Youth choir", "description": "Ages 9 to 16. Parents stay for the first visit.", "period": "Saturdays 9 AM", "price": "Free", "sort": 20 } },
+    { "kind": "card", "data": { "group": "Programs", "name": "Open sing", "description": "Drop in, no commitment. We teach a song by ear in an hour.", "period": "Saturdays 10 AM", "price": "Pay what you can", "sort": 30 } },
+    { "kind": "card", "data": { "group": "People", "name": "Maria Ortega", "subtitle": "Director", "description": "Leads every rehearsal and picks the songs.", "sort": 40 } },
+    { "kind": "card", "data": { "group": "People", "name": "Sam Lee", "subtitle": "Accompanist", "description": "At the piano since 2014.", "sort": 50 } },
+    { "kind": "card", "data": { "group": "People", "name": "Priya Nair", "subtitle": "Board chair", "description": "Ask her about dues, grants and the bake sale.", "sort": 60 } }
+  ]
+}

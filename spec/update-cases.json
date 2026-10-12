@@ -1,0 +1,43 @@
+{
+  "about": "The update notice (SPEC §4 Updates): what site_state.update says for a running release, given HOME/latest.json. Both editions' tests run every case. `how` is left out: each edition points at its own guide.",
+  "latest": {
+    "version": "2026.10.20-ccccccc",
+    "released": "2026-10-20",
+    "changes": ["Third change."],
+    "security": false,
+    "migrations": [],
+    "reconnect": false,
+    "releases": [
+      { "release": "2026.10.20-ccccccc", "date": "2026-10-20", "security": false, "reconnect": false, "migrations": [], "changes": ["Third change."] },
+      { "release": "2026.10.15-bbbbbbb", "date": "2026-10-15", "security": true, "reconnect": true, "migrations": ["0013_example.sql"], "changes": ["Second change.", "A fix for a hole."] },
+      { "release": "2026.10.12-aaaaaaa", "date": "2026-10-12", "security": false, "reconnect": false, "migrations": ["0012_example.sql"], "changes": ["First change."] }
+    ]
+  },
+  "cases": [
+    { "name": "running the latest", "running": "2026.10.20-ccccccc", "update": { "available": false } },
+    {
+      "name": "one behind",
+      "running": "2026.10.15-bbbbbbb",
+      "update": { "available": true, "latest": "2026.10.20-ccccccc", "security": false, "changes": ["Third change."], "migrations": [], "reconnect": false }
+    },
+    {
+      "name": "two behind, past a security release",
+      "running": "2026.10.12-aaaaaaa",
+      "update": { "available": true, "latest": "2026.10.20-ccccccc", "security": true, "changes": ["Third change.", "Second change.", "A fix for a hole."], "migrations": ["0013_example.sql"], "reconnect": true }
+    },
+    {
+      "name": "older than anything listed",
+      "running": "2026.10.01-0123456",
+      "update": { "available": true, "latest": "2026.10.20-ccccccc", "security": true, "changes": ["Third change.", "Second change.", "A fix for a hole.", "First change."], "migrations": ["0012_example.sql", "0013_example.sql"], "reconnect": true }
+    },
+    { "name": "an unlisted build from the latest's day", "running": "2026.10.20-ddddddd", "update": { "available": false } },
+    { "name": "newer than the latest", "running": "2026.10.25-eeeeeee", "update": { "available": false } },
+    { "name": "a dev build", "running": "dev", "update": { "available": false } },
+    { "name": "a test build", "running": "test", "update": { "available": false } }
+  ],
+  "latest_without_history": {
+    "latest": { "version": "2026.10.20-ccccccc", "changes": ["Only the newest."], "security": true, "migrations": ["0013_example.sql"], "reconnect": false },
+    "running": "2026.10.12-aaaaaaa",
+    "update": { "available": true, "latest": "2026.10.20-ccccccc", "security": true, "changes": ["Only the newest."], "migrations": ["0013_example.sql"], "reconnect": false }
+  }
+}

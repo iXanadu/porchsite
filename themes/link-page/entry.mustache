@@ -1,0 +1,19 @@
+{{> head}}
+{{> mini_head}}
+<article class="page">
+<a class="back" href="{{stream.archive_url}}">← {{stream.nav_label}}</a>
+<h1>{{entry.title}}</h1>
+<p class="meta">{{entry.date_long}}{{#entry.has_tags}} · {{#entry.tags}}<a href="{{stream.archive_url}}tags/{{name}}/">#{{name}}</a> {{/entry.tags}}{{/entry.has_tags}}</p>
+{{#entry.summary}}<p class="lede">{{entry.summary}}</p>{{/entry.summary}}
+{{#entry.event.has}}<div class="event">
+{{#entry.event.status}}<p><em class="flag">{{entry.event.status}}</em></p>{{/entry.event.status}}
+<p class="event-when">{{entry.event.when}}</p>
+{{#entry.event.place_name}}<p>{{#entry.event.map_link}}<a href="{{entry.event.map_link}}">{{entry.event.place_name}}</a>{{/entry.event.map_link}}{{^entry.event.map_link}}{{entry.event.place_name}}{{/entry.event.map_link}}{{#entry.event.place_address}} · {{entry.event.place_address}}{{/entry.event.place_address}}</p>{{/entry.event.place_name}}
+{{#entry.event.rsvp_link}}<a class="button" href="{{entry.event.rsvp_link}}"><span class="button-label">{{entry.event.rsvp_label}}</span>{{#entry.event.rsvp_deadline}}<span class="button-note">{{entry.event.rsvp_deadline}}</span>{{/entry.event.rsvp_deadline}}</a>{{/entry.event.rsvp_link}}
+{{#entry.event.has_schedule}}<ol class="schedule">{{#entry.event.schedule}}<li><span>{{time}}</span> {{title}}{{#note}} <i>{{note}}</i>{{/note}}</li>{{/entry.event.schedule}}</ol>{{/entry.event.has_schedule}}
+</div>{{/entry.event.has}}
+{{#entry.cover_src}}<img class="cover" src="{{entry.cover_src}}" alt="{{entry.cover_alt}}">{{/entry.cover_src}}
+{{#entry.has_stats}}<dl class="stats">{{#entry.stats}}<div><dt>{{label}}</dt><dd>{{value}}</dd></div>{{/entry.stats}}</dl>{{/entry.has_stats}}
+<div class="body">{{{entry.body_html}}}</div>
+</article>
+{{> foot}}

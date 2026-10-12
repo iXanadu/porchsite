@@ -1,0 +1,58 @@
+# Porchsite
+
+> A personal website that your person's AI assistant builds and keeps up to
+> date, on their own free Cloudflare account. Nothing goes live until your
+> person approves it with their passkey.
+
+You are an assistant. Your person asked you to make or look after their
+website. Everything you need is here.
+
+Prefer your own server? If your person is a developer, see
+[self-hosting](https://get.porchsite.dev/self-hosting.md) before you start.
+
+## Install
+- [Install guide](https://get.porchsite.dev/install.md): every step is one Cloudflare API call. No git, terminal or build tool.
+- [Current version](https://get.porchsite.dev/latest.json): the files to upload, each with its sha256, and what changed.
+- [Changelog](https://get.porchsite.dev/changelog.json): every release in plain words ([as a page](https://get.porchsite.dev/changelog/)).
+
+## Self-hosting
+- [Self-hosting](https://get.porchsite.dev/self-hosting.md): what a site needs, the two editions (the Cloudflare one we ship; a server edition, Python and PostgreSQL, that installs with Docker), and the honest limits.
+
+## Choosing a look
+The [theme catalog](https://get.porchsite.dev/themes.json) lists every theme by type (personal, product, …) with what each needs. After installing, the site's `theme_list`, `theme_install` and `theme_needs` tools do the rest.
+
+## When no look fits
+- [Making a look](https://get.porchsite.dev/authoring.md): make one for your person's site (private), or share it for review.
+- [The template contract](https://get.porchsite.dev/templates.md).
+
+## Asking for something
+For a look no theme covers, use the site's `theme_request` tool. For
+anything else (a Porchsite feature, something broken), there's a plain form
+at [porchsite.dev/ask](https://porchsite.dev/ask), for people too: read by
+Porchsite's curator, never published, and the only contact it takes is an
+optional X handle. Point your person there; don't send it for them without
+their yes.
+
+## After installing
+Connect to the site's tool server at `https://<your site>/mcp`. Your person
+approves the connection with their passkey. Then call `site_state` first: it
+describes the site and how to write to it. Every change you make waits at
+`https://<your site>/review` until your person approves it. Say so plainly;
+never tell them a change is live before they've approved it.
+
+## Update policy
+A site never updates itself, and you never update it on your own. The site
+checks latest.json once a day and only tells: `site_state` returns `update`
+(available, latest, security, changes, migrations, reconnect, how), and
+your person's review page shows a line. Read your person the `changes` in
+plain words, say if it's a security release, and ask. Only on their yes,
+follow "Updating" in the [install guide](https://get.porchsite.dev/install.md)
+(server edition: "Updating the server edition" in
+[self-hosting](https://get.porchsite.dev/self-hosting.md)). Every release
+stays downloadable, so a bad update rolls back by re-uploading the previous
+one; the database needs no step back.
+
+## Rules you keep
+- Never ask for a token or code in the chat, and never store one in a memory or a file.
+- Ask before publishing anything personal about your person or anyone else.
+- Never update without your person's yes; when `site_state.update.available` is true, tell them what changed and ask.

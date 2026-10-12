@@ -1,0 +1,110 @@
+{
+  "site": {
+    "title": "Kestrel Falls '07",
+    "theme": "event-page",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "tagline": "Kestrel Falls High, Class of 2007: twenty years on",
+    "intro": "One weekend in June, back where it started. Come for the Friday mixer, stay for Saturday's picnic and dinner. Partners and kids welcome all weekend.",
+    "description": "The Kestrel Falls High Class of 2007 twenty-year reunion: June 11 to 13, 2027.",
+    "cta_label": "RSVP for the weekend",
+    "cta_link": "https://example.com/rsvp",
+    "cta2_label": "Where to stay",
+    "cta2_link": "#details",
+    "footer_line": "Kestrel Falls '07 reunion committee",
+    "contact_line": "Questions? Write to the committee.",
+    "notice": { "text": "Changed: Saturday's picnic has moved from Elm Park to the Lakeside Pavilion, same time.", "until": "2099-12-31" },
+    "contact": {
+      "phone": "+1 202 555 0100",
+      "email": "committee@example.com",
+      "map_link": "",
+      "social": [{ "kind": "Group chat", "url": "https://example.com/chat" }]
+    },
+    "buttons": [
+      { "label": "Hotel block", "url": "https://example.com/hotel", "note": "Group rate until May 1" },
+      { "label": "Share your old photos", "url": "https://example.com/photos", "note": "Scans welcome" },
+      { "label": "In memory", "url": "/updates/in-memory/", "note": "Classmates we've lost" }
+    ],
+    "streams": [
+      { "id": "events", "title": "The weekend", "layout": "list" },
+      { "id": "updates", "title": "Updates", "layout": "feature" }
+    ],
+    "sections": ["events", "updates", "cards", "about"],
+    "cards_title": "Details",
+    "cards_anchor": "details",
+    "about_title": "Who's organising",
+    "about": "Six of us from the old student council, give or take. We've booked the rooms, counted the chairs and found the yearbook.\n\nIf you know a classmate who isn't on the list, send them this page."
+  },
+  "items": [
+    { "kind": "entry", "slug": "friday-mixer", "data": {
+      "stream": "events", "title": "Friday night mixer", "date": "2027-06-11",
+      "summary": "Name tags, a cash bar and the yearbook slideshow on a loop.",
+      "body": "Drop in any time. The back room is ours all night.",
+      "event": {
+        "start": "2027-06-11T19:00", "end": "2027-06-11T23:00",
+        "place": { "name": "The Lantern Room", "address": "214 Main Street, Kestrel Falls", "map_link": "https://example.com/map/lantern" },
+        "rsvp": { "label": "RSVP", "link": "https://example.com/rsvp", "deadline": "2027-05-15" },
+        "schedule": [
+          { "time": "19:00", "title": "Doors and name tags", "note": "" },
+          { "time": "20:30", "title": "Yearbook slideshow", "note": "Send scans by June 1" },
+          { "time": "22:00", "title": "Last orders at the bar", "note": "" }
+        ]
+      } } },
+    { "kind": "entry", "slug": "saturday-picnic", "data": {
+      "stream": "events", "title": "Family picnic", "date": "2027-06-12",
+      "summary": "Bring a blanket. Lunch, games for the kids, a campus walk at two.",
+      "event": {
+        "start": "2027-06-12T11:00", "end": "2027-06-12T15:00",
+        "place": { "name": "Lakeside Pavilion", "address": "Lakeside Road, Kestrel Falls", "map_link": "https://example.com/map/pavilion" },
+        "rsvp": { "label": "RSVP", "link": "https://example.com/rsvp", "deadline": "2027-05-15" },
+        "status": "changed"
+      } } },
+    { "kind": "entry", "slug": "saturday-dinner", "data": {
+      "stream": "events", "title": "Reunion dinner", "date": "2027-06-12",
+      "summary": "A seated dinner, a few words from the class president and a band until late.",
+      "body": "Dress is smart casual. Tickets include dinner and two drinks.",
+      "event": {
+        "start": "2027-06-12T18:30", "end": "2027-06-12T23:30",
+        "place": { "name": "Kestrel Falls Country Club", "address": "900 Fairway Lane, Kestrel Falls", "map_link": "https://example.com/map/club" },
+        "rsvp": { "label": "Buy a dinner ticket", "link": "https://example.com/tickets", "deadline": "2027-05-15" },
+        "schedule": [
+          { "time": "18:30", "title": "Drinks on the terrace", "note": "" },
+          { "time": "19:30", "title": "Dinner", "note": "Vegetarian and gluten-free on request" },
+          { "time": "21:00", "title": "A few words, and the class photo", "note": "" },
+          { "time": "21:30", "title": "Band until late", "note": "" }
+        ]
+      } } },
+    { "kind": "entry", "slug": "sunday-brunch", "data": {
+      "stream": "events", "title": "Sunday farewell brunch", "date": "2027-06-13",
+      "summary": "We couldn't get the room. Breakfast is on your own; see you at dinner instead.",
+      "event": {
+        "start": "2027-06-13T10:00", "end": "2027-06-13T12:00",
+        "place": { "name": "Riverside Diner", "address": "51 Water Street, Kestrel Falls", "map_link": "" },
+        "status": "cancelled"
+      } } },
+    { "kind": "entry", "slug": "committee-kickoff", "data": {
+      "stream": "events", "title": "Committee kickoff", "date": "2025-09-20",
+      "summary": "Where the planning started.",
+      "event": {
+        "start": "2025-09-20T14:00", "end": "2025-09-20T16:00",
+        "place": { "name": "Kestrel Falls Public Library", "address": "", "map_link": "" }
+      } } },
+    { "kind": "entry", "slug": "hotel-block", "data": {
+      "stream": "updates", "title": "The hotel block is open", "date": "2026-10-02",
+      "summary": "Thirty rooms at the group rate, until May 1.",
+      "tags": ["travel"],
+      "body": "We've held thirty rooms at the Kestrel Falls Inn, a short walk from the Lantern Room. Book with the group code on the hotel page and the rate holds until **May 1**.\n\nIf you're driving in, parking at the inn is free for guests."
+    } },
+    { "kind": "entry", "slug": "in-memory", "data": {
+      "stream": "updates", "title": "In memory", "date": "2026-09-15",
+      "summary": "Classmates we've lost, and a table for them at dinner.",
+      "body": "We'll set a table at dinner with their photos. Send us a picture and a line about them."
+    } },
+    { "kind": "card", "data": { "group": "Good to know", "name": "What does it cost?", "description": "The mixer and picnic are free. Dinner tickets cover the meal and two drinks.", "price": "$65 dinner", "sort": 10 } },
+    { "kind": "card", "data": { "group": "Good to know", "name": "What do I wear?", "description": "Whatever you like on Friday and Saturday afternoon. Smart casual for dinner.", "sort": 20 } },
+    { "kind": "card", "data": { "group": "Good to know", "name": "Can I bring my family?", "description": "Yes, to everything. Kids under twelve eat free at the picnic.", "sort": 30 } },
+    { "kind": "card", "data": { "group": "Good to know", "name": "Where do I park?", "description": "Free lots behind the Lantern Room and at the club. The pavilion has street parking only.", "sort": 40 } },
+    { "kind": "card", "data": { "group": "Where to stay", "name": "Kestrel Falls Inn", "subtitle": "Group rate, two blocks from Main Street", "description": "Ask for the Kestrel Falls '07 block when you book.", "price": "$129 a night", "link": "https://example.com/hotel", "link_label": "Book a room", "sort": 50 } },
+    { "kind": "card", "data": { "group": "Where to stay", "name": "Lakeview Motel", "subtitle": "By the pavilion", "description": "Simple rooms, a pool for the kids.", "price": "$89 a night", "sort": 60 } }
+  ]
+}

@@ -1,0 +1,216 @@
+/* Link page: one centred column. Your face or mark, your name, one line, then big buttons. Bricolage Grotesque throughout. */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap");
+
+:root {
+  color-scheme: light;
+  /* The palette's colours (the site's palette is added after this file and wins). */
+  --bg: #ffffff;
+  --ink: #111111;
+  --muted: #555555;
+  --accent: #1a3fb4;
+  --accent-2: #b3261e;
+  --line: #d4d4d4;
+  --on-accent: #ffffff;
+  /* The theme's own names, from the palette. */
+  --surface: color-mix(in srgb, var(--ink) 4%, var(--bg));
+  --surface-hover: color-mix(in srgb, var(--accent) 9%, var(--bg));
+  --glow: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  --glow-2: color-mix(in srgb, var(--accent-2) 9%, var(--bg));
+  --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 18px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.5;
+  text-wrap: pretty;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(640px 420px at 18% -6%, var(--glow) 0%, transparent 70%),
+    radial-gradient(560px 380px at 92% 4%, var(--glow-2) 0%, transparent 70%),
+    var(--bg);
+  background-repeat: no-repeat;
+}
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+h1, h2, h3, p { margin: 0; }
+
+.col {
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 0 16px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+main { flex: 1 0 auto; }
+
+.notice {
+  margin: 16px 0 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* The person. */
+.me { text-align: center; padding: clamp(40px, 9vh, 80px) 0 28px; }
+.avatar {
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--accent);
+}
+.me h1 { font-size: clamp(32px, 8vw, 44px); font-weight: 800; line-height: 1.05; letter-spacing: -0.025em; }
+.line { margin-top: 10px; font-size: 19px; font-weight: 500; }
+.lede { margin: 12px auto 0; max-width: 28rem; color: var(--muted); font-size: 16px; }
+
+/* The buttons: the whole point. The first is the one that matters most. */
+.buttons { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.button {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: 14px 22px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.button:hover { transform: translateY(-2px); background: var(--surface-hover); border-color: var(--accent); }
+.button:active { transform: translateY(0); }
+.button-label { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.button-note { font-size: 14px; color: var(--muted); }
+.buttons li:first-child .button { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-height: 72px; }
+.buttons li:first-child .button-note { color: var(--on-accent); opacity: 0.85; }
+.buttons li:first-child .button:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
+
+/* Elsewhere. */
+.social { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 22px 0 0; padding: 0; }
+.social a {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  background: var(--bg);
+}
+.social a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* A few recent updates, and anything else the owner put on the page. */
+.block { margin-top: 44px; }
+.block h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.block h2::before, .block h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.block h3 { margin: 18px 0 8px; font-size: 15px; font-weight: 700; }
+.updates, .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.upd, .card > a, .card:not(:has(> a)) {
+  display: grid;
+  grid-template-columns: 4.2rem minmax(0, 1fr);
+  gap: 0 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  text-decoration: none;
+}
+.upd:hover, .card > a:hover { background: var(--surface-hover); }
+.upd-when { grid-row: span 2; font-size: 13px; font-weight: 600; color: var(--accent); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.upd-title { font-weight: 700; line-height: 1.3; }
+.upd-sub { font-size: 14px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+.flag { font-style: normal; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--accent-2); color: var(--bg); vertical-align: middle; }
+.all { margin-top: 12px; text-align: center; font-size: 14px; font-weight: 600; }
+.all a { color: var(--accent); text-decoration: none; }
+
+.card > a, .card:not(:has(> a)) { grid-template-columns: 1fr; }
+.card-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.card-name { font-weight: 700; }
+.card-price { font-weight: 600; color: var(--accent); white-space: nowrap; font-size: 15px; }
+.card-sub { font-size: 14px; font-weight: 500; }
+.card-desc { font-size: 14px; color: var(--muted); }
+
+.about { text-align: center; }
+.about p { color: var(--muted); margin-bottom: 10px; }
+
+/* Inner pages. */
+.mini { padding: 22px 0 0; }
+.mini-home { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
+.mini-home img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.page { padding: 36px 0 56px; }
+.back { font-size: 14px; font-weight: 600; text-decoration: none; color: var(--accent); }
+.page h1 { margin: 14px 0 8px; font-size: clamp(30px, 7vw, 42px); font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; }
+.page .lede { margin: 14px 0 0; max-width: none; font-size: 18px; }
+.meta { font-size: 14px; color: var(--muted); }
+.meta a { text-decoration: none; margin-right: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+.chips a { padding: 4px 12px; border-radius: 999px; background: var(--surface); font-size: 14px; text-decoration: none; }
+.page .updates { margin-top: 20px; }
+.cover { width: 100%; border-radius: var(--radius); margin: 24px 0; }
+.body { margin-top: 20px; }
+.body p, .body ul, .body ol { margin: 0 0 1em; }
+.body h2 { font-size: 24px; font-weight: 700; margin: 1.4em 0 0.4em; }
+.body h3 { font-size: 19px; font-weight: 700; margin: 1.2em 0 0.4em; }
+.body a { color: var(--accent); }
+.body blockquote { margin: 1.4em 0; padding: 14px 18px; border-radius: 14px; background: var(--surface); font-size: 19px; font-weight: 500; }
+.body blockquote p { margin: 0; }
+.body img { border-radius: 14px; margin: 20px 0; }
+.body pre { overflow-x: auto; padding: 14px; border-radius: 12px; background: var(--surface); font-size: 14px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 0; }
+.stats div { flex: 1 1 6rem; display: flex; flex-direction: column-reverse; padding: 12px 14px; border-radius: 14px; background: var(--surface); }
+.stats dt { font-size: 13px; color: var(--muted); }
+.stats dd { margin: 0; font-size: 28px; font-weight: 800; line-height: 1.1; }
+.event { margin: 22px 0 0; padding: 18px; border-radius: var(--radius); background: var(--surface); display: grid; gap: 8px; }
+.event-when { font-weight: 700; }
+.event .button { margin-top: 6px; }
+.schedule { list-style: none; margin: 6px 0 0; padding: 0; font-size: 15px; }
+.schedule li { padding: 6px 0; border-top: 1px solid var(--line); }
+.schedule span { display: inline-block; min-width: 5.5rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lost { text-align: center; padding-top: 18vh; }
+.lost .lede { margin-bottom: 28px; }
+
+/* Footer. */
+.foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 48px 0 36px;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+.foot-mail { font-weight: 600; color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+  .button:hover { transform: none; }
+}

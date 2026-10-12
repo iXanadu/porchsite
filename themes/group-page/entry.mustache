@@ -1,0 +1,14 @@
+{{> head}}
+<article class="page w">
+<a class="back" href="{{stream.archive_url}}">← {{stream.nav_label}}</a>
+{{#entry}}{{#event.has}}<h1 class="sr">{{title}}</h1>
+<div class="solo-event">{{> event}}</div>
+{{/event.has}}{{^event.has}}<p class="date">{{date_long}}</p>
+<h1>{{title}}</h1>
+{{#summary}}<p class="lede">{{summary}}</p>{{/summary}}
+{{/event.has}}{{#cover_src}}<img class="cover" src="{{cover_src}}" alt="{{cover_alt}}">
+{{/cover_src}}{{#has_body}}<div class="body">{{{body_html}}}</div>
+{{/has_body}}{{#has_tags}}<p class="tags">{{#tags}}<a href="{{stream.archive_url}}tags/{{name}}/">#{{name}}</a> {{/tags}}</p>
+{{/has_tags}}{{/entry}}
+</article>
+{{> foot}}

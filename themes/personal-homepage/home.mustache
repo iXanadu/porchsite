@@ -1,0 +1,76 @@
+{{> head}}
+<section id="top" class="hero">
+<div class="hero-text">
+<div class="handle">@{{site.handle}}</div>
+<h1>{{site.tagline}}</h1>
+<p class="lede">{{page.lede}}</p>
+<div class="hero-ctas">
+<a class="btn btn-primary" href="{{site.x_url}}">{{site.follow_label}}</a>
+{{#has_writing}}<a class="btn btn-outline" href="{{page.cta_link}}">{{page.cta_label}}</a>
+{{#hero_more}}<a class="btn btn-outline" href="{{href}}">{{label}}</a>{{/hero_more}}{{/has_writing}}</div>
+</div>
+{{#site.hero_image}}<figure>
+<img src="{{site.hero_image}}" width="{{site.hero_width}}" height="{{site.hero_height}}" alt="{{page.hero_alt}}">
+<figcaption>{{page.hero_caption}}</figcaption>
+</figure>{{/site.hero_image}}
+</section>
+
+{{#sections}}
+{{#is_entries}}
+{{#stream.is_feature}}
+<section id="{{stream.anchor}}">
+<div class="journal-head">
+<div class="section-title"><span class="who who-assistant">{{stream.byline}}</span><h2>{{stream.title}}</h2></div>
+<div class="last-update"><span class="dot"></span><span>{{strings.last_update}} {{site.updated}}</span></div>
+</div>
+<p class="intro">{{stream.intro}}</p>
+{{#latest}}{{> report_card}}{{/latest}}{{#has_activity}}<div class="activity">
+{{#activity}}<div class="activity-row"><span class="meta">{{date_short}}</span><span>{{#link}}<a href="{{link}}">{{text}}</a>{{/link}}{{^link}}{{text}}{{/link}}</span></div>
+{{/activity}}</div>
+{{/has_activity}}
+{{#more_than_one}}<a class="back" href="{{stream.archive_url}}">{{stream.all_label}}</a>{{/more_than_one}}{{> to_top}}</section>
+{{/stream.is_feature}}
+{{#stream.is_list}}
+{{#show}}
+<section id="{{stream.anchor}}">
+<div class="section-title"><span class="who">{{stream.byline}}</span><h2>{{stream.title}}</h2></div>
+{{#items}}{{> writing_card}}{{/items}}<a class="back" href="{{stream.archive_url}}">{{stream.all_label}}{{count_suffix}} →</a>
+{{> to_top}}
+</section>
+{{/show}}
+{{/stream.is_list}}
+{{/is_entries}}
+{{#is_cards}}
+{{#show}}
+<section id="{{anchor}}" class="cards-section">
+<h2>{{title}}</h2>
+{{#has_chips}}
+<div class="tag-row chips" role="group" aria-label="{{strings.filter_projects}}" hidden>
+<button type="button" class="chip" data-filter="" aria-pressed="true">{{strings.all}}</button>
+{{#groups}}<button type="button" class="chip" data-filter="{{key}}" aria-pressed="false">{{label}} <span class="muted">{{count}}</span></button>
+{{/groups}}</div>
+{{/has_chips}}
+{{#has_projects}}<div class="cards">
+{{#projects}}{{> project_card}}{{/projects}}</div>{{/has_projects}}{{#has_open_source}}<h3 class="group-label">{{open_source_label}}</h3>
+<div class="cards">
+{{#open_source}}{{> project_card}}{{/open_source}}</div>
+{{/has_open_source}}
+{{> to_top}}
+</section>
+<script src="{{kit.filter_url}}" defer></script>
+{{/show}}
+{{/is_cards}}
+{{#is_about}}
+<section id="{{anchor}}">
+<h2>{{title}}</h2>
+<div class="about-body">
+{{#paragraphs}}<p>{{.}}</p>
+{{/paragraphs}}</div>
+{{> to_top}}
+</section>
+{{/is_about}}
+{{#not_last}}
+
+{{/not_last}}
+{{/sections}}
+{{> foot}}

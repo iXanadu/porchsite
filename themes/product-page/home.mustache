@@ -1,0 +1,47 @@
+{{> head}}
+{{#site.hero_image}}<div class="hero-split">
+<div class="hero-copy">
+{{/site.hero_image}}{{^site.hero_image}}<div class="hero-copy solo">
+{{/site.hero_image}}<h1>{{site.tagline}}</h1>
+<p class="lede">{{page.lede}}</p>
+{{#has_writing}}<div class="row">
+<a class="b" href="{{page.cta_link}}">{{page.cta_label}}</a>
+{{#hero_more}}<a class="b b2" href="{{href}}">{{label}}</a>{{/hero_more}}
+</div>
+{{/has_writing}}</div>
+{{#site.hero_image}}<img class="press-img hero-bird" src="{{site.hero_image}}" alt="{{page.hero_alt}}" width="{{site.hero_width}}" height="{{site.hero_height}}">
+</div>
+{{/site.hero_image}}
+{{#sections}}
+{{#is_entries}}
+{{#stream.is_feature}}{{#latest}}
+<section id="{{stream.anchor}}">
+{{> figures}}
+<div class="body">{{{body_html}}}</div>
+</section>
+{{/latest}}{{/stream.is_feature}}
+{{#stream.is_list}}{{#show}}
+<section id="{{stream.anchor}}">
+<h2>{{stream.title}}</h2>
+{{#stream.intro}}<p>{{stream.intro}}</p>{{/stream.intro}}
+<ul class="plain">
+{{#items}}{{> page_row}}{{/items}}</ul>
+{{#more_than_one}}<p class="s"><a href="{{stream.archive_url}}">{{stream.all_label}}{{count_suffix}}</a></p>{{/more_than_one}}
+</section>
+{{/show}}{{/stream.is_list}}
+{{/is_entries}}
+{{#is_cards}}{{#show}}
+<section id="{{anchor}}">
+<h2>{{title}}</h2>
+<div class="cols">
+{{#projects}}{{> card}}{{/projects}}{{#open_source}}{{> card}}{{/open_source}}</div>
+</section>
+{{/show}}{{/is_cards}}
+{{#is_about}}
+<section id="{{anchor}}">
+<h2>{{title}}</h2>
+{{#paragraphs}}<p>{{.}}</p>
+{{/paragraphs}}</section>
+{{/is_about}}
+{{/sections}}
+{{> foot}}

@@ -1,0 +1,25 @@
+{{> head}}
+{{#stream.is_feature}}
+<article class="entry">
+<a class="back" href="{{stream.archive_url}}">← {{stream.title}}</a>
+<div class="meta">{{entry.date_long}} · {{stream.byline}}</div>
+<h1>{{entry.title}}</h1>
+{{#entry.has_stats}}
+<div class="stats">
+{{#entry.stats}}<div class="stat"><span class="stat-value">{{value}}</span><span class="stat-label">{{label}}</span></div>
+{{/entry.stats}}</div>
+{{/entry.has_stats}}
+<p class="lede">{{entry.summary}}</p>
+{{#entry.has_body}}<div class="entry-body">{{{entry.body_html}}}</div>{{/entry.has_body}}</article>
+{{/stream.is_feature}}
+{{#stream.is_list}}
+<article class="entry">
+<a class="back" href="{{stream.archive_url}}">← {{stream.nav_label}}</a>
+<div class="meta">{{entry.date_long}} · {{strings.by}} @{{site.handle}}</div>
+<h1>{{entry.title}}</h1>
+{{#entry.cover_src}}<img class="post-cover" src="{{entry.cover_src}}" alt="{{entry.cover_alt}}">{{/entry.cover_src}}<p class="lede">{{entry.summary}}</p>
+<div class="entry-body">{{{entry.body_html}}}</div>
+{{#entry.has_tags}}<div class="tag-row">{{#entry.tags}}<a class="tag" href="{{stream.archive_url}}tags/{{name}}/">#{{name}}</a>{{/entry.tags}}</div>{{/entry.has_tags}}{{#entry.link}}<p class="muted">{{strings.also_on}} <a href="{{entry.link}}">{{entry.link_host}}</a>.</p>{{/entry.link}}<a class="btn btn-primary follow-cta" href="{{site.x_url}}">{{strings.follow}} @{{site.handle}} {{strings.on_x}}</a>
+</article>
+{{/stream.is_list}}
+{{> foot}}

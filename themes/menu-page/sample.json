@@ -1,0 +1,75 @@
+{
+  "site": {
+    "title": "Marigold Table",
+    "tagline": "A neighbourhood bistro in Millbrook",
+    "intro": "Seasonal plates from the market, bread baked each morning, and a short list of wines we like to drink.",
+    "description": "Marigold Table, a bistro on Elm Street in Millbrook: the menu, hours and how to book.",
+    "theme": "menu-page",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "cta_label": "See the menu",
+    "cta_link": "#menu",
+    "notice": { "text": "Closed Mondays · the kitchen closes 30 minutes before we do", "until": "2099-12-31" },
+    "contact": {
+      "phone": "+1 202 555 0100",
+      "email": "hello@example.com",
+      "address": { "line1": "38 Elm Street", "line2": "", "city": "Millbrook", "region": "IL", "postcode": "60000", "country": "" },
+      "map_link": "https://example.com/map/marigold-table",
+      "social": [{ "kind": "Instagram", "url": "https://example.com/instagram" }]
+    },
+    "hours": {
+      "weekly": [
+        { "day": "mon", "closed": true },
+        { "day": "tue", "open": "17:00", "close": "22:00" },
+        { "day": "wed", "open": "17:00", "close": "22:00" },
+        { "day": "thu", "open": "17:00", "close": "22:00" },
+        { "day": "fri", "open": "17:00", "close": "23:00" },
+        { "day": "sat", "open": "10:00", "close": "14:00" },
+        { "day": "sat", "open": "17:00", "close": "23:00" },
+        { "day": "sun", "open": "10:00", "close": "15:00" }
+      ],
+      "exceptions": [
+        { "from": "2026-11-26", "label": "Thanksgiving", "closed": true },
+        { "from": "2026-11-29", "label": "Brunch only", "open": "10:00", "close": "14:00", "closed": false }
+      ],
+      "note": "Walk-ins welcome at the bar. Brunch on weekends."
+    },
+    "buttons": [
+      { "label": "Book a table", "url": "https://example.com/book", "note": "Up to 8 people online; call for more" },
+      { "label": "Order for pickup", "url": "https://example.com/order", "note": "Tuesday to Sunday, from 5 PM" }
+    ],
+    "links": [],
+    "streams": [
+      { "id": "specials", "title": "Specials & news", "layout": "list" },
+      { "id": "evenings", "title": "Evenings", "layout": "list", "intro": "Wine dinners and guest cooks, a few times a season." }
+    ],
+    "sections": ["cards", "specials", "evenings", "about"],
+    "cards_title": "Menu",
+    "cards_anchor": "menu",
+    "about_title": "Our story",
+    "about": "Marigold Table opened in 2019 in a former flower shop, which is where the name comes from. Two cooks, one long counter, and a garden out back that grows most of our herbs.\n\nThe menu changes with what the farms bring us on Tuesdays. If something you loved is gone, ask: it usually comes back.",
+    "footer_line": "Please tell us about any allergy before you order. V vegetarian · VG vegan · GF gluten-free · N contains nuts"
+  },
+  "items": [
+    { "kind": "card", "data": { "group": "Starters", "sort": 10, "name": "Warm bread & cultured butter", "price": "$6", "description": "Today's loaf, sea salt, honey from up the road.", "tags": ["V"] } },
+    { "kind": "card", "data": { "group": "Starters", "sort": 11, "name": "Roast squash soup", "price": "$9", "description": "Brown butter, sage, toasted seeds.", "tags": ["V", "GF"] } },
+    { "kind": "card", "data": { "group": "Starters", "sort": 12, "name": "Beets & whipped feta", "price": "$12", "description": "Walnuts, orange, mint from the garden.", "tags": ["V", "GF", "N"] } },
+    { "kind": "card", "data": { "group": "Starters", "sort": 13, "name": "Crispy pork belly", "price": "$14", "description": "Apple mustard, pickled shallot, watercress." } },
+    { "kind": "card", "data": { "group": "Mains", "sort": 20, "name": "Half roast chicken", "price": "$26", "description": "Lemon, garlic, thyme; crushed potatoes and the pan juices.", "tags": ["GF"], "badge": "House favourite", "badge_tone": "live" } },
+    { "kind": "card", "data": { "group": "Mains", "sort": 21, "name": "Market fish", "price": "Market price", "description": "Whatever came in this morning, with brown butter, capers and greens." } },
+    { "kind": "card", "data": { "group": "Mains", "sort": 22, "name": "Mushroom & barley risotto", "price": "$21", "description": "Wild mushrooms, aged cheese, crispy shallots.", "tags": ["V"] } },
+    { "kind": "card", "data": { "group": "Mains", "sort": 23, "name": "Braised short rib", "subtitle": "For two · allow 25 minutes", "price": "$58", "description": "Slow-cooked in red wine, with soft polenta and gremolata.", "tags": ["GF"] } },
+    { "kind": "card", "data": { "group": "Desserts", "sort": 30, "name": "Burnt honey custard", "price": "$9", "description": "Shortbread, poached pear.", "tags": ["V"] } },
+    { "kind": "card", "data": { "group": "Desserts", "sort": 31, "name": "Dark chocolate tart", "price": "$10", "description": "Salted caramel, crème fraîche.", "tags": ["V"] } },
+    { "kind": "card", "data": { "group": "Desserts", "sort": 32, "name": "Sorbet of the day", "price": "$7", "description": "Two scoops, made here.", "tags": ["VG", "GF"] } },
+    { "kind": "card", "data": { "group": "Drinks", "sort": 40, "name": "House red or white", "subtitle": "Glass · carafe", "price": "$11 · $32", "description": "Ask what's open tonight." } },
+    { "kind": "card", "data": { "group": "Drinks", "sort": 41, "name": "Garden spritz", "price": "$12", "description": "Elderflower, sparkling wine, cucumber, mint." } },
+    { "kind": "card", "data": { "group": "Drinks", "sort": 42, "name": "Local lager", "price": "$7", "description": "From the brewery two streets over." } },
+    { "kind": "card", "data": { "group": "Drinks", "sort": 43, "name": "House lemonade", "price": "$5", "description": "Lemon, honey, a little ginger.", "tags": ["VG"] } },
+    { "kind": "entry", "slug": "pumpkin-week", "data": { "stream": "specials", "title": "This week: pumpkin ravioli", "date": "2026-10-07", "summary": "Sage butter, toasted hazelnuts. Until it runs out.", "body": "Made by hand every afternoon. **$19**, or half a plate for $11.", "tags": ["specials"] } },
+    { "kind": "entry", "slug": "brunch-is-back", "data": { "stream": "specials", "title": "Weekend brunch is back", "date": "2026-09-20", "summary": "Saturdays and Sundays from 10.", "body": "Eggs, pastries and the good coffee." } },
+    { "kind": "entry", "slug": "thanksgiving", "data": { "stream": "specials", "title": "Thanksgiving: closed, with take-home pies", "date": "2026-09-05", "summary": "Order pies by November 22, pick up on the 25th.", "body": "Pumpkin, pecan, apple. $28 each." } },
+    { "kind": "entry", "slug": "harvest-wine-dinner", "data": { "stream": "evenings", "title": "Harvest wine dinner", "date": "2026-10-01", "summary": "Five courses, five wines, one long table.", "body": "Seats are limited.", "event": { "start": "2027-02-12T19:00", "end": "2027-02-12T22:00", "place": { "name": "Marigold Table", "address": "38 Elm Street, Millbrook", "map_link": "https://example.com/map/marigold-table" }, "rsvp": { "label": "Book a seat", "link": "https://example.com/book", "deadline": "2027-02-05" }, "schedule": [{ "time": "19:00", "title": "Welcome glass", "note": "In the garden, weather allowing" }, { "time": "19:30", "title": "Dinner", "note": "" }] } } },
+    { "kind": "entry", "slug": "guest-cook-2025", "data": { "stream": "evenings", "title": "Guest cook: a night of dumplings", "date": "2025-09-01", "summary": "Sold out in two days.", "body": "Thank you for coming.", "event": { "start": "2025-11-08T18:00", "end": "2025-11-08T22:00", "place": { "name": "Marigold Table", "address": "38 Elm Street, Millbrook" } } } }
+  ]
+}

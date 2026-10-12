@@ -1,0 +1,23 @@
+{{#site.hours.has}}<div class="visit-col hours" id="hours">
+<h2>{{strings.hours}}</h2>
+<p class="status{{#site.hours.open_now}} is-open{{/site.hours.open_now}}"><span class="dot"></span>{{site.hours.status}}</p>
+<ul class="days">
+{{#site.hours.days}}<li class="{{#today}}today{{/today}}{{#closed}} shut{{/closed}}"><span>{{day}}</span><span class="lead"></span><span class="t">{{hours}}</span></li>
+{{/site.hours.days}}</ul>
+{{#site.hours.has_exceptions}}<div class="exceptions">
+<h3 class="ex-head">{{strings.holiday_hours}}</h3>
+<ul>
+{{#site.hours.exceptions}}<li><span><strong>{{when}}</strong>{{#label}} · {{label}}{{/label}}</span><span class="lead"></span><span class="t">{{hours}}</span></li>
+{{/site.hours.exceptions}}</ul>
+</div>{{/site.hours.has_exceptions}}
+{{#site.hours.note}}<p class="note">{{site.hours.note}}</p>{{/site.hours.note}}
+</div>
+{{/site.hours.has}}{{#site.contact.has}}<div class="visit-col contact" id="contact">
+<h2>{{strings.contact}}</h2>
+{{#site.contact.has_address}}<address>{{#site.contact.address_lines}}{{line}}<br>{{/site.contact.address_lines}}</address>{{/site.contact.has_address}}
+{{#site.contact.phone}}<p class="reach"><a href="{{site.contact.phone_href}}">{{site.contact.phone}}</a></p>{{/site.contact.phone}}
+{{#site.contact.email}}<p class="reach"><a href="{{site.contact.email_href}}">{{site.contact.email}}</a></p>{{/site.contact.email}}
+<p class="acts">{{#site.contact.map_link}}<a class="b" href="{{site.contact.map_link}}">{{strings.directions}}</a>{{/site.contact.map_link}}{{#site.contact.phone}}<a class="b b2" href="{{site.contact.phone_href}}">{{strings.call}}</a>{{/site.contact.phone}}</p>
+{{#site.contact.has_social}}<p class="social">{{#site.contact.social}}<a href="{{url}}">{{kind}}</a> {{/site.contact.social}}</p>{{/site.contact.has_social}}
+</div>
+{{/site.contact.has}}

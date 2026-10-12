@@ -1,0 +1,6 @@
+<li class="dish">
+{{#has_image}}<img class="dish-img" src="{{image_src}}" alt="{{image_alt}}" loading="lazy">{{/has_image}}
+<p class="dish-line"><span class="dish-name">{{#link}}<a href="{{link}}">{{name}}</a>{{/link}}{{^link}}{{name}}{{/link}}{{#status}} <span class="badge badge-{{status_tone}}">{{status}}</span>{{/status}}</span><span class="lead"></span>{{#price}}<span class="dish-price">{{price}}</span>{{/price}}</p>
+{{#subtitle}}<p class="dish-sub">{{subtitle}}</p>{{/subtitle}}
+<p class="dish-desc">{{description}}{{#has_tags}} <span class="diet">{{#tags}}<span>{{name}}</span>{{/tags}}</span>{{/has_tags}}</p>
+</li>

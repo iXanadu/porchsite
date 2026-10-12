@@ -1,0 +1,391 @@
+{
+  "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
+  "releases": [
+    {
+      "release": "2026.10.12-a2a70f2",
+      "date": "2026-10-12",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Connecting an assistant: if you have to sign in first, you now land back on the Allow screen instead of your review page.",
+        "The install guide asks your person about the site's name and address before anything is made, and never takes the old address away before their passkey works at the new one.",
+        "The install guide forbids changing the site's code (only a release's own file is ever uploaded) and says to send finished work as one approval request."
+      ]
+    },
+    {
+      "release": "2026.10.12-a39ab73",
+      "date": "2026-10-12",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "A big review (30 changes or more) opens and publishes in about the same time as a small one; it used to sit for many seconds and look stuck.",
+        "Pressing Approve now says at once that it's publishing, and can't be pressed twice; the same for sending back, saving your choices and putting the site back.",
+        "The install guide ends by helping your person pick a look that fits their site."
+      ]
+    },
+    {
+      "release": "2026.10.12-0fa4f7d",
+      "date": "2026-10-12",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0013_analytics_daily.sql"
+      ],
+      "changes": [
+        "You can change any of your look's own words (\"Back to top\", the not-found page, opening hours), for example into another language, and say what kind a card group is: FAQ, steps, reviews or a list.",
+        "Your review page now says when your assistant has changes it hasn't sent you, and no longer shows a field as changed when only a default was filled in.",
+        "Visitor numbers older than 90 days are kept as monthly totals, and sites on the built-in look are counted too.",
+        "Putting the site back to an early version keeps your site's text; shared archive pages show their newest cover photo.",
+        "Passkey sign-in refuses a bad answer cleanly instead of erroring, and every connected app must use the secure code exchange (PKCE)."
+      ]
+    },
+    {
+      "release": "2026.10.12-2ce79ce",
+      "date": "2026-10-12",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Quick checks of a page (HEAD requests) now get the same answer as a visit; some pages wrongly said not found.",
+        "The update guide is clearer, from its first real run: it lists every database change so a site that skipped releases knows what it's missing."
+      ]
+    },
+    {
+      "release": "2026.10.11-0d1682b",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Your site now tells your assistant when a newer Porchsite is out, and your review page shows one quiet line about it. Nothing ever updates by itself.",
+        "Every release now lists its changes in plain words, says if it's a security fix, and can always be rolled back by putting the previous version back."
+      ]
+    },
+    {
+      "release": "2026.10.11-13513a3",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The review page shows what changed: the old wording next to the new, open by default.",
+        "Long text shows only the words that changed, not two full copies."
+      ]
+    },
+    {
+      "release": "2026.10.11-65f9a4b",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Nothing changes on sites themselves; a public form to ask for a feature or report a problem opened at porchsite.dev/ask."
+      ]
+    },
+    {
+      "release": "2026.10.11-4612202",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0012_setup_codes.sql"
+      ],
+      "changes": [
+        "The owner claims a new site from a link (/setup?code=...), with the code already filled in.",
+        "Setup codes can be issued after install, work once and expire; claiming the site ends them all.",
+        "Needs one new database file (0012) before the new site code."
+      ]
+    },
+    {
+      "release": "2026.10.11-60d1716",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Fixed: on Cloudflare, an owner page that should say 'not found' or 'link already used' showed a server error instead.",
+        "A site's shared looks report whether their maker was credited."
+      ]
+    },
+    {
+      "release": "2026.10.11-87a208a",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Richer writing: code blocks, nested lists, emphasis, smaller headings and line breaks, rendered the same way in both editions."
+      ]
+    },
+    {
+      "release": "2026.10.11-cc45bbc",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Shared looks can credit their maker by X handle, once the curator has checked it.",
+        "Sites can be moved over from the older engine (server edition)."
+      ]
+    },
+    {
+      "release": "2026.10.11-c513994",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0011_slug_history.sql"
+      ],
+      "changes": [
+        "The owner (or assistant) can choose a page's address; the old address keeps working and sends visitors on.",
+        "The guides are readable as web pages at /docs.",
+        "Needs one new database file (0011) before the new site code."
+      ]
+    },
+    {
+      "release": "2026.10.11-88b3846",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": true,
+      "migrations": [
+        "0010_analytics_history.sql"
+      ],
+      "changes": [
+        "Cards can be public, a mention (name only) or private (never shown, and its name refused in anything public).",
+        "Visitor counts without cookies or stored addresses, at /review/stats; the assistant gets a site_stats tool.",
+        "The owner can write and publish a page directly at /review/write.",
+        "Site history at /review/history: put the whole site back as it was on an earlier day.",
+        "Adds a tool: reconnect the assistant. Needs one new database file (0010) before the new site code."
+      ]
+    },
+    {
+      "release": "2026.10.11-de00c12",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Nothing changes on sites; the self-hosting guide says plainly what the server edition can and can't do yet."
+      ]
+    },
+    {
+      "release": "2026.10.11-4e6f1a1",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Nothing changes on sites; a self-hosting guide for assistants helping a developer."
+      ]
+    },
+    {
+      "release": "2026.10.11-3f9aab7",
+      "date": "2026-10-11",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Looks credit their authors in the footer.",
+        "Demo sites for every look serve their feeds and tag pages."
+      ]
+    },
+    {
+      "release": "2026.10.10-7b5d494",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The product-page look: inner pages read as pages, not as posts."
+      ]
+    },
+    {
+      "release": "2026.10.10-bd677cc",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Every answer from the site names the release it runs (the X-Porchsite-Release header, and release in site_state).",
+        "The install guide now deletes the setup code once the site is claimed, and checks for it when updating."
+      ]
+    },
+    {
+      "release": "2026.10.10-050d3f8",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The product-page look: an entry's cover is small spot art, not a screen-sized square."
+      ]
+    },
+    {
+      "release": "2026.10.10-a6a693c",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The review page explains changes in plain words, with one Approve and publish button.",
+        "Fixed: the preview could come out unstyled before the first approval or a change of look."
+      ]
+    },
+    {
+      "release": "2026.10.10-928584b",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The site code is 40% smaller.",
+        "Install guide fixes found while installing a real site."
+      ]
+    },
+    {
+      "release": "2026.10.10-9ac8980",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The theme catalog and downloads moved to get.porchsite.dev."
+      ]
+    },
+    {
+      "release": "2026.10.10-c3c0242",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": true,
+      "migrations": [
+        "0009_theme_submissions.sql"
+      ],
+      "changes": [
+        "Eight new looks: event, group, local business, menu, services, catalogue, portfolio and link page.",
+        "Contact details, opening hours, notices, buttons and events on the page.",
+        "An assistant can share a look it made for review (theme_submit).",
+        "Adds a tool: reconnect the assistant. Needs one new database file (0009)."
+      ]
+    },
+    {
+      "release": "2026.10.10-6f8a31e",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": true,
+      "migrations": [
+        "0008_private_themes.sql"
+      ],
+      "changes": [
+        "An assistant can make a private look just for its own site.",
+        "Adds a tool: reconnect the assistant. Needs one new database file (0008)."
+      ]
+    },
+    {
+      "release": "2026.10.10-a0a5f51",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Nothing changes on sites; tools for people making looks."
+      ]
+    },
+    {
+      "release": "2026.10.10-7811cb4",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": true,
+      "migrations": [
+        "0007_theme_requests.sql"
+      ],
+      "changes": [
+        "When no look fits, the assistant can ask for one privately (theme_request).",
+        "Adds a tool: reconnect the assistant. Needs one new database file (0007)."
+      ]
+    },
+    {
+      "release": "2026.10.10-646008a",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Looks are named for what the site is for (product-page, personal-homepage)."
+      ]
+    },
+    {
+      "release": "2026.10.10-dbbf20f",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The owner can see the site as it will look before approving."
+      ]
+    },
+    {
+      "release": "2026.10.10-f710307",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The theme catalog shows each look at phone and desktop width."
+      ]
+    },
+    {
+      "release": "2026.10.10-87404c7",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": true,
+      "migrations": [],
+      "changes": [
+        "Looks install from a catalog, and each says what words and pictures it needs.",
+        "Adds tools: reconnect the assistant."
+      ]
+    },
+    {
+      "release": "2026.10.10-8583aa3",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0006_themes.sql"
+      ],
+      "changes": [
+        "www.<domain> sends visitors to <domain>, so a passkey works at one address.",
+        "Every released version stays downloadable.",
+        "Ships database file 0006 (installed looks) ahead of the theme catalog that uses it; apply it like any other."
+      ]
+    },
+    {
+      "release": "2026.10.10-9ed8e40",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Nothing changes on sites (bookkeeping only)."
+      ]
+    },
+    {
+      "release": "2026.10.10-8135138",
+      "date": "2026-10-10",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0001_init.sql",
+        "0002_media.sql",
+        "0003_uploads.sql",
+        "0004_media_size.sql",
+        "0005_passkey_links.sql"
+      ],
+      "changes": [
+        "The first archived release: content, review and approval, passkeys, images and photo uploads.",
+        "The site's mark (favicon) and share picture."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+.hygiene-denylist
+node_modules/
+__pycache__/
+.env
+.keys
+cloudflare/downloads/wrangler.local.jsonc

@@ -1,0 +1,9 @@
+<li class="ev{{#event.is_cancelled}} is-cancelled{{/event.is_cancelled}}{{#event.is_past}} is-past{{/event.is_past}}">
+<p class="ev-date">{{event.date_short}}</p>
+<div class="ev-body">
+<h3><a href="{{url}}">{{title}}</a>{{#event.status}} <span class="badge badge-building">{{event.status}}</span>{{/event.status}}</h3>
+<p class="m">{{event.time}}{{#event.place_name}} · {{event.place_name}}{{/event.place_name}}</p>
+{{#summary}}<p>{{summary}}</p>
+{{/summary}}{{^event.is_past}}{{^event.is_cancelled}}{{#event.rsvp_link}}{{#event.rsvp_label}}<p class="ev-rsvp"><a class="b b-sm" href="{{event.rsvp_link}}">{{event.rsvp_label}}</a> <span class="m s">{{event.rsvp_deadline}}</span></p>
+{{/event.rsvp_label}}{{/event.rsvp_link}}{{/event.is_cancelled}}{{/event.is_past}}</div>
+</li>

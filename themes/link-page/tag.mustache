@@ -1,0 +1,9 @@
+{{> head}}
+{{> mini_head}}
+<article class="page">
+<a class="back" href="{{stream.archive_url}}">← {{stream.title}}</a>
+<h1>#{{tag}}</h1>
+<ul class="updates">
+{{#entries}}{{> update}}{{/entries}}</ul>
+</article>
+{{> foot}}

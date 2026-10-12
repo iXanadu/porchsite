@@ -1,0 +1,31 @@
+{{> head}}
+{{#stream.is_feature}}
+<article class="entry">
+<a class="back" href="/#{{stream.anchor}}">← {{strings.home}}</a>
+<div class="who who-assistant">{{stream.byline}}</div>
+<h1>{{stream.title}}</h1>
+<p class="lede">{{stream.intro}} {{stream.see_also.label}} <a href="{{stream.see_also.url}}">{{strings.here}}</a>.</p>
+<div class="report-list">
+{{#entries}}<a href="{{url}}"><span class="meta">{{date_short}}</span><span>{{title}}</span><span class="teaser">{{summary}}</span></a>
+{{/entries}}</div>
+</article>
+{{/stream.is_feature}}
+{{#stream.is_list}}
+<article class="entry wide">
+<a class="back" href="/#{{stream.anchor}}">← {{strings.home}}</a>
+<div class="who">{{stream.byline}}</div>
+<h1>{{stream.title}}</h1>
+<div class="search" hidden>
+<label for="q" class="visually-hidden">{{strings.search}}</label>
+<input id="q" type="search" placeholder="{{strings.search}}" autocomplete="off" data-index="{{stream.archive_url}}search.json">
+</div>
+{{#has_tags}}<nav class="tag-row tag-nav" aria-label="{{strings.tags}}">{{#tags}}<a class="tag" href="{{stream.archive_url}}tags/{{name}}/">#{{name}} <span class="muted">{{count}}</span></a>{{/tags}}</nav>{{/has_tags}}<div id="results" class="writing-list" hidden aria-live="polite"></div>
+<div id="all" class="writing-list">
+{{#entries}}{{> writing_card}}{{/entries}}{{^entries}}<p class="lede">{{strings.nothing_yet}}</p>
+{{/entries}}</div>
+<a class="back" href="{{stream.feed_url}}">{{strings.feed}}</a>
+<a class="back" href="{{stream.see_also.url}}">{{stream.see_also.label}} {{strings.is_separate}} →</a>
+</article>
+<script src="{{kit.search_url}}" defer></script>
+{{/stream.is_list}}
+{{> foot}}

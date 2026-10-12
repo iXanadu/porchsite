@@ -1,0 +1,10 @@
+{{> head}}
+<article>
+<a class="back" href="/#{{stream.anchor}}">← {{strings.home}}</a>
+<h1>{{stream.title}}</h1>
+{{#stream.intro}}<p class="lede">{{stream.intro}}</p>{{/stream.intro}}
+<ul class="plain">
+{{#entries}}{{> page_row}}{{/entries}}</ul>
+{{^entries}}<p>{{strings.nothing_yet}}</p>{{/entries}}
+</article>
+{{> foot}}

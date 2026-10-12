@@ -1,0 +1,205 @@
+{
+  "name": "menu-page",
+  "title": "Menu page",
+  "licence": "MIT",
+  "version": "1.0.3",
+  "type": "food",
+  "description": "For a restaurant, cafe, bakery, bar or food truck: a page that reads like the menu on the table, with each dish, its price and dietary marks, then your hours, open now, and how to call, book or find you.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "sunset": {
+      "title": "Sunset",
+      "colors": {
+        "bg": "#fdf5ec",
+        "ink": "#2b1d14",
+        "muted": "#6a5444",
+        "accent": "#a8470f",
+        "accent-2": "#1f6a73",
+        "line": "#e6d2bd",
+        "on-accent": "#ffffff"
+      }
+    },
+    "forest": {
+      "title": "Forest",
+      "colors": {
+        "bg": "#f0f4ec",
+        "ink": "#1c2a1f",
+        "muted": "#505f52",
+        "accent": "#2d6a3e",
+        "accent-2": "#8a5a12",
+        "line": "#c6d3c1",
+        "on-accent": "#ffffff"
+      }
+    },
+    "midnight": {
+      "title": "Midnight",
+      "colors": {
+        "bg": "#10162a",
+        "ink": "#eef1fa",
+        "muted": "#aab3cc",
+        "accent": "#7cc4ff",
+        "accent-2": "#ffb86b",
+        "line": "#2f3a5c",
+        "on-accent": "#0b1224"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "a wide photo under the headline and buttons: the room, or the dish people order most; without it the menu follows straight on",
+        "alt_hint": "what the photo shows, e.g. The dining room at dusk, tables set by the window",
+        "prompt": "a real photo of {subject}: the dining room, or its best-known dish on the table; natural light, no filters"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "optional",
+        "purpose": "the mark above the name at the top of every page (56 px) and the browser icon; flat",
+        "alt_hint": "e.g. A fig leaf",
+        "prompt": "a flat, simple emblem for {subject}, one shape, in the palette's accent colour, on transparent; must read at 32 px"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link is shared; empty uses the hero",
+        "alt_hint": "what it shows",
+        "prompt": "the hero photo cropped to 1200x630"
+      },
+      {
+        "field": "card.image",
+        "alt": "card.image_alt",
+        "size": [
+          1200,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a small photo beside a dish on the menu; most menus have none, and a few signature dishes are enough",
+        "alt_hint": "the dish as served, e.g. Roast chicken with lemon and herbs on a white plate",
+        "prompt": "a real photo of this dish from {subject}'s kitchen, as served"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a photo at the top of a special, news post or event page",
+        "alt_hint": "what it shows",
+        "prompt": "a real photo of the special or the evening announced"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the headline under the name: the cuisine and the town, e.g. A neighbourhood bistro in Millbrook"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "a line or two under the headline"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "required",
+        "purpose": "the menu's heading, e.g. Menu; set cards_anchor to menu and the hero button's cta_link to #menu"
+      },
+      {
+        "field": "card",
+        "need": "required",
+        "purpose": "each dish is a card: name, price (exactly as written, e.g. $14 or Market price), description, tags for dietary marks (V, VG, GF, N), subtitle for a second line (e.g. for two, or a pairing), badge for New or Chef's choice. Typed in, never a photo of a paper menu"
+      },
+      {
+        "field": "card.group",
+        "need": "required",
+        "purpose": "the menu's courses (Starters, Mains, Desserts, Drinks), each printed under its own heading in the order the cards sort"
+      },
+      {
+        "field": "site.hours",
+        "need": "required",
+        "purpose": "Hours after the menu: the week (split lunch and dinner as two rows for one day), open now, holiday closures for the next 60 days, and the note (e.g. Kitchen closes 30 minutes before close)"
+      },
+      {
+        "field": "site.contact",
+        "need": "required",
+        "purpose": "address, phone, email, map link: the Call and Get directions buttons and the Contact column beside the hours"
+      },
+      {
+        "field": "site.buttons",
+        "need": "recommended",
+        "purpose": "order and booking links the restaurant already has, under the menu, e.g. Book a table, Order for pickup; note prints under each. No checkout here"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "a band across the top of every page, e.g. Closed Monday; kitchen closes at 9"
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "the first hero button, e.g. See the menu (cta_link #menu)"
+      },
+      {
+        "field": "site.streams",
+        "need": "optional",
+        "purpose": "specials and news as a list stream; an events stream (entries with event) shows coming-up and earlier evenings with time and place"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "the story and the people in the kitchen"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the allergens note, first in the footer, e.g. Tell your server about any allergy. V vegetarian · VG vegan · GF gluten-free"
+      },
+      {
+        "field": "site.links",
+        "need": "optional",
+        "purpose": "the menu of links under the name; empty uses the home sections"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for a photo of the room, or the dish people order most. Real food from the real kitchen. A menu photo is not a menu: type the menu in.",
+    "style": "Photographs, natural light, no filters; the logo is flat. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Get the hero photo from your person: the room or the signature dish. Never make up a picture of food or of the place.",
+      "Check it: wide (landscape, at least 2080x1160), sharp, the food looks appetising (not blurry, no flash glare).",
+      "Write the alt text: what the photo shows, in plain words.",
+      "Type the menu in as cards (one per dish, grouped by course). Never publish a photo of a paper menu as the menu: it can't be searched or read on a phone.",
+      "Upload each picture (an https link in its field, or photo_upload_link).",
+      "Ask the owner to read the typed menu and every price back, and the hours, phone and address, before approval.",
+      "Call theme_needs: every required slot should say filled."
+    ]
+  }
+}

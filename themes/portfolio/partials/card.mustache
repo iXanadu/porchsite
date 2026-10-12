@@ -1,0 +1,29 @@
+{{#period}}<article class="row">
+<p class="row-when">{{period}}</p>
+<div class="row-what">
+<h3>{{#link}}<a href="{{link}}">{{name}}</a>{{/link}}{{^link}}{{name}}{{/link}}</h3>
+{{#subtitle}}<p class="row-sub">{{subtitle}}</p>{{/subtitle}}
+<p>{{description}}</p>
+{{#has_tags}}<ul class="tags">{{#tags}}<li>{{name}}</li>{{/tags}}</ul>{{/has_tags}}
+</div>
+</article>
+{{/period}}{{^period}}{{#price}}<article class="offer">
+<div class="offer-top"><h3>{{name}}</h3><p class="price">{{price}}</p></div>
+{{#subtitle}}<p class="row-sub">{{subtitle}}</p>{{/subtitle}}
+<p>{{description}}</p>
+{{#link}}<a class="more" href="{{link}}">{{link_text}} →</a>{{/link}}
+</article>
+{{/price}}{{^price}}{{#link}}<a class="tile" href="{{link}}">{{/link}}{{^link}}<div class="tile">{{/link}}
+<div class="plate{{#has_image}} has-image{{/has_image}}">
+{{#has_image}}<img src="{{image_src}}" alt="{{image_alt}}" loading="lazy">{{/has_image}}
+{{^has_image}}<span class="plate-name">{{name}}</span>{{/has_image}}
+{{#status}}<span class="badge badge-{{status_tone}}">{{status}}</span>{{/status}}
+</div>
+<div class="cap">
+{{#has_image}}<h3>{{name}}</h3>{{/has_image}}
+{{#subtitle}}<p class="cap-sub">{{subtitle}}</p>{{/subtitle}}
+<p class="cap-desc">{{description}}</p>
+{{#has_tags}}<ul class="tags">{{#tags}}<li>{{name}}</li>{{/tags}}</ul>{{/has_tags}}
+</div>
+{{#link}}</a>{{/link}}{{^link}}</div>{{/link}}
+{{/price}}{{/period}}

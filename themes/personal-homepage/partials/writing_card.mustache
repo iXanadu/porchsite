@@ -1,0 +1,7 @@
+<a{{#anchor}} id="{{anchor}}"{{/anchor}} class="writing{{#cover_src}} has-cover{{/cover_src}}" href="{{url}}">
+{{#cover_src}}<img class="cover" src="{{cover_src}}" alt="{{cover_alt}}" loading="lazy" decoding="async">{{/cover_src}}<span class="writing-text">
+<span class="writing-title">{{title}}</span>
+<span class="writing-summary">{{summary}}</span>
+{{#has_tags}}<span class="tag-row">{{#tags}}<span class="tag">#{{name}}</span>{{/tags}}</span>{{/has_tags}}</span>
+<span class="meta">{{date_short}} · {{label}}{{#external}} ↗{{/external}}</span>
+</a>

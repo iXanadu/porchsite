@@ -1,0 +1,13 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+*.log
+dist/
+.hygiene-denylist
+downloads/dist/
+downloads/releases/
+downloads/releases-themes/
+theme-preview/
+demo/samples.gen.ts
+downloads/releases-upload/

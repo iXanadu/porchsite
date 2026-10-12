@@ -1,0 +1,10 @@
+# Docker builds use the repository root as context (server/Dockerfile).
+# Send only what the image needs.
+*
+!server/pyproject.toml
+!server/LICENSE
+!server/server
+!themes
+**/__pycache__
+**/*.pyc
+**/node_modules

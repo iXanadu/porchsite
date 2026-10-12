@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{meta.title}}</title>
+<meta name="description" content="{{meta.description}}">
+<meta property="og:title" content="{{meta.title}}">
+<meta property="og:description" content="{{meta.description}}">
+<meta property="og:type" content="{{meta.og_type}}">
+<meta property="og:url" content="{{meta.url}}">
+<meta property="og:image" content="{{meta.image}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{meta.title}}">
+<meta name="twitter:description" content="{{meta.description}}">
+<meta name="twitter:image" content="{{meta.image}}">
+{{#meta.image_alt}}<meta name="twitter:image:alt" content="{{meta.image_alt}}">
+{{/meta.image_alt}}{{#site.logo}}<link rel="icon" href="{{site.logo}}">
+<link rel="apple-touch-icon" href="{{site.logo}}">
+{{/site.logo}}
+{{#site.handle}}<meta name="twitter:site" content="@{{site.handle}}">
+{{/site.handle}}{{#feeds}}<link rel="alternate" type="application/atom+xml" title="{{title}}" href="{{url}}">
+{{/feeds}}<link rel="canonical" href="{{meta.url}}">
+<link rel="stylesheet" href="{{kit.css_url}}">
+</head>
+<body data-kind="{{meta.kind}}" data-id="{{meta.content_id}}">
+<div class="w" id="top">
+<header class="mast mast-edition">
+<div class="mast-top">
+<a class="brand" href="/">{{#site.logo}}<img class="brand-mark press-img" src="{{site.logo}}" alt="{{site.logo_alt}}" width="46" height="46">{{/site.logo}}{{site.logo_text}}</a>
+<nav>
+{{#site.links}}<a href="{{url}}">{{label}}</a>
+{{/site.links}}{{^site.links}}{{#nav}}<a href="{{href}}">{{label}}</a>
+{{/nav}}{{/site.links}}</nav>
+{{#site.x_url}}<a class="follow-author{{#site.follow_image}} has-photo{{/site.follow_image}}" href="{{site.x_url}}" aria-label="{{site.follow_label}}">{{#site.follow_image}}<img src="{{site.follow_image}}" width="48" height="48" alt="{{site.follow_image_alt}}">{{/site.follow_image}}<span>{{site.follow_label}}</span></a>{{/site.x_url}}
+</div>
+{{#page.hero_caption}}<p class="dateline">{{page.hero_caption}}</p>{{/page.hero_caption}}
+</header>
+<main>

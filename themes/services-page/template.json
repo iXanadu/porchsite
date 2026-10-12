@@ -1,0 +1,194 @@
+{
+  "name": "services-page",
+  "title": "Services page",
+  "licence": "MIT",
+  "version": "1.0.3",
+  "type": "services",
+  "description": "A calm page for someone who sells their time (a coach, consultant, tutor or freelancer): a one-line promise with a booking button, services with prices, how it works, what clients say, questions, about you, workshops and how to reach you.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "slate": {
+      "title": "Slate",
+      "colors": {
+        "bg": "#eef0f3",
+        "ink": "#1e2329",
+        "muted": "#555d68",
+        "accent": "#37597d",
+        "accent-2": "#9a4a1c",
+        "line": "#c8ced6",
+        "on-accent": "#ffffff"
+      }
+    },
+    "ocean": {
+      "title": "Ocean",
+      "colors": {
+        "bg": "#eef6f8",
+        "ink": "#10262e",
+        "muted": "#486068",
+        "accent": "#006f8e",
+        "accent-2": "#b4501c",
+        "line": "#bcd3da",
+        "on-accent": "#ffffff"
+      }
+    },
+    "paper": {
+      "title": "Paper",
+      "colors": {
+        "bg": "#f3f2f2",
+        "ink": "#201e1d",
+        "muted": "#5c5855",
+        "accent": "#00647f",
+        "accent-2": "#a8470f",
+        "line": "#cfcbc9",
+        "on-accent": "#ffffff"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "beside the headline on the home page: the person at work, or their space; without it the headline sits beside a small card with their email, phone and availability",
+        "alt_hint": "who and what it shows, e.g. Ada at her desk going through a client's receipts",
+        "prompt": "a real, well-lit photo of {subject} at work or welcoming a client, looking toward the camera, room around them on the left and right"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "optional",
+        "purpose": "the mark beside the name in the header (40 px, rounded corners) and the browser icon; must still read at 32 px",
+        "alt_hint": "e.g. A leaf over an open ledger",
+        "prompt": "a simple flat emblem for {subject}, one shape, in the accent colour on the page's background colour, no words"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link is shared; empty uses the hero",
+        "alt_hint": "what it shows, then the name and promise if they are written in it",
+        "prompt": "the hero photo cropped wide, with room on one side for the name and the one-line promise"
+      },
+      {
+        "field": "card.image",
+        "alt": "card.image_alt",
+        "size": [
+          1200,
+          800
+        ],
+        "need": "optional",
+        "purpose": "a photo across the top of a service card (a session in progress, the finished work); leave every card in a group without one or give each one",
+        "alt_hint": "what the photo shows",
+        "prompt": "a real photo of {subject} giving this service"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a photo at the top of a workshop's or post's own page",
+        "alt_hint": "what the photo shows",
+        "prompt": "a real photo from the workshop or its room"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the promise in one line, the big headline (e.g. Calm, practical help with your books)"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "under the headline: who it is for and the problem you solve, two or three sentences"
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "the main button under the headline (with cta_link): where people book, e.g. Book a free call, linking out to the booking page; cta2_label and cta2_link make a second, e.g. See prices -> #g-services"
+      },
+      {
+        "field": "cards",
+        "need": "required",
+        "purpose": "everything in boxes, sorted into groups (card.group), each group its own section headed by its group name, in the cards' sort order. How a group looks follows what its cards carry: with a price it is the services (name, description = what you get, period = how long, price, link = book this); with a subtitle and no price it is testimonials (description = the quote, name = who said it, subtitle = their role or town; ask permission for every name); with a period and no price it is numbered steps (How it works: name, description, period = the step's label or length, e.g. First week); with none of those it is questions and answers (name = the question, description = the answer)"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "optional",
+        "purpose": "the heading of cards that have no group; the menu item for the cards (cards_nav overrides it)"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "about you (about_title is its heading): short credentials; the first paragraph prints larger"
+      },
+      {
+        "field": "site.streams",
+        "need": "optional",
+        "purpose": "a list stream of entries with an event (date, place, RSVP link) shows as upcoming workshops or sessions, then earlier ones; a stream without events lists its posts; a feature stream shows its newest post in full"
+      },
+      {
+        "field": "site.contact",
+        "need": "required",
+        "purpose": "email and phone show in the card beside the headline and in the Contact section at the end; the address (or just a town for the area you serve) and social links show there too. The Contact menu item and section appear when there is any"
+      },
+      {
+        "field": "site.hours",
+        "need": "recommended",
+        "purpose": "when you take calls or sessions: the weekly table and whether you are available now (also in the card beside the headline), holidays in the next 60 days, and a note (e.g. Replies within one working day)"
+      },
+      {
+        "field": "site.buttons",
+        "need": "recommended",
+        "purpose": "big link buttons at the top of the Contact section, the first one filled: e.g. Book a free 20-minute call, Send me your paperwork; note is the small line under each"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "a banner across the top of every page, e.g. Taking new clients from January"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer line, e.g. the business name and the area served"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for one friendly, well-lit photo of them working or welcoming a client. A face builds trust.",
+    "style": "Photographs; no stock photos of handshakes. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Get the photos from your person: one of them at work for the hero, and any of real sessions or finished work for the service cards.",
+      "Check each one: sharp, well lit, the right shape (crop to the slot's size), nobody in it who hasn't agreed to be there.",
+      "Write alt text for each: who is in it and what they are doing.",
+      "Upload each one (an https link in its field, or photo_upload_link), then call theme_needs: every slot you used should say filled.",
+      "Ask for permission for every named testimonial before it goes on the page.",
+      "Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour."
+    ]
+  }
+}

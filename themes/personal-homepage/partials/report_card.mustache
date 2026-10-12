@@ -1,0 +1,10 @@
+<article class="report">
+<div class="meta">{{date_short}} · {{stream.author}}</div>
+<h3>{{#has_body}}<a href="{{url}}">{{title}}</a>{{/has_body}}{{^has_body}}{{title}}{{/has_body}}</h3>
+{{#has_stats}}
+<div class="stats">
+{{#stats}}<div class="stat"><span class="stat-value">{{value}}</span><span class="stat-label">{{label}}</span></div>
+{{/stats}}</div>
+{{/has_stats}}
+<p class="summary">{{summary}}</p>
+{{#has_body}}<a class="read-more" href="{{url}}">{{strings.read_full_entry}}</a>{{/has_body}}</article>

@@ -1,0 +1,191 @@
+{
+ "site": {
+  "title": "Juno Marsh",
+  "theme": "link-page",
+  "palette": "",
+  "timezone": "America/Chicago",
+  "tagline": "Songs about small towns and big weather.",
+  "intro": "Folk singer and fiddle player. New record out this winter.",
+  "description": "Juno Marsh: music, shows and the shop.",
+  "footer_line": "For bookings and press, email me.",
+  "notice": {
+   "text": "New single, “Low Tide”, out Friday",
+   "until": "2099-12-31"
+  },
+  "contact": {
+   "email": "booking@example.com",
+   "social": [
+    {
+     "kind": "Instagram",
+     "url": "https://example.com/instagram"
+    },
+    {
+     "kind": "YouTube",
+     "url": "https://example.com/youtube"
+    },
+    {
+     "kind": "TikTok",
+     "url": "https://example.com/tiktok"
+    },
+    {
+     "kind": "Bandcamp",
+     "url": "https://example.com/bandcamp"
+    }
+   ]
+  },
+  "buttons": [
+   {
+    "label": "Listen to “Low Tide”",
+    "url": "https://example.com/listen",
+    "note": "Out Friday on every app"
+   },
+   {
+    "label": "Tour dates",
+    "url": "/shows/",
+    "note": "Spring 2027, eight towns"
+   },
+   {
+    "label": "Shop records and shirts",
+    "url": "https://example.com/shop",
+    "note": ""
+   },
+   {
+    "label": "Join the newsletter",
+    "url": "https://example.com/news",
+    "note": "One letter a month, no more"
+   },
+   {
+    "label": "Watch the live session",
+    "url": "https://example.com/session",
+    "note": ""
+   }
+  ],
+  "streams": [
+   {
+    "id": "shows",
+    "title": "Next shows",
+    "layout": "list",
+    "all_label": "All dates"
+   },
+   {
+    "id": "news",
+    "title": "Latest",
+    "layout": "list"
+   }
+  ],
+  "sections": [
+   "shows",
+   "news"
+  ]
+ },
+ "items": [
+  {
+   "kind": "entry",
+   "slug": "rivertown",
+   "data": {
+    "stream": "shows",
+    "title": "Rivertown, The Granary",
+    "date": "2027-03-12",
+    "summary": "Album launch show.",
+    "body": "With a string quartet.",
+    "event": {
+     "start": "2027-03-12T20:00",
+     "end": "2027-03-12T23:00",
+     "place": {
+      "name": "The Granary",
+      "address": "1 Example Lane, Rivertown",
+      "map_link": "https://example.com/map"
+     },
+     "rsvp": {
+      "label": "Tickets",
+      "link": "https://example.com/tickets",
+      "deadline": "2027-03-10"
+     },
+     "schedule": [
+      {
+       "time": "20:00",
+       "title": "Doors"
+      },
+      {
+       "time": "21:00",
+       "title": "Juno Marsh"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "hillford",
+   "data": {
+    "stream": "shows",
+    "title": "Hillford Folk Club",
+    "date": "2027-03-19",
+    "summary": "An acoustic set.",
+    "body": "Seated show.",
+    "event": {
+     "start": "2027-03-19T19:30",
+     "place": {
+      "name": "Hillford Folk Club"
+     }
+    }
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "autumn-2025",
+   "data": {
+    "stream": "shows",
+    "title": "Harvest Fair",
+    "date": "2025-10-04",
+    "summary": "Main stage.",
+    "body": "Thank you, Harvest Fair.",
+    "event": {
+     "start": "2025-10-04T16:00",
+     "place": {
+      "name": "Fairground"
+     }
+    }
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "low-tide",
+   "data": {
+    "stream": "news",
+    "title": "“Low Tide” is coming",
+    "date": "2026-10-08",
+    "summary": "The first song from the new record, out Friday.",
+    "tags": [
+     "music"
+    ],
+    "body": "Recorded in one take in a kitchen.\n\n> Write what the weather tells you."
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "tour",
+   "data": {
+    "stream": "news",
+    "title": "Spring tour announced",
+    "date": "2026-09-30",
+    "summary": "Eight towns, eight halls, one fiddle.",
+    "tags": [
+     "shows"
+    ],
+    "body": "Dates on the shows page."
+   }
+  },
+  {
+   "kind": "entry",
+   "slug": "studio",
+   "data": {
+    "stream": "news",
+    "title": "Back in the studio",
+    "date": "2026-09-02",
+    "summary": "Eleven songs, two weeks, one kitchen.",
+    "body": "Notes from recording."
+   }
+  }
+ ]
+}

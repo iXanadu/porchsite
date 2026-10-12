@@ -1,0 +1,13 @@
+{{#as_link}}
+<a class="card" data-group="{{group}}" href="{{link}}">
+<span class="card-title">{{name}}</span>
+<span class="card-desc">{{description}}</span>
+<span class="card-link">{{link_text}}</span>
+</a>
+{{/as_link}}
+{{^as_link}}
+<div class="card" data-group="{{group}}">
+<div class="card-head"><h3>{{name}}</h3>{{#status}}<span class="badge badge-{{status_tone}}">{{status}}</span>{{/status}}</div>
+<p>{{description}}</p>
+{{#link}}<a class="card-link" href="{{link}}">{{link_text}}</a>{{/link}}</div>
+{{/as_link}}

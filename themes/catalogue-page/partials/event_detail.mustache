@@ -1,0 +1,11 @@
+{{#event.has}}<div class="ev-detail{{#event.is_cancelled}} is-cancelled{{/event.is_cancelled}}">
+{{#event.status}}<p><span class="badge badge-building">{{event.status}}</span></p>
+{{/event.status}}<p class="ev-when">{{event.when}}</p>
+{{#event.place_name}}<p class="ev-place"><strong>{{event.place_name}}</strong>{{#event.place_address}}<br>{{event.place_address}}{{/event.place_address}}{{#event.map_link}}<br><a href="{{event.map_link}}">{{strings.directions}} →</a>{{/event.map_link}}</p>
+{{/event.place_name}}{{^event.is_past}}{{^event.is_cancelled}}{{#event.rsvp_link}}{{#event.rsvp_label}}<p class="ev-rsvp"><a class="b" href="{{event.rsvp_link}}">{{event.rsvp_label}}</a> <span class="m s">{{event.rsvp_deadline}}</span></p>
+{{/event.rsvp_label}}{{/event.rsvp_link}}{{/event.is_cancelled}}{{/event.is_past}}{{#event.has_schedule}}<h2>{{strings.schedule}}</h2>
+<ol class="sched">
+{{#event.schedule}}<li><span class="t">{{time}}</span><span><strong>{{title}}</strong>{{#note}}<br><span class="m">{{note}}</span>{{/note}}</span></li>
+{{/event.schedule}}</ol>
+{{/event.has_schedule}}</div>
+{{/event.has}}

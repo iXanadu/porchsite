@@ -1,0 +1,64 @@
+{
+  "site": {
+    "title": "Hearth Lane Bakery",
+    "theme": "catalogue-page",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "tagline": "Slow bread and small cakes, baked in a home kitchen.",
+    "intro": "There's no online checkout: send a message by Thursday evening and collect on Saturday at the market, or Wednesday from the kitchen door.",
+    "owner_name": "Mira Lane",
+    "footer_line": "Hearth Lane Bakery · Riverton",
+    "cta_label": "Order by message",
+    "cta_link": "tel:+12025550100",
+    "cta2_label": "See this week's bakes",
+    "cta2_link": "#cards",
+    "cards_title": "This week's bakes",
+    "about_title": "About the baker",
+    "about": "I'm Mira. I bake everything myself in a small licensed kitchen, with flour from a mill two counties over.\n\nThe menu changes with the season and with what sells out. If you want something for a birthday, ask a week ahead.",
+    "streams": [
+      {"id": "markets", "title": "Market days", "byline": "Where to find the stall.", "layout": "list"},
+      {"id": "news", "title": "From the kitchen", "layout": "list"}
+    ],
+    "sections": ["cards", "markets", "about", "news"],
+    "contact": {
+      "phone": "+1 202 555 0100",
+      "email": "orders@example.com",
+      "address": {"line1": "Kitchen door, 4 Example Lane", "city": "Riverton", "region": "IL", "postcode": "60000"},
+      "map_link": "https://example.com/map",
+      "social": [{"kind": "Instagram", "url": "https://example.com/instagram"}]
+    },
+    "hours": {
+      "weekly": [
+        {"day": "wed", "open": "16:00", "close": "18:30"},
+        {"day": "sat", "open": "08:00", "close": "13:00"}
+      ],
+      "exceptions": [{"from": "2026-11-28", "label": "Thanksgiving weekend", "closed": true}],
+      "note": "Wednesday from the kitchen door; Saturday at the Riverton market. Order by Thursday for Saturday."
+    },
+    "notice": {"text": "Sold out of lemon loaves this week — back on Saturday.", "until": "2099-12-31"},
+    "buttons": [
+      {"label": "Text an order", "url": "tel:+12025550100", "note": "Say what, how many, and which pickup day."},
+      {"label": "Email an order", "url": "mailto:orders@example.com", "note": "I confirm every order by Friday."},
+      {"label": "Buy gift boxes online", "url": "https://example.com/shop", "note": "Our shop on a marketplace; ships Mondays."}
+    ]
+  },
+  "items": [
+    {"kind": "card", "slug": "country", "data": {"group": "Loaves", "sort": 10, "name": "Country sourdough", "subtitle": "900 g", "description": "Long-fermented, dark crust, open crumb. Keeps four days.", "price": "$9", "badge": "Available", "badge_tone": "live"}},
+    {"kind": "card", "slug": "seeded", "data": {"group": "Loaves", "sort": 11, "name": "Seeded rye", "subtitle": "750 g", "description": "Dense and sour, with sunflower and flax.", "price": "$10", "tags": ["V"]}},
+    {"kind": "card", "slug": "lemon", "data": {"group": "Loaves", "sort": 12, "name": "Lemon loaf", "subtitle": "Small loaf cake", "description": "Bright and sticky, with a crackly glaze.", "price": "$12", "badge": "Sold out", "badge_tone": "building"}},
+    {"kind": "card", "slug": "focaccia", "data": {"group": "Loaves", "sort": 13, "name": "Rosemary focaccia", "subtitle": "Half tray", "description": "Olive oil, sea salt, rosemary from the garden.", "price": "$11", "tags": ["V"], "badge": "New", "badge_tone": "live"}},
+    {"kind": "card", "slug": "cardamom", "data": {"group": "Pastries", "sort": 20, "name": "Cardamom buns", "description": "Knotted, buttery, not too sweet.", "price": "$4 each · $20 for 6"}},
+    {"kind": "card", "slug": "croissant", "data": {"group": "Pastries", "sort": 21, "name": "Croissants", "description": "Saturdays only, while they last.", "price": "$4.50", "badge": "Saturdays", "badge_tone": "building"}},
+    {"kind": "card", "slug": "cookie", "data": {"group": "Pastries", "sort": 22, "name": "Brown butter cookies", "description": "Chewy middles, salted tops.", "price": "$3"}},
+    {"kind": "card", "slug": "birthday", "data": {"group": "Cakes to order", "sort": 30, "name": "Birthday cake", "subtitle": "Serves 10–12", "description": "Sponge, buttercream and fruit in season. Order a week ahead.", "price": "From $45", "link": "mailto:orders@example.com", "link_label": "Ask about a date"}},
+    {"kind": "card", "slug": "giftbox", "data": {"group": "Cakes to order", "sort": 31, "name": "Gift box", "subtitle": "Six bakes, boxed", "description": "A mixed box of the week's best, with a handwritten card.", "price": "$28", "link": "https://example.com/shop", "link_label": "Buy online"}},
+    {"kind": "entry", "slug": "winter-market", "data": {"stream": "markets", "title": "Winter market opens", "date": "2026-10-01", "summary": "The stall moves indoors for the winter.", "tags": ["market"], "body": "Find us by the main doors, next to the coffee cart.",
+      "event": {"start": "2027-01-09T08:00", "end": "2027-01-09T13:00", "place": {"name": "Riverton Hall", "address": "1 Example Square, Riverton", "map_link": "https://example.com/map"}}}},
+    {"kind": "entry", "slug": "spring-fair", "data": {"stream": "markets", "title": "Spring fair", "date": "2026-10-02", "summary": "Hot cross buns and a cake raffle for the school.", "tags": ["market"], "body": "A one-day fair with twenty stalls.",
+      "event": {"start": "2027-04-03T09:00", "end": "2027-04-03T15:00", "place": {"name": "Riverton School field", "map_link": "https://example.com/map"}}}},
+    {"kind": "entry", "slug": "harvest-2025", "data": {"stream": "markets", "title": "Harvest market", "date": "2025-09-01", "summary": "Thanks to everyone who came.", "body": "We sold out by eleven.",
+      "event": {"start": "2025-10-18T08:00", "end": "2025-10-18T13:00", "place": {"name": "Riverton Square"}}}},
+    {"kind": "entry", "slug": "focaccia-news", "data": {"stream": "news", "title": "New: rosemary focaccia", "date": "2026-10-08", "summary": "On the shelf from this Saturday.", "tags": ["new"], "body": "Half trays, cut to order."}},
+    {"kind": "entry", "slug": "flour", "data": {"stream": "news", "title": "A new flour for the rye", "date": "2026-09-20", "summary": "Stone-ground, from a small mill nearby.", "body": "It drinks more water; the loaves are a little darker."}}
+  ]
+}

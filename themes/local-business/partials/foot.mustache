@@ -1,0 +1,19 @@
+</main>
+<footer class="foot">
+<div class="w foot-in">
+<div>
+<p class="foot-name">{{site.site_name}}</p>
+{{#site.contact.has_address}}<p>{{site.contact.address_one_line}}</p>{{/site.contact.has_address}}
+{{#site.contact.phone}}<p><a href="{{site.contact.phone_href}}">{{site.contact.phone}}</a></p>{{/site.contact.phone}}
+</div>
+<div>
+{{#site.footer_line}}<p>{{site.footer_line}}</p>{{/site.footer_line}}
+{{#site.contact_line}}<p>{{site.contact_line}}</p>{{/site.contact_line}}
+{{#site.contact.has_social}}<p class="social">{{#site.contact.social}}<a href="{{url}}">{{kind}}</a> {{/site.contact.social}}</p>{{/site.contact.has_social}}
+<p><a href="#top">{{strings.back_to_top}}</a></p>
+</div>
+</div>
+</footer>
+<script src="{{kit.beacon_url}}" defer></script>
+</body>
+</html>

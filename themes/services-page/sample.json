@@ -1,0 +1,69 @@
+{
+  "site": {
+    "title": "Fernway Bookkeeping",
+    "theme": "services-page",
+    "palette": "",
+    "timezone": "America/Chicago",
+    "tagline": "Calm, practical help with your books.",
+    "intro": "For freelancers and small shops who dread the shoebox of receipts. I set up simple books, keep them tidy every month, and explain your numbers in plain words.",
+    "owner_name": "Ada Fern",
+    "footer_line": "Fernway Bookkeeping · Working with clients across the Midwest, in person and online",
+    "cta_label": "Book a free call",
+    "cta_link": "https://example.com/book",
+    "cta2_label": "See prices",
+    "cta2_link": "#g-services",
+    "cards_title": "Services",
+    "about_title": "About me",
+    "about": "I'm Ada. I spent eleven years keeping the books for a busy design studio before going out on my own in 2019.\n\nI'm a certified bookkeeper, I work with the major accounting apps, and I'd rather you understood your numbers than depended on me for them.",
+    "streams": [{"id": "workshops", "title": "Workshops", "byline": "Small evening classes, in person and online.", "layout": "list"}],
+    "sections": ["cards", "about", "workshops"],
+    "contact": {
+      "email": "hello@example.com",
+      "phone": "+1 202 555 0100",
+      "address": {"city": "Riverton", "region": "IL"},
+      "map_link": "",
+      "social": [{"kind": "LinkedIn", "url": "https://example.com/linkedin"}, {"kind": "Newsletter", "url": "https://example.com/letters"}]
+    },
+    "hours": {
+      "weekly": [
+        {"day": "mon", "open": "09:00", "close": "17:00"},
+        {"day": "tue", "open": "09:00", "close": "17:00"},
+        {"day": "wed", "open": "09:00", "close": "17:00"},
+        {"day": "thu", "open": "09:00", "close": "17:00"},
+        {"day": "fri", "open": "09:00", "close": "13:00"}
+      ],
+      "exceptions": [{"from": "2026-11-26", "to": "2026-11-27", "label": "Thanksgiving", "closed": true}],
+      "note": "Calls by appointment. I reply to email within one working day."
+    },
+    "notice": {"text": "Now taking new monthly clients for January.", "until": "2099-12-31"},
+    "buttons": [
+      {"label": "Book a free 20-minute call", "url": "https://example.com/book", "note": "Pick a time that suits you; no obligation."},
+      {"label": "Send me your questions", "url": "https://example.com/ask", "note": "A short form; I answer within a day."}
+    ]
+  },
+  "items": [
+    {"kind": "card", "slug": "catch-up", "data": {"group": "Services", "sort": 10, "name": "Catch-up", "description": "A year of receipts and statements, sorted, reconciled and ready for your accountant.", "period": "2 to 3 weeks", "price": "From $600", "link": "https://example.com/book", "link_label": "Book a call"}},
+    {"kind": "card", "slug": "monthly", "data": {"group": "Services", "sort": 11, "name": "Monthly books", "description": "Your books kept up every month, with a one-page summary and a short call to go through it.", "period": "Ongoing", "price": "$180 a month", "link": "https://example.com/book", "link_label": "Book a call", "badge": "Most chosen", "badge_tone": "live"}},
+    {"kind": "card", "slug": "session", "data": {"group": "Services", "sort": 12, "name": "One-off session", "description": "Bring your questions and your software; we fix what's stuck and set up what's missing.", "period": "90 minutes", "price": "$140", "link": "https://example.com/book", "link_label": "Book a call"}},
+    {"kind": "card", "slug": "step-call", "data": {"group": "How it works", "sort": 20, "name": "A free call", "description": "Twenty minutes to hear what you need and tell you plainly whether I can help.", "period": "Day 1"}},
+    {"kind": "card", "slug": "step-setup", "data": {"group": "How it works", "sort": 21, "name": "Set up and catch up", "description": "I get access to your accounts, sort what's there and set up simple categories.", "period": "First two weeks"}},
+    {"kind": "card", "slug": "step-monthly", "data": {"group": "How it works", "sort": 22, "name": "Tidy every month", "description": "Each month you get a short summary and know where you stand.", "period": "Every month"}},
+    {"kind": "card", "slug": "quote-1", "data": {"group": "What clients say", "sort": 30, "name": "Jo P.", "subtitle": "Illustrator", "description": "For the first time I opened my tax letter without a knot in my stomach."}},
+    {"kind": "card", "slug": "quote-2", "data": {"group": "What clients say", "sort": 31, "name": "Sam R.", "subtitle": "Owner of a small bike shop", "description": "Ada turned three years of mess into one tidy folder, and explained it so I actually understood."}},
+    {"kind": "card", "slug": "quote-3", "data": {"group": "What clients say", "sort": 32, "name": "Lee T.", "subtitle": "Wedding photographer", "description": "Calm, quick and never once made me feel silly for asking."}},
+    {"kind": "card", "slug": "faq-1", "data": {"group": "Questions", "sort": 40, "name": "Do I need to be local?", "description": "No. Most clients work with me online; I meet people in person around Riverton."}},
+    {"kind": "card", "slug": "faq-2", "data": {"group": "Questions", "sort": 41, "name": "Which software do you use?", "description": "Whichever you already have. If you have none, I'll suggest the simplest one for you."}},
+    {"kind": "card", "slug": "faq-3", "data": {"group": "Questions", "sort": 42, "name": "Do you do taxes?", "description": "I prepare everything your accountant needs and can recommend one, but I don't file returns."}},
+    {"kind": "card", "slug": "faq-4", "data": {"group": "Questions", "sort": 43, "name": "How do I pay?", "description": "By invoice, monthly or per job. No long contracts."}},
+    {"kind": "entry", "slug": "year-end", "data": {"stream": "workshops", "title": "Year-end books in one evening", "date": "2026-10-01", "summary": "Close your year without panic: what to gather, what to check, what to hand over.", "tags": ["workshop"],
+      "body": "A small, friendly class. Bring your laptop and last year's statements.\n\n## You'll leave with\n\n- A checklist for every year-end\n- Your own categories tidied\n- Answers to the questions you've been putting off",
+      "event": {"start": "2027-01-14T18:00", "end": "2027-01-14T20:30", "place": {"name": "Riverton Library, Room B", "address": "12 Example Street, Riverton", "map_link": "https://example.com/map"}, "rsvp": {"label": "Save a seat", "link": "https://example.com/rsvp", "deadline": "2027-01-10"},
+        "schedule": [{"time": "18:00", "title": "Welcome and coffee"}, {"time": "18:15", "title": "What to gather", "note": "Statements, receipts, invoices"}, {"time": "19:15", "title": "Hands-on: tidy your categories"}, {"time": "20:15", "title": "Questions"}]}}},
+    {"kind": "entry", "slug": "pricing-online", "data": {"stream": "workshops", "title": "Pricing your work (online)", "date": "2026-10-02", "summary": "How to set prices that cover your costs and your time.", "tags": ["workshop", "online"],
+      "body": "An hour online, with time for your own numbers.",
+      "event": {"start": "2027-03-04T12:00", "end": "2027-03-04T13:00", "place": {"name": "Online"}, "rsvp": {"label": "Register", "link": "https://example.com/register"}}}},
+    {"kind": "entry", "slug": "receipts-2025", "data": {"stream": "workshops", "title": "Receipts without the shoebox", "date": "2025-10-01", "summary": "A simple habit for keeping receipts sorted all year.", "tags": ["workshop"],
+      "body": "Thanks to everyone who came.",
+      "event": {"start": "2025-11-12T18:00", "end": "2025-11-12T19:30", "place": {"name": "Riverton Library, Room B"}}}}
+  ]
+}

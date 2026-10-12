@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{meta.title}}</title>
+<meta name="description" content="{{meta.description}}">
+<meta property="og:title" content="{{meta.title}}">
+<meta property="og:description" content="{{meta.description}}">
+<meta property="og:type" content="{{meta.og_type}}">
+<meta property="og:url" content="{{meta.url}}">
+<meta property="og:image" content="{{meta.image}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@{{site.handle}}">
+{{#feeds}}
+<link rel="alternate" type="application/atom+xml" title="{{title}}" href="{{url}}">
+{{/feeds}}
+<link rel="canonical" href="{{meta.url}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="{{kit.css_url}}">
+</head>
+<body data-kind="{{meta.kind}}" data-id="{{meta.content_id}}">
+<div class="wrap">
+<header class="site-header">
+<a class="logo" href="/#top">{{site.logo_text}}</a>
+<nav class="site-nav">
+{{#nav}}
+<a class="nav-link" href="{{href}}">{{label}}</a>
+{{/nav}}
+<a class="btn-small" href="{{site.x_url}}">{{site.follow_label}}</a>
+</nav>
+</header>
+<main>

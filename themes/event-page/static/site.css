@@ -1,0 +1,286 @@
+/* Event page: an invitation. Fraunces for the names and dates, Figtree for the rest;
+   each event is a ticket with a perforated schedule stub. Every colour comes from the palette. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Figtree:wght@400;500;600;700&display=swap");
+
+:root {
+  --bg: #fdf5ec;
+  --ink: #2b1d14;
+  --muted: #6a5444;
+  --accent: #a8470f;
+  --accent-2: #1f6a73;
+  --line: #e6d2bd;
+  --on-accent: #ffffff;
+  --paper: color-mix(in srgb, var(--accent) 6%, var(--bg));
+  --paper-2: color-mix(in srgb, var(--accent-2) 7%, var(--bg));
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 17px; line-height: 1.55; text-wrap: pretty;
+}
+img { max-width: 100%; height: auto; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { color: var(--ink); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* —— notice: the news that can't wait —— */
+.notice {
+  margin: 0; padding: 0.7em 1.2em; background: var(--ink); color: var(--bg);
+  font-weight: 600; font-size: 0.95em; line-height: 1.4; text-align: center;
+  border-bottom: 4px solid var(--accent);
+}
+.notice span { display: inline-block; max-width: 52em; }
+
+.w { max-width: 74em; margin: 0 auto; padding: 0 1.25em 4em; }
+
+/* —— header —— */
+.mast {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 0.6em 1.5em; padding: 1.1em 0; border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 0.55em; text-decoration: none; color: var(--ink);
+  font-family: var(--display); font-weight: 600; font-size: 1.25em; letter-spacing: -0.01em;
+}
+.brand-mark { width: 36px; height: 36px; object-fit: contain; }
+.mast nav { display: flex; flex-wrap: wrap; gap: 0.3em 1.2em; font-size: 0.92em; font-weight: 500; }
+.mast nav a { color: var(--muted); text-decoration: none; }
+.mast nav a:hover { color: var(--accent); }
+
+/* —— hero: the name, then the next event, then the rest —— */
+.hero {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "name" "next" "more"; gap: 1.6em 3.5em; padding: 2em 0 1em;
+}
+.hero-name { grid-area: name; }
+.hero-next { grid-area: next; min-width: 0; }
+.hero-more { grid-area: more; }
+@media (min-width: 60em) {
+  .hero {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas: "name next" "more next"; align-items: start; padding-top: 3.2em;
+  }
+  .hero { grid-template-rows: auto 1fr; }
+  .hero-name, .hero-more { align-self: start; }
+  .hero-name { padding-top: 1.6em; }
+}
+.emblem { display: block; width: 88px; height: 88px; object-fit: contain; margin: 0 0 1em; }
+h1 {
+  font-family: var(--display); font-weight: 600; font-size: clamp(2.15rem, 5.4vw, 3.9rem);
+  line-height: 1.04; letter-spacing: -0.025em; margin: 0; max-width: 13em;
+  font-variation-settings: "opsz" 120;
+}
+.lede { font-size: 1.15em; line-height: 1.5; margin: 0 0 1.2em; max-width: 30em; }
+.ctas { display: flex; flex-wrap: wrap; gap: 0.7em; margin: 0 0 1.6em; }
+
+.b {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  min-height: 48px; padding: 0.6em 1.4em; border-radius: 999px; border: 2px solid var(--accent);
+  background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700;
+  text-decoration: none; line-height: 1.2;
+}
+.b:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); border-color: color-mix(in srgb, var(--accent) 86%, var(--ink)); color: var(--on-accent); }
+.b2 { background: transparent; color: var(--ink); border-color: var(--line); }
+.b2:hover { background: var(--paper); border-color: var(--accent); color: var(--ink); }
+
+/* useful links */
+.buttons { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55em; max-width: 30em; }
+.buttons a {
+  display: flex; flex-direction: column; padding: 0.75em 2.6em 0.75em 1.05em; position: relative;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px;
+  color: var(--ink); text-decoration: none;
+}
+.buttons a::after {
+  content: "→"; position: absolute; right: 1em; top: 50%; transform: translateY(-50%);
+  color: var(--accent); font-weight: 700;
+}
+.buttons a:hover { border-color: var(--accent); }
+.buttons b { font-weight: 600; }
+.buttons small { color: var(--muted); font-size: 0.86em; }
+
+/* —— the tickets —— */
+.kicker {
+  display: flex; align-items: baseline; gap: 0.4em; flex-wrap: wrap; margin: 0 0 0.8em;
+  font-family: var(--sans); font-size: 0.8em; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--accent);
+}
+.kicker span { color: var(--muted); font-weight: 600; letter-spacing: 0.08em; }
+
+.ticket {
+  position: relative; margin: 0 0 1.1em; background: var(--paper);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 1px 0 var(--line), 0 14px 30px -22px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.ticket-main { padding: 1.35em 1.4em 1.4em; }
+.ticket-status {
+  margin: 0; padding: 0.5em 1.4em; border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 0.78em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  background: var(--accent); color: var(--on-accent);
+}
+.ticket.is-changed { border: 2px solid var(--accent); }
+.ticket.is-cancelled { background: transparent; box-shadow: none; border-style: dashed; }
+.ticket.is-cancelled .ticket-status { background: var(--ink); color: var(--bg); }
+.ticket.is-cancelled .ticket-title, .ticket.is-cancelled .when, .ticket.is-cancelled .place { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--muted); }
+.ticket.is-cancelled .ticket-title a { color: var(--muted); }
+
+.stamp {
+  display: inline-block; margin: 0 0 0.6em; padding: 0.22em 0.6em; border: 1.5px solid var(--accent);
+  border-radius: 6px; color: var(--accent); font-weight: 700; font-size: 0.8em;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.ticket-title {
+  font-family: var(--display); font-weight: 600; font-size: 1.55em; line-height: 1.15;
+  letter-spacing: -0.015em; margin: 0 0 0.3em;
+}
+.ticket-title a { color: var(--ink); text-decoration: none; }
+.ticket-title a:hover { color: var(--accent); }
+.next .ticket:first-of-type .ticket-title { font-size: clamp(1.7em, 3.4vw, 2.2em); }
+.when { margin: 0 0 0.9em; font-weight: 600; font-size: 1.04em; }
+.where { margin: 0 0 0.9em; padding-left: 0.85em; border-left: 3px solid var(--accent-2); }
+.where p { margin: 0; }
+.place { font-weight: 600; }
+.addr { color: var(--muted); font-size: 0.95em; }
+.dir { display: inline-block; margin-top: 0.25em; font-weight: 600; font-size: 0.95em; color: var(--accent-2); }
+.sum { margin: 0 0 1em; color: var(--muted); }
+.rsvp { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em 1em; }
+.deadline { font-size: 0.9em; color: var(--muted); font-weight: 500; }
+
+/* the stub: a perforated schedule */
+.sched { position: relative; padding: 1.2em 1.4em 1.3em; border-top: 2px dashed var(--line); }
+.sched::before, .sched::after {
+  content: ""; position: absolute; top: -12px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg); border: 1px solid var(--line);
+}
+.sched::before { left: -12px; clip-path: inset(0 0 0 50%); }
+.sched::after { right: -12px; clip-path: inset(0 50% 0 0); }
+.sched h4 {
+  margin: 0 0 0.6em; font-size: 0.75em; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted);
+}
+.sched ol { list-style: none; margin: 0; padding: 0; }
+.sched li { display: grid; grid-template-columns: 5.4em minmax(0, 1fr); gap: 0.8em; padding: 0.35em 0; }
+.sched time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); white-space: nowrap; font-size: 0.95em; }
+.sched b { font-weight: 600; }
+.sched small { display: block; color: var(--muted); font-size: 0.88em; }
+
+/* —— hero photo —— */
+.hero-photo { margin: 1.5em 0 0; }
+.hero-photo img { display: block; width: 100%; aspect-ratio: 2080 / 1160; object-fit: cover; border-radius: var(--radius); }
+.hero-photo figcaption { margin-top: 0.5em; font-size: 0.88em; color: var(--muted); }
+
+/* —— sections —— */
+.sec { padding: 2.4em 0 0.4em; border-top: 1px solid var(--line); margin-top: 2em; }
+.cards-wrap .sec + .sec { margin-top: 0.6em; }
+h2 {
+  font-family: var(--display); font-weight: 600; font-size: clamp(1.6em, 3vw, 2.1em);
+  line-height: 1.15; letter-spacing: -0.015em; margin: 0 0 0.7em;
+}
+.byline { color: var(--muted); margin: -0.4em 0 1em; }
+p { max-width: 38em; }
+.notice, .ticket-status { max-width: none; }
+
+.update { max-width: 40em; }
+.update .date, .page .date { margin: 0 0 0.2em; font-size: 0.85em; font-weight: 600; color: var(--accent); letter-spacing: 0.04em; }
+.update h3 { font-family: var(--display); font-weight: 600; font-size: 1.4em; margin: 0 0 0.5em; line-height: 1.2; }
+.update h3 a { color: var(--ink); text-decoration: none; }
+.update h3 a:hover { color: var(--accent); }
+.all { margin: 1em 0 0; font-weight: 600; }
+.all a { text-decoration: none; }
+
+/* lists of entries and past events */
+.rows { list-style: none; margin: 0; padding: 0; max-width: 46em; }
+.rows li {
+  display: grid; grid-template-columns: 6.6em minmax(0, 1fr); gap: 0.9em;
+  padding: 0.75em 0; border-bottom: 1px solid var(--line); align-items: baseline;
+}
+.row-date { font-size: 0.85em; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; text-transform: uppercase; }
+.row-main a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.row-main a:hover { color: var(--accent); }
+.row-main small { display: block; color: var(--muted); font-size: 0.9em; }
+.rows li.is-cancelled .row-main > a { text-decoration: line-through; color: var(--muted); }
+.flag {
+  display: inline-block; margin-left: 0.4em; padding: 0.05em 0.5em; border-radius: 999px;
+  font-size: 0.72em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--accent); color: var(--on-accent); vertical-align: 0.15em;
+}
+.is-cancelled .flag { background: var(--ink); color: var(--bg); }
+
+/* past events, folded */
+.earlier-sec { padding-top: 1.2em; }
+.earlier summary {
+  cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 0.6em; flex-wrap: wrap;
+  font-family: var(--display); font-size: 1.35em; font-weight: 600; padding: 0.2em 0;
+}
+.earlier summary::-webkit-details-marker { display: none; }
+.earlier summary::before {
+  content: "+"; display: inline-grid; place-items: center; width: 1.25em; height: 1.25em;
+  border: 1.5px solid var(--line); border-radius: 50%; font-family: var(--sans); font-size: 0.8em; color: var(--accent);
+}
+.earlier[open] summary::before { content: "−"; }
+.earlier summary small { font-family: var(--sans); font-size: 0.62em; font-weight: 500; color: var(--muted); }
+.earlier .rows { margin-top: 0.6em; }
+
+/* details and FAQs (cards in groups) */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(16em, 1fr)); gap: 1em; }
+.card {
+  padding: 1.1em 1.2em 1.2em; background: var(--paper-2); border-radius: 12px;
+  border: 1px solid var(--line); border-top: 3px solid var(--accent-2);
+}
+.card h3 { margin: 0 0 0.3em; font-size: 1.08em; font-weight: 700; line-height: 1.3; }
+.card h3 a { color: var(--ink); text-decoration: none; }
+.card h3 a:hover { color: var(--accent); }
+.card p { margin: 0 0 0.4em; }
+.card .price { font-family: var(--display); font-size: 1.2em; font-weight: 600; color: var(--accent); margin: 0 0 0.2em; }
+.card .sub { color: var(--muted); font-size: 0.92em; }
+.card .more { font-weight: 600; font-size: 0.95em; text-decoration: none; }
+
+.about p { font-size: 1.05em; }
+
+/* contact the organisers */
+.contact-row { display: flex; flex-wrap: wrap; gap: 0.7em; }
+.contact-row .b span { font-weight: 500; opacity: 0.92; }
+.contact .addr, .contact .social { margin: 1em 0 0; }
+.social a { margin-right: 1em; font-weight: 600; }
+
+/* —— inner pages —— */
+.page { max-width: 46em; padding-top: 2.2em; }
+.page h1 { font-size: clamp(2em, 5vw, 3em); margin: 0 0 0.4em; }
+.back { display: inline-block; margin-bottom: 1.4em; color: var(--muted); text-decoration: none; font-weight: 500; }
+.back:hover { color: var(--accent); }
+.solo-ticket .ticket-title { font-size: clamp(1.8em, 4.4vw, 2.5em); }
+.body { margin-top: 1.4em; }
+.body > :first-child { margin-top: 0; }
+.body h2 { font-size: 1.4em; margin: 1.6em 0 0.5em; }
+.body blockquote { margin: 1.4em 0; padding: 0 0 0 1em; border-left: 3px solid var(--accent); font-family: var(--display); font-style: italic; font-size: 1.15em; }
+.body img { display: block; border-radius: 12px; }
+.body table { border-collapse: collapse; width: 100%; margin: 0 0 1.2em; font-size: 0.95em; }
+.body th, .body td { text-align: left; padding: 0.45em 0.7em 0.45em 0; border-bottom: 1px solid var(--line); }
+.cover { display: block; border-radius: var(--radius); margin: 0 0 1.4em; }
+.tags { margin-top: 1.6em; }
+.tags a { margin-right: 0.8em; font-weight: 600; text-decoration: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* —— footer —— */
+footer {
+  margin-top: 4em; padding-top: 1.4em; border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 0.3em 1.8em; font-size: 0.9em; color: var(--muted);
+}
+footer p { margin: 0; }
+.foot-line { font-family: var(--display); font-weight: 600; color: var(--ink); }
+
+@media (max-width: 30em) {
+  body { font-size: 16px; }
+  .w { padding: 0 1em 3em; }
+  .ticket-main { padding: 1.15em 1.1em 1.2em; }
+  .sched { padding: 1.1em 1.1em 1.2em; }
+  .sched li { grid-template-columns: 4.9em minmax(0, 1fr); gap: 0.6em; }
+  .rows li { grid-template-columns: 1fr; gap: 0.1em; }
+  .b { width: 100%; }
+  .rsvp .b { width: auto; }
+}

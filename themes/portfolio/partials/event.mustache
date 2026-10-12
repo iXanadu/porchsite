@@ -1,0 +1,8 @@
+{{#event.has}}<div class="event{{#event.is_cancelled}} is-cancelled{{/event.is_cancelled}}">
+{{#event.status}}<p class="flag{{#event.is_cancelled}} flag-off{{/event.is_cancelled}}">{{event.status}}</p>{{/event.status}}
+<p class="event-when">{{event.when}}</p>
+{{#event.place_name}}<p class="event-place">{{#event.map_link}}<a href="{{event.map_link}}">{{event.place_name}}</a>{{/event.map_link}}{{^event.map_link}}{{event.place_name}}{{/event.map_link}}{{#event.place_address}} · {{event.place_address}}{{/event.place_address}}</p>{{/event.place_name}}
+{{#event.rsvp_link}}<p><a class="btn" href="{{event.rsvp_link}}">{{event.rsvp_label}}</a> <span class="muted">{{event.rsvp_deadline}}</span></p>{{/event.rsvp_link}}
+{{#event.has_schedule}}<ol class="schedule">{{#event.schedule}}<li><span>{{time}}</span> <b>{{title}}</b>{{#note}} <i>{{note}}</i>{{/note}}</li>{{/event.schedule}}</ol>{{/event.has_schedule}}
+</div>
+{{/event.has}}

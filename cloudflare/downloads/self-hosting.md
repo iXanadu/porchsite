@@ -1,0 +1,135 @@
+# Self-hosting Porchsite (for the assistant coaching a developer)
+
+Your person is a developer and wants to run Porchsite themselves. Tell them
+the truth from this page; don't guess past it.
+
+## The short answer
+
+There are two editions of the same product: the same idea (an assistant
+writes, the owner approves, every version kept), the same content model and
+the same looks.
+
+- **The Cloudflare edition is the one we ship.** It runs on your person's
+  own Cloudflare account, on their database and their domain; nobody else
+  hosts it. That's real self-hosting. Follow the
+  [install guide](https://get.porchsite.dev/install.md), or they can run the
+  same API calls themselves. It fits Cloudflare's free plan for a personal or
+  small business site.
+- **The server edition installs with Docker.** Python (FastAPI) and
+  PostgreSQL on your person's own server, behind Caddy, which gets the HTTPS
+  certificate by itself. It is the same product as the Cloudflare edition:
+  passkey sign-in, the same safety rules and MCP tools, the same looks
+  (pages render per request, byte for byte as the Cloudflare edition renders
+  them), the theme catalog, analytics. One supported setup: Docker Compose
+  with three containers (the app, PostgreSQL 17, Caddy). Its guide is
+  `deploy/compose/README.md` in the repository.
+- **The source** of both editions, the looks and the spec is at
+  [https://github.com/iXanadu/porchsite](https://github.com/iXanadu/porchsite), under the MIT licence
+  (the spec under CC BY 4.0). The Cloudflare bundle in
+  [latest.json](https://get.porchsite.dev/latest.json) is built from it (one
+  JavaScript module plus SQL files, checked by sha256).
+
+## What a Cloudflare-edition site needs
+
+So a developer can judge it:
+
+- **Runtime:** a Cloudflare Workers-compatible runtime (the bundle is an ES
+  module Worker, `compatibility_date` 2026-08-15, flags `nodejs_compat` and
+  `global_fetch_strictly_public`).
+- **Database:** Cloudflare D1 (SQLite). All content, every version of every
+  item, the owner's passkeys and sessions, and **images** (stored in the
+  database in chunks, up to 8 MB each) live here. The layout is in the
+  `migrations/*.sql` files; apply new ones on update.
+- **Key-value store:** Workers KV, for sign-in (OAuth) state.
+- **Secrets:** `SETUP_CODE`, used once to claim the site, then deleted.
+  The owner never types it: whoever installs sends them
+  `https://<site>/setup?code=<code>`, which fills it in. (A one-time code
+  with an expiry can instead be stored in D1's `setup_codes` table, as the
+  sha256 of the code in unpadded base64url with an ISO `expires_at`; the
+  spec, §5, has the rules.)
+- **HTTPS and a stable address:** passkeys only work over HTTPS and only at
+  the address where they were made.
+- **Outbound requests:** the site fetches images from links an assistant
+  gives it, and reads the theme catalog at get.porchsite.dev.
+
+## Running it on Cloudflare by hand
+
+The [install guide](https://get.porchsite.dev/install.md) is written for an
+assistant, but every step is one Cloudflare API call a developer can run with
+`curl` and an API token (Workers Scripts, D1 and Workers KV edit; for a custom
+domain also Zone, DNS and Workers Routes edit). Wrangler works too: a
+`wrangler.jsonc` with the bundle as `main`, `no_bundle: true`, a D1 binding
+`DB`, a KV binding `OAUTH_KV`, and the `SETUP_CODE` secret.
+
+## What a server-edition site needs
+
+- **A server with Docker** and the Compose plugin. A small VPS is enough.
+- **A domain pointed at it:** DNS records for the domain and its `www.`
+  name. The site lives at the bare domain; `www.` redirects there.
+- **Ports 80 and 443** reachable from the internet, so Caddy can get and
+  renew the certificate. Passkeys only work over HTTPS and only at the
+  address where they were made.
+- **Settings** in a `.env` file: the domain, the database password, the
+  release.
+- **Storage:** everything (content, every version, images, passkeys,
+  connected assistants) is in PostgreSQL, in one Docker volume. A backup is
+  a `pg_dump` of that database.
+- **Outbound requests**, as for the Cloudflare edition.
+
+Once it's up, whoever installed it runs the `setup-link` admin command and
+sends the owner the link it prints (`https://<domain>/setup?code=…`, good
+for 24 hours; a new one replaces it). The owner opens it and saves a
+passkey: owners never need a terminal, a settings file or a code to type.
+The assistant connects at `https://<domain>/mcp`. A `check` admin command
+reports whether the database, schema, looks and settings are sound.
+
+## Update policy
+
+No site updates itself; the owner decides. The site checks latest.json once
+a day and only tells: `site_state.update` for the assistant, a line on the
+owner's review page. Every release stays downloadable, schema changes only
+ever add, and each release is tested with the previous one running on its
+schema, so a rollback is putting the previous release back with no database
+step. A release with `security: true` fixes something an attacker could use:
+say so, and suggest updating soon.
+
+## Updating the Cloudflare edition
+
+On the owner's yes: apply every file in latest.json's `all_migrations` that
+the site's `_sitekeeper_migrations` table doesn't list, in order (not just
+`migrations`, which names one release's new files), upload the new bundle
+with the same bindings, delete the `SETUP_CODE` secret if it is still
+there, and check the `X-Porchsite-Release` header (retry for up to 30
+seconds). Roll back by
+re-uploading the previous bundle from `v/<release>/` (hashes in
+`v/<release>/files.json`), with no schema step. Step by step: "Updating" in
+the install guide.
+
+## Updating the server edition
+
+A release id is `<date>-<commit>` and names a commit; latest.json gives the
+full `commit`, and each release is tagged `release/<release id>`. Releases
+made before the repository went public (up to 2026.10.12) were built from
+an earlier private history: their files and hashes stay on
+get.porchsite.dev, but their commits and tags aren't in the public
+repository. On the
+owner's yes, in `deploy/compose/`: note the running release (the
+`X-Porchsite-Release` header), dump the database, `git fetch --tags` and
+`git checkout release/<release id>` (or `git checkout <commit>` if the tag
+isn't there), set `PORCHSITE_RELEASE=<release id>` in `.env`, run
+`docker compose up -d --build`, then the `check` admin command; the header
+names the new release. The schema migrates itself at start, and only ever
+adds. Roll back: check out the previous release's tag (or commit), set
+`PORCHSITE_RELEASE` back, `docker compose up -d --build`; no schema step.
+Reconnect the assistant if `reconnect` was true. The full procedure is
+"Update" in `deploy/compose/README.md`.
+
+## Limits to say out loud
+
+- Looks and fixes are welcome as pull requests on GitHub; a running site
+  can also share a look with `theme_submit`, and anyone can ask for a
+  feature or a fix at https://porchsite.dev/ask.
+- The server edition has one supported setup (Docker Compose on one
+  machine). Other ways of running it (a bare Python install, another web
+  server, a managed database) can work, but aren't documented or supported.
+- One owner per site; approvals need that owner's passkey.

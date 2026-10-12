@@ -1,0 +1,5 @@
+<li><a class="upd" href="{{url}}">
+<span class="upd-when">{{#event.has}}{{event.date_short}}{{/event.has}}{{^event.has}}{{date_short}}{{/event.has}}</span>
+<span class="upd-title">{{title}}{{#event.has}}{{#event.status}} <em class="flag">{{event.status}}</em>{{/event.status}}{{/event.has}}</span>
+{{#event.has}}<span class="upd-sub">{{event.time}}{{#event.place_name}} · {{event.place_name}}{{/event.place_name}}</span>{{/event.has}}{{^event.has}}{{#summary}}<span class="upd-sub">{{summary}}</span>{{/summary}}{{/event.has}}
+</a></li>

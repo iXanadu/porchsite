@@ -1,0 +1,9 @@
+<article class="card">
+{{#has_image}}<img class="card-img" src="{{image_src}}" alt="{{image_alt}}" loading="lazy">{{/has_image}}
+<div class="card-head"><h3>{{name}}</h3>{{#price}}<span class="price">{{price}}</span>{{/price}}</div>
+{{#subtitle}}<p class="sub">{{subtitle}}</p>{{/subtitle}}
+<p class="desc">{{description}}</p>
+{{#has_tags}}<ul class="tags">{{#tags}}<li>{{name}}</li>{{/tags}}</ul>{{/has_tags}}
+{{#status}}<span class="badge badge-{{status_tone}}">{{status}}</span>{{/status}}
+{{#link}}<a class="more" href="{{link}}">{{link_text}} →</a>{{/link}}
+</article>

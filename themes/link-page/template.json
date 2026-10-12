@@ -1,0 +1,160 @@
+{
+  "name": "link-page",
+  "title": "Link page",
+  "licence": "MIT",
+  "version": "1.0.2",
+  "type": "links",
+  "description": "One address for your bio: your face or mark, your name and one line, then a column of big buttons to everything you do, your other places, and your latest few updates. One screen, phone first.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "ink": {
+      "title": "Ink",
+      "colors": {
+        "bg": "#ffffff",
+        "ink": "#111111",
+        "muted": "#555555",
+        "accent": "#1a3fb4",
+        "accent-2": "#b3261e",
+        "line": "#d4d4d4",
+        "on-accent": "#ffffff"
+      }
+    },
+    "sunset": {
+      "title": "Sunset",
+      "colors": {
+        "bg": "#fdf5ec",
+        "ink": "#2b1d14",
+        "muted": "#6a5444",
+        "accent": "#a8470f",
+        "accent-2": "#1f6a73",
+        "line": "#e6d2bd",
+        "on-accent": "#ffffff"
+      }
+    },
+    "midnight": {
+      "title": "Midnight",
+      "colors": {
+        "bg": "#10162a",
+        "ink": "#eef1fa",
+        "muted": "#aab3cc",
+        "accent": "#7cc4ff",
+        "accent-2": "#ffb86b",
+        "line": "#2f3a5c",
+        "on-accent": "#0b1224"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          800,
+          800
+        ],
+        "need": "recommended",
+        "purpose": "the round picture at the top (112 px, cropped to a circle) and the browser icon: a face or a logo, subject centred; without it the name leads",
+        "alt_hint": "who or what it shows, e.g. Juno Marsh smiling, in a yellow coat",
+        "prompt": "a clear square photo of the person's face, or their logo on a plain ground, centred with room to crop to a circle"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when the link is shared",
+        "alt_hint": "what the picture shows",
+        "prompt": "the avatar on the palette's background colour with the name beside it"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a picture at the top of an update's own page",
+        "alt_hint": "what it shows",
+        "prompt": "a real photo of what the update is about"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.title",
+        "need": "required",
+        "purpose": "your name or handle, the big line at the top"
+      },
+      {
+        "field": "site.tagline",
+        "need": "recommended",
+        "purpose": "one line under the name: what you do"
+      },
+      {
+        "field": "site.intro",
+        "need": "optional",
+        "purpose": "a sentence more, smaller, under that"
+      },
+      {
+        "field": "site.buttons",
+        "need": "required",
+        "purpose": "the buttons, in order, 3-12: label, link, and an optional one-line note. The first one is filled with the accent colour, so put the one that matters most first"
+      },
+      {
+        "field": "site.contact",
+        "need": "recommended",
+        "purpose": "social links print as a row of small pills under the buttons; the email goes in the footer"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "a pill above everything for news that can't wait, e.g. New single out Friday"
+      },
+      {
+        "field": "site.streams",
+        "need": "optional",
+        "purpose": "each stream prints as a short list of its newest three entries (or upcoming events) under the buttons, linking to its pages"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "optional",
+        "purpose": "cards print as a compact list (name, price or period, a line), e.g. what you sell"
+      },
+      {
+        "field": "site.about",
+        "need": "optional",
+        "purpose": "a few centred lines near the bottom"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the last line, e.g. For bookings, email me"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for one clear square photo of their face, or their logo.",
+    "style": "A photograph or a flat mark; subject centred with room to be cropped into a circle. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Get the photo or logo from the person.",
+      "Check it: square or near it, subject centred, sharp at 112 px and at 32 px for the icon.",
+      "Write the alt text: who or what it shows.",
+      "Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+      "Upload it (an https link in site.logo, or photo_upload_link), then call theme_needs: every slot should say filled.",
+      "Open every button's link and check it returns a page before you publish."
+    ]
+  }
+}

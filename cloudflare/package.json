@@ -1,0 +1,33 @@
+{
+  "name": "sitekeeper",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "themes": "node scripts/themes.mjs",
+    "theme:check": "node scripts/theme.mjs check",
+    "theme:preview": "node scripts/theme.mjs preview"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.1.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@simplewebauthn/server": "14.0.2",
+    "@types/mustache": "4.2.5",
+    "agents": "0.24.0",
+    "mustache": "4.2.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260924.1",
+    "playwright-core": "^1.56.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.139.0"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "name": "personal-homepage",
+  "title": "Personal homepage",
+  "licence": "MIT",
+  "version": "1.0.3",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "type": "personal",
+  "description": "A personal homepage with a live log: who you are at the top, then a journal your assistant keeps, your projects as cards, your writing, and an About.",
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "the wide photo beside the headline",
+        "alt_hint": "what the photo shows",
+        "prompt": "a wide photograph of the person or their world"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link is shared; empty uses the hero",
+        "alt_hint": "what it shows",
+        "prompt": ""
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a writing entry's cover photo",
+        "alt_hint": "what it shows",
+        "prompt": ""
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the headline"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "the paragraph under the headline"
+      },
+      {
+        "field": "site.handle",
+        "need": "recommended",
+        "purpose": "the X handle: follow buttons and the byline"
+      },
+      {
+        "field": "site.streams",
+        "need": "required",
+        "purpose": "one stream with layout feature (the journal your assistant keeps: newest entry in full, with notes) and one with layout list (writing)"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "optional",
+        "purpose": "projects as cards"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "the About section"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer line"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask your person for one wide photo of themselves or their world (their work, their place). A real photo, not a made-up picture.",
+    "style": "Photographs. One wide hero photo; covers for writing entries are optional.",
+    "steps": [
+      "Get the hero photo from your person (photo_upload_link if they send it from their phone).",
+      "Check it: wide (about 16:9), at least 2080 px across, sharp; ask for another if not.",
+      "Write its alt text with your person: what it shows, in a few words.",
+      "Upload it into site.hero, then call theme_needs: the hero should say filled."
+    ]
+  }
+}

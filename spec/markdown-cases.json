@@ -1,0 +1,457 @@
+[
+ {
+  "name": "heading escapes text",
+  "markdown": "# Hi & <you>",
+  "html": "<h1>Hi &#38; &#60;you&#62;</h1>"
+ },
+ {
+  "name": "h4 to h6; seven hashes is text",
+  "markdown": "#### four\n\n##### five\n\n###### six\n\n####### seven",
+  "html": "<h4>four</h4>\n<h5>five</h5>\n<h6>six</h6>\n<p>####### seven</p>"
+ },
+ {
+  "name": "heading line ends a paragraph",
+  "markdown": "## h\nmore",
+  "html": "<h2>h</h2>\n<p>more</p>"
+ },
+ {
+  "name": "hashtag is not a heading",
+  "markdown": "#hashtag is not a heading",
+  "html": "<p>#hashtag is not a heading</p>"
+ },
+ {
+  "name": "soft break joins lines with a space",
+  "markdown": "a\nb\n\nc",
+  "html": "<p>a b</p>\n<p>c</p>"
+ },
+ {
+  "name": "several soft breaks",
+  "markdown": "Trip -- day 1\nWe drove north.\nThen we slept.",
+  "html": "<p>Trip – day 1 We drove north. Then we slept.</p>"
+ },
+ {
+  "name": "two trailing spaces make a hard break",
+  "markdown": "line one  \nline two",
+  "html": "<p>line one<br>line two</p>"
+ },
+ {
+  "name": "trailing backslash makes a hard break",
+  "markdown": "line one\\\nline two",
+  "html": "<p>line one<br>line two</p>"
+ },
+ {
+  "name": "backslash at the end of a paragraph stays",
+  "markdown": "ends with backslash\\",
+  "html": "<p>ends with backslash\\</p>"
+ },
+ {
+  "name": "leading spaces dropped, two trailing spaces break",
+  "markdown": "   leading  \n   spaces dropped   ",
+  "html": "<p>leading<br>spaces dropped</p>"
+ },
+ {
+  "name": "blank input renders nothing",
+  "markdown": "  \n\n",
+  "html": ""
+ },
+ {
+  "name": "leading blank lines ignored",
+  "markdown": "\n\nleading blanks",
+  "html": "<p>leading blanks</p>"
+ },
+ {
+  "name": "unordered list, mixed markers",
+  "markdown": "- one\n- **two**\n* three\n+ four",
+  "html": "<ul><li>one</li><li><strong>two</strong></li><li>three</li><li>four</li></ul>"
+ },
+ {
+  "name": "ordered list",
+  "markdown": "1. a\n2. b",
+  "html": "<ol><li>a</li><li>b</li></ol>"
+ },
+ {
+  "name": "ordered list keeps its start",
+  "markdown": "3. three\n4. four",
+  "html": "<ol start=\"3\"><li>three</li><li>four</li></ol>"
+ },
+ {
+  "name": "ordered list with parens",
+  "markdown": "1) paren\n2) list",
+  "html": "<ol><li>paren</li><li>list</li></ol>"
+ },
+ {
+  "name": "nested unordered lists",
+  "markdown": "- a\n  - b\n    - c\n- d",
+  "html": "<ul><li>a<ul><li>b<ul><li>c</li></ul></li></ul></li><li>d</li></ul>"
+ },
+ {
+  "name": "unordered inside ordered",
+  "markdown": "1. first\n2. second\n   - inner\n   - inner2\n3. third",
+  "html": "<ol><li>first</li><li>second<ul><li>inner</li><li>inner2</li></ul></li><li>third</li></ol>"
+ },
+ {
+  "name": "two-space nesting under a number",
+  "markdown": "1. a\n  - two-space nested\n2. b",
+  "html": "<ol><li>a<ul><li>two-space nested</li></ul></li><li>b</li></ol>"
+ },
+ {
+  "name": "ordered inside unordered keeps start",
+  "markdown": "- a\n  5. five\n  6. six",
+  "html": "<ul><li>a<ol start=\"5\"><li>five</li><li>six</li></ol></li></ul>"
+ },
+ {
+  "name": "loose list wraps paragraphs",
+  "markdown": "- a\n\n- b",
+  "html": "<ul><li><p>a</p></li><li><p>b</p></li></ul>"
+ },
+ {
+  "name": "item with two paragraphs",
+  "markdown": "- one\n\n  second paragraph\n- two",
+  "html": "<ul><li><p>one</p><p>second paragraph</p></li><li><p>two</p></li></ul>"
+ },
+ {
+  "name": "list then paragraph",
+  "markdown": "- a\n- b\n\nparagraph after",
+  "html": "<ul><li>a</li><li>b</li></ul>\n<p>paragraph after</p>"
+ },
+ {
+  "name": "nested list then paragraph",
+  "markdown": "- a\n  - b\n\nAfter the nested list.",
+  "html": "<ul><li>a<ul><li>b</li></ul></li></ul>\n<p>After the nested list.</p>"
+ },
+ {
+  "name": "list interrupts a paragraph",
+  "markdown": "Things I did:\n- one\n- two",
+  "html": "<p>Things I did:</p>\n<ul><li>one</li><li>two</li></ul>"
+ },
+ {
+  "name": "a number only interrupts as 1.",
+  "markdown": "I was born in\n1999. Good year.",
+  "html": "<p>I was born in 1999. Good year.</p>"
+ },
+ {
+  "name": "lazy continuation of an item",
+  "markdown": "- a\nlazy continuation",
+  "html": "<ul><li>a lazy continuation</li></ul>"
+ },
+ {
+  "name": "list kind change starts a new list",
+  "markdown": "- a\n1. b",
+  "html": "<ul><li>a</li></ul>\n<ol><li>b</li></ol>"
+ },
+ {
+  "name": "empty item",
+  "markdown": "- ",
+  "html": "<ul><li></li></ul>"
+ },
+ {
+  "name": "code inside a list",
+  "markdown": "- item\n  ```\n  code in list\n  ```\n- next",
+  "html": "<ul><li>item<pre><code>code in list\n</code></pre></li><li>next</li></ul>"
+ },
+ {
+  "name": "code span and quotes in items",
+  "markdown": "- `code` item\n- \"quoted\" item",
+  "html": "<ul><li><code>code</code> item</li><li>“quoted” item</li></ul>"
+ },
+ {
+  "name": "loose ordered list then paragraph",
+  "markdown": "1. a\n\n   para in item\n2. b\n\nAnd a paragraph.",
+  "html": "<ol><li><p>a</p><p>para in item</p></li><li><p>b</p></li></ol>\n<p>And a paragraph.</p>"
+ },
+ {
+  "name": "fenced code escapes, no inline or smart",
+  "markdown": "```\nplain <code> & 'quotes' -- ... *x*\n```",
+  "html": "<pre><code>plain &#60;code&#62; &#38; &#39;quotes&#39; -- ... *x*\n</code></pre>"
+ },
+ {
+  "name": "fenced code with language",
+  "markdown": "```python\ndef f(x):\n    return x * 2  # *not em*\n```",
+  "html": "<pre><code class=\"language-python\">def f(x):\n    return x * 2  # *not em*\n</code></pre>"
+ },
+ {
+  "name": "tilde fence",
+  "markdown": "~~~js\nlet a = \"b\";\n~~~",
+  "html": "<pre><code class=\"language-js\">let a = &#34;b&#34;;\n</code></pre>"
+ },
+ {
+  "name": "unclosed fence runs to the end",
+  "markdown": "```\nunclosed\n\nstill code",
+  "html": "<pre><code>unclosed\n\nstill code\n</code></pre>"
+ },
+ {
+  "name": "longer fence holds a shorter one",
+  "markdown": "````md\n```\ninner\n```\n````",
+  "html": "<pre><code class=\"language-md\">```\ninner\n```\n</code></pre>"
+ },
+ {
+  "name": "language is escaped",
+  "markdown": "```c\"><script>\nx\n```",
+  "html": "<pre><code class=\"language-c&#34;&#62;&#60;script&#62;\">x\n</code></pre>"
+ },
+ {
+  "name": "backticks on one line are a code span",
+  "markdown": "``` not a fence ``` here",
+  "html": "<p><code>not a fence</code> here</p>"
+ },
+ {
+  "name": "fence interrupts a paragraph",
+  "markdown": "text\n```\ncode\n```\nmore",
+  "html": "<p>text</p>\n<pre><code>code\n</code></pre>\n<p>more</p>"
+ },
+ {
+  "name": "indented code block",
+  "markdown": "    indented code\n    second line\n\n    after blank",
+  "html": "<pre><code>indented code\nsecond line\n\nafter blank\n</code></pre>"
+ },
+ {
+  "name": "indented line continues a paragraph",
+  "markdown": "para\n    continues the paragraph",
+  "html": "<p>para continues the paragraph</p>"
+ },
+ {
+  "name": "underscore emphasis and strong",
+  "markdown": "_emphasis_ and __strong__",
+  "html": "<p><em>emphasis</em> and <strong>strong</strong></p>"
+ },
+ {
+  "name": "intraword underscores stay",
+  "markdown": "snake_case_name and __init__ and a_b_c",
+  "html": "<p>snake_case_name and <strong>init</strong> and a_b_c</p>"
+ },
+ {
+  "name": "underscore next to a letter",
+  "markdown": "_a_b",
+  "html": "<p>_a_b</p>"
+ },
+ {
+  "name": "non-ASCII letters count as word",
+  "markdown": "café_x_ and _über_",
+  "html": "<p>café_x_ and <em>über</em></p>"
+ },
+ {
+  "name": "nested emphasis in strong",
+  "markdown": "**bold *nested* bold**",
+  "html": "<p><strong>bold <em>nested</em> bold</strong></p>"
+ },
+ {
+  "name": "strong in emphasis",
+  "markdown": "*a **b** c*",
+  "html": "<p><em>a <strong>b</strong> c</em></p>"
+ },
+ {
+  "name": "triple stars",
+  "markdown": "***both***",
+  "html": "<p><strong><em>both</em></strong></p>"
+ },
+ {
+  "name": "spaced stars are not emphasis",
+  "markdown": "2 * 3 * 4 and a * b *",
+  "html": "<p>2 * 3 * 4 and a * b *</p>"
+ },
+ {
+  "name": "intraword stars are emphasis",
+  "markdown": "un*be*lievable",
+  "html": "<p>un<em>be</em>lievable</p>"
+ },
+ {
+  "name": "unclosed strong stays literal",
+  "markdown": "**unclosed bold",
+  "html": "<p>**unclosed bold</p>"
+ },
+ {
+  "name": "escaped markup stays literal",
+  "markdown": "\\\"straight\\\" and \\*not em\\* and \\_x\\_",
+  "html": "<p>&#34;straight&#34; and *not em* and _x_</p>"
+ },
+ {
+  "name": "links, images, code, emphasis",
+  "markdown": "see [x](https://example.com/a) and ![p](/media/a.jpg) `c` *e*",
+  "html": "<p>see <a href=\"https://example.com/a\">x</a> and <img alt=\"p\" src=\"/media/a.jpg\"> <code>c</code> <em>e</em></p>"
+ },
+ {
+  "name": "link title",
+  "markdown": "[a](https://example.com \"The title\")",
+  "html": "<p><a href=\"https://example.com\" title=\"The title\">a</a></p>"
+ },
+ {
+  "name": "link title with spaces before the paren",
+  "markdown": "[a](https://example.com \"x\" ) and [b](/y \"broken)",
+  "html": "<p><a href=\"https://example.com\" title=\"x\">a</a> and [b](/y “broken)</p>"
+ },
+ {
+  "name": "emphasis inside link text",
+  "markdown": "[**bold** and _em_](https://example.com)",
+  "html": "<p><a href=\"https://example.com\"><strong>bold</strong> and <em>em</em></a></p>"
+ },
+ {
+  "name": "brackets inside link text",
+  "markdown": "[a [b] c](/x)",
+  "html": "<p><a href=\"/x\">a [b] c</a></p>"
+ },
+ {
+  "name": "image inside a link",
+  "markdown": "[![photo](/media/p.jpg)](https://example.com)",
+  "html": "<p><a href=\"https://example.com\"><img alt=\"photo\" src=\"/media/p.jpg\"></a></p>"
+ },
+ {
+  "name": "quotes inside link text are curled",
+  "markdown": "[\"Quoted\" text](/q)",
+  "html": "<p><a href=\"/q\">“Quoted” text</a></p>"
+ },
+ {
+  "name": "allowed and refused link targets",
+  "markdown": "[data](data:text/html,x) [v](vbscript:x) [rel](/about) [frag](#top) [m](mailto:owner@example.com)",
+  "html": "<p>[data](data:text/html,x) [v](vbscript:x) <a href=\"/about\">rel</a> <a href=\"#top\">frag</a> <a href=\"mailto:owner@example.com\">m</a></p>"
+ },
+ {
+  "name": "javascript link refused",
+  "markdown": "[bad](javascript:x)",
+  "html": "<p>[bad](javascript:x)</p>"
+ },
+ {
+  "name": "javascript link refused, any case",
+  "markdown": "[x](JavaScript:alert(1))",
+  "html": "<p>[x](JavaScript:alert(1))</p>"
+ },
+ {
+  "name": "link address escaped, not curled",
+  "markdown": "[x](https://example.com/?a=1&b=\"it's\")",
+  "html": "<p><a href=\"https://example.com/?a=1&#38;b=&#34;it&#39;s&#34;\">x</a></p>"
+ },
+ {
+  "name": "remote image becomes a link",
+  "markdown": "![p](https://example.com/a.jpg)",
+  "html": "<p>!<a href=\"https://example.com/a.jpg\">p</a></p>"
+ },
+ {
+  "name": "image outside /media/ refused",
+  "markdown": "![p](/media/../etc)",
+  "html": "<p>!<a href=\"/media/../etc\">p</a></p>"
+ },
+ {
+  "name": "image alt escaped, not curled",
+  "markdown": "![a \"q\" it's](/media/x.jpg)",
+  "html": "<p><img alt=\"a &#34;q&#34; it&#39;s\" src=\"/media/x.jpg\"></p>"
+ },
+ {
+  "name": "raw HTML escaped",
+  "markdown": "<script>alert(1)</script>",
+  "html": "<p>&#60;script&#62;alert(1)&#60;/script&#62;</p>"
+ },
+ {
+  "name": "raw HTML and entities escaped",
+  "markdown": "a <b>bold</b> & <i onclick=x> &amp; &#39;",
+  "html": "<p>a &#60;b&#62;bold&#60;/b&#62; &#38; &#60;i onclick=x&#62; &#38;amp; &#38;#39;</p>"
+ },
+ {
+  "name": "smart punctuation",
+  "markdown": "It's the owner's \"best\" day -- or so they say --- really...",
+  "html": "<p>It’s the owner’s “best” day – or so they say — really…</p>"
+ },
+ {
+  "name": "single, double, contractions",
+  "markdown": "'single' and \"double\" and rock'n'roll",
+  "html": "<p>‘single’ and “double” and rock’n’roll</p>"
+ },
+ {
+  "name": "heading gets smart punctuation",
+  "markdown": "## Rock 'n' roll -- \"live\"",
+  "html": "<h2>Rock ‘n’ roll – “live”</h2>"
+ },
+ {
+  "name": "no smart punctuation in code spans",
+  "markdown": "`it's -- \"code\"` isn't converted",
+  "html": "<p><code>it&#39;s -- &#34;code&#34;</code> isn’t converted</p>"
+ },
+ {
+  "name": "quotes next to code spans",
+  "markdown": "A `x`'s quote and \"`y`\"",
+  "html": "<p>A <code>x</code>’s quote and “<code>y</code>”</p>"
+ },
+ {
+  "name": "quotes inside strong",
+  "markdown": "**\"Bold quote\"**",
+  "html": "<p><strong>“Bold quote”</strong></p>"
+ },
+ {
+  "name": "quotes after brackets",
+  "markdown": "(\"paren\") ['bracket']",
+  "html": "<p>(“paren”) [‘bracket’]</p>"
+ },
+ {
+  "name": "dash runs",
+  "markdown": "1990s--2000s and ----",
+  "html": "<p>1990s–2000s and —-</p>"
+ },
+ {
+  "name": "bare address keeps its dashes and dots",
+  "markdown": "see https://example.com/a--b...c and -- after",
+  "html": "<p>see https://example.com/a--b...c and – after</p>"
+ },
+ {
+  "name": "double-backtick code span",
+  "markdown": "``a ` b``",
+  "html": "<p><code>a ` b</code></p>"
+ },
+ {
+  "name": "code span drops one padding space",
+  "markdown": "` a `",
+  "html": "<p><code>a</code></p>"
+ },
+ {
+  "name": "unclosed code span",
+  "markdown": "`unclosed code",
+  "html": "<p>`unclosed code</p>"
+ },
+ {
+  "name": "no markup inside code spans",
+  "markdown": "`*not em*` and `[not](/link)`",
+  "html": "<p><code>*not em*</code> and <code>[not](/link)</code></p>"
+ },
+ {
+  "name": "blockquote joins lines",
+  "markdown": "> q\n> r",
+  "html": "<blockquote><p>q r</p></blockquote>"
+ },
+ {
+  "name": "blockquote lazy continuation",
+  "markdown": "> quoted\nlazy",
+  "html": "<blockquote><p>quoted lazy</p></blockquote>"
+ },
+ {
+  "name": "blockquote holds blocks",
+  "markdown": "> # heading\n> - list",
+  "html": "<blockquote><h1>heading</h1><ul><li>list</li></ul></blockquote>"
+ },
+ {
+  "name": "blockquote paragraphs",
+  "markdown": "> a\n>\n> b",
+  "html": "<blockquote><p>a</p><p>b</p></blockquote>"
+ },
+ {
+  "name": "rule",
+  "markdown": "---",
+  "html": "<hr>"
+ },
+ {
+  "name": "rule between paragraphs",
+  "markdown": "Before\n\n---\n\nAfter",
+  "html": "<p>Before</p>\n<hr>\n<p>After</p>"
+ },
+ {
+  "name": "rule after a line",
+  "markdown": "text\n---",
+  "html": "<p>text</p>\n<hr>"
+ },
+ {
+  "name": "star rule",
+  "markdown": "* * *",
+  "html": "<hr>"
+ },
+ {
+  "name": "journal-style entry",
+  "markdown": "Today I fixed the gallery.\n\n## What changed\n\n- Photos load **faster**\n- Captions use _italics_\n\nRead [the notes](/writing/notes \"Notes\").\n\n![The new gallery](/media/gallery.jpg)",
+  "html": "<p>Today I fixed the gallery.</p>\n<h2>What changed</h2>\n<ul><li>Photos load <strong>faster</strong></li><li>Captions use <em>italics</em></li></ul>\n<p>Read <a href=\"/writing/notes\" title=\"Notes\">the notes</a>.</p>\n<p><img alt=\"The new gallery\" src=\"/media/gallery.jpg\"></p>"
+ }
+]

@@ -1,0 +1,8 @@
+{{> head}}
+<article>
+<a class="back" href="{{stream.archive_url}}">← {{stream.title}}</a>
+<h1>#{{tag}}</h1>
+<ul class="plain">
+{{#entries}}{{> page_row}}{{/entries}}</ul>
+</article>
+{{> foot}}

@@ -1,0 +1,192 @@
+{
+  "name": "product-page",
+  "title": "Product page",
+  "licence": "MIT",
+  "version": "1.2.4",
+  "description": "A page for one thing you make or launch, set like a newspaper front: a masthead with a dateline, the headline beside your picture, a row of key figures, then the story, a few promises as columns, and inner pages.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "type": "product",
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          1408,
+          1408
+        ],
+        "need": "recommended",
+        "purpose": "beside the headline on the home page; without it the headline runs alone",
+        "alt_hint": "what the picture shows, e.g. An engraved bird at its nest",
+        "prompt": "{subject} at work, doing what the product does, with one or two small details in the spot colour; square; subject in the lower two thirds, paper above"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "recommended",
+        "purpose": "the mark beside the name in the masthead (46 px) and the browser icon; must still read at 32 px",
+        "alt_hint": "e.g. An engraved bird's head",
+        "prompt": "the head of {subject} in profile, bold simple lines, little hatching, filling the frame; the spot colour on one small detail (an eye, a tip)"
+      },
+      {
+        "field": "site.follow_image",
+        "alt": "site.follow_image_alt",
+        "size": [
+          96,
+          96
+        ],
+        "need": "optional",
+        "purpose": "a small round photo of the owner in the masthead's follow link (shown alone on a phone); without it the link is words only",
+        "alt_hint": "the owner's name, e.g. Sam Lee",
+        "prompt": "a friendly head-and-shoulders photo of the owner, face centred, plain background; square"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "recommended",
+        "purpose": "the picture when a link is shared on X or in messages; put the site name and headline in it, in the site's serif",
+        "alt_hint": "the site name and headline, then what the picture shows",
+        "prompt": "made from the hero: hero on the left, paper on the right for the site's name and headline"
+      },
+      {
+        "field": "body",
+        "size": [
+          2128,
+          912
+        ],
+        "need": "optional",
+        "purpose": "a wide band inside the front-page story: put ![description](image) on its own line between two sections",
+        "alt_hint": "what the band shows",
+        "prompt": "a wide scene from {subject}'s world without {subject} in it, a few small details in the spot colour, paper at both ends"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1408,
+          1408
+        ],
+        "need": "optional",
+        "purpose": "spot art on an inner page, shown small (about 200 px) beside the words",
+        "alt_hint": "what it shows",
+        "prompt": "one small object from {subject}'s world, alone, small in the frame, in the spot colour with black hatching"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the headline"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "the paragraph under the headline"
+      },
+      {
+        "field": "site.hero_caption",
+        "need": "recommended",
+        "purpose": "the dateline under the masthead, e.g. Vol. I — October 2026 · what it is · what it costs · its licence"
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "the main button under the headline (with cta_link); cta2_label and cta2_link make a second"
+      },
+      {
+        "field": "site.links",
+        "need": "recommended",
+        "purpose": "the menu in the masthead: usually the inner pages"
+      },
+      {
+        "field": "site.streams",
+        "need": "required",
+        "purpose": "one stream with layout feature: its newest entry is the front-page story (its stats are the row of figures, up to 4; its body is the story; a > quote is the pull quote). One stream with layout list: the inner pages (How it works, Install, ...)"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "optional",
+        "purpose": "cards print as columns under this heading: short promises or features"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer line, e.g. the product's name and licence"
+      },
+      {
+        "field": "site.handle",
+        "need": "optional",
+        "purpose": "an X handle: the masthead's follow link"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Pick one subject that stands for what your person makes (an animal or an object), with them. It appears in every picture, drawn the same way. Example: a site-building product uses a bowerbird, the bird that builds a display and keeps it.",
+    "style": "Engraved illustration, like a 19th-century print: black ink linework and cross-hatching on plain off-white paper (not transparent), generous empty paper around the subject. One spot colour only (the site's accent, e.g. cyan #0088b0), used on one or two small details; everything else black ink. No words in any picture except the share picture.",
+    "prompt_prefix": "19th-century steel engraving, fine black ink linework with cross-hatching and stipple, on plain off-white paper, generous empty margins, no background scenery, no text, no frame.",
+    "steps": [
+      "Agree the subject and the one spot colour with your person.",
+      "Make each picture in `images` from its prompt (replace {subject}; start every prompt with prompt_prefix), at its size. The subject must look the same in every picture.",
+      "Check each one: the right size and shape; an off-white ground, not transparent; the same paper colour edge to edge; only the one spot colour; no words except in the share picture.",
+      "Shrink the mark to 32 px. If it no longer reads as the subject, make it bolder and simpler and try again.",
+      "Make the share picture from the hero: the hero on the left, the site's name and headline on the right in a serif, nothing within 50 px of the edges.",
+      "Name each file by its slot, keep its alt text with it, and show your person the whole set before you use any of it.",
+      "Upload each one (an https link in its field, or photo_upload_link), then call theme_needs: every slot should say filled."
+    ]
+  },
+  "palettes": {
+    "press": {
+      "title": "Press",
+      "colors": {
+        "bg": "#f3f2f2",
+        "ink": "#201e1d",
+        "muted": "#5c5653",
+        "accent": "#00647f",
+        "accent-2": "#d6006c",
+        "line": "#cfcbc9",
+        "on-accent": "#ffffff"
+      }
+    },
+    "slate": {
+      "title": "Slate",
+      "colors": {
+        "bg": "#eef0f3",
+        "ink": "#1e2329",
+        "muted": "#555d68",
+        "accent": "#37597d",
+        "accent-2": "#9a4a1c",
+        "line": "#c8ced6",
+        "on-accent": "#ffffff"
+      }
+    },
+    "sunset": {
+      "title": "Sunset",
+      "colors": {
+        "bg": "#fdf5ec",
+        "ink": "#2b1d14",
+        "muted": "#6a5444",
+        "accent": "#a8470f",
+        "accent-2": "#1f6a73",
+        "line": "#e6d2bd",
+        "on-accent": "#ffffff"
+      }
+    }
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "name": "group-page",
+  "title": "Group page",
+  "licence": "MIT",
+  "version": "1.0.3",
+  "type": "group",
+  "description": "A page for a club, choir, congregation, team or volunteer group: your mission in a bold band, when you meet and what's coming up, news, what you do and who leads it, then where to find you.",
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "ocean": {
+      "title": "Ocean",
+      "colors": {
+        "bg": "#eef6f8",
+        "ink": "#10262e",
+        "muted": "#486068",
+        "accent": "#006f8e",
+        "accent-2": "#b4501c",
+        "line": "#bcd3da",
+        "on-accent": "#ffffff"
+      }
+    },
+    "forest": {
+      "title": "Forest",
+      "colors": {
+        "bg": "#f0f4ec",
+        "ink": "#1c2a1f",
+        "muted": "#505f52",
+        "accent": "#2d6a3e",
+        "accent-2": "#8a5a12",
+        "line": "#c6d3c1",
+        "on-accent": "#ffffff"
+      }
+    },
+    "slate": {
+      "title": "Slate",
+      "colors": {
+        "bg": "#eef0f3",
+        "ink": "#1e2329",
+        "muted": "#555d68",
+        "accent": "#37597d",
+        "accent-2": "#9a4a1c",
+        "line": "#c8ced6",
+        "on-accent": "#ffffff"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2080,
+          1160
+        ],
+        "need": "recommended",
+        "purpose": "beside the mission in the coloured band: members together, doing what the group does; without it the mission runs alone across the band",
+        "alt_hint": "who is in it and what they're doing, e.g. The choir singing at the spring concert",
+        "prompt": "a real photograph of {subject}'s members together, mid-activity; wide, sharp, faces visible; never generated"
+      },
+      {
+        "field": "site.logo",
+        "alt": "site.logo_alt",
+        "size": [
+          512,
+          512
+        ],
+        "need": "optional",
+        "purpose": "the group's logo: in the header (44 px), above the mission, and the browser tab; must read at 32 px",
+        "alt_hint": "what the logo shows",
+        "prompt": "the existing logo of {subject}; if there is none, a simple flat mark in the palette's accent colour"
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture when a link to the page is shared; empty uses the hero",
+        "alt_hint": "what the picture shows",
+        "prompt": "the hero photo cropped to 1200x630"
+      },
+      {
+        "field": "card.image",
+        "alt": "card.image_alt",
+        "size": [
+          800,
+          800
+        ],
+        "need": "optional",
+        "purpose": "a square photo on a card, round on the page: leaders and officers in the People group, or a program",
+        "alt_hint": "the person's name and what they're doing, e.g. Maria Ortega conducting",
+        "prompt": "a real photo the person chose of themselves"
+      },
+      {
+        "field": "entry.cover",
+        "alt": "entry.cover_alt",
+        "size": [
+          1600,
+          900
+        ],
+        "need": "optional",
+        "purpose": "a photo at the top of a news story",
+        "alt_hint": "what the photo shows",
+        "prompt": "a real photograph from the story"
+      }
+    ],
+    "content": [
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "the mission in one line, the big headline in the coloured band"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "a sentence or two under the mission: who can come and what it costs"
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "the main button in the band (with cta_link), e.g. Join us or Come to a rehearsal; cta2_label and cta2_link make a second, e.g. Donate (link out to the group's own donation page)"
+      },
+      {
+        "field": "site.hours",
+        "need": "required",
+        "purpose": "regular meeting times as weekly rows (e.g. tue 19:00-21:00); only the days you meet are shown, beside the upcoming events; exceptions show skipped weeks; note is one line under them. Shown in the events stream's section"
+      },
+      {
+        "field": "site.streams",
+        "need": "required",
+        "purpose": "one stream (layout list, e.g. title When we meet) whose entries are events: meeting times and upcoming events sit together under its title, past events fold under Earlier. One stream with layout feature for news: the newest in full beside a list of the rest"
+      },
+      {
+        "field": "site.cards_title",
+        "need": "recommended",
+        "purpose": "cards in groups, each group its own section: e.g. Programs (with period for when, price for dues) and People (subtitle is the role; a round photo if image is set)"
+      },
+      {
+        "field": "site.about",
+        "need": "recommended",
+        "purpose": "about, history or what you believe, under about_title"
+      },
+      {
+        "field": "site.contact",
+        "need": "required",
+        "purpose": "where to find you: the address with a directions button, phone, email, social links"
+      },
+      {
+        "field": "site.notice",
+        "need": "optional",
+        "purpose": "the banner across the top for cancellations and weather; set until so it goes by itself"
+      },
+      {
+        "field": "site.buttons",
+        "need": "optional",
+        "purpose": "big link tiles at the end: donate, volunteer, sign-up pages elsewhere (we never take payments)"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the footer line; contact_line is a second, e.g. a charity number"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for one wide photo of members together, doing what the group does. Get permission from the people shown; avoid photos of children unless a leader approves.",
+    "style": "Photographs of real members; a logo, if any, is flat. Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+    "steps": [
+      "Use real photos for real things; never make up pictures of real places, people or food. Illustrated art only for a mark or emblem, in the palette's accent colour.",
+      "Get the hero photo (photo_upload_link works from a phone). Check it is wide (at least 2080 px across), sharp, faces visible, and note that the people shown agreed.",
+      "Write its alt text with your person, then upload it to site.hero with site.hero_alt.",
+      "For People cards, ask each person for their own photo and their OK; upload it to that card's image with image_alt.",
+      "If the group has a logo, upload it to site.logo; check it reads at 32 px.",
+      "Call theme_needs: every slot you meant to fill should say filled."
+    ]
+  }
+}

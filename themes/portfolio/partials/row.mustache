@@ -1,0 +1,7 @@
+<li class="item">{{#event.has}}<span class="item-when">{{event.date_short}}</span>{{/event.has}}{{^event.has}}<span class="item-when">{{date_short}}</span>{{/event.has}}
+<div class="item-what">
+<a href="{{url}}">{{title}}</a>{{#event.has}}{{#event.status}} <span class="flag{{#event.is_cancelled}} flag-off{{/event.is_cancelled}}">{{event.status}}</span>{{/event.status}}{{/event.has}}{{#label}} <span class="item-out">{{label}} ↗</span>{{/label}}
+{{#event.has}}<span class="item-sub">{{event.time}}{{#event.place_name}} · {{event.place_name}}{{/event.place_name}}</span>{{/event.has}}
+{{^event.has}}{{#summary}}<span class="item-sub">{{summary}}</span>{{/summary}}{{/event.has}}
+</div>
+</li>

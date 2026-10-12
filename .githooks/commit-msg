@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Refuse a commit message that names anything the files may not: people,
+# internal systems, hosts, or links to private sessions.
+set -euo pipefail
+msg="$1"
+if grep -nE '^(Claude-Session|Session|Transcript):|claude\.ai/(code|chat)/' "$msg" | grep -v '^[0-9]*:#'; then
+  echo "✗ commit message links a private session. Remove that line." >&2
+  exit 1
+fi
+exec "$(git rev-parse --show-toplevel)/scripts/repo-hygiene-check.sh" --message "$msg"

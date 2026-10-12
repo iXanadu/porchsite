@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Refuse a commit whose tracked files fail the hygiene scan.
+exec "$(git rev-parse --show-toplevel)/scripts/repo-hygiene-check.sh"
