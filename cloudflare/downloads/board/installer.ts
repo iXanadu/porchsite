@@ -248,8 +248,18 @@ f.addEventListener("submit", async (ev) => {
       // Asked of the installer, never of the new address itself: a browser
       // that looks the name up before it exists remembers the failure.
       const started = Date.now();
+      // Then the browser itself, on a throwaway name under the same account
+      // name: its certificate covers both, so a secure connection there means
+      // one to the site will work from here too.
+      const host = new URL(r.url).host;
       const poll = async () => {
-        try { if ((await (await fetch("/install/ready?host=" + encodeURIComponent(new URL(r.url).host), { cache: "no-store" })).json()).ready) return show(false); } catch (e) {}
+        try {
+          if ((await (await fetch("/install/ready?host=" + encodeURIComponent(host), { cache: "no-store" })).json()).ready) {
+            const probe = "https://ready-" + Math.random().toString(36).slice(2, 12) + "." + host.split(".").slice(1).join(".") + "/";
+            await fetch(probe, { mode: "no-cors", cache: "no-store" });
+            return show(false);
+          }
+        } catch (e) {}
         if (Date.now() - started > 600000) return show(true);
         setTimeout(poll, 10000);
       };
@@ -310,7 +320,7 @@ export async function installer(req: Request, env: Env): Promise<Response | null
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
-        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
+        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self' https://*.workers.dev; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
         "Referrer-Policy": "no-referrer",
       },
     });
