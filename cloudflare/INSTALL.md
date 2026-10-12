@@ -80,7 +80,15 @@ can't upload a Worker, so the install stops at step 6. If your person has
 to add the right one, it's a custom connector with that address. If it's a token, collect it through your app's
 secret or password field, never in the chat, and never write it into a
 memory, a note or a file. The access must be able to **edit** Workers scripts,
-D1 and Workers KV. If you connected through Cloudflare's MCP server, your
+D1 and Workers KV.
+
+For a token, send your person this pre-filled link (signed in to Cloudflare;
+if the form opens empty, open it again):
+https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%5D&name=Porchsite
+It asks for four account permissions: Workers Scripts Edit, D1 Edit,
+Workers KV Storage Edit, Account Settings Read. Not the "Edit Cloudflare
+Workers" template: it adds a zone row that a new account, with no domain,
+can't fill, and it leaves out D1. If you connected through Cloudflare's MCP server, your
 person had to choose write access on its consent screen; read-only is the
 default and will fail at step 2.
 
