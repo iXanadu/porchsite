@@ -274,8 +274,8 @@ async def setup_page(req: Request, cx: Context) -> Response:
     )
     return owner_page(
         "Set up your site",
-        f"""<h1>Make this site yours</h1><p>{intro} From then on, your passkey is the only way to approve what goes live.</p>
-<form><label>Setup code</label><input type="password" name="code" autocomplete="off" required{f' value="{esc(code)}"' if code else ""}><label>Your name</label><input type="text" name="name" autocomplete="name" maxlength="80">
+        f"""<h1>Make this site yours</h1><p class="meta">{esc(origin_of(req).split("://", 1)[-1])}</p><p>{intro} From then on, your passkey is the only way to approve what goes live.</p>
+<form><label>Setup code</label><input type="password" name="code" autocomplete="off" required{f' value="{esc(code)}"' if code else ""}><label>Your name (optional: your passkey is saved under it, next to this site&#39;s address)</label><input type="text" name="name" autocomplete="name" maxlength="80">
 <p class="error" hidden></p><button>Create my passkey</button></form>""",
         script=SETUP_JS + passkey_js("setup", "/review"),
         headers=SETUP_HEADERS,

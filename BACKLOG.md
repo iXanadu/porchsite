@@ -30,6 +30,12 @@ site's OAuth connector, and pictures held as files. In order:
   from the home page (rendered by the site's own look), not just broken
   links and empty sections: a look that drops some entries left a thin
   home page and the check still passed.
+- **RA-9** OPEN: The install guide's setup code as a hashed row in the
+  site's database (as the installer does), not a Worker secret: no secret
+  to delete after the claim, one step fewer, nothing for the audit check.
+- **RA-10** OPEN: Uploading many photos costs one tool call each (34+ in a
+  reunion build). A batch: several pictures per image_add call, or one
+  upload link for many files.
 - **RA-8** IN-PROGRESS: Each harness at its best, none crippled. Done:
   get.porchsite.dev/assistants.md (standing instructions to paste,
   connectors, browser, secret field; by capability, not product). Left:

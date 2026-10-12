@@ -397,8 +397,10 @@ approve.
   `resource.id`, and `actor`). Match each one to a step you ran: the
   database, the sign-in storage, the upload, the secret and its removal,
   the address. Tell your person, in plain words, about any change you
-  didn't make; don't undo it yourself. If the call is refused (your access
-  can't read audit logs), say you couldn't check this, and go on.
+  didn't make; don't undo it yourself. The log can lag by 15 minutes or
+  more, so a step of yours missing from it isn't a problem; what matters is
+  a change you didn't make. If the call is refused (your access can't read
+  audit logs), say you couldn't check this, and go on.
 
 ## Images
 

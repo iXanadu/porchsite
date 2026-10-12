@@ -202,7 +202,7 @@ body{font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backg
 .wrap{max-width:640px;margin:0 auto;padding:28px 18px 64px}h1{font-size:28px;margin:0 0 6px}h2{font-size:19px;margin:28px 0 6px}
 .meta{color:#5c5855;font-size:15px}label{display:block;margin:14px 0 4px;font-weight:600}input{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border:1px solid #cfcbc9;border-radius:8px;background:#fff}
 button,.button{display:inline-block;margin-top:16px;font:inherit;font-weight:600;padding:11px 18px;border:0;border-radius:8px;background:#00647f;color:#fff;text-decoration:none;cursor:pointer}
-button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;border-radius:10px;padding:14px 16px;margin:12px 0}.error{color:#a8000f}ol li,ul li{margin:4px 0}.secret{-webkit-text-security:disc;text-security:disc}code{background:#e9e6e4;padding:1px 5px;border-radius:4px}
+button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;border-radius:10px;padding:14px 16px;margin:12px 0}.error{color:#a8000f}ol li,ul li{margin:4px 0}.wait{background:#fff4d6;border:2px solid #b07a00;border-radius:10px;padding:12px 16px;margin:12px 0}.wait b{display:block;font-size:20px;margin-bottom:4px}.secret{-webkit-text-security:disc;text-security:disc}code{background:#e9e6e4;padding:1px 5px;border-radius:4px}
 </style></head><body><div class="wrap">
 <h1>Install Porchsite</h1>
 <p>A website your assistant keeps up to date, on your own free Cloudflare account. Nothing on it goes live without your yes.</p>
@@ -236,18 +236,27 @@ f.addEventListener("submit", async (ev) => {
   if (r.steps && r.steps.length) { const ul = el("ul"); r.steps.forEach((s) => ul.append(el("li", s))); card.append(ul); }
   if (r.ok) {
     card.append(el("h2", "Your site is installed"));
+    const next = el("p", "Then tell your assistant to connect to " + r.url + "/mcp. If its app can't, make it a key on your site's Assistants page.");
     if (r.setup) {
-      card.append(el("p", "Last step, yours: open your site's setup page and create your passkey. That passkey is how you approve everything from now on."));
-      const wait = el("p", "Waiting for your new address to come online. This usually takes a minute or two; keep this page open.", "meta");
+      const started = Date.now();
+      // Until the address answers, nothing else to do: say so loudly, and
+      // hold back the next steps so nobody runs ahead.
+      const wait = el("div", "", "wait");
+      const line = el("p", "");
+      wait.append(el("b", "Stop here for a few minutes."), line);
+      const tick = () => { const m = Math.floor((Date.now() - started) / 60000), sec = Math.floor((Date.now() - started) / 1000) % 60; line.textContent = "Cloudflare is putting your new address online. Don't open your site or tell your assistant anything yet: it won't work until this finishes. Keep this page open; a Claim button appears here when it's ready (usually 1 to 5 minutes). Waiting " + m + ":" + String(sec).padStart(2, "0") + "."; };
       card.append(wait);
+      const timer = setInterval(tick, 1000);
       const show = (late) => {
+        clearInterval(timer);
         wait.remove();
+        card.append(el("p", "Ready. Last step, yours: claim your site and create your passkey. That passkey is how you approve everything from now on."));
         const a = el("a", "Claim your site", "button"); a.href = r.setup; a.target = "_blank"; a.rel = "noopener"; card.append(a);
+        card.append(next);
         card.append(el("p", late ? "Your address is taking longer than usual. If the page says it can't be reached, or shows a security error (such as ERR_SSL_VERSION_OR_CIPHER_MISMATCH), wait a few minutes and reload it, or open the link in another browser: Cloudflare is still setting the address up." : "The link works once, for 24 hours. Don't share it or send a picture of it: it's the key to claiming your site.", "meta"));
       };
       // Asked of the installer, never of the new address itself: a browser
       // that looks the name up before it exists remembers the failure.
-      const started = Date.now();
       // Then the browser itself, on a throwaway name under the same account
       // name: its certificate covers both, so a secure connection there means
       // one to the site will work from here too.
@@ -263,9 +272,9 @@ f.addEventListener("submit", async (ev) => {
         if (Date.now() - started > 600000) return show(true);
         setTimeout(poll, 10000);
       };
+      tick();
       setTimeout(poll, 10000);
-    }
-    card.append(el("p", "Then tell your assistant to connect to " + r.url + "/mcp. If its app can't, make it a key on your site's Assistants page."));
+    } else card.append(next);
     f.hidden = true;
   } else {
     card.append(el("p", r.message || "Something went wrong.", "error"));
