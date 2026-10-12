@@ -15,13 +15,27 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## BLOCKING
 _(none)_
 
-## DEGRADING
-- **CF-F1** OPEN: An assistant that holds a picture as a file (one it made,
-  or was sent by another agent) can't add it: content takes an https link
-  or a photo_upload_link the owner has to open. Add a tool that takes the
-  file itself (base64, size-capped, same checks as an upload), in both
-  editions. Found: a first real install.
+## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
+Porchsite works end to end for an assistant built like the one it was
+developed with (own machine, open network, a local file passed into a tool
+call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
+site's OAuth connector, and pictures held as files. In order:
+- **RA-1** OPEN: Self-checks. Navigation hides sections with nothing in
+  them; a `site_check` tool lists broken internal links and empty sections
+  on the site as it would be published, before an assistant says it's done.
+- **RA-2** OPEN: Connect without OAuth plumbing: an assistant key the owner
+  makes on /review/assistants and pastes into the assistant's secret field,
+  and an import on /review for a content file an assistant prepares. Same
+  checks, same approval.
+- **RA-3** OPEN: Pictures as files (was CF-F1).
+- **RA-4** NEEDS-DECISION: An install that doesn't depend on the
+  assistant's network: a one-page installer the owner runs with a
+  pre-scoped Cloudflare token (it passes through the installer once, never
+  stored).
+- **RA-5** OPEN: A fair re-test: a fresh Cloudflare account, one written
+  prompt, every assistant starting cold, transcripts kept.
 
+## DEGRADING
 - **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,
   every item in full; heavy for an assistant's context. Consider a summary
   by default (ids, kinds, titles, states, versions) and the full data per
