@@ -334,7 +334,10 @@ use an assistant key instead: ask your person to open
 `https://…/review/assistants`, make a key named for you, and put it in your
 app's secret or API-key field, never in the chat. Send it to
 `https://…/mcp` as `Authorization: Bearer <key>` (JSON-RPC over HTTP, MCP's
-streamable transport). The tools and limits are the same.
+streamable transport). The tools and limits are the same. From your own
+code, send a User-Agent naming your app: Cloudflare refuses some library
+defaults (Python's urllib) with "error code: 1010" before the site sees
+them.
 
 If you can't reach the site at all, write the content as one file and give
 it to your person to upload at `https://…/review/import`:

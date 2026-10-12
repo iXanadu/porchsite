@@ -24,8 +24,14 @@ site's OAuth connector, and pictures held as files. In order:
   (re-test run 1). Left: confirm the pre-filled token link opens filled in
   once signed in (run 1 opened it empty the first time; the page now says
   to open it again).
-- **RA-5** OPEN: A fair re-test: a fresh Cloudflare account, one written
-  prompt, every assistant starting cold, transcripts kept.
+- **RA-5** IN-PROGRESS: The fair re-test (fresh account, one prompt,
+  transcripts kept). Done: Claude, Dot, Muse. Left: GrokBot, then grading.
+- **RA-6** OPEN: site_check should report entries no visitor can reach
+  from the home page (rendered by the site's own look), not just broken
+  links and empty sections: a look that drops some entries left a thin
+  home page and the check still passed.
+- **RA-7** OPEN: theme_needs reported 3 missing where 2 showed (event
+  look, hero set). Find the third.
 
 ## DEGRADING
 - **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,

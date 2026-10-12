@@ -822,7 +822,7 @@ async def assistants_page(
     else:
         body = f'<p class="meta">None yet. In your assistant, add a connector with this address: <b>{esc(mcp_url)}</b></p>'
     shown = (
-        f'<div class="card"><h2>Key for {esc(made["name"])}</h2><p class="value"><b>{esc(made["token"])}</b></p><p class="meta">Copy it now: it isn&#39;t shown again. Works until {esc(made["expires_at"][:10])}.</p></div>'
+        f'<div class="card"><h2>Key for {esc(made["name"])}</h2><p class="value"><b>{esc(made["token"])}</b></p><p>Put it in your assistant&#39;s app, in its field for secrets, API keys or connector credentials. <b>Never paste it into a chat</b>, even if your assistant asks: anyone who reads the chat could use it. If you did, revoke it below and make a new one.</p><p class="meta">Copy it now: it isn&#39;t shown again. Works until {esc(made["expires_at"][:10])}.</p></div>'
         if made
         else ""
     )

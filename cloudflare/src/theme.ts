@@ -210,6 +210,9 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       sec.earlier = evs.filter((e) => e.event.is_past).sort((a, b) => String(b.event.start).localeCompare(String(a.event.start)));
       sec.has_upcoming = sec.upcoming.length > 0;
       sec.has_earlier = sec.earlier.length > 0;
+      // Entries that aren't events, in a stream that has some: newest first.
+      sec.others = evs.length ? items.filter((e) => !e.event).map((e) => entry(e, stream, "", ctxOf(v))) : [];
+      sec.has_others = sec.others.length > 0;
       sec.all = items.map((e) => entry(e, stream, "", ctxOf(v)));
       sec.count_suffix = items.length > 3 ? ` (${items.length})` : "";
     } else if (k === "cards") {

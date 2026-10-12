@@ -89,6 +89,10 @@
         "start": "2025-09-20T14:00", "end": "2025-09-20T16:00",
         "place": { "name": "Kestrel Falls Public Library", "address": "", "map_link": "" }
       } } },
+    { "kind": "entry", "slug": "getting-there", "data": {
+      "stream": "events", "title": "Getting there and parking", "date": "2027-05-20",
+      "summary": "Free parking behind the Lantern Room; the 12 bus stops at the door.",
+      "body": "The lot behind the Lantern Room is free after 6. The 12 bus stops at the door until midnight." } },
     { "kind": "entry", "slug": "hotel-block", "data": {
       "stream": "updates", "title": "The hotel block is open", "date": "2026-10-02",
       "summary": "Thirty rooms at the group rate, until May 1.",

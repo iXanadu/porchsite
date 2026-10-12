@@ -138,7 +138,9 @@ url}` of another stream, or empty), and one layout flag true: `is_feature`
   `more_than_one`, `items` (the newest three), `all` (every entry),
   `count_suffix` (" (12)" when there are more), `activity` (`[note]`),
   `has_activity`; for events, `upcoming` (soonest first), `earlier`
-  (newest first), `has_upcoming`, `has_earlier`.
+  (newest first), `has_upcoming`, `has_earlier`, and the stream's entries
+  that aren't events, newest first, as `others` and `has_others` (empty
+  when the stream has no events).
 - **cards:** `anchor`, `title`, `show`, `projects` (`[card]`),
   `has_projects`, `groups` (`[{key, label, count}]`), `has_chips`,
   `by_group` (`[{label, key, cards, style, is_faq, is_steps, is_reviews,

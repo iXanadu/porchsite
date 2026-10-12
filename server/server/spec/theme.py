@@ -314,6 +314,11 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             )
             sec["has_upcoming"] = len(sec["upcoming"]) > 0
             sec["has_earlier"] = len(sec["earlier"]) > 0
+            # Entries that aren't events, in a stream that has some: newest first.
+            sec["others"] = (
+                [entry(e, stream, "", ctx) for e in items if not e.get("event")] if evs else []
+            )
+            sec["has_others"] = len(sec["others"]) > 0
             sec["all"] = [entry(e, stream, "", ctx) for e in items]
             sec["count_suffix"] = f" ({len(items)})" if len(items) > 3 else ""
         elif k == "cards":

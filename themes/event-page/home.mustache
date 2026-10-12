@@ -35,6 +35,13 @@
 </details>
 </section>
 {{/has_earlier}}
+{{#has_others}}<section class="sec">
+<h2>{{stream.title}}</h2>
+<ul class="rows">
+{{#others}}{{> row}}
+{{/others}}</ul>
+</section>
+{{/has_others}}
 {{^has_upcoming}}{{^has_earlier}}{{#show}}<section class="sec" id="{{stream.anchor}}">
 <h2>{{stream.title}}</h2>
 {{#stream.byline}}<p class="byline">{{stream.byline}}</p>{{/stream.byline}}

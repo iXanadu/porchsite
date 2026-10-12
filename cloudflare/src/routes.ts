@@ -518,7 +518,7 @@ async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { 
     }
 <h1 style="margin-top:36px">Assistant keys</h1>
 <p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
-${made ? html`<div class="card"><h2>Key for ${made.name}</h2><p class="value"><b>${made.token}</b></p><p class="meta">Copy it now: it isn't shown again. Works until ${made.expires_at.slice(0, 10)}.</p></div>` : ""}
+${made ? html`<div class="card"><h2>Key for ${made.name}</h2><p class="value"><b>${made.token}</b></p><p>Put it in your assistant's app, in its field for secrets, API keys or connector credentials. <b>Never paste it into a chat</b>, even if your assistant asks: anyone who reads the chat could use it. If you did, revoke it below and make a new one.</p><p class="meta">Copy it now: it isn't shown again. Works until ${made.expires_at.slice(0, 10)}.</p></div>` : ""}
 ${keyList.map(
   (k) =>
     html`<div class="card"><h2>${k.name}</h2><div class="meta">made ${k.created_at.slice(0, 10)} · works until ${k.expires_at.slice(0, 10)} · ${k.last_used_at ? `last used ${k.last_used_at.slice(0, 10)}` : "not used yet"}</div>

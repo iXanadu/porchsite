@@ -2,7 +2,7 @@
   "name": "event-page",
   "title": "Event page",
   "licence": "MIT",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "event",
   "description": "A page for one gathering: a reunion, a wedding, a party or a fundraiser. The next event's date, place and RSVP come first, each event a ticket with its schedule; changes and cancellations show in a banner and on the ticket, and past events fold away under Earlier.",
   "sections": [
@@ -113,7 +113,7 @@
       {
         "field": "site.streams",
         "need": "required",
-        "purpose": "one stream (layout list) whose entries are events: each entry's event block {start, end, place, rsvp, schedule, status} makes a ticket at the top of the page, soonest first; past ones fold under Earlier. A second stream (layout feature) is the organisers' updates: the newest in full"
+        "purpose": "one stream (layout list) whose entries are events: each entry's event block {start, end, place, rsvp, schedule, status} makes a ticket at the top of the page, soonest first; past ones fold under Earlier; its entries without an event are listed after them. A second stream (layout feature) is the organisers' updates: the newest in full"
       },
       {
         "field": "site.intro",
