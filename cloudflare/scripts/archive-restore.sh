@@ -9,6 +9,10 @@
 #     release), themes.tar.gz (the look files that release added) and
 #     themes-files.json (every look file's hash at that release).
 #
+# Releases made before the repository went public (up to 2026.10.12) are
+# copied to the maintainers' history repository, not this one: run it once
+# with GH_REPO set to that repository, then once without, into the same dir.
+#
 #   sh scripts/archive-restore.sh <dir>
 #
 # Writes <dir>/releases and <dir>/releases-themes; refuses if either exists
