@@ -19,7 +19,7 @@ import mcp_types as types
 from mcp.server.lowlevel.server import NotificationOptions, Server
 from mcp.shared.exceptions import MCPError
 
-from . import analytics, approvals, content, requests, themes, updates, uploads
+from . import analytics, approvals, check, content, requests, site, themes, updates, uploads
 from .db import Db, dumps
 from .errors import ApiError
 from .fields import field_guide, kind_guide
@@ -32,7 +32,7 @@ nothing you write is public until they approve it, and the site enforces that.
 Workflow: site_state (see what exists, each item's version and field guide) ->
 item_create / item_update / item_remove (images: an https link, or
 photo_upload_link for a photo your person sent you) -> approval_request (only the ids you
-changed for this request) -> give the owner the review_url -> approval_status.
+changed for this request; site_check first) -> give the owner the review_url -> approval_status.
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
@@ -44,7 +44,16 @@ anything public (the site refuses it); a mention card shows its name and descrip
 and an entry names it at most once in its summary and once in its body.
 site_stats: who reads the site."""
 
-NEXT = "When your changes are ready, call approval_request with the ids you changed."
+NEXT = (
+    "When your changes are ready, call site_check, then approval_request with the ids you changed."
+)
+CHECK_DESCRIPTION = (
+    "Look over the site as it will be once everything you've changed is published, the way a visitor"
+    " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
+    " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
+    " with nothing in them (take them out of the site's sections, or fill them). `ok` is true when there's"
+    " neither. Run it before you ask for approval and before you tell your person the site is done."
+)
 STATES = {
     "live": "published, and the current version is what visitors see",
     "changed": "published, with a newer version that isn't approved yet",
@@ -265,6 +274,12 @@ def _tools() -> list[dict[str, Any]]:
             "name": "approval_status",
             "description": "Look up one approval by approval_id, or omit it for the 10 most recent. Each has review_url, status (pending: something still waits for the owner | decided) and per item: status (pending | published | changes_requested: make the edit in its note, then ask again | denied | superseded: the item changed after you asked, ask again) and note, plus the owner's decision_note.",
             "inputSchema": _obj({"approval_id": {"type": "string"}}),
+            "annotations": read_only,
+        },
+        {
+            "name": "site_check",
+            "description": CHECK_DESCRIPTION,
+            "inputSchema": _obj({}),
             "annotations": read_only,
         },
         {
@@ -686,6 +701,16 @@ async def _call(
             }
 
         return await _run(approval_request)
+
+    if name == "site_check":
+
+        async def site_check() -> Any:
+            changes = [{"id": i["id"], "version": i["version"]} for i in await content.staged(db)]
+            v = await site.proposed_view(db, changes)
+            names = {r["name"] for r in await db.fetch("SELECT name FROM media")}
+            return check.check_site(v, names)
+
+        return await _run(site_check)
 
     if name == "site_stats":
         return await _run(

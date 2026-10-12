@@ -151,8 +151,11 @@ function base(v: SiteView, release: string, origin: string, meta: { kind: string
       writing_cta_label: "",
     },
     strings: stringsOf(v.site),
+    // The menu names only sections with something in them: a stream with no
+    // entries, no cards or an empty About would lead nowhere.
     nav: sections
       .filter((k) => k !== "notes")
+      .filter((k) => (k === "cards" ? v.cards.length > 0 : k === "about" ? !!String(v.site.about ?? "").trim() : v.entries.some((e) => e.stream === k)))
       .map((k) => {
         const s = st.find((x) => x.id === k);
         return { href: `/#${s ? s.anchor : anchorOf(k)}`, label: s ? s.nav_label : named[k] ?? k };

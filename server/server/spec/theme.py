@@ -193,9 +193,19 @@ def base(v: SiteView, release: str, origin: str, meta: Data) -> Data:
         for k in order
         for x in ([y["id"] for y in st if y["id"] not in order] if k == "entries" else [k])
     ]
+
+    # The menu names only sections with something in them: a stream with no
+    # entries, no cards or an empty About would lead nowhere.
+    def has_content(k: str) -> bool:
+        if k == "cards":
+            return len(v.cards) > 0
+        if k == "about":
+            return bool(trim(string(v.site.get("about") or "")))
+        return any(e["stream"] == k for e in v.entries)
+
     nav = []
     for k in sections:
-        if k == "notes":
+        if k == "notes" or not has_content(k):
             continue
         s = next((x for x in st if x["id"] == k), None)
         nav.append(

@@ -166,6 +166,7 @@ replacement, so a refresh whose answer was lost can be retried.
 | `item_rollback(id, to_version, version)` | Stage an earlier version as a new one |
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
+| `site_check` | The site as it will be once everything staged is published, looked over as a visitor clicks through it: `broken` (links inside the site that lead to no page, no home-page section with anything in it, or no stored picture; each with where it is and why) and `empty_sections` (sections in the layout with nothing in them); `ok` when neither. Read-only; run before asking for approval |
 | `site_stats(days?, content_id?, src?, post?, include_test?)` | Visitor numbers (§8), read-only |
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |

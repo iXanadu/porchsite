@@ -7,11 +7,13 @@ import { getMcpAuthContext } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import * as analytics from "./analytics";
+import { checkSite } from "./check";
 import * as approvals from "./approvals";
 import * as content from "./content";
 import type { Env } from "./env";
 import { HOME, RELEASE } from "./home";
 import * as requests from "./requests";
+import { proposedView } from "./site";
 import * as themes from "./themes";
 import * as update from "./update";
 import * as uploads from "./uploads";
@@ -23,7 +25,7 @@ nothing you write is public until they approve it, and the site enforces that.
 Workflow: site_state (see what exists, each item's version and field guide) ->
 item_create / item_update / item_remove (images: an https link, or
 photo_upload_link for a photo your person sent you) -> approval_request (only the ids you
-changed for this request) -> give the owner the review_url -> approval_status.
+changed for this request; site_check first) -> give the owner the review_url -> approval_status.
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
@@ -84,7 +86,9 @@ async function describe(db: D1Database, items: content.Item[]) {
   });
 }
 
-const NEXT = "When your changes are ready, call approval_request with the ids you changed.";
+const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
+const CHECK_DESCRIPTION =
+  "Look over the site as it will be once everything you've changed is published, the way a visitor clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout with nothing in them (take them out of the site's sections, or fill them). `ok` is true when there's neither. Run it before you ask for approval and before you tell your person the site is done.";
 const STATES = {
   live: "published, and the current version is what visitors see",
   changed: "published, with a newer version that isn't approved yet",
@@ -361,6 +365,22 @@ export function createServer(): McpServer {
       run(async () => {
         const withUrl = (a: approvals.Approval) => ({ ...a, review_url: `${origin()}/review/${a.id}` });
         return approval_id ? withUrl(await approvals.get(db, approval_id)) : { approvals: (await approvals.list(db)).slice(0, 10).map(withUrl) };
+      }),
+  );
+
+  server.registerTool(
+    "site_check",
+    {
+      description: CHECK_DESCRIPTION,
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true },
+    },
+    async () =>
+      run(async () => {
+        const changes = (await content.staged(db)).map((i) => ({ id: i.id, version: i.version }));
+        const v = await proposedView(db, changes);
+        const { results } = await db.prepare("SELECT name FROM media").all<{ name: string }>();
+        return checkSite(v, new Set(results.map((r) => r.name)));
       }),
   );
 

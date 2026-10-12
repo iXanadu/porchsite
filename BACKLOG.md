@@ -20,9 +20,6 @@ Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
 call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
 site's OAuth connector, and pictures held as files. In order:
-- **RA-1** OPEN: Self-checks. Navigation hides sections with nothing in
-  them; a `site_check` tool lists broken internal links and empty sections
-  on the site as it would be published, before an assistant says it's done.
 - **RA-2** OPEN: Connect without OAuth plumbing: an assistant key the owner
   makes on /review/assistants and pastes into the assistant's secret field,
   and an import on /review for a content file an assistant prepares. Same
