@@ -24,7 +24,7 @@ const PERMISSIONS = [
 ];
 const TOKEN_LINK = `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(
   JSON.stringify(PERMISSIONS.map(({ key, type }) => ({ key, type }))),
-)}&accountId=*&zoneId=all&name=Porchsite`;
+)}&name=Porchsite`;
 
 interface Answer {
   success?: boolean;
@@ -201,12 +201,15 @@ button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;borde
 <h1>Install Porchsite</h1>
 <p>A website your assistant keeps up to date, on your own free Cloudflare account. Nothing on it goes live without your yes.</p>
 <h2>1. Make a Cloudflare token</h2>
-<p>Sign in to Cloudflare (or make a free account), then open <a href="${esc(TOKEN_LINK)}" target="_blank" rel="noopener">this pre-filled token page</a>. Check it lists these, add any that are missing, and create the token:</p>
+<p>No Cloudflare account yet? <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">Make a free one</a>, then <b>verify your email</b> from the message Cloudflare sends: it won't make tokens until you do.</p>
+<p>Signed in, open <a href="${esc(TOKEN_LINK)}" target="_blank" rel="noopener">this pre-filled token page</a>. If the form opens empty (it can, right after signing in), open the link again. Check it lists these, add any that are missing, and create the token:</p>
 <ul>${PERMISSIONS.map((p) => `<li>${esc(p.label)}</li>`).join("")}</ul>
 <p class="meta">The token goes to this installer only for the install, over HTTPS, and is never stored. When you're done you can delete it at Cloudflare; the site doesn't need it.</p>
 <h2>2. Name it and install</h2>
 <form id="f"><label for="name">The site's name (part of its address)</label><input id="name" name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="e.g. rams1976" autocomplete="off">
 <label for="token">The token</label><input id="token" name="token" type="password" required autocomplete="off">
+<label for="subdomain">Your workers.dev name (only used if your Cloudflare account doesn't have one yet)</label><input id="subdomain" name="subdomain" pattern="[a-z][a-z0-9-]{0,62}" placeholder="e.g. sam" autocomplete="off">
+<p class="meta">It's part of every address on your account: the site will be at <i>site-name</i>.<i>this-name</i>.workers.dev.</p>
 <div id="extra"></div><button id="go">Install</button></form>
 <div id="out"></div>
 <p class="meta" style="margin-top:28px">Prefer to have your assistant do it? Tell it: "Set up Porchsite from porchsite.dev." The source is at <a href="https://github.com/iXanadu/porchsite">github.com/iXanadu/porchsite</a>; this installer is <code>cloudflare/downloads/board/installer.ts</code>.</p>
@@ -227,8 +230,20 @@ f.addEventListener("submit", async (ev) => {
     card.append(el("h2", "Your site is installed"));
     if (r.setup) {
       card.append(el("p", "Last step, yours: open your site's setup page and create your passkey. That passkey is how you approve everything from now on."));
-      const a = el("a", "Claim your site", "button"); a.href = r.setup; a.target = "_blank"; a.rel = "noopener"; card.append(a);
-      card.append(el("p", "The link works once, for 24 hours. If it says the page can't be reached, wait a minute: a brand-new address takes a moment.", "meta"));
+      const wait = el("p", "Waiting for your new address to come online. This usually takes a minute or two; keep this page open.", "meta");
+      card.append(wait);
+      const show = (late) => {
+        wait.remove();
+        const a = el("a", "Claim your site", "button"); a.href = r.setup; a.target = "_blank"; a.rel = "noopener"; card.append(a);
+        card.append(el("p", late ? "Your address is taking longer than usual. If the page shows a security or connection error (such as ERR_SSL_VERSION_OR_CIPHER_MISMATCH), wait a few minutes and reload it: Cloudflare is still issuing its certificate." : "The link works once, for 24 hours. Don't share it or send a picture of it: it's the key to claiming your site.", "meta"));
+      };
+      const started = Date.now();
+      const poll = async () => {
+        try { await fetch(r.url + "/robots.txt", { mode: "no-cors", cache: "no-store" }); return show(false); } catch (e) {}
+        if (Date.now() - started > 300000) return show(true);
+        setTimeout(poll, 5000);
+      };
+      poll();
     } else card.append(el("p", "It was already claimed; it now runs Porchsite " + r.release + ". Sign in at " + r.url + "/review."));
     card.append(el("p", "Then tell your assistant to connect to " + r.url + "/mcp. If its app can't, make it a key on your site's Assistants page."));
     f.hidden = true;
@@ -242,8 +257,7 @@ f.addEventListener("submit", async (ev) => {
       extra.append(s);
     }
     if (r.need === "subdomain") {
-      extra.append(el("label", "Your workers.dev name"));
-      const i = document.createElement("input"); i.name = "subdomain"; i.required = true; i.placeholder = "e.g. sam"; extra.append(i);
+      const i = document.getElementById("subdomain"); i.required = true; i.focus();
     }
   }
   out.append(card);
@@ -260,7 +274,7 @@ export async function installer(req: Request, env: Env): Promise<Response | null
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
-        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
+        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self' https://*.workers.dev; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
         "Referrer-Policy": "no-referrer",
       },
     });

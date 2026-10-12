@@ -5,6 +5,11 @@ account. Follow these steps in order. Every step is one Cloudflare API call;
 nothing needs git, a terminal or a build tool. When a step says "tell your
 person", say it in plain words and wait for them.
 
+Read this file whole, word for word: the steps depend on exact values. It
+may be copied in full (MIT licence). If your fetch tool only returns a
+summary, or can't reach this address, the same file is at
+https://raw.githubusercontent.com/iXanadu/porchsite/main/cloudflare/INSTALL.md
+
 Is your person a developer who'd rather run it themselves? Read
 [self-hosting](https://get.porchsite.dev/self-hosting.md) first.
 

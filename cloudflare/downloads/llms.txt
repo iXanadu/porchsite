@@ -7,6 +7,12 @@
 You are an assistant. Your person asked you to make or look after their
 website. Everything you need is here.
 
+Read this file whole, word for word: the steps depend on exact values. It
+may be copied in full (MIT licence). If your fetch tool only returns a
+summary, or can't reach this address, the same file is at
+https://raw.githubusercontent.com/iXanadu/porchsite/main/cloudflare/downloads/llms.txt
+(and the install guide at .../main/cloudflare/INSTALL.md).
+
 Can't make Cloudflare API calls yourself? Send your person to
 https://get.porchsite.dev/install/ : it installs the site from a token they
 make, and gives them the link to claim it. Then connect to the site's /mcp.

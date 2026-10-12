@@ -5,6 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { paletteCss } from "../src/blocks";
 import { check, renderSample } from "../src/themecheck";
 
 type Theme = { manifest: Record<string, any>; pages: Record<string, string>; partials: Record<string, string>; static: Record<string, string> };
@@ -20,7 +21,7 @@ export function loadTheme(name: string): Theme {
   return { manifest: JSON.parse(readFileSync(join(dir, "template.json"), "utf8")), pages: read(dir, ".mustache"), partials: read(join(dir, "partials"), ".mustache"), static: read(join(dir, "static"), "") };
 }
 
-function writeSite(pages: Record<string, string>, t: Theme, dir: string): void {
+function writeSite(pages: Record<string, string>, t: Theme, dir: string, palette = ""): void {
   for (const [p, html] of Object.entries(pages)) {
     const depth = p.split("/").length - 1;
     const up = "../".repeat(depth);
@@ -31,7 +32,8 @@ function writeSite(pages: Record<string, string>, t: Theme, dir: string): void {
     writeFileSync(join(dir, p), local);
   }
   mkdirSync(join(dir, "static"), { recursive: true });
-  for (const [f, body] of Object.entries(t.static)) writeFileSync(join(dir, "static", f), body);
+  // The site's palette goes after the theme's stylesheet, as the site serves it.
+  for (const [f, body] of Object.entries(t.static)) writeFileSync(join(dir, "static", f), f === "site.css" ? body + paletteCss(t.manifest.palettes, palette) : body);
 }
 
 function main() {
@@ -52,7 +54,8 @@ function main() {
     if (!name) throw new Error("which theme? e.g. npm run theme:preview product-page");
     const t = loadTheme(name);
     const dir = resolve(process.argv[5] ?? join("theme-preview", name));
-    writeSite(renderSample(t as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8"))), t, dir);
+    const sample = JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8"));
+    writeSite(renderSample(t as any, sample), t, dir, String(sample.site?.palette ?? ""));
     console.log(`rendered ${join(dir, "index.html")}`);
     if (cmd === "preview") execFileSync(process.platform === "darwin" ? "open" : "xdg-open", [join(dir, "index.html")]);
     return;
