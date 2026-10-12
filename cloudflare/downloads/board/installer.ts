@@ -77,10 +77,10 @@ async function asset(env: Env, path: string): Promise<Response> {
   return r;
 }
 
-async function run(env: Env, input: { token?: string; name?: string; account?: string; subdomain?: string }) {
+async function run(env: Env, input: { cf_token?: string; site_name?: string; token?: string; name?: string; account?: string; subdomain?: string }) {
   const steps: string[] = [];
-  const token = String(input.token ?? "").trim();
-  const name = String(input.name ?? "").trim().toLowerCase();
+  const token = String(input.cf_token ?? input.token ?? "").trim();
+  const name = String(input.site_name ?? input.name ?? "").trim().toLowerCase();
   if (!token) throw new Stop("Paste the token you made at Cloudflare.");
   if (!NAME.test(name)) throw new Stop("The site's name: lowercase letters, digits and dashes, starting with a letter, up to 63.");
 
@@ -111,6 +111,12 @@ async function run(env: Env, input: { token?: string; name?: string; account?: s
     if (!r.a.success) throw new Stop(`The database refused a step: ${why(r.a)}.`);
     return r.a.result?.[0]?.results ?? [];
   };
+
+  // This page only makes new sites. One that's been claimed is updated by its
+  // owner's assistant, with the owner's yes (SPEC §4 Updates), never from here.
+  const hasOwner = ((await q("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'owner'")) as { n: number }[])[0]?.n > 0;
+  if (hasOwner && ((await q("SELECT count(*) AS n FROM owner")) as { n: number }[])[0]?.n > 0)
+    throw new Stop(`There's already a claimed site named ${name} on ${account.name}, so nothing was changed. This page only makes new sites. Check the name and the token are the ones you meant; to update an existing site, ask its assistant.`);
 
   // 3. Its layout: every migration the database hasn't had, each recorded with it.
   await q("CREATE TABLE IF NOT EXISTS _sitekeeper_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
@@ -196,7 +202,7 @@ body{font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backg
 .wrap{max-width:640px;margin:0 auto;padding:28px 18px 64px}h1{font-size:28px;margin:0 0 6px}h2{font-size:19px;margin:28px 0 6px}
 .meta{color:#5c5855;font-size:15px}label{display:block;margin:14px 0 4px;font-weight:600}input{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border:1px solid #cfcbc9;border-radius:8px;background:#fff}
 button,.button{display:inline-block;margin-top:16px;font:inherit;font-weight:600;padding:11px 18px;border:0;border-radius:8px;background:#00647f;color:#fff;text-decoration:none;cursor:pointer}
-button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;border-radius:10px;padding:14px 16px;margin:12px 0}.error{color:#a8000f}ol li,ul li{margin:4px 0}code{background:#e9e6e4;padding:1px 5px;border-radius:4px}
+button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;border-radius:10px;padding:14px 16px;margin:12px 0}.error{color:#a8000f}ol li,ul li{margin:4px 0}.secret{-webkit-text-security:disc;text-security:disc}code{background:#e9e6e4;padding:1px 5px;border-radius:4px}
 </style></head><body><div class="wrap">
 <h1>Install Porchsite</h1>
 <p>A website your assistant keeps up to date, on your own free Cloudflare account. Nothing on it goes live without your yes.</p>
@@ -206,8 +212,9 @@ button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;borde
 <ul>${PERMISSIONS.map((p) => `<li>${esc(p.label)}</li>`).join("")}</ul>
 <p class="meta">The token goes to this installer only for the install, over HTTPS, and is never stored. When you're done you can delete it at Cloudflare; the site doesn't need it.</p>
 <h2>2. Name it and install</h2>
-<form id="f"><label for="name">The site's name (part of its address)</label><input id="name" name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="e.g. rams1976" autocomplete="off">
-<label for="token">The token</label><input id="token" name="token" type="password" required autocomplete="off">
+<form id="f" autocomplete="off"><label for="site_name">The site's name (part of its address)</label><input id="site_name" name="site_name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="e.g. rams1976" autocomplete="off" data-1p-ignore data-lpignore="true">
+<label for="cf_token">The token</label><input id="cf_token" name="cf_token" type="text" class="secret" required autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true">
+<p class="meta">Not a password: your browser shouldn't save it, and the page clears it after installing.</p>
 <label for="subdomain">Your workers.dev name (only used if your Cloudflare account doesn't have one yet)</label><input id="subdomain" name="subdomain" pattern="[a-z][a-z0-9-]{0,62}" placeholder="e.g. sam" autocomplete="off">
 <p class="meta">It's part of every address on your account: the site will be at <i>site-name</i>.<i>this-name</i>.workers.dev.</p>
 <div id="extra"></div><button id="go">Install</button></form>
@@ -224,6 +231,7 @@ f.addEventListener("submit", async (ev) => {
   try { r = await (await fetch("/install/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); }
   catch (e) { r = { ok: false, message: "The installer didn't answer. Check your connection and try again." }; }
   go.disabled = false; go.textContent = "Install";
+  document.getElementById("cf_token").value = "";
   const card = el("div", "", "card");
   if (r.steps && r.steps.length) { const ul = el("ul"); r.steps.forEach((s) => ul.append(el("li", s))); card.append(ul); }
   if (r.ok) {
@@ -246,7 +254,7 @@ f.addEventListener("submit", async (ev) => {
         setTimeout(poll, 10000);
       };
       setTimeout(poll, 10000);
-    } else card.append(el("p", "It was already claimed; it now runs Porchsite " + r.release + ". Sign in at " + r.url + "/review."));
+    }
     card.append(el("p", "Then tell your assistant to connect to " + r.url + "/mcp. If its app can't, make it a key on your site's Assistants page."));
     f.hidden = true;
   } else {
