@@ -378,6 +378,7 @@ export async function handleBoard(req: Request, env: Env, fetcher: Fetch = fetch
 // The guides as plain web pages, at /docs/ on this host and on the product's
 // main site (some browsers and filters refuse .md files or this host).
 const DOCS: [string, string, string][] = [
+  ["assistants", "assistants.md", "Setting up your assistant"],
   ["install", "install.md", "Install guide (for assistants)"],
   ["self-hosting", "self-hosting.md", "Self-hosting"],
   ["authoring", "authoring.md", "Making a look (for assistants)"],

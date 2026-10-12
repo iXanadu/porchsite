@@ -91,6 +91,7 @@ cp INSTALL.md "$OUT/install.md"
 cp CONTRIBUTING-THEMES.md "$OUT/contributing-themes.md"
 cp downloads/authoring.md "$OUT/authoring.md"
 cp downloads/self-hosting.md "$OUT/self-hosting.md"
+cp downloads/assistants.md "$OUT/assistants.md"
 cp ../spec/TEMPLATES.md "$OUT/templates.md"
 for f in "$OUT"/*.md "$OUT"/*.txt "$OUT"/index.html; do
   sed -i.bak "s#https://get.sitekeeper.dev#$HOME_URL#g" "$f" && rm -f "$f.bak"

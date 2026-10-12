@@ -30,11 +30,11 @@ site's OAuth connector, and pictures held as files. In order:
   from the home page (rendered by the site's own look), not just broken
   links and empty sections: a look that drops some entries left a thin
   home page and the check still passed.
-- **RA-8** OPEN: Per-assistant packs. Link each harness's ready-made
-  Porchsite setup from llms.txt and porchsite.dev (first: the GrokBot
-  template; needs its public link). Then one for each other harness
-  (custom GPT or ChatGPT plugin, Claude Project or Skill), and re-test
-  with every assistant using its pack.
+- **RA-8** IN-PROGRESS: Each harness at its best, none crippled. Done:
+  get.porchsite.dev/assistants.md (standing instructions to paste,
+  connectors, browser, secret field; by capability, not product). Left:
+  the product-by-product version on porchsite.dev, with the GrokBot
+  template's public link once the owner says to publish it.
 
 ## DEGRADING
 - **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,
