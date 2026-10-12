@@ -11,6 +11,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import type { Env } from "./env";
 import { RELEASE } from "./home";
 import { createServer } from "./mcp";
+import * as keys from "./keys";
 import { handle } from "./routes";
 
 const mcp = createMcpHandler(createServer, { route: "/mcp" });
@@ -51,7 +52,23 @@ export default {
       return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": "max-age=3600" } });
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
-    const res = await provider(origin).fetch(req, env, ctx);
+    let res: Response;
+    const bearer = /^Bearer[\t ]+(psk_[A-Za-z0-9_-]+)$/i.exec(req.headers.get("Authorization") ?? "");
+    if (u.pathname === "/mcp" && bearer) {
+      // An assistant key (keys.ts) instead of an OAuth token: the same tools.
+      const who = await keys.lookup(env.DB, bearer[1]);
+      if (!who) {
+        res = new Response(JSON.stringify({ error: "invalid_token", error_description: "This key doesn't work: it was revoked, it expired, or it's mistyped." }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        });
+      } else {
+        const keyed = { waitUntil: ctx.waitUntil.bind(ctx), passThroughOnException: ctx.passThroughOnException.bind(ctx), props: { ...who, origin } } as unknown as ExecutionContext;
+        res = await mcp(req, env as Env, keyed);
+      }
+    } else {
+      res = await provider(origin).fetch(req, env, ctx);
+    }
     // Which release is running, on every answer.
     const out = new Response(res.body, res);
     out.headers.set("X-Porchsite-Release", RELEASE);

@@ -318,6 +318,13 @@ assistant app may ask them to confirm twice: once in the app, once on the
 site's own page with their passkey. Both are expected. After that,
 use the tools it gives you; start with the one that describes the site.
 
+If your app can't add a connector that signs in (or its sign-in fails),
+use an assistant key instead: ask your person to open
+`https://…/review/assistants`, make a key named for you, and put it in your
+app's secret or API-key field, never in the chat. Send it to
+`https://…/mcp` as `Authorization: Bearer <key>` (JSON-RPC over HTTP, MCP's
+streamable transport). The tools and limits are the same.
+
 ## 10. Pick a look
 
 A new site shows the built-in look: plain on purpose, and the fallback if a

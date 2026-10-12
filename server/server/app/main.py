@@ -24,7 +24,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Message, Receive, Scope, Send
 
-from . import mcp, oauth, routes
+from . import keys, mcp, oauth, routes
 from .db import Db, connect
 from .settings import Settings
 
@@ -226,7 +226,18 @@ class App:
             )
             await _cors(resp)(scope, receive, send)
             return
-        props, why = await oauth.lookup_token(self.pool, bearer.group(1), oauth.resource_of(origin))
+        if bearer.group(1).startswith(keys.PREFIX):
+            # An assistant key (keys.py) instead of an OAuth token: the same tools.
+            who = await keys.lookup(self.pool, bearer.group(1))
+            props, why = (
+                ({**who, "origin": origin}, "")
+                if who
+                else (None, "This key doesn't work: it was revoked, it expired, or it's mistyped.")
+            )
+        else:
+            props, why = await oauth.lookup_token(
+                self.pool, bearer.group(1), oauth.resource_of(origin)
+            )
         if props is None:
             body = {"error": "invalid_token", "error_description": why}
             resp = _json(

@@ -14,6 +14,7 @@ import * as desk from "./desk";
 import type { Env } from "./env";
 import { ApiError } from "./errors";
 import * as history from "./history";
+import * as keys from "./keys";
 import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
 import * as owner from "./owner";
@@ -486,11 +487,13 @@ async function authorizePost(env: Env, req: Request): Promise<Response> {
   }
 }
 
-async function assistantsPage(env: Env, req: Request, revoke?: string): Promise<Response> {
+async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { name: string; token: string; expires_at: string }): Promise<Response> {
   const oauth = env.OAUTH_PROVIDER;
   if (revoke) await oauth.revokeGrant(revoke, "owner");
   const { items } = await oauth.listUserGrants("owner");
   const token = await owner.csrf(req);
+  const mcpUrl = new URL("/mcp", req.url).href;
+  const keyList = await keys.list(env.DB);
   return ownerPage(
     "Assistants",
     html`<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>${
@@ -500,8 +503,17 @@ async function assistantsPage(env: Env, req: Request, revoke?: string): Promise<
               html`<div class="card"><h2>${(g.metadata as { client?: string })?.client ?? g.clientId}</h2><div class="meta">since ${new Date(g.createdAt * 1000).toISOString().slice(0, 10)}</div>
 <form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke" value="${g.id}"><button class="ghost">Disconnect</button></form></div>`,
           )
-        : html`<p class="meta">None yet. In your assistant, add a connector with this address: <b>${new URL("/mcp", req.url).href}</b></p>`
-    }`,
+        : html`<p class="meta">None yet. In your assistant, add a connector with this address: <b>${mcpUrl}</b></p>`
+    }
+<h1 style="margin-top:36px">Assistant keys</h1>
+<p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
+${made ? html`<div class="card"><h2>Key for ${made.name}</h2><p class="value"><b>${made.token}</b></p><p class="meta">Copy it now: it isn't shown again. Works until ${made.expires_at.slice(0, 10)}.</p></div>` : ""}
+${keyList.map(
+  (k) =>
+    html`<div class="card"><h2>${k.name}</h2><div class="meta">made ${k.created_at.slice(0, 10)} · works until ${k.expires_at.slice(0, 10)} · ${k.last_used_at ? `last used ${k.last_used_at.slice(0, 10)}` : "not used yet"}</div>
+<form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`,
+)}
+<form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><button name="make_key" value="1">Make a key</button></form>`,
     { signedIn: true },
   );
 }
@@ -978,6 +990,14 @@ async function route(req: Request, env: Env): Promise<Response> {
         if (m === "POST") {
           const form = await req.formData();
           if (form.get("csrf") !== (await owner.csrf(req))) return await assistantsPage(env, req);
+          if (form.get("make_key")) {
+            const name = String(form.get("key_name") ?? "").trim().slice(0, 40) || "Assistant";
+            return await assistantsPage(env, req, undefined, { name, ...(await keys.create(env.DB, name)) });
+          }
+          if (form.get("revoke_key")) {
+            await keys.revoke(env.DB, String(form.get("revoke_key")));
+            return await assistantsPage(env, req);
+          }
           return await assistantsPage(env, req, String(form.get("revoke") ?? ""));
         }
         return await assistantsPage(env, req);

@@ -178,6 +178,22 @@ CREATE TABLE share_cards (
 );
 """,
     ),
+    (
+        # cloudflare/migrations/0015_assistant_keys.sql: bearer keys for
+        # assistants that can't connect with sign-in (SPEC §4).
+        "0009_assistant_keys",
+        """
+CREATE TABLE assistant_keys (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  last_used_at TEXT,
+  revoked_at TEXT
+);
+""",
+    ),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

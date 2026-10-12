@@ -20,10 +20,9 @@ Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
 call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
 site's OAuth connector, and pictures held as files. In order:
-- **RA-2** OPEN: Connect without OAuth plumbing: an assistant key the owner
-  makes on /review/assistants and pastes into the assistant's secret field,
-  and an import on /review for a content file an assistant prepares. Same
-  checks, same approval.
+- **RA-2** IN-PROGRESS: Connect without OAuth plumbing. Done: assistant
+  keys. Left: an import on /review for a content file an assistant
+  prepares (same checks, same approval).
 - **RA-3** OPEN: Pictures as files (was CF-F1).
 - **RA-4** NEEDS-DECISION: An install that doesn't depend on the
   assistant's network: a one-page installer the owner runs with a

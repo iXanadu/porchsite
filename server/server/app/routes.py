@@ -26,6 +26,7 @@ from . import (
     content,
     desk,
     history,
+    keys,
     media,
     oauth,
     old_addresses,
@@ -786,11 +787,14 @@ async def authorize_post(req: Request, cx: Context) -> Response:
         return oauth_error(e)
 
 
-async def assistants_page(req: Request, cx: Context, revoke: str | None = None) -> Response:
+async def assistants_page(
+    req: Request, cx: Context, revoke: str | None = None, made: dict[str, str] | None = None
+) -> Response:
     if revoke:
         await oauth.revoke_grant(cx.db, revoke, "owner")
     items = await oauth.list_user_grants(cx.db, "owner")
     token = owner.csrf(req)
+    mcp_url = f"{origin_of(req)}/mcp"
     if items:
         body = "".join(
             f"""<div class="card"><h2>{esc((g["metadata"] or {}).get("client") or g["clientId"])}</h2><div class="meta">since {datetime.fromtimestamp(g["createdAt"], UTC).date().isoformat()}</div>
@@ -798,10 +802,25 @@ async def assistants_page(req: Request, cx: Context, revoke: str | None = None) 
             for g in items
         )
     else:
-        body = f'<p class="meta">None yet. In your assistant, add a connector with this address: <b>{esc(origin_of(req))}/mcp</b></p>'
+        body = f'<p class="meta">None yet. In your assistant, add a connector with this address: <b>{esc(mcp_url)}</b></p>'
+    shown = (
+        f'<div class="card"><h2>Key for {esc(made["name"])}</h2><p class="value"><b>{esc(made["token"])}</b></p><p class="meta">Copy it now: it isn&#39;t shown again. Works until {esc(made["expires_at"][:10])}.</p></div>'
+        if made
+        else ""
+    )
+    listed = "".join(
+        f"""<div class="card"><h2>{esc(k["name"])}</h2><div class="meta">made {esc(k["created_at"][:10])} · works until {esc(k["expires_at"][:10])} · {esc("last used " + k["last_used_at"][:10]) if k["last_used_at"] else "not used yet"}</div>
+<form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><input type="hidden" name="revoke_key" value="{esc(k["id"])}"><button class="ghost">Revoke</button></form></div>"""
+        for k in await keys.list(cx.db)
+    )
     return owner_page(
         "Assistants",
-        f"<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>{body}",
+        f"""<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>{body}
+<h1 style="margin-top:36px">Assistant keys</h1>
+<p>For an assistant whose app can&#39;t add a connector with sign-in. Make a key, then put it in the assistant&#39;s secret or API-key field, never in a chat. It reaches the same tools at <b>{esc(mcp_url)}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after {keys.KEY_DAYS} days, or when you revoke it.</p>
+{shown}
+{listed}
+<form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><button name="make_key" value="1">Make a key</button></form>""",
         signed_in=True,
     )
 
@@ -1471,6 +1490,13 @@ async def _route(req: Request, cx: Context) -> Response:
                 if m == "POST":
                     form = await _form(req)
                     if _field(form, "csrf") != owner.csrf(req):
+                        return await assistants_page(req, cx)
+                    if _field(form, "make_key"):
+                        name = _field(form, "key_name").strip()[:40] or "Assistant"
+                        made = {"name": name, **(await keys.create(cx.db, name))}
+                        return await assistants_page(req, cx, None, made)
+                    if _field(form, "revoke_key"):
+                        await keys.revoke(cx.db, _field(form, "revoke_key"))
                         return await assistants_page(req, cx)
                     return await assistants_page(req, cx, _field(form, "revoke"))
                 return await assistants_page(req, cx)

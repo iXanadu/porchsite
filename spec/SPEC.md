@@ -151,7 +151,12 @@ Templates decide how kinds look, never what they say (see §6).
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID
 Metadata Documents, and Dynamic Client Registration for older clients).
-Every app uses PKCE with S256, confidential ones too. A metadata document
+An assistant whose app can't add a connector with sign-in uses an
+**assistant key** instead: the owner makes one on `/review/assistants`
+(named for the assistant, shown once, stored only as its SHA-256, working
+for 90 days or until revoked there) and puts it in the assistant's secret
+field; sent as `Authorization: Bearer psk_…`, it reaches the same tools,
+with the same limits, as a connected assistant. Every app uses PKCE with S256, confidential ones too. A metadata document
 is kept as long as its `Cache-Control` allows, at most a week. A refresh
 token is replaced at each use, and the one just used stays good beside its
 replacement, so a refresh whose answer was lost can be retried.
