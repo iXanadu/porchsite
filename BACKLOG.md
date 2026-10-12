@@ -22,6 +22,11 @@ _(none)_
   file itself (base64, size-capped, same checks as an upload), in both
   editions. Found: a first real install.
 
+- **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,
+  every item in full; heavy for an assistant's context. Consider a summary
+  by default (ids, kinds, titles, states, versions) and the full data per
+  item or on request. Found: an assistant running updates.
+
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
   live, with the audit-log check; left: another run on a fresh Cloudflare
