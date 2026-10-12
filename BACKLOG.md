@@ -30,6 +30,11 @@ site's OAuth connector, and pictures held as files. In order:
   from the home page (rendered by the site's own look), not just broken
   links and empty sections: a look that drops some entries left a thin
   home page and the check still passed.
+- **RA-8** OPEN: Per-assistant packs. Link each harness's ready-made
+  Porchsite setup from llms.txt and porchsite.dev (first: the GrokBot
+  template; needs its public link). Then one for each other harness
+  (custom GPT or ChatGPT plugin, Claude Project or Skill), and re-test
+  with every assistant using its pack.
 - **RA-7** OPEN: theme_needs reported 3 missing where 2 showed (event
   look, hero set). Find the third.
 
