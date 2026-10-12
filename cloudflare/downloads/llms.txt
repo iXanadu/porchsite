@@ -7,6 +7,10 @@
 You are an assistant. Your person asked you to make or look after their
 website. Everything you need is here.
 
+Can't make Cloudflare API calls yourself? Send your person to
+https://get.porchsite.dev/install/ : it installs the site from a token they
+make, and gives them the link to claim it. Then connect to the site's /mcp.
+
 Prefer your own server? If your person is a developer, see
 [self-hosting](https://get.porchsite.dev/self-hosting.md) before you start.
 

@@ -23,7 +23,7 @@ site's OAuth connector, and pictures held as files. In order:
 - **RA-4** IN-PROGRESS: One-page installer live at get.porchsite.dev/install/
   (tested end to end on a throwaway site). Left: confirm Cloudflare's
   pre-filled token link keeps all four permissions (signed in, on the fresh
-  account in RA-5); point INSTALL.md and llms.txt at it in the next release.
+  account in RA-5).
 - **RA-5** OPEN: A fair re-test: a fresh Cloudflare account, one written
   prompt, every assistant starting cold, transcripts kept.
 

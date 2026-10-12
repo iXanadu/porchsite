@@ -60,6 +60,12 @@ add `?per_page=50` and check `result_info` for more.
 
 ## 0. Access
 
+**No Cloudflare access of your own?** Don't improvise one. Send your person
+to `https://get.porchsite.dev/install/`: they make a token there from a
+pre-filled link, paste it with the site's name, and the page does steps
+2 to 7 and gives them the claim link. Then pick up at step 9 (connect
+yourself). Skip the rest of this section.
+
 Calls go to `https://api.cloudflare.com/client/v4` with your Cloudflare
 access: either Cloudflare's own API MCP server, `https://mcp.cloudflare.com/mcp`
 (its `search` and `execute` tools reach the whole API), or an API token
