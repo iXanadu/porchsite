@@ -43,7 +43,11 @@ commit names of real people, assistants or agents, internal systems,
 machines, hosts, accounts or clients; account identifiers; real people's
 site URLs, IP addresses, emails or phone numbers; agent reports or session
 notes; links to chat sessions; secrets. Use placeholders (`example.com`,
-`owner`, `assistant`, RFC 5737 addresses).
+`owner`, `assistant`, RFC 5737 addresses). Public products are not private
+names: the assistant apps people use (Claude, ChatGPT, Grok, Meta AI) are
+named wherever it helps, as in the guide to setting up your assistant;
+what stays out is the private name anyone gave their own assistant or
+agent.
 
 Enforced: `.githooks/` runs `scripts/repo-hygiene-check.sh` on every commit.
 Enable once per clone: `git config core.hooksPath .githooks`. The denylist

@@ -366,13 +366,22 @@ rest.
 ## 10. Pick a look
 
 A new site shows the built-in look: plain on purpose, and the fallback if a
-look ever goes missing. Don't leave it there. Ask your person what the site
-is for (a personal page, a product, a local business, an event, …), then
-call `theme_list` and suggest two or three looks from the catalog that fit,
-each with its demo link. On their choice: `theme_install` it, set the site
-item's `theme` to it, call `theme_needs` and fill what it asks for (words
-and pictures), then ask for approval. Nothing changes for visitors until
-they approve.
+look ever goes missing. Don't leave it there. The look and its colours are
+your person's to choose, so show them the choice, one way or the other:
+
+- **Ask**, if they're happy to be asked: what the site is for (a personal
+  page, a product, a local business, an event, …), then `theme_list` and
+  two or three looks that fit, each with its demo link, and the palettes
+  `theme_needs` lists for the one they pick.
+- **Pick, then tell**, if they asked you not to stop with questions: choose
+  the best fit and a palette yourself, and say in your approval note (and
+  to them) which you chose and why, with the other looks and palettes on
+  offer and their demo links, and that switching is one more approval.
+
+Either way: `theme_install` the look, set the site item's `theme` (and
+`palette`) to it, call `theme_needs` and fill what it asks for (words and
+pictures), then ask for approval. Nothing changes for visitors until they
+approve.
 
 ## Check
 
