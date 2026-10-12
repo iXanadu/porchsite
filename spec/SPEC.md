@@ -258,6 +258,14 @@ instead. No button: the assistant updates, when the owner says so.
   added and removed entries for lists), with a count of the unchanged
   ones; a new item shows all it says; a removal says it will be taken off.
   The confirm step of a revert shows the same rows.
+- `/review/import`: content from an assistant that can't reach the site,
+  as one JSON file the owner uploads: `{"porchsite_import": 1, "from",
+  "note", "items": [{"kind", "data"}], "images": {"<name>": "<base64>"}}`
+  (up to 25 MB and 200 items). A data string `image:<name>` (alone or in
+  Markdown) becomes that image's `/media` path; a site item changes only
+  the fields it names. Every item is checked as a draft would be, before
+  any is saved (a failure lists each item's problem and saves nothing);
+  then they become one approval request from `assistant:<from>`.
 - **Share cards.** A published entry's share picture (`og:image`) is its
   share card when it has one for its current version: its photo (the
   cover, else the site's share image or hero) filling 1200 x 630, with its

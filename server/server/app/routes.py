@@ -26,6 +26,7 @@ from . import (
     content,
     desk,
     history,
+    importer,
     keys,
     media,
     oauth,
@@ -454,6 +455,22 @@ def _unsent_line(n: int) -> str:
     return f'<p class="meta">{what} not yet sent to you for review. Nothing goes live until you approve it.</p>'
 
 
+async def import_page(req: Request, error: str = "", problems: list[str] | None = None) -> Response:
+    errs = f'<p class="error">{esc(error)}</p>' if error else ""
+    listed = (
+        '<ul class="meta">' + "".join(f"<li>{esc(p)}</li>" for p in problems) + "</ul>"
+        if problems
+        else ""
+    )
+    return owner_page(
+        "Import",
+        f"""<h1>Import from an assistant</h1><p>For an assistant that can&#39;t reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here.</p>{errs}{listed}
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><label>The file (.json)</label><input type="file" name="file" accept=".json,application/json" required><button>Import and review</button></form>""",
+        signed_in=True,
+        status=422 if error else 200,
+    )
+
+
 _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
@@ -485,6 +502,7 @@ async def review_index(req: Request, cx: Context) -> Response:
         f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{_unsent_line(await approvals.unsent(cx.db))}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
+<p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="{esc(owner.csrf(req))}"></div>""",
         signed_in=True,
         script=sharecards.CARD_JS,
@@ -1465,6 +1483,27 @@ async def _route(req: Request, cx: Context) -> Response:
             if path == "/review" and m == "GET":
                 return await review_index(req, cx)
             # Share cards: the owner's browser draws them (sharecards.py).
+            if path == "/review/import":
+                if m == "POST":
+                    form = await req.form(max_part_size=importer.MAX_FILE + 1024)
+                    if form.get("csrf") != owner.csrf(req):
+                        return await import_page(req, "This form expired. Try again.")
+                    f = form.get("file")
+                    if not isinstance(f, UploadFile) or not f.size:
+                        return await import_page(req, "Choose the file your assistant gave you.")
+                    if f.size > importer.MAX_FILE:
+                        return await import_page(req, "That file is over 25 MB.")
+                    try:
+                        done = await importer.import_file(
+                            cx.db, (await f.read()).decode("utf-8", errors="replace")
+                        )
+                    except ApiError as e:
+                        problems = [
+                            f"Item {p['item']}: {p['message']}" for p in e.extra.get("problems", [])
+                        ]
+                        return await import_page(req, e.message, problems)
+                    return redirect(f"{origin_of(req)}/review/{done['approval']}", 303)
+                return await import_page(req)
             if path == "/review/cards.json" and m == "GET":
                 host = urlsplit(origin_of(req)).hostname or ""
                 return json_response({"cards": await sharecards.missing(cx.db, host)})

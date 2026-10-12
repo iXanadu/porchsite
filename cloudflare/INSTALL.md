@@ -325,6 +325,15 @@ app's secret or API-key field, never in the chat. Send it to
 `https://…/mcp` as `Authorization: Bearer <key>` (JSON-RPC over HTTP, MCP's
 streamable transport). The tools and limits are the same.
 
+If you can't reach the site at all, write the content as one file and give
+it to your person to upload at `https://…/review/import`:
+`{"porchsite_import": 1, "from": "<your name>", "note": "<for your person>",
+"items": [{"kind": "entry", "data": {...}}, ...], "images": {"hall.jpg":
+"<base64>"}}`. Use `image:hall.jpg` wherever a picture goes (a cover, or
+`![what it shows](image:hall.jpg)` in a body). Each item's `data` is what
+`item_create` takes; a `site` item changes only the fields it names. It's
+checked like your drafts and waits for their approval.
+
 ## 10. Pick a look
 
 A new site shows the built-in look: plain on purpose, and the fallback if a

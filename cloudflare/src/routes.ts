@@ -14,6 +14,7 @@ import * as desk from "./desk";
 import type { Env } from "./env";
 import { ApiError } from "./errors";
 import * as history from "./history";
+import * as importer from "./importer";
 import * as keys from "./keys";
 import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
@@ -255,6 +256,15 @@ function unsentLine(n: number): Raw | string {
   return html`<p class="meta">${what} not yet sent to you for review. Nothing goes live until you approve it.</p>`;
 }
 
+async function importPage(req: Request, error = "", problems: string[] = []): Promise<Response> {
+  return ownerPage(
+    "Import",
+    html`<h1>Import from an assistant</h1><p>For an assistant that can't reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here.</p>${error ? html`<p class="error">${error}</p>` : ""}${problems.length ? html`<ul class="meta">${problems.map((p) => html`<li>${p}</li>`)}</ul>` : ""}
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><label>The file (.json)</label><input type="file" name="file" accept=".json,application/json" required><button>Import and review</button></form>`,
+    { signedIn: true, status: error ? 422 : 200 },
+  );
+}
+
 async function reviewIndex(env: Env, req: Request): Promise<Response> {
   const all = await approvals.list(env.DB);
   const open = all.filter((a) => a.items.some((i) => i.status === "pending"));
@@ -268,6 +278,7 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
+<p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="${await owner.csrf(req)}"></div>`,
     { signedIn: true, script: sharecards.CARD_JS },
   );
@@ -971,6 +982,24 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (gate) return gate;
       if (path === "/review" && m === "GET") return await reviewIndex(env, req);
       // Share cards: the owner's browser draws them (sharecards.ts).
+      if (path === "/review/import") {
+        if (m === "POST") {
+          const form = await req.formData();
+          if (form.get("csrf") !== (await owner.csrf(req))) return await importPage(req, "This form expired. Try again.");
+          const f = form.get("file") as unknown as File | null;
+          if (!f || typeof f === "string" || !f.size) return await importPage(req, "Choose the file your assistant gave you.");
+          if (f.size > importer.MAX_FILE) return await importPage(req, "That file is over 25 MB.");
+          try {
+            const done = await importer.importFile(env.DB, await f.text());
+            return Response.redirect(new URL(`/review/${done.approval}`, req.url).href, 303);
+          } catch (e) {
+            if (!(e instanceof ApiError)) throw e;
+            const problems = ((e.extra as { problems?: { item: number; message: string }[] })?.problems ?? []).map((p) => `Item ${p.item}: ${p.message}`);
+            return await importPage(req, e.message, problems);
+          }
+        }
+        return await importPage(req);
+      }
       if (path === "/review/cards.json" && m === "GET") return json({ cards: await sharecards.missing(env.DB, url.hostname) });
       const card = /^\/review\/cards\/([a-z]{2,8}_[0-9a-f]{4,40})$/.exec(path);
       if (card && m === "POST") {

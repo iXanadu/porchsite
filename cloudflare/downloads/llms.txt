@@ -15,7 +15,7 @@ Prefer your own server? If your person is a developer, see
 - Your Cloudflare access: Cloudflare's API MCP server, `https://mcp.cloudflare.com/mcp`, or an API token. (The "Cloudflare Developer Platform" directory connector can't upload a Worker.)
 - [Current version](https://get.porchsite.dev/latest.json): the files to upload, each with its sha256, a `mirror` on GitHub if you can't reach this host, and what changed.
 - Content goes in only through the site's own tools at `/mcp`, never straight into its database, and never copied from another site.
-- Can't add a connector that signs in? Your person can make you an assistant key on the site's `/review/assistants`; send it to `/mcp` as `Authorization: Bearer <key>`.
+- Can't add a connector that signs in? Your person can make you an assistant key on the site's `/review/assistants`; send it to `/mcp` as `Authorization: Bearer <key>`. Can't reach the site at all? Write the content as one import file for your person to upload at `/review/import` (the format is in the install guide).
 - [Changelog](https://get.porchsite.dev/changelog.json): every release in plain words ([as a page](https://get.porchsite.dev/changelog/)).
 
 ## Self-hosting
