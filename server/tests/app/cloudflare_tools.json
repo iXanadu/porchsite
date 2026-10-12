@@ -176,6 +176,23 @@
       }
     },
     {
+      "name": "image_add",
+      "description": "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "the picture's bytes, base64 (standard or URL-safe alphabet)"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      }
+    },
+    {
       "name": "photo_upload_status",
       "description": "How a photo_upload_link is going: status waiting (not sent yet), done (image and alt are ready to use) or expired (ask for a new link).",
       "inputSchema": {

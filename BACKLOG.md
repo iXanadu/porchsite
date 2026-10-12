@@ -23,7 +23,6 @@ site's OAuth connector, and pictures held as files. In order:
 - **RA-2** IN-PROGRESS: Connect without OAuth plumbing. Done: assistant
   keys. Left: an import on /review for a content file an assistant
   prepares (same checks, same approval).
-- **RA-3** OPEN: Pictures as files (was CF-F1).
 - **RA-4** NEEDS-DECISION: An install that doesn't depend on the
   assistant's network: a one-page installer the owner runs with a
   pre-scoped Cloudflare token (it passes through the installer once, never

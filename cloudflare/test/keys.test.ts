@@ -59,3 +59,21 @@ describe("assistant keys", () => {
     expect((await rpc("psk_nope", "tools/list")).status).toBe(401);
   });
 });
+
+describe("image_add", () => {
+  it("takes a picture as base64", async () => {
+    const { create } = await import("../src/keys");
+    const { token } = await create(e.DB, "Painter");
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 2, 128, 0, 0, 1, 224, ...new Array(40).fill(0)]);
+    const call = async (data: string) => json(await rpc(token, "tools/call", { name: "image_add", arguments: { data } }));
+    const ok = await call(btoa(String.fromCharCode(...png)));
+    const out = JSON.parse(ok.result.content[0].text);
+    expect(out.image).toMatch(/^\/media\/[0-9a-f]{32}\.png$/);
+    expect([out.width, out.height]).toEqual([640, 480]);
+    const bad = await call("not base64!!");
+    expect(bad.result.isError).toBe(true);
+    expect(JSON.parse(bad.result.content[0].text).error).toBe("invalid");
+    const notImage = await call(btoa("hello there"));
+    expect(JSON.parse(notImage.result.content[0].text).error).toBe("not_an_image");
+  });
+});

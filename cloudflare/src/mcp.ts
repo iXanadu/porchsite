@@ -12,6 +12,7 @@ import * as approvals from "./approvals";
 import * as content from "./content";
 import type { Env } from "./env";
 import { HOME, RELEASE } from "./home";
+import * as media from "./media";
 import * as requests from "./requests";
 import { proposedView } from "./site";
 import * as themes from "./themes";
@@ -87,6 +88,8 @@ async function describe(db: D1Database, items: content.Item[]) {
 }
 
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
+const IMAGE_ADD_DESCRIPTION =
+  "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it.";
 const CHECK_DESCRIPTION =
   "Look over the site as it will be once everything you've changed is published, the way a visitor clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout with nothing in them (take them out of the site's sections, or fill them). `ok` is true when there's neither. Run it before you ask for approval and before you tell your person the site is done.";
 const STATES = {
@@ -201,6 +204,31 @@ export function createServer(): McpServer {
       run(async () => {
         const { path, ...u } = await uploads.create(db, actor(), purpose);
         return { ...u, url: `${origin()}${path}`, next: "Send the url to your person, then check photo_upload_status with this id." };
+      }),
+  );
+
+  server.registerTool(
+    "image_add",
+    {
+      description: IMAGE_ADD_DESCRIPTION,
+      inputSchema: z.object({
+        data: z.string().describe("the picture's bytes, base64 (standard or URL-safe alphabet)"),
+      }),
+    },
+    async ({ data }) =>
+      run(async () => {
+        let bytes: Uint8Array;
+        try {
+          bytes = Uint8Array.from(atob(data.replace(/^data:[^,]*,/, "").replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "")), (c) => c.charCodeAt(0));
+        } catch {
+          throw new ApiError(422, "invalid", "data isn't base64.");
+        }
+        if (bytes.length > media.MAX_BYTES) throw new ApiError(413, "too_large", "A picture can be at most 8 MB.");
+        const type = media.sniff(bytes);
+        if (!type) throw new ApiError(422, "not_an_image", "That isn't a JPEG, PNG or WebP picture.");
+        const image = await media.store(db, bytes, type, actor());
+        const [width, height] = media.size(bytes);
+        return { image, width, height, next: "Put image in an image field with a description, then ask for approval as usual." };
       }),
   );
 

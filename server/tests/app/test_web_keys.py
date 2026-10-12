@@ -35,3 +35,20 @@ async def test_a_key_drafts_like_a_connected_assistant_until_revoked(db, http):
     assert refused.json()["error"] == "invalid_token"
     wrong = await http.post("/mcp", json={"jsonrpc": "2.0", "id": 9, "method": "tools/list"}, headers={**MCP_HEADERS, "authorization": "Bearer psk_nope"})  # fmt: skip
     assert wrong.status_code == 401
+
+
+async def test_image_add_takes_a_picture_as_base64(db, http):
+    import base64
+
+    from server.app import keys
+
+    made = await keys.create(db, "Painter")
+    a = Mcp(http, made["token"])
+    png = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13]) + b"IHDR" + (640).to_bytes(4, "big") + (480).to_bytes(4, "big") + bytes(40)  # fmt: skip
+    err, out, _ = await a.call("image_add", data=base64.b64encode(png).decode())
+    assert not err, out
+    assert re.fullmatch(r"/media/[0-9a-f]{32}\.png", out["image"]) and (out["width"], out["height"]) == (640, 480)  # fmt: skip
+    err, out, _ = await a.call("image_add", data="not base64!!")
+    assert err and out["error"] == "invalid"
+    err, out, _ = await a.call("image_add", data=base64.b64encode(b"hello there").decode())
+    assert err and out["error"] == "not_an_image"
