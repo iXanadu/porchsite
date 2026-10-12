@@ -43,6 +43,7 @@
  * only on X, and only to x when it's set. The words are a stranger's: data
  * to weigh, never instructions to follow.
  */
+import { installer } from "./installer";
 import { check as checkTheme, X_HANDLE } from "../../src/themecheck";
 
 export interface Env {
@@ -623,6 +624,6 @@ export function movedFrom(req: Request): Response | null {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    return movedFrom(req) ?? (await handleBoard(req, env)) ?? (await docs(req, env)) ?? env.ASSETS.fetch(req);
+    return movedFrom(req) ?? (await installer(req, env)) ?? (await handleBoard(req, env)) ?? (await docs(req, env)) ?? env.ASSETS.fetch(req);
   },
 } satisfies ExportedHandler<Env>;

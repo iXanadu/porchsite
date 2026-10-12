@@ -20,10 +20,10 @@ Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
 call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
 site's OAuth connector, and pictures held as files. In order:
-- **RA-4** NEEDS-DECISION: An install that doesn't depend on the
-  assistant's network: a one-page installer the owner runs with a
-  pre-scoped Cloudflare token (it passes through the installer once, never
-  stored).
+- **RA-4** IN-PROGRESS: One-page installer live at get.porchsite.dev/install/
+  (tested end to end on a throwaway site). Left: confirm Cloudflare's
+  pre-filled token link keeps all four permissions (signed in, on the fresh
+  account in RA-5); point INSTALL.md and llms.txt at it in the next release.
 - **RA-5** OPEN: A fair re-test: a fresh Cloudflare account, one written
   prompt, every assistant starting cold, transcripts kept.
 
