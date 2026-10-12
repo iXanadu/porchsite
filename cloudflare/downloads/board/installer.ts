@@ -269,8 +269,9 @@ f.addEventListener("submit", async (ev) => {
     f.hidden = true;
   } else {
     card.append(el("p", r.message || "Something went wrong.", "error"));
-    extra.replaceChildren();
+    // The account picker stays once it's shown, so a later retry keeps the choice.
     if (r.need === "account") {
+      extra.replaceChildren();
       extra.append(el("label", "Which account?"));
       const s = document.createElement("select"); s.name = "account";
       (r.accounts || []).forEach((a) => { const o = el("option", a.name); o.value = a.id; s.append(o); });

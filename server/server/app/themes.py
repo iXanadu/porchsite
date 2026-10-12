@@ -355,9 +355,13 @@ async def needs(db: Db, t: Theme) -> dict[str, Any]:
                 else "missing",
             }
         )
-    missing = sum(
-        1 for x in [*images, *content] if re.search(r"^missing|wrong shape|too small", x["status"])
-    )
+    # Empty, the wrong shape or too small: each named in to_fix.
+    to_fix = [
+        x
+        for x in [*images, *content]
+        if re.search(r"^missing|wrong shape|too small", str(x["status"]))
+    ]
+    missing = len(to_fix)
     palettes = [
         {"name": name, "title": p.get("title"), "default": i == 0}
         for i, (name, p) in enumerate((t["manifest"].get("palettes") or {}).items())
@@ -375,4 +379,5 @@ async def needs(db: Db, t: Theme) -> dict[str, Any]:
         "images": images,
         "content": content,
         "missing": missing,
+        "to_fix": [f"{x['field']}: {x['status']}" for x in to_fix],
     }

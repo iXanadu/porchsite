@@ -52,3 +52,20 @@ async def test_image_add_takes_a_picture_as_base64(db, http):
     assert err and out["error"] == "invalid"
     err, out, _ = await a.call("image_add", data=base64.b64encode(b"hello there").decode())
     assert err and out["error"] == "not_an_image"
+
+
+async def test_a_client_that_accepts_only_json_gets_json(db, http):
+    from server.app import keys
+
+    made = await keys.create(db, "Script")
+    r = await http.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": 7, "method": "tools/list", "params": {}},
+        headers={
+            "authorization": f"Bearer {made['token']}",
+            "accept": "application/json",
+            "mcp-protocol-version": "2025-06-18",
+        },  # fmt: skip
+    )
+    assert r.status_code == 200 and "application/json" in r.headers["content-type"]
+    assert r.json()["id"] == 7 and len(r.json()["result"]["tools"]) > 10

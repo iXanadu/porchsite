@@ -25,8 +25,6 @@ Prefer your own server? If your person is a developer, see
 - Your Cloudflare access: Cloudflare's API MCP server, `https://mcp.cloudflare.com/mcp`, or an API token. (The "Cloudflare Developer Platform" directory connector can't upload a Worker.)
 - [Current version](https://get.porchsite.dev/latest.json): the files to upload, each with its sha256, a `mirror` on GitHub if you can't reach this host, and what changed.
 - Content goes in only through the site's own tools at `/mcp`, never straight into its database, and never copied from another site.
-- Can't add a connector that signs in? Your person can make you an assistant key on the site's `/review/assistants`; send it to `/mcp` as `Authorization: Bearer <key>`. Calling it from your own code? Send a User-Agent naming your app: Cloudflare refuses some library defaults (Python's urllib) with "error code: 1010" before the site sees them. Have them put the key in your app's secret or credential field; never ask them to paste it into the chat. If your app has no such field, say so and use the import instead. Can't reach the site at all? Write the content as one import file for your person to upload at `/review/import` (the format is in the install guide). That's a last resort for a first delivery, not a way to work: then connect, so you can keep the site up yourself.
-- Your person's only jobs are the ones you can't do (their Cloudflare account, their passkey, adding a connector or key) and saying yes or no on the review page. Never ask them to edit content, fill in fields, or upload corrections: connect at `/mcp`, make the change yourself, and send it for approval.
 - [Changelog](https://get.porchsite.dev/changelog.json): every release in plain words ([as a page](https://get.porchsite.dev/changelog/)).
 
 ## Self-hosting
@@ -47,12 +45,34 @@ Porchsite's curator, never published, and the only contact it takes is an
 optional X handle. Point your person there; don't send it for them without
 their yes.
 
-## After installing
-Connect to the site's tool server at `https://<your site>/mcp`. Your person
-approves the connection with their passkey. Then call `site_state` first: it
-describes the site and how to write to it. Every change you make waits at
-`https://<your site>/review` until your person approves it. Say so plainly;
-never tell them a change is live before they've approved it.
+## After installing: connect
+Your way in is the site's tool server, `https://<your site>/mcp`. In order
+of preference:
+1. **A connector that signs in.** Your person adds it in your app with that
+   address and approves it with their passkey.
+2. **An assistant key**, if your app can't add a connector that signs in
+   (or its sign-in fails). Your person makes one on the site's
+   `/review/assistants` and puts it in your app's secret or credential
+   field, never in the chat; you send it as `Authorization: Bearer <key>`.
+   If your app has no such field, say so; don't ask for it in the chat.
+3. **An import file**, only if you can't reach the site at all: one file
+   your person uploads at `/review/import` (the format is in the install
+   guide). It's for a first delivery, not a way to work: connect after.
+
+From your own code: POST JSON-RPC to `/mcp`. It answers JSON (or an event
+stream if you accept `text/event-stream`). Send a User-Agent naming your
+app: Cloudflare refuses some library defaults (Python's urllib) with
+"error code: 1010" before the site sees them.
+
+Then call `site_state` first: it describes the site and how to write to it.
+Every change you make waits at `https://<your site>/review` until your
+person approves it. Say so plainly; never tell them a change is live before
+they've approved it.
+
+Your person's only jobs are the ones you can't do (their Cloudflare
+account, their passkey, adding a connector or key) and saying yes or no on
+the review page. Never ask them to edit content, fill in fields or upload
+corrections: make the change yourself and send it for approval.
 
 ## Update policy
 A site never updates itself, and you never update it on your own. The site

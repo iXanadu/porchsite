@@ -35,8 +35,6 @@ site's OAuth connector, and pictures held as files. In order:
   template; needs its public link). Then one for each other harness
   (custom GPT or ChatGPT plugin, Claude Project or Skill), and re-test
   with every assistant using its pack.
-- **RA-7** OPEN: theme_needs reported 3 missing where 2 showed (event
-  look, hero set). Find the third.
 
 ## DEGRADING
 - **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,

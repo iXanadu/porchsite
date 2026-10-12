@@ -86,7 +86,7 @@ async function takeChallenge(db: D1Database, req: Request, purpose: string): Pro
 
 export const SETUP_HOURS = 24;
 const NO_SETUP_CODE = "This site has no setup code yet. Ask whoever set up your site for a setup link.";
-const CODE_EXPIRED = "This setup link has expired. Ask whoever set up your site for a new one.";
+const CODE_EXPIRED = "This setup link has expired. If the site was installed at get.porchsite.dev/install/, run it again with the same name and token for a new one; otherwise ask whoever set it up.";
 
 /**
  * Store a one-time setup code (hashed) that works for `hours`; any earlier

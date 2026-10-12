@@ -185,7 +185,9 @@ export async function needs(db: D1Database, t: Theme): Promise<Record<string, an
     const filled = Array.isArray(v) ? v.length > 0 : !!String(v ?? "").trim();
     return { ...s, status: filled ? "filled" : s.need === "optional" ? "empty (optional)" : "missing" };
   });
-  const missing = [...images, ...content].filter((x) => /^missing|wrong shape|too small/.test(x.status)).length;
+  // Empty, the wrong shape or too small: each named in to_fix.
+  const toFix = [...images, ...content].filter((x) => /^missing|wrong shape|too small/.test(String(x.status)));
+  const missing = toFix.length;
   const palettes = Object.entries((t.manifest.palettes ?? {}) as Record<string, { title: string }>).map(([name, p], i) => ({ name, title: p.title, default: i === 0 }));
   const chosen = String(site.palette ?? "");
   return {
@@ -198,5 +200,6 @@ export async function needs(db: D1Database, t: Theme): Promise<Record<string, an
     images,
     content,
     missing,
+    to_fix: toFix.map((x) => `${(x as Slot).field}: ${x.status}`),
   };
 }

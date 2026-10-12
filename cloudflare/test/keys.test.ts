@@ -77,3 +77,20 @@ describe("image_add", () => {
     expect(JSON.parse(notImage.result.content[0].text).error).toBe("not_an_image");
   });
 });
+
+describe("plain JSON", () => {
+  it("answers a client that accepts only JSON with JSON, like the server edition", async () => {
+    const { create } = await import("../src/keys");
+    const { token } = await create(e.DB, "Script");
+    const r = await go("/mcp", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/list", params: {} }),
+    });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Content-Type")).toContain("application/json");
+    const body = (await r.json()) as { id: number; result: { tools: unknown[] } };
+    expect(body.id).toBe(7);
+    expect(body.result.tools.length).toBeGreaterThan(10);
+  });
+});

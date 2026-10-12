@@ -270,6 +270,7 @@ async def setup_page(req: Request, cx: Context) -> Response:
         "Your setup code is filled in. Add your name if you like, then create a passkey."
         if code
         else "Enter the setup code you were given, then create a passkey."
+        " No code? If the site was installed at get.porchsite.dev/install/, run it again with the same name and token: it keeps everything and gives you a new claim link. Otherwise, ask whoever set it up."
     )
     return owner_page(
         "Set up your site",

@@ -156,7 +156,9 @@ An assistant whose app can't add a connector with sign-in uses an
 (named for the assistant, shown once, stored only as its SHA-256, working
 for 90 days or until revoked there) and puts it in the assistant's secret
 field; sent as `Authorization: Bearer psk_…`, it reaches the same tools,
-with the same limits, as a connected assistant. Every app uses PKCE with S256, confidential ones too. A metadata document
+with the same limits, as a connected assistant. `/mcp` answers a POST
+as JSON when the client accepts only `application/json`, and may answer
+as an event stream when it also accepts `text/event-stream`. Every app uses PKCE with S256, confidential ones too. A metadata document
 is kept as long as its `Cache-Control` allows, at most a week. A refresh
 token is replaced at each use, and the one just used stays good beside its
 replacement, so a refresh whose answer was lost can be retried.

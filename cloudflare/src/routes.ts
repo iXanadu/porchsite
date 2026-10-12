@@ -125,7 +125,7 @@ async function setupPage(req: Request, env: Env): Promise<Response> {
   const code = (new URL(req.url).searchParams.get("code") ?? "").trim().slice(0, 200);
   const intro = code
     ? "Your setup code is filled in. Add your name if you like, then create a passkey."
-    : "Enter the setup code you were given, then create a passkey.";
+    : "Enter the setup code you were given, then create a passkey. No code? If the site was installed at get.porchsite.dev/install/, run it again with the same name and token: it keeps everything and gives you a new claim link. Otherwise, ask whoever set it up.";
   return ownerPage(
     "Set up your site",
     html`<h1>Make this site yours</h1><p>${intro} From then on, your passkey is the only way to approve what goes live.</p>

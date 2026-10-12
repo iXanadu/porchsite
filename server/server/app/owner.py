@@ -160,7 +160,7 @@ def _transports(response: Any) -> str:
 
 SETUP_HOURS = 24
 NO_SETUP_CODE = "This site has no setup code yet. Ask whoever set up your site for a setup link."
-CODE_EXPIRED = "This setup link has expired. Ask whoever set up your site for a new one."
+CODE_EXPIRED = "This setup link has expired. If the site was installed at get.porchsite.dev/install/, run it again with the same name and token for a new one; otherwise ask whoever set it up."
 
 
 async def issue_setup_code(db: Db, code: str, hours: float = SETUP_HOURS) -> str:
