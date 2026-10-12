@@ -235,15 +235,17 @@ f.addEventListener("submit", async (ev) => {
       const show = (late) => {
         wait.remove();
         const a = el("a", "Claim your site", "button"); a.href = r.setup; a.target = "_blank"; a.rel = "noopener"; card.append(a);
-        card.append(el("p", late ? "Your address is taking longer than usual. If the page shows a security or connection error (such as ERR_SSL_VERSION_OR_CIPHER_MISMATCH), wait a few minutes and reload it: Cloudflare is still issuing its certificate." : "The link works once, for 24 hours. Don't share it or send a picture of it: it's the key to claiming your site.", "meta"));
+        card.append(el("p", late ? "Your address is taking longer than usual. If the page says it can't be reached, or shows a security error (such as ERR_SSL_VERSION_OR_CIPHER_MISMATCH), wait a few minutes and reload it, or open the link in another browser: Cloudflare is still setting the address up." : "The link works once, for 24 hours. Don't share it or send a picture of it: it's the key to claiming your site.", "meta"));
       };
+      // Asked of the installer, never of the new address itself: a browser
+      // that looks the name up before it exists remembers the failure.
       const started = Date.now();
       const poll = async () => {
-        try { await fetch(r.url + "/robots.txt", { mode: "no-cors", cache: "no-store" }); return show(false); } catch (e) {}
-        if (Date.now() - started > 300000) return show(true);
-        setTimeout(poll, 5000);
+        try { if ((await (await fetch("/install/ready?host=" + encodeURIComponent(new URL(r.url).host), { cache: "no-store" })).json()).ready) return show(false); } catch (e) {}
+        if (Date.now() - started > 600000) return show(true);
+        setTimeout(poll, 10000);
       };
-      poll();
+      setTimeout(poll, 10000);
     } else card.append(el("p", "It was already claimed; it now runs Porchsite " + r.release + ". Sign in at " + r.url + "/review."));
     card.append(el("p", "Then tell your assistant to connect to " + r.url + "/mcp. If its app can't, make it a key on your site's Assistants page."));
     f.hidden = true;
@@ -261,10 +263,36 @@ f.addEventListener("submit", async (ev) => {
     }
   }
   out.append(card);
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 </script></body></html>`;
 
-/** /install/ and /install/run, or null for any other address. */
+/**
+ * Whether a new site's address answers yet: in public DNS, and over HTTPS.
+ * Resolvers remember "no such name" for 30 minutes (workers.dev's SOA), so
+ * the site's own name is never looked up early: DNS is asked about a
+ * throwaway name under the same account name, which the account's wildcard
+ * answers once it's live.
+ */
+async function ready(host: string): Promise<boolean> {
+  if (!/^[a-z][a-z0-9-]{0,62}\.[a-z0-9][a-z0-9-]{0,62}\.workers\.dev$/.test(host)) return false;
+  const probe = `ready-${random(12)}.${host.split(".").slice(1).join(".")}`;
+  const resolved = async (doh: string) => {
+    const r = await fetch(`${doh}?name=${probe}&type=A`, { headers: { Accept: "application/dns-json" } });
+    const a = (await r.json()) as { Status?: number; Answer?: unknown[] };
+    return a.Status === 0 && !!a.Answer?.length;
+  };
+  try {
+    if (!(await resolved("https://cloudflare-dns.com/dns-query")) || !(await resolved("https://dns.google/resolve"))) return false;
+    const r = await fetch(`https://${host}/robots.txt`, { signal: AbortSignal.timeout(8000) });
+    // Cloudflare answers any name under a live account; only the site sends this.
+    return r.ok && r.headers.has("X-Porchsite-Release");
+  } catch {
+    return false;
+  }
+}
+
+/** /install/, /install/run and /install/ready, or null for any other address. */
 export async function installer(req: Request, env: Env): Promise<Response | null> {
   const u = new URL(req.url);
   if (u.pathname === "/install" || u.pathname === "/install/") {
@@ -274,10 +302,13 @@ export async function installer(req: Request, env: Env): Promise<Response | null
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
-        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self' https://*.workers.dev; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
+        "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
         "Referrer-Policy": "no-referrer",
       },
     });
+  }
+  if (u.pathname === "/install/ready" && req.method === "GET") {
+    return new Response(JSON.stringify({ ready: await ready(String(u.searchParams.get("host") ?? "")) }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
   }
   if (u.pathname === "/install/run" && req.method === "POST") {
     const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };

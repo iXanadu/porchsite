@@ -345,6 +345,12 @@ it to your person to upload at `https://…/review/import`:
 `item_create` takes; a `site` item changes only the fields it names. It's
 checked like your drafts and waits for their approval.
 
+The import is a last resort for a first delivery. Keeping the site up is
+your job, through `/mcp`: connect as above (sign-in or an assistant key)
+before you call the work done. Never ask your person to edit content, fill
+in fields or upload corrections; they approve or reject, and you do the
+rest.
+
 ## 10. Pick a look
 
 A new site shows the built-in look: plain on purpose, and the fallback if a
