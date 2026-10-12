@@ -21,18 +21,35 @@ Is your person a developer who'd rather run it themselves? Read
   approval as one request, not a piece at a time; and tell your person
   each time there's something waiting at `/review`, with the link. Drafts
   are invisible to them until you do.
+- Content goes in only through the site's own tools at `/mcp` (step 9),
+  never by writing its database, which skips the checks the site runs on
+  every change (secrets, private names, field rules, copying in images).
+  The only things you ever write to the database are the release's
+  migration files and their `_sitekeeper_migrations` rows (steps 3 and
+  Updating). Never copy code, data or pictures from another site, even
+  one on the same account: install from the release's files.
+
+Read this guide in full, as plain text, from
+`https://get.porchsite.dev/install.md`. A fetch tool that summarises pages
+drops steps; if yours does, ask your person to paste the guide in, or use
+the copy in the repository (`cloudflare/INSTALL.md` at
+https://github.com/iXanadu/porchsite).
 
 Get the files from `https://get.porchsite.dev/latest.json`. It lists
 the current `version` and its `files`, each
 `{"path": "sitekeeper.js", "url": "…", "bytes": 1635400, "sha256": "…"}`:
 `sitekeeper.js` (the site) and `migrations/*.sql` (the database layout).
 Download each one and check its sha256 (hex, of the file's bytes) before you
-use it. Tell your person which version you installed.
+use it. Tell your person which version you installed. If your network can't
+reach get.porchsite.dev, every file also has a `mirror`: the same bytes on
+the project's GitHub releases (check the same sha256). Each past release's
+files and hashes are at its `files_url` in `releases`.
 
 **Moving the files.** `sitekeeper.js` is about 1.6 MB, and step 6 sends it to
 Cloudflare. Fetch it with your own web or shell tool, then send it with an
 HTTP tool that can carry a file or a long body. Cloudflare's MCP `execute`
-sandbox can't fetch outside addresses itself, so if that's your route you
+sandbox can't fetch outside addresses itself (it refuses get.porchsite.dev),
+so if that's your route you
 must pass the file's contents into the call, inlined in the request body
 (step 6 shows the exact shape; some apps let you reference a local file in a
 tool's arguments). If you can do neither, ask your person for an API token
@@ -44,8 +61,12 @@ add `?per_page=50` and check `result_info` for more.
 ## 0. Access
 
 Calls go to `https://api.cloudflare.com/client/v4` with your Cloudflare
-access: either Cloudflare's own MCP server (its `execute` tool), or an API
-token your person made. If it's a token, collect it through your app's
+access: either Cloudflare's own API MCP server, `https://mcp.cloudflare.com/mcp`
+(its `search` and `execute` tools reach the whole API), or an API token
+your person made. Not the "Cloudflare Developer Platform" connector some
+apps list in their directory: that one manages databases and storage but
+can't upload a Worker, so the install stops at step 6. If your person has
+to add the right one, it's a custom connector with that address. If it's a token, collect it through your app's
 secret or password field, never in the chat, and never write it into a
 memory, a note or a file. The access must be able to **edit** Workers scripts,
 D1 and Workers KV. If you connected through Cloudflare's MCP server, your

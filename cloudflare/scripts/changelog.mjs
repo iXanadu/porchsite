@@ -141,6 +141,12 @@ ${rows}</main></body></html>
 `;
 }
 
+// The public repository: every release from 2026.10.12-da1480d on is also a
+// GitHub release there, the same files under their base names, so an assistant
+// whose network can't reach HOME downloads the same bytes (same sha256).
+const REPO = "https://github.com/iXanadu/porchsite";
+const mirrorOf = (version, p) => `${REPO}/releases/download/release/${version}/${p.split("/").pop()}`;
+
 function publish(file, version, out, commit) {
   const list = load(file);
   const at = list.findIndex((r) => r.release === version);
@@ -149,6 +155,7 @@ function publish(file, version, out, commit) {
   const entry = shipped[0];
   const latestFile = path.join(out, "latest.json");
   const latest = JSON.parse(readFileSync(latestFile, "utf8"));
+  latest.files = latest.files.map((f) => ({ ...f, mirror: mirrorOf(version, f.path) }));
   Object.assign(latest, {
     commit,
     changes: entry.changes,
@@ -158,11 +165,12 @@ function publish(file, version, out, commit) {
     // skipped releases applies each one its site's _sitekeeper_migrations lacks.
     all_migrations: latest.files
       .filter((f) => f.path.startsWith("migrations/"))
-      .map((f) => ({ name: f.path.slice("migrations/".length), url: f.url, sha256: f.sha256 }))
+      .map((f) => ({ name: f.path.slice("migrations/".length), url: f.url, mirror: f.mirror, sha256: f.sha256 }))
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
     reconnect: entry.reconnect,
     changelog_url: `${HOME}/changelog/`,
-    releases: shipped,
+    // Each release's own files and hashes, for a rollback or a check of what a site runs.
+    releases: shipped.map((r) => ({ ...r, files_url: `${HOME}/v/${r.release}/files.json` })),
   });
   writeFileSync(latestFile, `${JSON.stringify(latest, null, 2)}\n`);
   writeFileSync(path.join(out, "changelog.json"), `${JSON.stringify({ releases: shipped }, null, 2)}\n`);
