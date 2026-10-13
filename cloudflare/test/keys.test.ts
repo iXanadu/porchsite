@@ -43,7 +43,7 @@ describe("assistant keys", () => {
     expect(made).toContain("Copy it now");
 
     const init = await json(await rpc(key, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "0" } }));
-    expect(init.result.serverInfo.name).toBe("sitekeeper");
+    expect(init.result.serverInfo.name).toBe("porchsite");
     const made2 = await json(await rpc(key, "tools/call", { name: "item_create", arguments: { kind: "note", data: { text: "Hello from a key.", date: "2026-10-12" } } }));
     const item = JSON.parse(made2.result.content[0].text);
     const hist = await content.history(e.DB, item.id);

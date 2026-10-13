@@ -520,7 +520,7 @@ def create_server(pool: Callable[[], Db], release: Callable[[], str]) -> Server:
             return _refusal(str(e))
 
     return _Server(
-        "sitekeeper",
+        "porchsite",
         version="0.0.1",
         instructions=INSTRUCTIONS,
         on_list_tools=list_tools,

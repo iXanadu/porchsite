@@ -20,7 +20,7 @@ async def test_a_key_drafts_like_a_connected_assistant_until_revoked(db, http):
 
     a = Mcp(http, key)
     init = await a.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})  # fmt: skip
-    assert init["result"]["serverInfo"]["name"] == "sitekeeper"
+    assert init["result"]["serverInfo"]["name"] == "porchsite"
     err, item, _ = await a.call("item_create", kind="note", data={"text": "Hello from a key.", "date": "2026-10-12"})  # fmt: skip
     assert not err
     hist = await content.history(db, item["id"])

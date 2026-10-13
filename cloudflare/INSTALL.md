@@ -13,6 +13,10 @@ https://raw.githubusercontent.com/iXanadu/porchsite/main/cloudflare/INSTALL.md
 Is your person a developer who'd rather run it themselves? Read
 [self-hosting](https://get.porchsite.dev/self-hosting.md) first.
 
+(The site's file is `sitekeeper.js` and its layout table `_sitekeeper_migrations`:
+Sitekeeper is the engine's internal name, kept in those names so every site
+stays updatable. Everything else is Porchsite.)
+
 **Three rules for the whole job.**
 - Only ever upload a release's own `sitekeeper.js`, its hash checked. Never
   change the site's code, add a logging or helper Worker to it, or put a

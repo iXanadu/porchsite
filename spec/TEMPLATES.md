@@ -1,6 +1,6 @@
-# Sitekeeper templates (draft 1)
+# Porchsite templates (draft 1)
 
-A template is the look of a Sitekeeper site and nothing else. The same
+A template is the look of a Porchsite site and nothing else. The same
 template renders the same bytes in every edition, because every edition hands
 it the same data (the **view**, below), renders it with Mustache, and escapes
 the same way (`& < > " '` only).

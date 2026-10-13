@@ -21,7 +21,7 @@ async def assistant(db, http, client="Helper", origin="https://site.example"):
 async def test_lists_the_cloudflare_editions_tools_exactly(db, http):
     a = await assistant(db, http)
     init = (await a.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}))["result"]  # fmt: skip
-    assert init["serverInfo"]["name"] == "sitekeeper"
+    assert init["serverInfo"]["name"] == "porchsite"
     assert init["serverInfo"]["version"] == "0.0.1"
     assert init["instructions"] == CF["instructions"] == mcp.INSTRUCTIONS
     assert init["capabilities"]["tools"]["listChanged"] is True

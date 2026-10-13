@@ -102,7 +102,7 @@ const STATES = {
 
 export function createServer(): McpServer {
   const db = (env as unknown as Env).DB;
-  const server = new McpServer({ name: "sitekeeper", version: "0.0.1" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "porchsite", version: "0.0.1" }, { instructions: INSTRUCTIONS });
   const origin = () => (getMcpAuthContext()?.props as { origin?: string } | undefined)?.origin ?? "";
 
   server.registerTool(
