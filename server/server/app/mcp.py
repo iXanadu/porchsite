@@ -54,8 +54,9 @@ CHECK_DESCRIPTION = (
     "Look over the site as it will be once everything you've changed is published, the way a visitor"
     " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
     " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
-    " with nothing in them (take them out of the site's sections, or fill them). `ok` is true when there's"
-    " neither. Run it before you ask for approval and before you tell your person the site is done."
+    " with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them,"
+    " if you mean to). `ok` is true when nothing is broken. Run it before you ask for approval and before"
+    " you tell your person the site is done."
 )
 STATES = {
     "live": "published, and the current version is what visitors see",

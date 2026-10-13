@@ -208,6 +208,7 @@ button[disabled]{opacity:.6}.card{background:#fff;border:1px solid #cfcbc9;borde
 <p>A website your assistant keeps up to date, on your own free Cloudflare account. Nothing on it goes live without your yes.</p>
 <h2>1. Make a Cloudflare token</h2>
 <p>No Cloudflare account yet? <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">Make a free one</a>, then <b>verify your email</b> from the message Cloudflare sends: it won't make tokens until you do.</p>
+<p class="meta">Verified, but Cloudflare still says to verify, or Create Token just spins? Its records can lag: wait a few minutes, sign out and back in, and try again.</p>
 <p>Signed in, open <a href="${esc(TOKEN_LINK)}" target="_blank" rel="noopener">this pre-filled token page</a>. If the form opens empty (it can, right after signing in), open the link again. Check it lists these, add any that are missing, and create the token:</p>
 <ul>${PERMISSIONS.map((p) => `<li>${esc(p.label)}</li>`).join("")}</ul>
 <p class="meta">The token goes to this installer only for the install, over HTTPS, and is never stored. When you're done you can delete it at Cloudflare; the site doesn't need it.</p>
@@ -257,8 +258,15 @@ function render(r) {
       const show = (late) => {
         clearInterval(timer);
         wait.remove();
-        card.append(el("p", "Ready. Last step, yours: claim your site and create your passkey. That passkey is how you approve everything from now on."));
+        card.append(el("p", "Ready. Last step, yours: claim your site and create your passkey, on the phone or computer you'll approve changes with. That passkey is how you approve everything from now on."));
         const a = el("a", "Claim your site", "button"); a.href = r.setup; a.target = "_blank"; a.rel = "noopener"; card.append(a);
+        // As text too: if an assistant's browser ran this page, the link has to
+        // reach the owner's own device.
+        card.append(el("p", "Not on your own device (your assistant's browser ran this page)? Open this link there instead:", "meta"));
+        const link = el("p", r.setup, "addr");
+        const copy = el("button", "Copy the link"); copy.type = "button";
+        copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(r.setup); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Select the link and copy it"; } });
+        card.append(link, copy);
         card.append(next);
         card.append(el("p", late ? "Your address is taking longer than usual. If the page says it can't be reached, or shows a security error (such as ERR_SSL_VERSION_OR_CIPHER_MISMATCH), wait a few minutes and reload it, or open the link in another browser: Cloudflare is still setting the address up." : "The link works once, for 24 hours. Don't share it or send a picture of it: it's the key to claiming your site.", "meta"));
       };

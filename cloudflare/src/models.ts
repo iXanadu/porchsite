@@ -114,7 +114,7 @@ export const SiteData = z
     tagline: optLine(160).describe("the big headline on the home page"),
     description: optLine(300).describe("one or two sentences about the site, for search results and link previews; empty uses the tagline"),
     intro: z.string().trim().max(1200).default("").describe("one paragraph under the headline"),
-    about: z.string().trim().max(8000).default("").describe("the About section, Markdown"),
+    about: z.string().trim().max(8000).default("").describe("the About section, plain text (no Markdown); a blank line starts a new paragraph"),
     owner_name: optLine(80).describe("the owner's name, shown in the footer"),
     links: z
       .array(z.object({ label: line(40), url }).strict())

@@ -121,4 +121,5 @@ def check_site(v: SiteView, media: set[str]) -> Data:
                     "why": f"the home page has no section #{hash_} with anything in it",
                 }
             )
-    return {"ok": not broken and not empty, "broken": broken, "empty_sections": empty}
+    # Empty sections are reported, not failed: the site's menu leaves them out.
+    return {"ok": not broken, "broken": broken, "empty_sections": empty}

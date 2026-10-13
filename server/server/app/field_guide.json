@@ -11,7 +11,7 @@
       "tagline": "the big headline on the home page",
       "description": "one or two sentences about the site, for search results and link previews; empty uses the tagline",
       "intro": "one paragraph under the headline",
-      "about": "the About section, Markdown",
+      "about": "the About section, plain text (no Markdown); a blank line starts a new paragraph",
       "owner_name": "the owner's name, shown in the footer",
       "links": "menu links top right: a list of {label, url}",
       "hero": "an image: a full https:// link to a JPEG, PNG or WebP (up to 8 MB), copied into the site when you save, or a /media/... path this site gave you; empty for none",

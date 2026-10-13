@@ -85,5 +85,6 @@ export function checkSite(v: SiteView, media: Set<string>): { ok: boolean; broke
     }
     if (hash && page === "/" && !anchors.has(hash)) broken.push({ where, link, why: `the home page has no section #${hash} with anything in it` });
   }
-  return { ok: !broken.length && !empty.length, broken, empty_sections: empty };
+  // Empty sections are reported, not failed: the site's menu leaves them out.
+  return { ok: !broken.length, broken, empty_sections: empty };
 }
