@@ -20,12 +20,10 @@ Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
 call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
 site's OAuth connector, and pictures held as files. In order:
-- **RA-4** IN-PROGRESS: One-page installer. Proven on a brand-new account
-  (re-test run 1). Left: confirm the pre-filled token link opens filled in
-  once signed in (run 1 opened it empty the first time; the page now says
-  to open it again).
-- **RA-5** IN-PROGRESS: The fair re-test (fresh account, one prompt,
-  transcripts kept). Done: Claude, Dot, Muse. Left: GrokBot, then grading.
+- **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
+  browser extension, only the two source files), to settle whether a
+  non-technical owner gets through with Claude at all. Round 3's Claude run
+  is invalid: it was given the wrong files.
 - **RA-6** OPEN: site_check should report entries no visitor can reach
   from the home page (rendered by the site's own look), not just broken
   links and empty sections: a look that drops some entries left a thin
