@@ -36,11 +36,10 @@ site's OAuth connector, and pictures held as files. In order:
 - **RA-10** OPEN: Uploading many photos costs one tool call each (34+ in a
   reunion build). A batch: several pictures per image_add call, or one
   upload link for many files.
-- **RA-8** IN-PROGRESS: Each harness at its best, none crippled. Done:
-  get.porchsite.dev/assistants.md (standing instructions to paste,
-  connectors, browser, secret field; by capability, not product). Left:
-  the product-by-product version on porchsite.dev, with the GrokBot
-  template's public link once the owner says to publish it.
+- **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
+  guide (by app), and Grok Bot's Porchsite template, public and linked.
+  Left: a Porchsite setup for each other app (a Claude Project or Skill, a
+  custom GPT, Meta AI's skills), then a run with each.
 
 ## DEGRADING
 - **SP-S1** OPEN: `site_state` returns 34-51 KB for an ordinary site,

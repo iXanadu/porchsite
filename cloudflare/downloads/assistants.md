@@ -39,7 +39,8 @@ names. Re-read them at the start of each new task: they change.
 
 - **Install the Porchsite template.** Grok Bot installs ready-made bots
   from a link; the Porchsite one already carries the instructions above.
-  Its link goes on porchsite.dev when it's published.
+  Install it from https://x.ai/bot/d7FrbtGVYmwTz7FexYZO4 (also linked on
+  porchsite.dev's Install page).
 - **Add the Cloudflare plugin** from its plugin marketplace, with write
   access. Then it installs your site itself.
 - Tokens and keys go in its secure paste box.
