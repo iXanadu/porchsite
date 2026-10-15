@@ -11,6 +11,7 @@
  * Fetching is safe to point at a caller's URL: https only, and the Worker's
  * global_fetch_strictly_public flag refuses private and internal addresses.
  */
+import { stripLocation } from "./image-privacy";
 import { ApiError } from "./errors";
 import type { Kind } from "./models";
 
@@ -108,6 +109,7 @@ export function size(b: Uint8Array): [number, number] {
 
 /** Store bytes once, by hash; returns the /media path. */
 export async function store(db: D1Database, bytes: Uint8Array, type: string, source: string): Promise<string> {
+  bytes = stripLocation(bytes, type);
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   const name = `${[...digest.slice(0, 16)].map((b) => b.toString(16).padStart(2, "0")).join("")}.${EXT[type]}`;
   const have = await db.prepare("SELECT width FROM media WHERE name = ?").bind(name).first<{ width: number }>();

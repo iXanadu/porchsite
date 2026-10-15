@@ -202,6 +202,8 @@ come from headers; images are never rasterized here. The one-shot
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
 
+Stored pictures carry no location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten.
+
 Pictures should be compressed before upload by default: web size, about
 2400 pixels on the long side, usually under 1 MB, as JPEG or WebP.
 Originals remain allowed, but the assistant must first tell the owner plainly:

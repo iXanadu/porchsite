@@ -16,6 +16,7 @@ from server.spec.jsutil import NOT_S, S
 
 from .db import Db, now
 from .errors import ApiError
+from .image_privacy import strip_location
 from .fetch import Fetcher, capped_public_fetch
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -136,6 +137,7 @@ def size(b: bytes) -> tuple[int, int]:
 
 async def store(db: Db, data: bytes, type_: str, source: str) -> str:
     """Store bytes once, by hash; returns the /media path."""
+    data = strip_location(data, type_)
     name = f"{hashlib.sha256(data).digest()[:16].hex()}.{EXT[type_]}"
     have = await db.fetchrow("SELECT width FROM media WHERE name = $1", name)
     if have and not have["width"]:
