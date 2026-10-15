@@ -35,6 +35,12 @@ re-measure.
   page budget, a `next` cursor to continue, and the same answer once all
   steps are done. Both editions, spec first. Find why main's check costs
   3x release fbdd784's first.
+- **S3-5** OPEN: Uploads. One legal 8 MB `image_add` (or 8 x 1 MB) costs
+  about 100-118 ms CPU cold and 52-59 ms warm locally (base64 decode,
+  hash, encoding for D1, D1 serialization); today's release does the same
+  work. First measure CPU per decoded MB (0.5, 1, 2, 4 MB) and find the
+  largest per-call size that fits; then decide between a lower per-call
+  limit with pictures sent in pieces across calls, or a leaner byte path.
 - **S3-4** OPEN: PM decision after S3-3's numbers. If the full check still
   can't fit, the deep crawl becomes an add-on that is off by default and
   marked as needing the paid plan, and the core keeps a quick check.
