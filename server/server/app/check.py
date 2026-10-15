@@ -180,8 +180,9 @@ def _address(href: str, base: str) -> str:
 
 def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[Data]:
     t = look or themes.built_in().get(themes.ALIASES.get(v.site["theme"], v.site["theme"]))
-    origin = _address(origin or "https://example.invalid", "https://example.invalid")
-    base = urlsplit(origin)
+    base = urlsplit(_address(origin or "https://example.invalid", "https://example.invalid"))
+    # Renderer contexts receive an origin, never a URL path or trailing slash.
+    origin = urlunsplit((base.scheme, base.netloc, "", "", ""))
     reached: set[str] = set()
     inline: set[str] = set()
     marker = f"porchsite-check-{uuid4()}:"

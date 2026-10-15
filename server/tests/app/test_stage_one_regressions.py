@@ -36,3 +36,9 @@ def test_matches_equivalent_stored_and_rendered_destinations(stored, rendered):
     result = check_site(view(DATA, [entry(stored)]), set(), look(f'<a href="{rendered}">External</a>'))
     assert result["ok"] is True
     assert result["unreachable"] == []
+
+
+
+def test_preserves_bare_renderer_origin_in_same_site_absolute_links():
+    result = check_site(view(DATA, [entry()]), set(), look('<a href="{{site.base_url}}/journal/entry/">Entry</a>'), "https://site.example")
+    assert result["unreachable"] == []

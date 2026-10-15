@@ -28,3 +28,9 @@ it.each([
   expect(result.ok).toBe(true);
   expect(result.unreachable).toEqual([]);
 });
+
+
+it("preserves the bare renderer origin in same-site absolute links", async () => {
+  const result = await checkSite(view(data, [entry()]), new Set(), look('<a href="{{site.base_url}}/journal/entry/">Entry</a>'), "https://site.example");
+  expect(result.unreachable).toEqual([]);
+});
