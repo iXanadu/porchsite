@@ -303,6 +303,7 @@ export const NoteData = z
   .strict();
 
 const SiteInput = z.object({
+    broker: z.string().max(160).default("").describe("plain-text brokerage line; Listing footer only; owner approval required"),
     embed_sources: z.array(z.string().max(2000)).max(20).default([]).describe("approved HTTPS player origins; adding or removing one requires owner approval"),
   ...SiteData.shape,
 }).strict();

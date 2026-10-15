@@ -1,3 +1,4 @@
+import { brokerWrite } from "./site-fields";
 import { storedData, sourceData, sourceWrite, migrateSources } from "./embed-storage";
 /**
  * Every content write goes through here, so the safety rules always apply:
@@ -215,7 +216,7 @@ async function write(
       )
       .bind(action, actor, reason, at, item.id, item.version),
   );
-  if (item.kind === "site") stmts.push(sourceWrite(db, item.version, item.data));
+  if (item.kind === "site") stmts.push(sourceWrite(db, item.version, item.data), brokerWrite(db, item.version, item.data));
   // A changed address is remembered, so the old one can send visitors on.
   if (expected !== null && from && item.slug && from !== item.slug) {
     stmts.push(

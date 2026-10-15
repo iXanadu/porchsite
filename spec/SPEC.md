@@ -186,6 +186,36 @@ one small dialect both editions render to the same bytes. The cases in
 
 Templates decide how kinds look, never what they say (see §6).
 
+### Versioned site fields and Listing content
+
+Both editions accept optional `site.broker`: plain text of at most 160
+characters, default empty, never interpreted as Markdown. The Listing look
+shows it in small footer text after the agent/contact information. Other
+looks ignore it. `site_state`, review, history and restore expose the logical
+field at its exact site version.
+
+Store extensible site fields in additive `site_fields` rows keyed by
+`(version, key)`, with a JSON value and an approval mark. Initially the only
+key is `broker`; the table is not an arbitrary input-key escape hatch.
+`SiteData` and all persisted items/revisions/live JSON retain the previous
+release's strict key set. A normal site content write stores the logical
+field alongside the same immutable version. Only owner publish marks that
+version approved, and public views use only the approved matching live
+version. Missing rows/tables and unapproved versions yield the empty value;
+values never inherit across versions. An empty value is represented by an
+absent row at that exact version, which records a removal without inheriting
+older values. Restore,
+rollback, import and whole-site revert use the same version and approval
+paths. A previous runtime publishing an unseen draft cannot approve its
+new fields. No existing embed-source authority is moved or widened.
+
+Listing renders all published visible cards, including mention-only cards
+without their private link or picture, in a Highlights section on home and
+entry pages. Private/unpublished cards remain absent. This section follows
+the stat rail and precedes the listing body; phone layouts use one column.
+Its hero-image advisory is 1600 pixels wide (about 1600 by 900 for the crop),
+not an upload requirement. Existing photo shrinking and size limits remain.
+
 ### Owner-approved embeds
 
 This applies identically to both editions. S7 continues to require
@@ -216,8 +246,9 @@ Keep old JSON free of the key on every subsequent write and publish, so a
 rollback needs no reverse schema migration. New tables are ignored by the
 previous bundle; new body markup may degrade to literal text.
 
-Rollback payload audit against the previous release: `embed_sources` is
-the only new logical site/content field. Entry/card/note stored key sets,
+Rollback payload audit against the previous release: `embed_sources` and
+`broker` are the new logical site/content fields; both live outside legacy
+JSON. Entry/card/note stored key sets,
 settings and existing media/analytics columns gain no new keys. Image
 privacy changes only existing byte/hash values; coalesced analytics changes
 existing cumulative values and sending cadence. Tool guidance/response

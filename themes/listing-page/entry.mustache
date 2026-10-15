@@ -1,6 +1,6 @@
 {{> head}}
 <article class="listing"><div class="entry-head"><a class="text-link" href="/">← {{site.title}}</a><p class="eyebrow">{{page.hero_caption}}</p><h1>{{entry.title}}</h1>{{#entry.summary}}<p class="intro">{{entry.summary}}</p>{{/entry.summary}}</div>
 {{#site.hero_image}}<figure class="hero-photo"><img src="{{site.hero_image}}" alt="{{page.hero_alt}}" width="{{site.hero_width}}" height="{{site.hero_height}}" fetchpriority="high"></figure>{{/site.hero_image}}
-{{#entry}}{{> stats}}{{/entry}}
+{{#entry}}{{> stats}}{{/entry}}{{> highlights}}
 <div class="listing-body">{{{entry.body_html}}}</div></article>
 {{> contact}}{{> foot}}
