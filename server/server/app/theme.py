@@ -29,7 +29,12 @@ _writer = mustache.Writer(escape)
 
 
 def render(t: Theme, page: str, view: dict[str, Any], policy=None) -> str:
-    return finish_embeds(_writer.render(t["pages"][page], view, t.get("partials") or {}), (policy or {}).get("sources"), (policy or {}).get("origin", ""))
+    return finish_embeds(
+        _writer.render(t["pages"][page], view, t.get("partials") or {}),
+        (policy or {}).get("sources"),
+        (policy or {}).get("origin", ""),
+        view,
+    )
 
 
 def static_file(t: Theme, file: str, palette: str = "") -> dict[str, Any] | None:

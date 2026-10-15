@@ -510,4 +510,4 @@ def _theme(root: Path, name: str) -> tuple[mustache.Writer, dict[str, str], dict
 
 def render(name: str, page: str, view: Data, root: Path = THEMES) -> str:
     writer, pages, partials = _theme(Path(root), name)
-    return finish_embeds(writer.render(pages[page], view, partials))
+    return finish_embeds(writer.render(pages[page], view, partials), view=view)

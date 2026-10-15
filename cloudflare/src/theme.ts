@@ -319,7 +319,7 @@ for (const theme of Object.values(THEMES)) {
 }
 
 export function render(t: Theme, page: string, view: Data, policy?: { sources: unknown; origin: string }): string {
-  return finishEmbeds(Mustache.render(t.pages[page], view, t.partials), policy?.sources, policy?.origin);
+  return finishEmbeds(Mustache.render(t.pages[page], view, t.partials), policy?.sources, policy?.origin, view);
 }
 
 const STATIC_TYPES: Record<string, string> = { css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8" };

@@ -245,11 +245,17 @@ engine-made block, preserving its position between surrounding Markdown
 blocks. A body containing only that form is still a body. An entry with
 `external_url` keeps its existing outward-link behaviour. The engine, not a
 look or content author, produces frame markup.
-Look packages remain forbidden from supplying iframe/object/embed markup
-or the engine's internal `porchsite-embed` placeholder. Tag names in looks
-are literal HTML; they cannot be assembled from Mustache values. Before
-expanding engine blocks, neutralise any authored iframe from an older look
-as an inert template, never as a player.
+Look checks reject literal iframe/object/embed/frame tags, the engine's
+internal placeholder, and tag names beginning with a template expression
+(`<{{` or `</{{`). Attribute expressions and sections remain allowed.
+The guarantee is applied to rendered output: before expanding genuine
+engine blocks, neutralise every authored iframe/object/embed/frame tag,
+including names assembled by a look. An opening tag with a permitted https
+src/data/cite becomes a plain link; otherwise remove its tags and retain
+its text. Closing tags are removed with a separating space. Engine markers
+have unpredictable capabilities in a private render map; copying a static
+placeholder or its attributes cannot create a frame. Capabilities are not
+persisted in content; only the private render map can authorize a marker.
 The final rendered page enforces the fixed frame attributes and an actual
 page-wide limit of 12 frames, including repeated bodies: the first 12
 eligible occurrences in document order may become frames, and every later

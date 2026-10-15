@@ -61,10 +61,7 @@ export function rules(name: string, t: Theme, opts: { scripts: boolean }): strin
     } catch (e) {
       problems.push(`${file}: ${(e as Error).message}`);
     }
-    // A conditional attribute starts with whitespace and leaves a name
-    // boundary even when omitted. It cannot change the literal tag name.
-    const names = src.replace(/(<\/?[a-z][a-z0-9:-]*)\{\{[#^]\s*([a-zA-Z0-9_.-]+)\s*\}\}[ \t\r\n]+[^<>]*?\{\{\/\s*\2\s*\}\}(?=[ \t\r\n/>])/gi, "$1 ");
-    if (/<\/?[^\s/>]*\{\{/.test(names)) problems.push(`${file}: tag names must be literal HTML`);
+    if (/<\/?\{\{/.test(src)) problems.push(`${file}: tag names cannot start with a template expression`);
     if (/\{\{=/.test(src)) problems.push(`${file}: delimiter changes aren't allowed`);
     for (const tri of src.match(/\{\{\{[^}]*\}\}\}/g) ?? []) if (!/_html\s*\}\}\}$/.test(tri)) problems.push(`${file}: triple braces only for *_html values (${tri})`);
     if (/\{\{&/.test(src)) problems.push(`${file}: {{& }} (unescaped) isn't allowed`);
@@ -76,7 +73,7 @@ export function rules(name: string, t: Theme, opts: { scripts: boolean }): strin
       }
     }
     if (/\son[a-z]+\s*=/i.test(src)) problems.push(`${file}: inline event handlers (onclick=…) aren't allowed`);
-    if (/<(iframe|object|embed|form|porchsite-embed)\b/i.test(src)) problems.push(`${file}: no iframes, objects, embeds or forms`);
+    if (/<(iframe|object|embed|frame|form|porchsite-embed)\b/i.test(src)) problems.push(`${file}: no iframes, objects, embeds or forms`);
     for (const img of src.match(/<img\b[^>]*>/gi) ?? []) if (!/\balt="/.test(img)) problems.push(`${file}: <img> without alt from the view`);
     for (const u of src.match(/https?:\/\/[^\s"'<>)]+/g) ?? []) if (!ALLOWED_HOSTS.includes(host(u))) problems.push(`${file}: outside address ${u}`);
     const text = src.replace(/<!--[\s\S]*?-->/g, "").replace(/<(script|style)[\s\S]*?<\/\1>/gi, "").replace(/<[^>]+>/g, " ").replace(/\{\{[\s\S]*?\}\}/g, " ");

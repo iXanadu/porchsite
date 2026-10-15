@@ -91,12 +91,14 @@ it("adds site_check notes against live authority and leaves no-embed answers unc
 
 it("does not trust authored frames or dynamic tag names in looks",async()=>{
  const marker=bodyMarkdown(form);
- expect(finishEmbeds('<iframe src="'+source+'">ignored</iframe>'+marker,[source],origin)).toBe('<template src="'+source+'">ignored</template>'+cases.frame);
+ expect(finishEmbeds('<iframe src="'+source+'">ignored</iframe>'+marker,[source],origin,marker)).toBe('<a href="'+source+'/">'+source+'/</a>ignored '+cases.frame);
  expect(finishEmbeds('<IFRAME src="'+source+'"></IFRAME>',[source],origin)).not.toMatch(/iframe/i);
  expect(finishEmbeds('<!--><iframe src="'+source+'"></iframe>',[source],origin)).not.toMatch(/iframe/i);
  const {rules}=await import('../src/themecheck'), {THEMES}=await import('../src/themes.gen');
  const t=THEMES['personal-homepage'];
- for(const bad of ['<{{site.logo_text}} src="{{site.cta_link}}"></{{site.logo_text}}>','<if{{site.logo_text}}rame></if{{site.logo_text}}rame>','<porchsite-embed data-url="x" data-title="y"></porchsite-embed>']) {
+ const adjacent='<a{{#site.title}} id="x"{{/site.title}}{{#site.handle}} class="x"{{/site.handle}}>{{site.title}}</a>';
+ expect(rules('personal-homepage',{...t,pages:{...t.pages,home:adjacent}},{scripts:true})).toEqual([]);
+ for(const bad of ['<{{site.logo_text}} src="{{site.cta_link}}"></{{site.logo_text}}>','<porchsite-embed data-url="x" data-title="y"></porchsite-embed>']) {
   expect(rules('personal-homepage',{...t,pages:{...t.pages,home:bad}},{scripts:true}).some(p=>p.includes('tag names')||p.includes('iframes'))).toBe(true);
  }
 });
@@ -118,7 +120,7 @@ it("keeps matched multiline inline code literal for single and double backticks"
 
 it("does not spend frame budget on noscript fallback occurrences",()=>{
  const marker=bodyMarkdown(form), body='<noscript>'+marker.repeat(12)+'</noscript>'+marker;
- const finished=finishEmbeds(body,[source],origin);
+ const finished=finishEmbeds(body,[source],origin,marker);
  expect(finished.match(/<iframe /g)).toHaveLength(1);
  expect(finished.match(/<a /g)).toHaveLength(13);
  expect(finished.slice(0,finished.indexOf('</noscript>'))).not.toContain('<iframe');
@@ -134,7 +136,31 @@ it("allows literal tags with conditional attributes in bundled and private looks
  for(const home of ['<a{{#site.title}} id="{{site.title}}"{{/site.title}} href="/">{{site.title}}</a>', '<tr{{^site.title}} class="today"{{/site.title}}><td {{site.title}}>{{site.title}}</td></tr>', '<a {{#site.title}}id="{{site.title}}"{{/site.title}}>{{site.title}}</a>']) {
   expect(rules('personal-homepage',{...t,pages:{...t.pages,home}},{scripts:true})).toEqual([]);
  }
- for(const home of ['<{{site.title}}>','</{{site.title}}>','<if{{site.title}}rame>','<if{{#site.title}}rame{{/site.title}}>','<if{{^site.title}}rame{{/site.title}}>','<if{{#site.title}} class="x"{{/site.title}}rame>','<iframe></iframe>','<object></object>','<embed>']) {
+ for(const home of ['<{{site.title}}>','</{{site.title}}>','<iframe></iframe>','<object></object>','<embed>']) {
   expect(rules('personal-homepage',{...t,pages:{...t.pages,home}},{scripts:true}).some(p=>p.includes('tag names')||p.includes('iframes')),home).toBe(true);
  }
+});
+
+it("neutralises assembled frame elements and refuses forged engine markers",()=>{
+ const marker=bodyMarkdown(form);
+ const t:any={pages:{home:''},partials:{}};
+ for(const home of [
+  '<if{{#site.handle}} {{#site.handle}}x{{/site.handle}} {{/site.handle}}rame src="https://example.com/player">Text</iframe>',
+  '<if{{#flag}}rame{{/flag}}>Text</iframe>',
+  '<ob{{part}}ject data="https://example.com/player">Text</object>',
+  '<em{{part}}bed src="https://example.com/player">',
+  '<fr{{part}}ame src="https://example.com/player">',
+  '<!--><IFRAME src="https://example.com/player">Text</iframe>',
+  '<porchsite-embed data-url="https%3A%2F%2Fwww.youtube-nocookie.com%2Fembed%2FAb_C-123" data-title="Tour"></porchsite-embed>',
+  '<porchsite-embed data-key="00000000-0000-0000-0000-000000000000"></porchsite-embed>',
+ ]) {
+  const html=render({...t,pages:{home}},'home',{site:{handle:false},flag:true,part:''},{sources:[source],origin});
+  expect(html,home).not.toMatch(/<(?:iframe|object|embed|frame)\b/i);
+ }
+ expect(render({...t,pages:{home:'{{{body}}}'}},'home',{body:marker},{sources:[source],origin})).toBe(cases.frame);
+ // Possessing a copied string is not possession of its private render map.
+ expect(finishEmbeds(String(marker),[source],origin)).not.toContain('<iframe');
+ expect(render({...t,pages:{home:'{{{body}}}'}},'home',JSON.parse(JSON.stringify({body:marker})),{sources:[source],origin})).not.toContain('<iframe');
+ const mixed=render({...t,pages:{home:'<if{{part}}rame src="'+source+'"></iframe>{{{body}}}'}},'home',{part:'',body:marker},{sources:[source],origin});
+ expect(mixed.match(/<iframe /g)).toHaveLength(1);
 });

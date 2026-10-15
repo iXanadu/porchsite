@@ -1,6 +1,7 @@
 """Engine-owned embed blocks; live policy is applied after template selection."""
 
 import re
+import uuid
 from urllib.parse import quote, unquote
 
 from .embed_url import embed_sources, embed_url, request_origin
@@ -9,6 +10,27 @@ from .jsutil import trim
 
 _FORM = re.compile(r"!embed\[([^\[\]\r\n]{1,200})\]\(([^()\r\n]{1,2000})\)\Z")
 PERMISSIONS = "camera=(), microphone=(), geolocation=(), payment=(), display-capture=(), publickey-credentials-get=()"
+
+
+class _Body(str):
+    """String-compatible HTML with private capabilities, never view fields."""
+
+    def __new__(cls, value, markers):
+        obj = super().__new__(cls, value)
+        obj._markers = markers
+        return obj
+
+
+def _render_markers(view, out=None, seen=None):
+    out = {} if out is None else out
+    seen = set() if seen is None else seen
+    if isinstance(view, _Body):
+        out.update(view._markers)
+    elif isinstance(view, (dict, list)) and id(view) not in seen:
+        seen.add(id(view))
+        for value in view.values() if isinstance(view, dict) else view:
+            _render_markers(value, out, seen)
+    return out
 
 
 def embed_line(line):
@@ -28,20 +50,22 @@ def body_markdown(src, visit=None):
     if "!embed[" not in src:
         return markdown(src)
 
+    markers = {}
+
     def block(line):
         e = embed_line(line)
         if not e:
             return None
         if visit:
             visit(e)
-        try:
-            url = quote(e["url"], safe="-_.!~*'()")
-            title = quote(e["title"], safe="-_.!~*'()")
-        except UnicodeError:
-            return None
-        return f'<porchsite-embed data-url="{url}" data-title="{title}"></porchsite-embed>'
+        key = str(uuid.uuid4())
+        markers[key] = e
+        url = quote(e["url"], safe="-_.!~*'()")
+        title = quote(e["title"], safe="-_.!~*'()")
+        return f'<porchsite-embed data-key="{key}" data-url="{url}" data-title="{title}"></porchsite-embed>'
 
-    return markdown(src, block)
+    html = markdown(src, block)
+    return _Body(html, markers) if markers else html
 
 
 def embeds_of(src):
@@ -66,29 +90,49 @@ def frame_csp(csp, sources, origin):
 
 
 _MARKER = re.compile(
-    r'<porchsite-embed data-url="([^"]*)" data-title="([^"]*)"></porchsite-embed>\Z'
+    r'<porchsite-embed(?: data-key="([a-f0-9-]{36})")? data-url="([^"]*)" data-title="([^"]*)"></porchsite-embed>\Z'
 )
 _TOKENS = re.compile(
-    r"""<porchsite-embed data-url="[^"]*" data-title="[^"]*"></porchsite-embed>|<!--[\s\S]*?(?:-->|$)|<(?:"[^"]*"|'[^']*'|[^'">])*>"""
+    r"""<porchsite-embed(?: data-key="[a-f0-9-]{36}")? data-url="[^"]*" data-title="[^"]*"></porchsite-embed>|<!--[\s\S]*?(?:-->|$)|<(?:"[^"]*"|'[^']*'|[^'">])*>"""
 )
 _TAG = re.compile(r"<\s*(/?)\s*([a-z0-9-]+)", re.I)
 
 
 def _without_authored_frames(body):
-    # Prefix replacement also catches frames hidden by malformed comments.
-    # Engine frames are generated after this pass; template contents are inert.
+    # Independent of malformed comments; spaces prevent joining tag fragments.
+    inert = re.sub(
+        r"(</?)(iframe|object|embed|frame)\b", r"\1porchsite-inert-\2", str(body), flags=re.I
+    )
+
+    def replace(match):
+        tag = match[0]
+        if tag.startswith("</"):
+            return " "
+        attr = re.search(
+            r"""\b(?:src|data|cite)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", tag, re.I
+        )
+        if attr:
+            try:
+                u = embed_url(next(v for v in attr.groups() if v is not None))
+                return f'<a href="{esc(u.href)}">{esc(u.href)}</a>'
+            except (ValueError, UnicodeError):
+                pass
+        return " "
+
     return re.sub(
-        r"</?iframe\b",
-        lambda m: "</template" if m[0].startswith("</") else "<template",
-        body,
+        r"""</?porchsite-inert-(?:iframe|object|embed|frame)\b(?:"[^"]*"|'[^']*'|[^'">])*(?:>|$)""",
+        replace,
+        inert,
         flags=re.I,
     )
 
 
-def finish_embeds(body, sources=None, origin=""):
+def finish_embeds(body, sources=None, origin="", view=None):
+    view = body if view is None else view
     body = _without_authored_frames(body)
     if "<porchsite-embed " not in body:
         return body
+    markers = _render_markers(view)
     allowed = set(safe_sources(sources or [], origin))
     count, templates, noscript, raw_text = 0, 0, False, ""
 
@@ -104,13 +148,20 @@ def finish_embeds(body, sources=None, origin=""):
             return token
         marker = _MARKER.fullmatch(token)
         if marker:
-            try:
-                u = embed_url(unquote(marker[1]))
-                title = unquote(marker[2])
-            except (ValueError, UnicodeError):
+            e = markers.get(marker[1]) if marker[1] else None
+            genuine = e is not None
+            if e is None and marker:
+                try:
+                    u = embed_url(unquote(marker[2]))
+                    e = {"url": u.href, "title": unquote(marker[3]), "origin": u.origin}
+                except (ValueError, UnicodeError):
+                    return ""
+            if e is None:
                 return ""
+            u = embed_url(e["url"])
+            title = e["title"]
             link = f'<a href="{esc(u.href)}">{esc(title)}</a>'
-            if templates or noscript or u.origin not in allowed or count >= 12:
+            if not genuine or templates or noscript or u.origin not in allowed or count >= 12:
                 return f'<div class="embed">{link}</div>'
             count += 1
             return f'<div class="embed"><iframe src="{esc(u.href)}" title="{esc(title)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen; xr-spatial-tracking" style="width:100%;aspect-ratio:16/9;border:0"></iframe>{link}</div>'

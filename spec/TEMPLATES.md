@@ -99,9 +99,13 @@ in the body, so every look uses its existing `body_html` position. A body
 containing only the embed form still has `has_body`. There is no appended
 `entry.embeds` field. The fixed, responsive frame and its
 link are engine-produced safe HTML, with policy from SPEC.md's embed rules.
-Look packages still cannot contain iframe/object/embed tags, the engine's
-internal `porchsite-embed` placeholders, or choose their
-sandbox/permissions. The outside-request exception is limited to approved
+Look checks reject literal iframe/object/embed/frame tags, internal
+placeholders, and `<{{` / `</{{` names, while allowing attribute sections.
+Rendered authored frame elements are neutralised before genuine engine
+markers expand: a permitted https target becomes a link; otherwise remove
+the tags and keep their text. Private, unpredictable marker capabilities
+prevent look-authored placeholders from creating frames. Looks cannot choose
+the engine's sandbox/permissions. The outside-request exception is limited to approved
 public frames; it never grants remote images, scripts or owner-page players.
 The engine enforces the 12-frame cap on the actual selected page, including
 repeated bodies. No-embed view/body output remains unchanged.

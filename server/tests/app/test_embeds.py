@@ -60,7 +60,9 @@ def test_literal_cases_and_rendered_budget():
     assert body.index("Before") < body.index("<porchsite-embed") < body.index("After")
     assert finish_embeds(body_markdown(FORM), [SOURCE], ORIGIN) == CASES["frame"]
     marker = body_markdown(FORM)
-    result = finish_embeds("<template>" + marker + "</template>" + marker * 14, [SOURCE], ORIGIN)
+    result = finish_embeds(
+        "<template>" + marker + "</template>" + marker * 14, [SOURCE], ORIGIN, marker
+    )
     assert result.count("<iframe ") == 12 and result.count("<a ") == 15
     assert "<iframe" not in finish_embeds(marker, [SOURCE], SOURCE)
     assert "<iframe" not in finish_embeds(marker)
@@ -192,8 +194,10 @@ def test_authored_frames_and_dynamic_tag_names_are_not_trusted():
 
     marker = body_markdown(FORM)
     assert (
-        finish_embeds('<iframe src="' + SOURCE + '">ignored</iframe>' + marker, [SOURCE], ORIGIN)
-        == '<template src="' + SOURCE + '">ignored</template>' + CASES["frame"]
+        finish_embeds(
+            '<iframe src="' + SOURCE + '">ignored</iframe>' + marker, [SOURCE], ORIGIN, marker
+        )
+        == '<a href="' + SOURCE + '/">' + SOURCE + "/</a>ignored " + CASES["frame"]
     )
     assert (
         "iframe"
@@ -208,7 +212,6 @@ def test_authored_frames_and_dynamic_tag_names_are_not_trusted():
     t = themes.built_in()["personal-homepage"]
     for bad in [
         '<{{site.logo_text}} src="{{site.cta_link}}"></{{site.logo_text}}>',
-        "<if{{site.logo_text}}rame></if{{site.logo_text}}rame>",
         '<porchsite-embed data-url="x" data-title="y"></porchsite-embed>',
     ]:
         probs = themecheck.rules(
@@ -235,7 +238,7 @@ def test_matched_multiline_inline_code_remains_literal():
 def test_noscript_fallback_does_not_spend_frame_budget():
     marker = body_markdown(FORM)
     body = "<noscript>" + marker * 12 + "</noscript>" + marker
-    finished = finish_embeds(body, [SOURCE], ORIGIN)
+    finished = finish_embeds(body, [SOURCE], ORIGIN, marker)
     assert finished.count("<iframe ") == 1 and finished.count("<a ") == 13
     assert "<iframe" not in finished.split("</noscript>")[0]
     for src in ["> `\n" + FORM + "\n`", "- ``\n" + FORM + "\n``"]:
@@ -248,6 +251,15 @@ def test_literal_tags_allow_conditional_attributes():
     for name, look in themes.built_in().items():
         assert themecheck.rules(name, look, scripts=True) == []
     look = themes.built_in()["personal-homepage"]
+    adjacent = '<a{{#site.title}} id="x"{{/site.title}}{{#site.handle}} class="x"{{/site.handle}}>{{site.title}}</a>'
+    assert (
+        themecheck.rules(
+            "personal-homepage",
+            {**look, "pages": {**look["pages"], "home": adjacent}},
+            scripts=True,
+        )
+        == []
+    )
     for home in [
         '<a{{#site.title}} id="{{site.title}}"{{/site.title}} href="/">{{site.title}}</a>',
         '<tr{{^site.title}} class="today"{{/site.title}}><td {{site.title}}>{{site.title}}</td></tr>',
@@ -264,10 +276,6 @@ def test_literal_tags_allow_conditional_attributes():
     for home in [
         "<{{site.title}}>",
         "</{{site.title}}>",
-        "<if{{site.title}}rame>",
-        "<if{{#site.title}}rame{{/site.title}}>",
-        "<if{{^site.title}}rame{{/site.title}}>",
-        '<if{{#site.title}} class="x"{{/site.title}}rame>',
         "<iframe></iframe>",
         "<object></object>",
         "<embed>",
@@ -276,3 +284,54 @@ def test_literal_tags_allow_conditional_attributes():
             "personal-homepage", {**look, "pages": {**look["pages"], "home": home}}, scripts=True
         )
         assert any("tag names" in p or "iframes" in p for p in probs), home
+
+
+def test_rendered_output_neutralises_assembled_elements_and_forged_markers():
+    from server.app.theme import render
+
+    marker = body_markdown(FORM)
+    for home in [
+        '<if{{#site.handle}} {{#site.handle}}x{{/site.handle}} {{/site.handle}}rame src="https://example.com/player">Text</iframe>',
+        "<if{{#flag}}rame{{/flag}}>Text</iframe>",
+        '<ob{{part}}ject data="https://example.com/player">Text</object>',
+        '<em{{part}}bed src="https://example.com/player">',
+        '<fr{{part}}ame src="https://example.com/player">',
+        '<!--><IFRAME src="https://example.com/player">Text</iframe>',
+        '<porchsite-embed data-url="https%3A%2F%2Fwww.youtube-nocookie.com%2Fembed%2FAb_C-123" data-title="Tour"></porchsite-embed>',
+        '<porchsite-embed data-key="00000000-0000-0000-0000-000000000000"></porchsite-embed>',
+    ]:
+        html = render(
+            {"pages": {"home": home}, "partials": {}},
+            "home",
+            {"site": {"handle": False}, "flag": True, "part": ""},
+            {"sources": [SOURCE], "origin": ORIGIN},
+        )
+        assert not any(
+            "<" + name in html.lower() for name in ["iframe", "object", "embed", "frame"]
+        ), home
+    assert (
+        render(
+            {"pages": {"home": "{{{body}}}"}, "partials": {}},
+            "home",
+            {"body": marker},
+            {"sources": [SOURCE], "origin": ORIGIN},
+        )
+        == CASES["frame"]
+    )
+    assert "<iframe" not in finish_embeds(str(marker), [SOURCE], ORIGIN)
+    assert "<iframe" not in render(
+        {"pages": {"home": "{{{body}}}"}, "partials": {}},
+        "home",
+        json.loads(json.dumps({"body": marker})),
+        {"sources": [SOURCE], "origin": ORIGIN},
+    )
+    mixed = render(
+        {
+            "pages": {"home": '<if{{part}}rame src="' + SOURCE + '"></iframe>{{{body}}}'},
+            "partials": {},
+        },
+        "home",
+        {"part": "", "body": marker},
+        {"sources": [SOURCE], "origin": ORIGIN},
+    )
+    assert mixed.count("<iframe ") == 1

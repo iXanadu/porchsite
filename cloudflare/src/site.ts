@@ -152,7 +152,7 @@ article img,.hero,.cover{max-width:100%;height:auto;border-radius:8px;display:bl
 // The kit's beacon (SPEC §8) is the page's only script, and posts to this site only.
 const BUILTIN_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = "", origin = ""): Response {
+function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = "", origin = "", provenance?: unknown): Response {
   const s = v.site;
   return respond(
     raw(finishEmbeds(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -161,7 +161,7 @@ function page(v: SiteView, title: string, description: string, main: Raw, kind: 
 <body data-kind="${kind}" data-id="${id}"><div class="wrap"><header><a class="logo" href="/">${s.title}</a><nav>${s.links.map(
       (l: Data) => html`<a href="${l.url}">${l.label}</a>`,
     )}</nav></header><main>${main}</main>
-<footer>${s.owner_name ? html`${s.owner_name} · ` : ""}${s.footer_line || raw("Kept up to date by an assistant, published with the owner's approval.")}</footer></div><script src="/static/a.js" defer></script></body></html>`.html, origin ? s.embed_sources : [], origin)),
+<footer>${s.owner_name ? html`${s.owner_name} · ` : ""}${s.footer_line || raw("Kept up to date by an assistant, published with the owner's approval.")}</footer></div><script src="/static/a.js" defer></script></body></html>`.html, origin ? s.embed_sources : [], origin, provenance)),
     { headers: { "Cache-Control": "no-cache", ...(origin ? {"Permissions-Policy": PERMISSIONS} : {}) }, csp: frameCsp(BUILTIN_CSP, origin ? s.embed_sources : [], origin) },
   );
 }
@@ -220,12 +220,13 @@ export function entryPage(v: SiteView, address: string, origin = ""): Response |
   if (!e) return null;
   // A post that lives elsewhere has no page here; its address goes there.
   if (e.external_url) return Response.redirect(e.external_url, 302);
+  const body = bodyMarkdown(e.body);
   const main = html`<article><p class="meta"><a href="/">← ${v.site.title}</a></p><div class="meta">${longDate(e.date)}</div><h1>${e.title}</h1>${
     e.summary ? html`<p class="lede">${e.summary}</p>` : ""
   }${e.cover ? html`<img class="cover" src="${e.cover}" alt="${e.cover_alt}">` : ""}${
     (e.stats ?? []).length ? html`<div class="stats">${e.stats.map((x: Data) => html`<div class="stat"><b>${x.value}</b><span>${x.label}</span></div>`)}</div>` : ""
-  }${raw(bodyMarkdown(e.body))}${e.tags.length ? html`<p class="tags">${e.tags.map((t: string) => html`<span class="meta">#${t}</span> `)}</p>` : ""}</article>`;
-  return page(v, `${e.title} · ${v.site.title}`, e.summary || e.title, main, "entry", e.id, origin);
+  }${raw(body)}${e.tags.length ? html`<p class="tags">${e.tags.map((t: string) => html`<span class="meta">#${t}</span> `)}</p>` : ""}</article>`;
+  return page(v, `${e.title} · ${v.site.title}`, e.summary || e.title, main, "entry", e.id, origin, body);
 }
 
 /**
