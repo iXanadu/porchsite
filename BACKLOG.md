@@ -24,6 +24,14 @@ Goal: every request (public pages, the review pages, every tool) under
 10 ms CPU on Free, with margin. Release held until a hosted re-measure
 shows no call over 10 ms. Gate: the usual nine checks plus that
 re-measure.
+- **S3-7** IN-PROGRESS (BLOCKING, privacy): stored pictures keep their
+  location metadata. `image_add`, the upload link and hotlinks store the
+  bytes as given, so a phone photo can put the place it was taken (often
+  a home) on a published page; true on the live release too. Remove
+  location (GPS) metadata from every picture as it is stored, keeping the
+  orientation so photos don't turn sideways; both editions, spec first.
+  Pictures already stored are not changed by this; the owner decides
+  about those. Found: stage 3 security review.
 - **S3-6** IN-PROGRESS (decided 2026-10-15, replaces S3-5): pictures
   are compressed before upload by default; originals stay possible, and
   the assistant says plainly before using them that bigger files use more
