@@ -53,5 +53,8 @@ async def test_a_proof_answers_once_and_only_for_this_site(db, http):
 
 async def test_robots(http):
     r = await http.get("/robots.txt")
-    assert r.text == "User-agent: *\nAllow: /\n"
+    assert (
+        r.text
+        == f"User-agent: *\nAllow: /\nSitemap: {str(r.url).removesuffix('/robots.txt')}/sitemap.xml\n"
+    )
     assert r.headers["cache-control"] == "public, max-age=3600"

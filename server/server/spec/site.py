@@ -23,6 +23,8 @@ class SiteView:
     share_cards: dict[str, str] = field(default_factory=dict)
     # When the page is being made; None: now.
     now: datetime | None = field(default=None)
+    # View-only approval timestamps for discovery; never persisted in item data.
+    approved_at: dict[str, str] = field(default_factory=dict)
 
 
 _MENTION = {"link": "", "link_label": "", "image": "", "image_alt": ""}

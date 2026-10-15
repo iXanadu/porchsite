@@ -19,6 +19,7 @@ from server.spec import theme as views
 from server.spec.embed_review import embed_review
 from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import string, u16slice
+from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from . import (
     analytics,
@@ -1437,6 +1438,12 @@ async def _route(req: Request, cx: Context) -> Response:
             themed = await themed_page(req, cx, path)
             if themed:
                 return themed
+        if path == "/sitemap.xml" and m == "GET":
+            v = await site.live_view(cx.db, discovery=True)
+            return Response(
+                sitemap(v, origin_of(req), (themes.is_built_in(str(v.site["theme"])) or bool(await themes.load(cx.db, str(v.site["theme"]))))),
+                headers=SITEMAP_HEADERS,
+            )
         if path == "/" and m == "GET":
             return builtin.home(await site.live_view(cx.db), origin_of(req))
         # Open to every crawler and agent. Pages that mustn't be indexed (the
@@ -1452,7 +1459,7 @@ async def _route(req: Request, cx: Context) -> Response:
             )
         if path == "/robots.txt" and m == "GET":
             return Response(
-                "User-agent: *\nAllow: /\n",
+                robots(origin_of(req)),
                 headers={
                     "Content-Type": "text/plain; charset=utf-8",
                     "Cache-Control": "public, max-age=3600",

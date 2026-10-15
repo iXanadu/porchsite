@@ -103,6 +103,34 @@ entry's current page; it is checked only for an address that would
 otherwise be a 404. The redirect follows the entry: removing it ends it. A
 rollback or whole-site revert keeps the current slug.
 
+**Discovery.** `GET /sitemap.xml` serves an XML sitemap (sitemaps.org
+namespace), with absolute URLs using the request's site origin. It reads
+only approved live content: home first, then every non-draft local entry,
+then each configured stream archive and its tags in stream order (tag names
+sorted). External-URL entries are redirects and never get their own sitemap
+entry. Their published summaries may still contribute to archive/tag pages.
+Archive/tag URLs are included only when the current look is available and
+those pages are reachable; a missing look's built-in fallback has local
+entry pages but no stream archives. Empty configured archives remain
+reachable. No owner, review, setup, preview, deleted or unpublished item is
+listed, and old redirected addresses, feeds and search indexes are omitted.
+
+`lastmod` uses UTC ISO dates (`YYYY-MM-DD`) from approval timestamps, never
+an entry's authored date or draft edit time. A local entry uses its own live
+approval time. Home uses the newest approval among the site and visible
+entries/cards/notes; an archive uses the newest site/member-entry approval;
+a tag uses the newest site/matching-entry approval. Missing approval dates
+are omitted rather than invented. URLs are XML-escaped and deduplicated.
+The response is `application/xml; charset=utf-8`, with the same
+`Cache-Control: public, max-age=300` as Atom feeds. HEAD follows GET's status
+and headers without the body. Both editions return identical sitemap bytes.
+
+`GET /robots.txt` retains `User-agent: *` and `Allow: /`, and appends
+`Sitemap: <site origin>/sitemap.xml` with a final newline. This intentionally
+changes robots bytes; its existing one-hour cache policy is unchanged.
+No content/schema/tool contract changes are needed for discovery. Sample
+parity includes sitemap and robots at a fixed origin and approval clock.
+
 **Card visibility.** A card is `public` (the default: the whole card shows),
 `mention` (only its name and description show: no link, no link text, no
 picture) or `private` (it never shows). The rules, checked on every save

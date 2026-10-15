@@ -4,6 +4,7 @@
  * assistant). Owner pages are server-rendered; the only script is the
  * passkey call, under a nonce.
  */
+import {sitemap, robots, SITEMAP_HEADERS} from "./sitemap";
 import { embedReview } from "./embed-review";
 import { frameCsp, PERMISSIONS } from "./embeds";
 import { AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
@@ -944,6 +945,10 @@ async function route(req: Request, env: Env): Promise<Response> {
       const themed = await themedPage(req, env, path);
       if (themed) return themed;
     }
+    if (path === "/sitemap.xml" && m === "GET") {
+      const v = await site.liveView(env.DB, true);
+      return new Response(sitemap(v, url.origin, themes.isBuiltIn(String(v.site.theme)) || !!(await themes.load(env.DB, String(v.site.theme)))), {headers:SITEMAP_HEADERS});
+    }
     if (path === "/" && m === "GET") return site.home(await site.liveView(env.DB), url.origin);
     // Open to every crawler and agent. Pages that mustn't be indexed (the
     // owner's) say so themselves with noindex, which a crawler can only see
@@ -954,7 +959,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       return new Response(yes ? "ok" : "no", { status: yes ? 200 : 404, headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" } });
     }
     if (path === "/robots.txt" && m === "GET") {
-      return new Response("User-agent: *\nAllow: /\n", { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
+      return new Response(robots(url.origin), { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
     }
     if (/^\/[a-z][a-z0-9-]{0,29}\/[a-z0-9-]{1,80}\/$/.test(path) && m === "GET") {
       const page = site.entryPage(await site.liveView(env.DB), path, url.origin);

@@ -8,10 +8,11 @@ Run with PYTHONPATH=<repo>/server.
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from server.spec.sample import render_sample
+from server.spec.sample import render_sample, sample_view
+from server.spec.sitemap import robots, sitemap
 from server.spec.theme import THEMES
 
 
@@ -29,7 +30,15 @@ def main() -> int:
         if (sample_path.resolve().parent / "template.json").exists()
         else THEMES
     )
-    for rel, html in render_sample(name, sample, "https://example.com", now, root).items():
+    pages = render_sample(name, sample, "https://example.com", now, root)
+    v = sample_view(name, sample, now)
+    ids = ["site"] + [str(e["id"]) for e in v.entries + v.cards + v.notes]
+    v.approved_at = {
+        identifier: (now - timedelta(days=i)).isoformat() for i, identifier in enumerate(ids)
+    }
+    pages["sitemap.xml"] = sitemap(v, "https://example.com")
+    pages["robots.txt"] = robots("https://example.com")
+    for rel, html in pages.items():
         p = outdir / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(html.encode("utf-8"))

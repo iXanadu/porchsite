@@ -1,0 +1,105 @@
+{
+  "site": {
+    "title": "A site",
+    "theme": "personal-homepage",
+    "streams": [
+      {
+        "id": "journal",
+        "title": "Journal",
+        "path": "writing"
+      },
+      {
+        "id": "empty",
+        "title": "Empty"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "id": "e1",
+      "kind": "entry",
+      "slug": "local",
+      "data": {
+        "title": "Local",
+        "date": "1999-01-01",
+        "tags": [
+          "alpha"
+        ]
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "entry",
+      "slug": "outside",
+      "data": {
+        "title": "Outside",
+        "date": "2000-01-01",
+        "tags": [
+          "external-only"
+        ],
+        "external_url": "https://outside.example/article"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "entry",
+      "slug": "draft",
+      "data": {
+        "title": "Draft",
+        "date": "2099-01-01",
+        "status": "draft"
+      }
+    },
+    {
+      "id": "c1",
+      "kind": "card",
+      "data": {
+        "name": "Hidden",
+        "visibility": "private",
+        "description": "Private card"
+      }
+    },
+    {
+      "id": "n1",
+      "kind": "note",
+      "data": {
+        "text": "A note",
+        "date": "2026-10-10"
+      }
+    }
+  ],
+  "approved_at": {
+    "site": "2026-10-12T23:00:00Z",
+    "e1": "2026-10-13T00:30:00+02:00",
+    "e2": "2026-10-14T01:00:00Z",
+    "e3": "2099-01-01T00:00:00Z",
+    "c1": "2099-01-01T00:00:00Z",
+    "n1": "2026-10-11T00:00:00Z"
+  },
+  "expected": [
+    {
+      "path": "/",
+      "lastmod": "2026-10-14"
+    },
+    {
+      "path": "/writing/local/",
+      "lastmod": "2026-10-12"
+    },
+    {
+      "path": "/writing/",
+      "lastmod": "2026-10-14"
+    },
+    {
+      "path": "/writing/tags/alpha/",
+      "lastmod": "2026-10-12"
+    },
+    {
+      "path": "/writing/tags/external-only/",
+      "lastmod": "2026-10-14"
+    },
+    {
+      "path": "/empty/",
+      "lastmod": "2026-10-12"
+    }
+  ]
+}

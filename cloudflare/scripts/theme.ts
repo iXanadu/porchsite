@@ -5,6 +5,8 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import {sitemap, robots} from "../src/sitemap";
+import {sampleView} from "../src/themecheck";
 import { paletteCss } from "../src/blocks";
 import { check, renderSample } from "../src/themecheck";
 
@@ -79,6 +81,9 @@ function main() {
     const now = new Date(process.argv[6] ?? "2026-10-15T15:30:00Z");
     if (Number.isNaN(now.getTime())) throw new Error(`not a time: ${process.argv[6]}`);
     const pages = renderSample(loadTheme(name) as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8")), "https://example.com", now);
+    const v=sampleView(loadTheme(name) as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8")), now);
+    v.approved_at=Object.fromEntries(['site',...v.entries.map(e=>String(e.id)),...v.cards.map(e=>String(e.id)),...v.notes.map(e=>String(e.id))].map((id,i)=>[id,new Date(now.getTime()-i*86400000).toISOString()]));
+    pages['sitemap.xml']=sitemap(v,'https://example.com');pages['robots.txt']=robots('https://example.com');
     for (const [p, html] of Object.entries(pages)) {
       mkdirSync(join(dir, p, ".."), { recursive: true });
       writeFileSync(join(dir, p), html);
