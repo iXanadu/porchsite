@@ -21,15 +21,6 @@ Found building a single-property listing site on the live release.
   about 16 MB of text). A signed-in owner page that takes many photos,
   shrinks each in the browser (S3-6 rules), strips location (S3-7) and
   tells the assistant the stored paths. Security review first.
-- **S4-3** OPEN: A look for a property listing. No catalog look fits;
-  product-page wants a square engraving-style hero and its art guidance
-  ("engraving, pick an animal") misleads for a photo listing. A Listing
-  look with a wide photographic hero, a photo gallery, stats, map and
-  visit/contact; per-look art guidance in theme_needs. Also from the
-  real-site test: headings get anchor ids; `!embed` allowed beyond entry
-  bodies where the look places it; menu and hero buttons can point to an
-  on-site embed page instead of off-site links. The owner wants to share
-  the finished look publicly as an example.
 - **S4-4** OPEN: Owner told promptly and privately when an approval is
   waiting, not only through a link the assistant passes on. Design first
   (browser push to the owner's signed-in device, or email), owner picks.

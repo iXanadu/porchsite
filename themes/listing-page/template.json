@@ -1,0 +1,160 @@
+{
+  "name": "listing-page",
+  "title": "Listing",
+  "licence": "MIT",
+  "version": "1.0.0",
+  "type": "property",
+  "description": "One property, room to look. A wide photograph, the price and key figures, a gallery, video and walk-through tour, then open-house and visit details. Built for a phone first.",
+  "heading_ids": true,
+  "body_h1_as_h2": true,
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "feature",
+    "list"
+  ],
+  "previews": [],
+  "palettes": {
+    "linen": {
+      "title": "Linen & evergreen",
+      "colors": {
+        "bg": "#f8f6f0",
+        "ink": "#20372e",
+        "muted": "#59675f",
+        "accent": "#245343",
+        "accent-2": "#9c6545",
+        "line": "#d9ded5",
+        "on-accent": "#ffffff"
+      }
+    },
+    "stone": {
+      "title": "Stone & ink",
+      "colors": {
+        "bg": "#f5f5f2",
+        "ink": "#252b30",
+        "muted": "#626970",
+        "accent": "#344f63",
+        "accent-2": "#956c42",
+        "line": "#d8dcde",
+        "on-accent": "#ffffff"
+      }
+    }
+  },
+  "slots": {
+    "images": [
+      {
+        "field": "site.hero",
+        "alt": "site.hero_alt",
+        "size": [
+          2400,
+          1350
+        ],
+        "need": "recommended",
+        "purpose": "the wide opening photograph: the actual exterior or best room, with space around the property",
+        "alt_hint": "Describe the real property and viewpoint, without a sales claim.",
+        "prompt": "Use the owner’s actual property photograph. Do not generate or invent a property, room, view or feature."
+      },
+      {
+        "field": "body",
+        "size": [
+          1600,
+          1200
+        ],
+        "need": "recommended",
+        "purpose": "the photo gallery in the listing entry: put each ![description](image) in its own paragraph after the Photos heading",
+        "alt_hint": "Name the room and what is visible, e.g. The kitchen looking toward the garden.",
+        "prompt": "Use actual photographs supplied for this property. Keep the rooms, proportions, finishes and views truthful."
+      },
+      {
+        "field": "site.share_image",
+        "alt": "site.share_image_alt",
+        "size": [
+          1200,
+          630
+        ],
+        "need": "optional",
+        "purpose": "the picture shared in messages; otherwise the hero is used",
+        "alt_hint": "The actual property shown.",
+        "prompt": "Crop the real hero photograph to a wide share image. Do not alter the property."
+      }
+    ],
+    "content": [
+      {
+        "field": "site.title",
+        "need": "required",
+        "purpose": "the property name or address in the top bar"
+      },
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "a short, factual headline for the property"
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "the location and one sentence about the home"
+      },
+      {
+        "field": "site.hero_caption",
+        "need": "recommended",
+        "purpose": "the asking price and availability, exactly as confirmed by the owner"
+      },
+      {
+        "field": "site.streams",
+        "need": "required",
+        "purpose": "one feature stream for the main listing entry; put the stat tiles in entry.stats and the photo gallery, video, 3D tour and open-house details in its body"
+      },
+      {
+        "field": "entry.body",
+        "need": "recommended",
+        "purpose": "Use headings such as Photos, Video tour, Walk through and Open house. Put each picture in its own paragraph. Put !embed[Video tour](https://…) and !embed[3D tour](https://…) on their own lines, in place. Each source needs owner approval. Heading ids make /listing/home/#video-tour work."
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "the primary action with cta_link, e.g. Arrange a visit, linking to an on-site heading or the contact method"
+      },
+      {
+        "field": "site.cta2_label",
+        "need": "optional",
+        "purpose": "a second action with cta2_link, e.g. Video tour to /listing/home/#video-tour"
+      },
+      {
+        "field": "site.links",
+        "need": "recommended",
+        "purpose": "short menu links to on-site headings, e.g. /listing/home/#photos and /listing/home/#video-tour"
+      },
+      {
+        "field": "site.contact",
+        "need": "recommended",
+        "purpose": "the owner-approved visit contact, phone/email and map link; never publish private contact details without approval"
+      },
+      {
+        "field": "site.about",
+        "need": "optional",
+        "purpose": "a short note about arranging a visit, shown with contact information"
+      },
+      {
+        "field": "site.footer_line",
+        "need": "recommended",
+        "purpose": "the agent/owner’s required listing disclaimer or confirmed attribution"
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask for the actual property photographs: a wide exterior or best-room hero, then a curated set of room, garden and view photos. Ask which details may be public.",
+    "style": "Real property photography in natural light. Preserve the actual rooms, proportions, finishes, views and surroundings. Never invent or materially alter a property. No engravings, animal mascots or generated room photographs.",
+    "prompt_prefix": "Use the owner-supplied photograph of this property; keep it truthful.",
+    "steps": [
+      "Get the real property photos and confirm the asking price, location, room counts and visit details with the owner.",
+      "Choose a wide hero and a small set of useful gallery views. Do not invent a missing room, view or feature.",
+      "Shrink pictures to web size, about 2400 pixels on the long side and usually under 1 MB; originals need the existing plain warning first.",
+      "Write a useful description for each photo. Put gallery pictures in separate Markdown paragraphs in the main listing entry.",
+      "Add the video and 3D-tour URLs as !embed lines under their own headings; request approval for each new source.",
+      "Check the phone layout, menu anchors, contact details, map and media, then run site_check with deep:true before asking for approval."
+    ]
+  }
+}
