@@ -46,6 +46,18 @@ re-measure.
 
 
 
+## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
+Found building a single-property listing site on the live release.
+- **S4-1** OPEN (owner requirement): owner-approved embeds. Public pages
+  send `default-src 'none'`, so a video or a 3D tour can only be a link.
+  Each site keeps a list of allowed embed sources that changes only
+  through the owner's approval; an assistant proposes an embed (its URL),
+  the review page shows the source plainly, and the tools tell the owner
+  in plain words what an embed is and that they are approving a new
+  source. Nothing open by default, nothing the owner can't approve.
+  YouTube and Matterport first. Security threat model before code; spec
+  first; both editions.
+
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
