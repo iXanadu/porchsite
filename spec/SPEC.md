@@ -446,6 +446,12 @@ first.
 
 Not part of the contract; one edition has them for how it is run.
 
+- **Cloudflare edition: upload preparation.** Ordinary base64 uploads use
+  length and padding for the size preflight, the native decoder for validation,
+  and compiled type checks on the ordinary MCP path. Unusual encodings and
+  failures retain the existing validation and refusal behavior. Limits, image
+  bytes, response shapes and atomic storage are unchanged. Local-only profiling
+  may observe phase names and timings; it exposes no request data or HTTP field.
 - **Cloudflare edition: immutable preparation caches.** Tool input schemas
   and their JSON representations, built-in template parses, and date formatters with fixed options,
   may be reused between requests. Authentication, request context, item
