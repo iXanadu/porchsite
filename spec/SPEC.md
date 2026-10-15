@@ -180,7 +180,7 @@ replacement, so a refresh whose answer was lost can be retried.
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
 | `image_add(data?, images?)` | Exactly one of `data` (one base64 picture, existing response) or `images` (1–8 base64 pictures). JPEG, PNG or WebP, at most 8 MiB each and 8 MiB decoded in total. Sniff every file and store all or none by content hash. `images` returns `{images: [{image, width, height}, ...], next}` in input order; duplicates repeat in the answer but are stored once. Private until a published item uses it (S7) |
-| `site_check` | The site as it will be once everything staged is published, looked over as a visitor clicks through it: `broken` (links inside the site that lead to no page, no home-page section with anything in it, or no stored picture; each with where it is and why) and `empty_sections` (sections in the layout with nothing in them, which the menu leaves out); `unreachable` (entries that would be public but have no path of rendered links from the home page, each `{id, why}`); `ok` when the crawl completes and both `broken` and `unreachable` are empty. Read-only; run before asking for approval |
+| `site_check` | Check the proposed site before asking for approval. With no arguments (or `deep: false`), returns only `ok`, `broken` (declared internal links to no page, populated home-page section or stored picture, each with where and why), and `empty_sections`; `ok` is true when `broken` is empty. This quick check does not render pages. `deep: true` also crawls rendered links from home and returns `unreachable`, entries with no path, each `{id, why}`, plus `crawl` if a limit stops it. Deep `ok` requires a completed crawl and empty `broken` and `unreachable`. Read-only. Run deep once before approval on a new site or look change; it is heavy and can exceed Cloudflare Free CPU limits on big sites |
 | `site_stats(days?, content_id?, src?, post?, include_test?)` | Visitor numbers (§8), read-only |
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |
@@ -202,7 +202,7 @@ come from headers; images are never rasterized here. The one-shot
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
 
-`site_check` examines at most 200 distinct local addresses (including
+`site_check({deep: true})` examines at most 200 distinct local addresses (including
 redirects and missing pages) and 10,000 rendered `a[href]` or `area[href]`
 elements outside inert templates. Duplicate and non-HTTP links count
 against the link budget. Repeated local addresses do not count twice.
@@ -226,7 +226,7 @@ with `no_such_item`, never a partial result. Both reads use the same
 owner-authorized MCP interface as every other tool; neither exposes a
 public lookup. Reads do not change item versions or publication state.
 
-Reachability uses the selected look, including an installed or site-made look,
+With `deep: true`, reachability uses the selected look, including an installed or site-made look,
 on the same proposed site as the other checks. Starting at `/`, follow
 rendered HTML anchor links through local entry, archive and tag pages;
 resolve relative addresses, same-site absolute addresses and the site's

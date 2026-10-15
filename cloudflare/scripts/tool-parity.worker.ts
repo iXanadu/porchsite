@@ -5,6 +5,7 @@ import { it, expect, vi } from "vitest";
 import { validate } from "../src/content";
 import { createServer } from "../src/mcp";
 import { THEMES } from "../src/themes.gen";
+import BASELINES from "../../spec/site-check-baselines.json";
 import type { Env } from "../src/env";
 
 type Case = { name: string; theme: string; sample: { site: Record<string, unknown>; items: { kind: string; slug?: string; data: Record<string, unknown> }[] }; home?: string };
@@ -42,7 +43,7 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
       const answers: Record<string, unknown> = {};
       try {
         const calls: [string, string, Record<string, unknown>][] = [
-          ["site_check", "site_check", {}], ["site_state", "site_state", {}],
+          ["site_check", "site_check", {}], ["site_check_deep", "site_check", {deep:true}], ["site_state", "site_state", {}],
           ["site_state_full", "site_state", { full: true }],
           ["site_state_ids", "site_state", { ids: ["site", "i0"] }],
           ["site_state_empty", "site_state", { ids: [] }],
@@ -52,6 +53,10 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
           const response = await transport.handleRequest(new Request("https://example.invalid/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) }));
           expect(response.status).toBe(200);
           const rpc = await response.json() as any;
+          if (key === "site_check" || key === "site_check_deep") {
+            const expected = BASELINES.cases[c.name as keyof typeof BASELINES.cases];
+            expect(rpc.result.content[0].text, `${c.name} ${key} historical bytes`).toBe(key === "site_check" ? expected.quick : expected.deep);
+          }
           answers[key] = { error: !!rpc.result.isError, value: JSON.parse(rpc.result.content[0].text) };
         }
       } finally { await server.close(); }

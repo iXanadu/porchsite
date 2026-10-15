@@ -23,7 +23,7 @@ it("counts a full inline feature body, but not a title or summary alone", async 
   const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
   const { token } = await keys.create(db, "Test");
   const check = async () => {
-    const response = await worker.fetch(new Request("https://site.example/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "site_check", arguments: {} } }) }), e, ctx);
+    const response = await worker.fetch(new Request("https://site.example/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "site_check", arguments: { deep: true } } }) }), e, ctx);
     expect(response.status).toBe(200);
     const rpc = await response.json() as any;
     expect(rpc.result.isError).not.toBe(true);

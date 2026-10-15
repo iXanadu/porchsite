@@ -43,7 +43,7 @@ function linksOf(where: string, data: Data, fields: string[]): { where: string; 
   return out;
 }
 
-export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | null, origin = "https://example.invalid"): Promise<{ ok: boolean; broken: Problem[]; empty_sections: string[]; unreachable: { id: string; why: string }[]; crawl?: CrawlLimit }> {
+export function checkSite(v: SiteView, media: Set<string>): { ok: boolean; broken: Problem[]; empty_sections: string[] } {
   const s = v.site;
   const st = streams(s);
   const pages = new Set(FIXED);
@@ -94,6 +94,11 @@ export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | 
     if (hash && page === "/" && !anchors.has(hash)) broken.push({ where, link, why: `the home page has no section #${hash} with anything in it` });
   }
   // Empty sections are reported, not failed: the site's menu leaves them out.
+  return { ok: !broken.length, broken, empty_sections: empty };
+}
+
+export async function checkSiteDeep(v: SiteView, media: Set<string>, look?: Theme | null, origin = "https://example.invalid"): Promise<{ ok: boolean; broken: Problem[]; empty_sections: string[]; unreachable: { id: string; why: string }[]; crawl?: CrawlLimit }> {
+  const { broken, empty_sections: empty } = checkSite(v, media);
   const { unreachable, crawl } = await unreachableEntries(v, look, origin);
   return { ok: !broken.length && !unreachable.length && !crawl, broken, empty_sections: empty, unreachable, ...(crawl ? { crawl } : {}) };
 }

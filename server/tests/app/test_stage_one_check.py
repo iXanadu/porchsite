@@ -24,7 +24,10 @@ async def test_reports_the_published_entry_a_rendered_look_drops_excluding_draft
     assert 'href="/"' in visible_page
     assert 'href="/journal/"' not in visible_page
     a = Mcp(http, await oauth.mint(db, "Test", "https://site.example"))
-    err, result, _ = await a.call("site_check")
+    err, quick, _ = await a.call("site_check")
+    assert not err
+    assert quick == {"ok": True, "broken": [], "empty_sections": []}
+    err, result, _ = await a.call("site_check", deep=True)
     assert not err
     assert result["ok"] is False
     assert [x["id"] for x in result["unreachable"]] == [hidden["id"]]

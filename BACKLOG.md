@@ -41,9 +41,7 @@ re-measure.
   work. First measure CPU per decoded MB (0.5, 1, 2, 4 MB) and find the
   largest per-call size that fits; then decide between a lower per-call
   limit with pictures sent in pieces across calls, or a leaner byte path.
-- **S3-4** OPEN: PM decision after S3-3's numbers. If the full check still
-  can't fit, the deep crawl becomes an add-on that is off by default and
-  marked as needing the paid plan, and the core keeps a quick check.
+
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was

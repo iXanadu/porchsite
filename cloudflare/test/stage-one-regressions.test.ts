@@ -1,7 +1,7 @@
 // Review regressions: inert nested templates and equivalent URL spellings.
 // Port-matched: server/tests/app/test_stage_one_regressions.py.
 import { expect, it } from "vitest";
-import { checkSite } from "../src/check";
+import { checkSiteDeep as checkSite } from "../src/check";
 import { validate } from "../src/content";
 import { view } from "../src/site";
 

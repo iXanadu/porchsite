@@ -41,7 +41,7 @@ def _links_of(where: str, data: Data, fields: list[str]) -> list[tuple[str, str]
     return out
 
 
-def check_site(v: SiteView, media: set[str], look: Theme | None = None, origin: str = "https://example.invalid") -> Data:
+def check_site(v: SiteView, media: set[str]) -> Data:
     s = v.site
     st = streams(s)
     pages = set(FIXED)
@@ -129,6 +129,12 @@ def check_site(v: SiteView, media: set[str], look: Theme | None = None, origin: 
                 }
             )
     # Empty sections are reported, not failed: the site's menu leaves them out.
+    return {"ok": not broken, "broken": broken, "empty_sections": empty}
+
+
+def check_site_deep(v: SiteView, media: set[str], look: Theme | None = None, origin: str = "https://example.invalid") -> Data:
+    quick = check_site(v, media)
+    broken, empty = quick["broken"], quick["empty_sections"]
     unreachable, crawl = _unreachable_entries(v, look, origin)
     return {"ok": not broken and not unreachable and not crawl, "broken": broken, "empty_sections": empty, "unreachable": unreachable, **({"crawl": crawl} if crawl else {})}
 

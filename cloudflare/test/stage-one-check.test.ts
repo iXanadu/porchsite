@@ -32,7 +32,10 @@ it("reports the published entry a rendered look drops, excluding drafts", async 
   expect(visiblePage).toContain('href="/"');
   expect(visiblePage).not.toContain('href="/journal/"');
   const { token } = await keys.create(db, "Test");
-  const response = await worker.fetch(new Request("https://site.example/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "site_check", arguments: {} } }) }), e, ctx);
+  const quickResponse = await worker.fetch(new Request("https://site.example/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "site_check", arguments: {} } }) }), e, ctx);
+  const quick = await quickResponse.json() as any;
+  expect(JSON.parse(quick.result.content[0].text)).toEqual({ok: true, broken: [], empty_sections: []});
+  const response = await worker.fetch(new Request("https://site.example/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "site_check", arguments: { deep: true } } }) }), e, ctx);
   expect(response.status).toBe(200);
   const rpc = await response.json() as any;
   expect(rpc.result.isError).not.toBe(true);
