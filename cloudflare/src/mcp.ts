@@ -3,7 +3,7 @@
  * approvals.ts; none of them can publish (S1).
  */
 import { McpServer } from "@modelcontextprotocol/server";
-import { getMcpAuthContext } from "agents/mcp/server";
+import { toolProps } from "./tool-context";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import * as analytics from "./analytics";
@@ -22,7 +22,7 @@ import * as uploads from "./uploads";
 import { ApiError } from "./errors";
 import { fieldGuide, KIND_GUIDE, KINDS } from "./models";
 
-const INSTRUCTIONS = `You keep this person's website up to date. The site is theirs:
+export const INSTRUCTIONS = `You keep this person's website up to date. The site is theirs:
 nothing you write is public until they approve it, and the site enforces that.
 Workflow: site_state (see what exists, each item's version and field guide) ->
 item_create / item_update / item_remove (images: an https link, or
@@ -40,7 +40,7 @@ and an entry names it at most once in its summary and once in its body.
 site_stats: who reads the site.`;
 
 function actor(): string {
-  const props = getMcpAuthContext()?.props as { client?: string } | undefined;
+  const props = toolProps() as { client?: string };
   return `assistant:${props?.client ?? "unknown"}`;
 }
 
@@ -195,7 +195,7 @@ const INPUT_SCHEMAS = {
       }))
 };
 
-const TOOL_DEFINITIONS = {
+export const TOOL_DEFINITIONS = {
   site_state: {
       description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
       inputSchema: INPUT_SCHEMAS.site_state,
@@ -295,9 +295,23 @@ const TOOL_DEFINITIONS = {
 };
 
 export function createServer(): McpServer {
-  const db = (env as unknown as Env).DB;
   const server = new McpServer({ name: "porchsite", version: "0.0.1" }, { instructions: INSTRUCTIONS });
-  const origin = () => (getMcpAuthContext()?.props as { origin?: string } | undefined)?.origin ?? "";
+  registerTools(server);
+  return server;
+}
+
+export function createToolHandlers() {
+  const handlers = new Map<string, (args: any) => Promise<any>>();
+  registerTools({ registerTool: ((name: string, _definition: unknown, handler: (args: any) => Promise<any>) => {
+    handlers.set(name, handler);
+    return {};
+  }) as McpServer["registerTool"] });
+  return handlers;
+}
+
+function registerTools(server: Pick<McpServer, "registerTool">) {
+  const db = (env as unknown as Env).DB;
+  const origin = () => (toolProps() as { origin?: string }).origin ?? "";
 
   server.registerTool(
     "site_state",
