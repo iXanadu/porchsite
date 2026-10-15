@@ -221,6 +221,8 @@ def base(v: SiteView, release: str, origin: str, meta: Data) -> Data:
     has_hero = bool(v.site["hero"])
     return {
         "site": site,
+        "highlights": [card(c) for c in v.cards],
+        "has_highlights": bool(v.cards),
         "page": {
             "lede": v.site["intro"],
             "hero_alt": v.site["hero_alt"],

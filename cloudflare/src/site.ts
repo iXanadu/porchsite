@@ -30,6 +30,8 @@ export interface SiteView {
   notes: Data[];
   /** When the site last changed, for themes that say so. */
   updated: string;
+  /** Approval timestamps are view-only discovery metadata, never item data. */
+  approved_at?: Record<string, string>;
   /** The hero image's pixel size, when known. */
   hero_size: [number, number];
   /** Each entry's share card, /media/<name>, when it matches the entry's version. */
@@ -66,8 +68,8 @@ export function view(site: Data, rows: { id: string; kind: string; slug: string 
   return { site, entries, cards, notes, updated: "", hero_size: [0, 0] };
 }
 
-export async function liveView(db: D1Database): Promise<SiteView> {
-  return proposedView(db, []);
+export async function liveView(db: D1Database, discovery = false): Promise<SiteView> {
+  return proposedView(db, [], undefined, discovery);
 }
 
 /**
@@ -75,7 +77,7 @@ export async function liveView(db: D1Database): Promise<SiteView> {
  * what's live (an approval's items); [] is the live site. `ready` names an
  * entry to show even if it is a draft (the writing desk's preview).
  */
-export async function proposedView(db: D1Database, changes: { id: string; version: number }[], ready?: string): Promise<SiteView> {
+export async function proposedView(db: D1Database, changes: { id: string; version: number }[], ready?: string, discovery = false): Promise<SiteView> {
   const { results } = await db
     .prepare("SELECT l.*, i.created_at FROM live l LEFT JOIN items i ON i.id = l.item_id ORDER BY l.item_id")
     .all<LiveRow & { created_at: string | null }>();
@@ -105,6 +107,10 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   const siteRow = rows.get(SITE_ID);
   const site = validate("site", siteRow ? await sourceData(db, SITE_ID, siteRow.version, siteRow.data, !changes.some(c => c.id === SITE_ID)) : {});
   const v = view(site, [...rows.values()].filter((r) => r.kind !== "site"));
+  if (discovery) {
+    v.approved_at = Object.fromEntries([...rows].map(([id,r])=>[id,r.published_at]));
+    return v; // XML needs no share cards, image-size lookup or display-clock formatting.
+  }
   const { results: cards } = await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>();
   v.share_cards = Object.fromEntries(cards.filter((c) => rows.get(c.item_id)?.version === c.version).map((c) => [c.item_id, `/media/${c.name}`]));
   const hero = /^\/media\/([0-9a-f]{32}\.(?:jpg|png|webp))$/.exec(String(site.hero));

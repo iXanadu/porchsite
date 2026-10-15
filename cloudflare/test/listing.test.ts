@@ -42,7 +42,7 @@ it('renders all listing pages, on-site anchor actions, gallery, price, visit and
  expect(home).toContain('$845,000');expect(home).toContain('/listing/home/#video-tour');expect(home).not.toContain('<iframe ');
  expect((home.match(/<img /g)||[]).length).toBe(5);
  const state=sampleView(t,sample);expect(check.checkSite(state,new Set(Array.from({length:5},(_,i)=>String(i+1).repeat(32)+".jpg"))).broken).toEqual([]);
- const art=await themes.needs(db,t);expect(art.art).toEqual(t.manifest.art);expect(art.art.ask).toContain('actual property');expect(art.images[0].size).toEqual([2400,1350]);
+ const art=await themes.needs(db,t);expect(art.art).toEqual(t.manifest.art);expect(art.art.ask).toContain('actual property');expect(art.images[0].size).toEqual([1600,900]);
  for(const path of ['/listing/home/#video-tour','/#visit','#photos'])expect(()=>MODELS.site.parse({cta_link:path,links:[{label:'Photos',url:path}]})).not.toThrow();
  const live=render(t,'home',homeView(state,'1','https://site.example'),{sources:['https://www.youtube-nocookie.com','https://my.matterport.com'],origin:'https://site.example'});expect(live.match(/<iframe /g)).toHaveLength(2);
  const v=sampleView(t,sample);expect(render(t,'home',homeView(v,'1','https://example.com'))).toContain('id="video-tour"');expect(render(t,'entry',entryView(v,v.entries[0],'1','https://example.com'))).toContain('id="video-tour"');

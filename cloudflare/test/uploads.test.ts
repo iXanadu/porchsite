@@ -77,6 +77,6 @@ describe("robots.txt", () => {
   it("lets every crawler and agent in", async () => {
     const r = await handle(new Request(`${site}/robots.txt`), e);
     expect(r.status).toBe(200);
-    expect(await r.text()).toBe("User-agent: *\nAllow: /\n");
+    expect(await r.text()).toBe(`User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
   });
 });

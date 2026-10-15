@@ -528,6 +528,7 @@ class NoteData(_Model):
 # Keep its existing field order, shared with the Cloudflare field guide.
 SiteInput = create_model(
     "SiteInput",
+    broker=(text(_max(160)), Field(default="", description="plain-text brokerage line; Listing footer only; owner approval required")),
     __base__=_Model,
     embed_sources=(list_of(text(_max(2000)), hi=20), Field(default_factory=list)),
     **{name: (field.annotation, field) for name, field in SiteData.model_fields.items()},

@@ -25,8 +25,8 @@ from .theme import render, static_file
 Data = dict[str, Any]
 
 
-async def live_view(db: Db) -> SiteView:
-    return await proposed_view(db, [])
+async def live_view(db: Db, discovery=False) -> SiteView:
+    return await proposed_view(db, [], discovery=discovery)
 
 
 def _updated(last: str, timezone: str) -> str:
@@ -41,7 +41,7 @@ def _updated(last: str, timezone: str) -> str:
 
 
 async def proposed_view(
-    db: Db, changes: list[dict[str, Any]], ready: str | None = None
+    db: Db, changes: list[dict[str, Any]], ready: str | None = None, discovery=False
 ) -> SiteView:
     """The site as it would be with these item versions ({id, version})
     published on top of what's live (an approval's items); [] is the live site.
@@ -91,6 +91,9 @@ async def proposed_view(
     site_row = rows.get(SITE_ID)
     site = validate("site", await source_data(db, SITE_ID, site_row["version"], site_row["data"], not any(c["id"] == SITE_ID for c in changes)) if site_row else {})
     v = view(site, [r for r in rows.values() if r["kind"] != "site"])
+    if discovery:
+        v.approved_at = {identifier: r["published_at"] for identifier, r in rows.items()}
+        return v  # XML needs no share cards, image sizes or display-clock formatting.
     v.share_cards = {
         c["item_id"]: f"/media/{c['name']}"
         for c in await db.fetch("SELECT item_id, version, name FROM share_cards")

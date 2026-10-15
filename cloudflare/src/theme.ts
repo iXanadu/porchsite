@@ -145,6 +145,8 @@ function base(v: SiteView, release: string, origin: string, meta: { kind: string
   );
   return {
     site,
+    highlights: v.cards.map(c => card(c)),
+    has_highlights: v.cards.length > 0,
     page: {
       lede: v.site.intro,
       hero_alt: v.site.hero_alt,

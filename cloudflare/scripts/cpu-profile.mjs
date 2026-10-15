@@ -48,11 +48,16 @@ if(previousResults.length) {
 const selected = options.looks?.split(',') ?? readdirSync(join(repo, 'themes')).filter(n => existsSync(join(repo, 'themes', n, 'sample.json'))).sort();
 const wanted = options.cases?.split(',');
 const repeats = Number(options.repeats ?? 3);
+const requestsPerProfile=Number(options['requests-per-profile']??1);
+const warmupRequests=Number(options['warmup-requests']??1);
+if(!Number.isInteger(warmupRequests)||warmupRequests<1||warmupRequests>1000)throw new Error('warmup-requests must be an integer from1 to1000');
+if(!Number.isInteger(requestsPerProfile)||requestsPerProfile<1||requestsPerProfile>100)throw new Error('requests-per-profile must be an integer from1 to100');
 const modes = options.modes?.split(',') ?? ['cold', 'warm'];
 if (!Number.isInteger(repeats) || repeats < 1 || modes.some(m=>!['cold','warm'].includes(m))) throw new Error('Invalid repeats or modes');
-const matrix={looks:selected,cases:wanted??null,repeats,modes};
+if(requestsPerProfile>1&&modes.some(mode=>mode!=='warm'))throw new Error('Grouped profiles require warm mode');
+const matrix={looks:selected,cases:wanted??null,repeats,modes,requestsPerProfile,warmupRequests};
 if(previousResults.length&&JSON.stringify(JSON.parse(readFileSync(join(output,'method.json'))).matrix)!==JSON.stringify(matrix)) throw new Error('Resume requires the identical requested matrix');
-writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,harnessSha256,release,minify,matrix,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:'One unmeasured same-case request, then measured requests; storage reset before each',samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
+writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,harnessSha256,release,minify,matrix,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:`${warmupRequests} unmeasured same-case requests, then measured requests; storage reset before each profile`,requestsPerProfile,warmupRequests,samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
 const token = `psk_${randomBytes(24).toString('base64url')}`, session = randomBytes(32).toString('base64url');
 const hash = s => createHash('sha256').update(s).digest('hex');
 const sql = v => v === null ? 'NULL' : `'${String(v).replaceAll("'", "''")}'`;
@@ -227,7 +232,7 @@ function casesFor({ sample, rows }) {
   const get = (name, path, status = 200) => ({ name, path, status });
   const tool = (name, args = {}, variant = '') => ({ name: `tool:${name}${variant}`, tool: name, args, status: 200 });
   const png = smallPng.toString('base64');
-  return [get('public:home','/'),get('public:entry',path,entry.data.external_url?302:200),get('public:archive',`/${stream.path||stream.id}/`),get('public:tag',`/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`),get('public:not_found','/missing-fixture/',404),get('public:feed',`/${stream.path||stream.id}/feed.xml`),get('public:search',`/${stream.path||stream.id}/search.json`),get('public:css','/static/site.css'),get('public:beacon','/static/a.js'),get('public:robots','/robots.txt'),
+  return [get('public:home','/'),get('public:entry',path,entry.data.external_url?302:200),get('public:archive',`/${stream.path||stream.id}/`),get('public:tag',`/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`),get('public:not_found','/missing-fixture/',404),get('public:feed',`/${stream.path||stream.id}/feed.xml`),get('public:search',`/${stream.path||stream.id}/search.json`),get('public:css','/static/site.css'),get('public:beacon','/static/a.js'),get('public:robots','/robots.txt'),get('public:sitemap','/sitemap.xml'),
     get('public:login','/login'),{...get('public:setup','/setup?code=fixture'),ownerless:true},get('public:setup:claimed','/setup',303),
     get('public:passkey',`/passkey/${passkeyToken}`),{...get('public:passkey:used',`/passkey/${passkeyToken}`,410),linkState:'used'},{...get('public:passkey:expired',`/passkey/${passkeyToken}`,410),linkState:'expired'},
     get('public:upload',`/upload/${uploadToken}`),{...get('public:upload:used',`/upload/${uploadToken}`,410),linkState:'used'},{...get('public:upload:expired',`/upload/${uploadToken}`,410),linkState:'expired'},
@@ -287,11 +292,12 @@ try {
     const selectedCases=casesFor(fixture).filter(c=>!wanted||wanted.some(w=>c.name===w||c.tool===w));
     if(!selectedCases.length) throw new Error(`No matching cases for ${look}`);
     for(const c of selectedCases) {
+      if((requestsPerProfile>1||warmupRequests>1)&&(c.tool||c.method||!c.name.startsWith('public:')))throw new Error('Grouped profiles support read-only public GETs only');
       for(const mode of modes) {
         if(pauseRequested) break measurements;
         if(Array.from({length:repeats},(_,n)=>completed(look,c,mode,n)).every(Boolean)) continue;
         await stop(); seed(look,c); await start();
-        if(mode==='warm') await request(c);
+        if(mode==='warm') for(let warmup=0;warmup<warmupRequests;warmup++)await request(c);
         for(let n=0;n<repeats;n++) {
           if(pauseRequested) break measurements;
           if(completed(look,c,mode,n)) continue;
@@ -302,11 +308,13 @@ try {
             await debuggerSession.call('Profiler.enable');
             await debuggerSession.call('Profiler.setSamplingInterval',{interval:100});
             await debuggerSession.call('Profiler.start');
-            const response=await request(c);
+            let response,responseBytesTotal=0;
+            for(let call=0;call<requestsPerProfile;call++){response=await request(c);responseBytesTotal+=response.bytes;}
             const {profile}=await debuggerSession.call('Profiler.stop');
             const basename=`${look}-${c.name.replaceAll(/[^\w.-]/g,'_')}-${mode}-${n}`;
             writeFileSync(join(output,basename+'.cpuprofile'),JSON.stringify(profile));
-            const result={revision,...sourceState,look,renderer:look,case:c.name,mode,iteration:n,...response,...summarize(profile)};
+            const totals=summarize(profile);
+            const result={revision,...sourceState,look,renderer:look,case:c.name,mode,iteration:n,...response,...totals,requestsPerProfile,responseBytesTotal,sampledActivePerRequestMs:totals.sampledActiveMs/requestsPerProfile};
             results.push(result); console.log(JSON.stringify({...result,functionsUs:undefined}));
             writeFileSync(join(output,'results.json'),JSON.stringify(results,null,2));
           } finally {debuggerSession.close();}
@@ -321,10 +329,10 @@ if(!wanted&&!pauseRequested) for(const look of selected) {
  const absent=discovered.filter(name=>!results.some(r=>r.look===look&&r.case===`tool:${name}`));
  if(absent.length) throw new Error('Tool coverage missing: '+absent.join(','));
 }
-const report=['| Build | Sample | Request | Cold active sampled ms min/median/max | Warm active sampled ms min/median/max |','|---|---|---|---|---|'];
+const report=['| Build | Sample | Request | Cold active sampled ms per request min/median/max | Warm active sampled ms per request min/median/max |','|---|---|---|---|---|'];
 for(const key of new Set(results.map(r=>`${r.look}\t${r.case}`))) {
  const [look,name]=key.split('\t');
- const cell=mode=>{const a=results.filter(r=>r.look===look&&r.case===name&&r.mode===mode).map(r=>r.sampledActiveMs).sort((a,b)=>a-b);return a.length?`${a[0].toFixed(3)} / ${a[Math.floor(a.length/2)].toFixed(3)} / ${a.at(-1).toFixed(3)}`:'—';};
+ const cell=mode=>{const a=results.filter(r=>r.look===look&&r.case===name&&r.mode===mode).map(r=>r.sampledActivePerRequestMs??r.sampledActiveMs).sort((a,b)=>a-b);return a.length?`${a[0].toFixed(3)} / ${a[Math.floor(a.length/2)].toFixed(3)} / ${a.at(-1).toFixed(3)}`:'—';};
  report.push(`| ${revision.slice(0,7)}${sourceState.dirty?'+dirty':''} | ${look} | ${name} | ${cell('cold')} | ${cell('warm')} |`);
 }
 writeFileSync(join(output,'table.md'),report.join('\n')+'\n');

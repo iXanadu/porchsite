@@ -103,6 +103,34 @@ entry's current page; it is checked only for an address that would
 otherwise be a 404. The redirect follows the entry: removing it ends it. A
 rollback or whole-site revert keeps the current slug.
 
+**Discovery.** `GET /sitemap.xml` serves an XML sitemap (sitemaps.org
+namespace), with absolute URLs using the request's site origin. It reads
+only approved live content: home first, then every non-draft local entry,
+then each configured stream archive and its tags in stream order (tag names
+sorted). External-URL entries are redirects and never get their own sitemap
+entry. Their published summaries may still contribute to archive/tag pages.
+Archive/tag URLs are included only when the current look is available and
+those pages are reachable; a missing look's built-in fallback has local
+entry pages but no stream archives. Empty configured archives remain
+reachable. No owner, review, setup, preview, deleted or unpublished item is
+listed, and old redirected addresses, feeds and search indexes are omitted.
+
+`lastmod` uses UTC ISO dates (`YYYY-MM-DD`) from approval timestamps, never
+an entry's authored date or draft edit time. A local entry uses its own live
+approval time. Home uses the newest approval among the site and visible
+entries/cards/notes; an archive uses the newest site/member-entry approval;
+a tag uses the newest site/matching-entry approval. Missing approval dates
+are omitted rather than invented. URLs are XML-escaped and deduplicated.
+The response is `application/xml; charset=utf-8`, with the same
+`Cache-Control: public, max-age=300` as Atom feeds. HEAD follows GET's status
+and headers without the body. Both editions return identical sitemap bytes.
+
+`GET /robots.txt` retains `User-agent: *` and `Allow: /`, and appends
+`Sitemap: <site origin>/sitemap.xml` with a final newline. This intentionally
+changes robots bytes; its existing one-hour cache policy is unchanged.
+No content/schema/tool contract changes are needed for discovery. Sample
+parity includes sitemap and robots at a fixed origin and approval clock.
+
 **Card visibility.** A card is `public` (the default: the whole card shows),
 `mention` (only its name and description show: no link, no link text, no
 picture) or `private` (it never shows). The rules, checked on every save
@@ -147,11 +175,46 @@ one small dialect both editions render to the same bytes. The cases in
   `“a”`), `--` an en dash, `---` an em dash, `...` an ellipsis; never inside
   code, link addresses, titles, alt text, or a bare `http(s)://` address.
 - Safety: raw HTML is escaped, never passed through. Links go only to
-  `http://`, `https://`, `mailto:`, `/…` or `#…` addresses, anything else
-  stays text; images only to the site's own `/media/` files (any other
+  `http://`, `https://`, `mailto:`, `tel:`, `/…` or `#…` addresses, anything else
+  stays text. A `tel:` destination contains at least one ASCII digit and
+  otherwise only ASCII digits, `+`, `-`, balanced parentheses and literal
+  spaces; no letters, extensions, percent escapes, tabs or newlines. For
+  example, `[Call](tel:+1 (202) 555-0123)` is a link. Optional quoted titles
+  work as on other links. `mailto:` behavior is unchanged.
+  Images only to the site's own `/media/` files (any other
   image renders as a plain link, or as text).
 
 Templates decide how kinds look, never what they say (see §6).
+
+### Versioned site fields and Listing content
+
+Both editions accept optional `site.broker`: plain text of at most 160
+characters, default empty, never interpreted as Markdown. The Listing look
+shows it in small footer text after the agent/contact information. Other
+looks ignore it. `site_state`, review, history and restore expose the logical
+field at its exact site version.
+
+Store extensible site fields in additive `site_fields` rows keyed by
+`(version, key)`, with a JSON value and an approval mark. Initially the only
+key is `broker`; the table is not an arbitrary input-key escape hatch.
+`SiteData` and all persisted items/revisions/live JSON retain the previous
+release's strict key set. A normal site content write stores the logical
+field alongside the same immutable version. Only owner publish marks that
+version approved, and public views use only the approved matching live
+version. Missing rows/tables and unapproved versions yield the empty value;
+values never inherit across versions. An empty value is represented by an
+absent row at that exact version, which records a removal without inheriting
+older values. Restore,
+rollback, import and whole-site revert use the same version and approval
+paths. A previous runtime publishing an unseen draft cannot approve its
+new fields. No existing embed-source authority is moved or widened.
+
+Listing renders all published visible cards, including mention-only cards
+without their private link or picture, in a Highlights section on home and
+entry pages. Private/unpublished cards remain absent. This section follows
+the stat rail and precedes the listing body; phone layouts use one column.
+Its hero-image advisory is 1600 pixels wide (about 1600 by 900 for the crop),
+not an upload requirement. Existing photo shrinking and size limits remain.
 
 ### Owner-approved embeds
 
@@ -173,16 +236,19 @@ frame authority it never showed for approval. Reads, review, rollback and
 whole-site revert reconstruct the logical field from the same version.
 An absent list is empty, never an inherited list from another version.
 
-On the first content or approval write, atomically move any legacy inline
-lists out of all current, revision and live site snapshots, preserving
+Any content write or approval action (request, owner decision or publish
+now) repairs legacy inline lists; no approval is required after a content
+write. Boot and read-only requests do not run the repair. Atomically move
+any legacy inline lists out of all current, revision and live site snapshots, preserving
 versions and the already-live authority without approving staged sources.
 Conflicting lists for one version refuse the repair rather than guessing.
 Keep old JSON free of the key on every subsequent write and publish, so a
 rollback needs no reverse schema migration. New tables are ignored by the
 previous bundle; new body markup may degrade to literal text.
 
-Rollback payload audit against the previous release: `embed_sources` is
-the only new logical site/content field. Entry/card/note stored key sets,
+Rollback payload audit against the previous release: `embed_sources` and
+`broker` are the new logical site/content fields; both live outside legacy
+JSON. Entry/card/note stored key sets,
 settings and existing media/analytics columns gain no new keys. Image
 privacy changes only existing byte/hash values; coalesced analytics changes
 existing cumulative values and sending cadence. Tool guidance/response

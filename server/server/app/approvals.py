@@ -19,6 +19,7 @@ from .content import all_items, get_item, staged
 from .db import Db, dumps, now, transaction
 from .embed_storage import migrate_sources, source_approval, source_data, stored_data
 from .errors import ApiError
+from .site_fields import fields_approval
 from .visibility import check_public
 
 Approval = dict[str, Any]
@@ -238,6 +239,7 @@ async def _go_live(c: Any, row: Any, at: str) -> None:
 
         if row["kind"] == "site":
             await source_approval(c, row["version"])
+            await fields_approval(c, row["version"])
 
 
 async def live_rows(db: Db) -> "list[dict[str, Any]]":

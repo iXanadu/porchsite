@@ -28,6 +28,12 @@ const cache = new Map<string, Theme>();
 /** Old names of built-in themes, so sites set before a rename keep their look. */
 export const ALIASES: Record<string, string> = { classic: "personal-homepage", broadsheet: "product-page" };
 
+/** A bundled look is available without a database lookup (installed overrides remain valid looks). */
+export function isBuiltIn(asked: string): boolean {
+  const name = Object.hasOwn(ALIASES, asked) ? ALIASES[asked] : asked;
+  return Object.hasOwn(THEMES, name);
+}
+
 /** A theme by name: installed first (it may be newer), then built-in. */
 export async function load(db: D1Database, asked: string): Promise<Theme | null> {
   const name = ALIASES[asked] ?? asked;

@@ -453,5 +453,40 @@
   "name": "journal-style entry",
   "markdown": "Today I fixed the gallery.\n\n## What changed\n\n- Photos load **faster**\n- Captions use _italics_\n\nRead [the notes](/writing/notes \"Notes\").\n\n![The new gallery](/media/gallery.jpg)",
   "html": "<p>Today I fixed the gallery.</p>\n<h2>What changed</h2>\n<ul><li>Photos load <strong>faster</strong></li><li>Captions use <em>italics</em></li></ul>\n<p>Read <a href=\"/writing/notes\" title=\"Notes\">the notes</a>.</p>\n<p><img alt=\"The new gallery\" src=\"/media/gallery.jpg\"></p>"
+ },
+ {
+  "name": "telephone links use restricted ASCII numbers",
+  "markdown": "[Call](tel:+12025550123) [Local](tel:202-555-0123)",
+  "html": "<p><a href=\"tel:+12025550123\">Call</a> <a href=\"tel:202-555-0123\">Local</a></p>"
+ },
+ {
+  "name": "telephone links allow spaces and balanced parentheses",
+  "markdown": "[Call **now**](tel:+1 (202) 555-0123)",
+  "html": "<p><a href=\"tel:+1 (202) 555-0123\">Call <strong>now</strong></a></p>"
+ },
+ {
+  "name": "telephone links retain escaped optional titles",
+  "markdown": "[Call](tel:+1 (202) 555-0123 \"Call & ask\")",
+  "html": "<p><a href=\"tel:+1 (202) 555-0123\" title=\"Call &#38; ask\">Call</a></p>"
+ },
+ {
+  "name": "telephone links refuse letters extensions escapes and non-ASCII",
+  "markdown": "[a](tel:hello) [b](tel:123;ext=5) [c](tel:%2B123) [d](tel:１２３) [e](tel:123 456)",
+  "html": "<p>[a](tel:hello) [b](tel:123;ext=5) [c](tel:%2B123) [d](tel:１２３) [e](tel:123 456)</p>"
+ },
+ {
+  "name": "telephone links need a digit and balanced destination",
+  "markdown": "[a](tel:) [b](tel:+- ()) [c](tel:(202)",
+  "html": "<p>[a](tel:) [b](tel:+- ()) [c](tel:(202)</p>"
+ },
+ {
+  "name": "telephone links refuse tabs and line breaks",
+  "markdown": "[a](tel:123\t456) [b](tel:123\n456)",
+  "html": "<p>[a](tel:123\t456) [b](tel:123 456)</p>"
+ },
+ {
+  "name": "telephone change preserves mail and refused schemes",
+  "markdown": "[mail](mailto:owner@example.com) [unsafe](javascript:123) [code](data:123)",
+  "html": "<p><a href=\"mailto:owner@example.com\">mail</a> [unsafe](javascript:123) [code](data:123)</p>"
  }
 ]

@@ -451,6 +451,11 @@ person decides. Every release stays downloadable, and every release is
 checked before it is published so that the one before it runs on its
 database too. That makes an update safe to try and a rollback one upload.
 
+If an earlier version stored embed sources in site content, the first
+content write moves them to separate storage; it does not wait for approval.
+An approval request, owner decision or publish-now action also runs that
+repair. Starting the new version or reading the site does not run it.
+
 **Knowing there is one.** `site_state` returns `update`. When
 `update.available` is true it also has `latest` (the newest release),
 `security`, `changes`, `migrations`, `reconnect` and `how` (this section).

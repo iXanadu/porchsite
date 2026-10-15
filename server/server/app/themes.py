@@ -67,6 +67,11 @@ def built_in() -> dict[str, Theme]:
     }
 
 
+def is_built_in(asked: str) -> bool:
+    """A bundled look is available without a database query."""
+    return ALIASES.get(asked, asked) in built_in()
+
+
 async def load(db: Db, asked: str) -> Theme | None:
     """A theme by name: installed first (it may be newer), then built-in."""
     name = ALIASES.get(asked, asked)

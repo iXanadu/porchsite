@@ -82,7 +82,7 @@ async def test_listing_pages_local_links_and_actual_photo_brief(db):
     assert home.count("<img ") == 5
     art = await themes.needs(db, t)
     assert art["art"] == t["manifest"]["art"] and "actual property" in art["art"]["ask"]
-    assert art["images"][0]["size"] == [2400, 1350]
+    assert art["images"][0]["size"] == [1600, 900]
     for path in ["/listing/home/#video-tour", "/#visit", "#photos"]:
         parse("site", {"cta_link": path, "links": [{"label": "Photos", "url": path}]})
     state = sample_view("listing-page", SAMPLE)

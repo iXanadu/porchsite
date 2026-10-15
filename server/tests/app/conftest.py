@@ -29,7 +29,7 @@ if not ADMIN_DSN:
     )
 
 TABLES = (
-    "site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
+    "site_fields, site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
     "challenges, media, uploads, passkey_links, themes, request_proofs, theme_requests, "
     "theme_submissions, oauth_clients, oauth_grants, oauth_tokens, oauth_consents, analytics_salts, pageviews, slug_history, old_addresses, setup_codes, kv_cache, analytics_daily, share_cards, assistant_keys"
 )

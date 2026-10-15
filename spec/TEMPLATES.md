@@ -158,9 +158,16 @@ Every page gets:
 | `page` | Home-page words: `lede`, `hero_alt`, `hero_caption`, `cta_label`, `cta_link` |
 | `strings` | The template's UI words ("Back to top", "Read the full entry", the 404 sentences, …), with the owner's own words for any of them on top (the site item's `strings`, by name; an empty one keeps the default). The hours and event blocks use them too |
 | `nav` | `[{href, label}]` in the owner's section order, only sections with something in them (a stream with entries, any cards, a non-empty About) |
+| `highlights`, `has_highlights` | All visible formatted cards and whether any exist, independent of the section-menu selection |
 | `feeds` | `[{title, url}]` the site's Atom feeds |
 | `kit` | `css_url`, `beacon_url` (the kit's analytics beacon, SPEC §8; a template includes it with `<script src="{{kit.beacon_url}}" defer>` and puts `data-kind="{{meta.kind}}" data-id="{{meta.content_id}}"` on `<body>`), `filter_url`, `search_url` |
 | `meta` | `title`, `description`, `og_type`, `url`, `image`, `image_alt`, `kind`, `content_id`. `image` is the page's share picture: an entry's share card (SPEC §5), else its cover; on an archive or tag page, the cover of its newest entry that has one; otherwise the site's share image, else its hero |
+
+Listing uses the shared view's `highlights` (visible cards with the same
+formatted fields as cards sections) and `has_highlights` on home and entry
+pages, independently of section-menu selection. It renders the optional
+logical `site.broker` as escaped footer text after the contact information.
+Other looks do not render this field.
 
 **Blocks** (on `site`, display-ready in the site's timezone, computed when
 the page is served):

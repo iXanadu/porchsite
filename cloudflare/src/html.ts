@@ -338,10 +338,25 @@ function mdInline(s: string, positions = false): string {
   // Where a failed emphasis scan went: another scan for the same closer that reaches one of these fails too.
   const dead = new Map<string, Set<number>>();
 
-  /** A link may go to http(s), mailto, "/..." or "#...": the address s[at, at + len). */
+  /** Telephone destinations allow spaces and balanced parentheses, unlike other addresses. */
+  const telStop = (at: number, end: number): number => {
+    let depth = 0;
+    for (let p = at + 4; p < end; p++) {
+      const c = s[p];
+      if (c === ")") { if (!depth) return p; depth--; }
+      else if (c === "(") depth++;
+      else if (c === '"' && !depth) {
+        while (p > at + 4 && s[p - 1] === " ") p--;
+        return p;
+      } else if (!/[0-9+ -]/.test(c)) return -1;
+    }
+    return -1;
+  };
+  /** A link may go to http(s), mailto, restricted tel, "/..." or "#...". */
   const linkDest = (at: number, len: number) =>
     ((s.startsWith("http://", at) || s.startsWith("mailto:", at)) && len > 7) ||
     (s.startsWith("https://", at) && len > 8) ||
+    (s.startsWith("tel:", at) && /^[0-9+() -]*[0-9][0-9+() -]*$/.test(s.slice(at + 4, at + len))) ||
     ((s[at] === "/" || s[at] === "#") && len > 0);
   const MEDIA = /\/media\/[A-Za-z0-9._-]+\)/y;
 
@@ -448,7 +463,8 @@ function mdInline(s: string, positions = false): string {
         const k = match[i];
         if (k >= 0 && k < end && k > i + 1 && s[k + 1] === "(") {
           const at = Math.min(k + 2, end);
-          const stop = Math.min(nextStop[at], end);
+          const stop = s.startsWith("tel:", at) ? telStop(at, end) : Math.min(nextStop[at], end);
+          if (stop < 0) { out += "["; i++; continue; }
           let p = Math.min(nextText[stop], end);
           let title = -1; // where the title's closing quote is
           if (p < end && s[p] === '"') {

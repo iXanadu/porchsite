@@ -376,11 +376,34 @@ def _inline(s: str, positions=False) -> str:
     def at(i: int) -> str | None:
         return s[i] if 0 <= i < n else None
 
+    def tel_stop(a: int, end: int) -> int:
+        """Telephone destinations allow spaces and balanced parentheses."""
+        depth = 0
+        for p in range(a + 4, end):
+            c = s[p]
+            if c == ")":
+                if not depth:
+                    return p
+                depth -= 1
+            elif c == "(":
+                depth += 1
+            elif c == '"' and not depth:
+                while p > a + 4 and s[p - 1] == " ":
+                    p -= 1
+                return p
+            elif c not in "0123456789+ -":
+                return -1
+        return -1
+
     def link_dest(a: int, length: int) -> bool:
-        """A link may go to http(s), mailto, "/..." or "#...": the address s[a:a+length]."""
+        """A link may go to http(s), mailto, restricted tel, "/..." or "#..."."""
         return (
             ((s.startswith("http://", a) or s.startswith("mailto:", a)) and length > 7)
             or (s.startswith("https://", a) and length > 8)
+            or (
+                s.startswith("tel:", a)
+                and re.fullmatch(r"[0-9+() -]*[0-9][0-9+() -]*", s[a + 4 : a + length]) is not None
+            )
             or (at(a) in ("/", "#") and length > 0)
         )
 
@@ -485,7 +508,11 @@ def _inline(s: str, positions=False) -> str:
                 k = match[i]
                 if 0 <= k < end and k > i + 1 and at(k + 1) == "(":
                     a = min(k + 2, end)
-                    stop = min(next_stop[a], end)
+                    stop = tel_stop(a, end) if s.startswith("tel:", a) else min(next_stop[a], end)
+                    if stop < 0:
+                        out.append("[")
+                        i += 1
+                        continue
                     p = min(next_text[stop], end)
                     title = -1  # where the title's closing quote is
                     if p < end and s[p] == '"':

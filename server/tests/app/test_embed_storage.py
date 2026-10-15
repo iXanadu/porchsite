@@ -65,14 +65,14 @@ async def test_repairs_legacy_live_and_pending_snapshots_without_promoting_draft
     two = await content.update_item(db, "assistant:test", "site", 1, dict(embed_sources=[B]))
     a = await approvals.request(db, "assistant:test", ["site"], "")
     await db.execute("DELETE FROM site_embed_sources")
-    await db.execute("UPDATE items SET data = $1 WHERE id = 'site'", dumps(two["data"]))
+    await db.execute("UPDATE items SET data = $1 WHERE id = 'site'", dumps({k: v for k, v in two["data"].items() if k != "broker"}))
     await db.execute(
-        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 1", dumps(one["data"])
+        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 1", dumps({k: v for k, v in one["data"].items() if k != "broker"})
     )
     await db.execute(
-        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 2", dumps(two["data"])
+        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 2", dumps({k: v for k, v in two["data"].items() if k != "broker"})
     )
-    await db.execute("UPDATE live SET data = $1 WHERE item_id = 'site'", dumps(one["data"]))
+    await db.execute("UPDATE live SET data = $1 WHERE item_id = 'site'", dumps({k: v for k, v in one["data"].items() if k != "broker"}))
     await content.create_item(
         db, "assistant:test", "note", dict(text="A note", date="2026-10-15"), None
     )
@@ -89,6 +89,42 @@ async def test_repairs_legacy_live_and_pending_snapshots_without_promoting_draft
     await approvals.decide(db, a["id"], dict(site=dict(decision="approve")), "", ORIGIN)
     assert (await content.site_data(db, True))["embed_sources"] == [B]
     await clean_payloads(db)
+
+
+@pytest.mark.parametrize("action", ["request", "decide"])
+async def test_approval_repairs_legacy_inline_sources_without_content_write(db, action):
+    one = await content.create_item(db, "assistant:test", "site", dict(embed_sources=[A]), None)
+    await publish(db, one)
+    two = await content.update_item(db, "assistant:test", "site", 1, dict(embed_sources=[B]))
+    pending = await approvals.request(db, "assistant:test", ["site"], "")
+    # Reconstruct the previous inline-storage format, including live and pending versions.
+    await db.execute("DELETE FROM site_embed_sources")
+    await db.execute("UPDATE items SET data = $1 WHERE id = 'site'", dumps({k: v for k, v in two["data"].items() if k != "broker"}))
+    await db.execute(
+        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 1", dumps({k: v for k, v in one["data"].items() if k != "broker"})
+    )
+    await db.execute(
+        "UPDATE revisions SET data = $1 WHERE item_id = 'site' AND version = 2", dumps({k: v for k, v in two["data"].items() if k != "broker"})
+    )
+    await db.execute("UPDATE live SET data = $1 WHERE item_id = 'site'", dumps({k: v for k, v in one["data"].items() if k != "broker"}))
+    # A read does not repair; no content write or direct migration follows this seed.
+    await content.site_data(db, True)
+    assert await db.fetchval("SELECT COUNT(*) FROM site_embed_sources") == 0
+    if action == "request":
+        pending = await approvals.request(db, "assistant:test", ["site"], "")
+        await clean_payloads(db)
+        rows = await db.fetch("SELECT version,sources,approved FROM site_embed_sources ORDER BY version")
+        assert [{**dict(r), "sources": json.loads(r["sources"])} for r in rows] == [
+            dict(version=1, sources=[A], approved=1), dict(version=2, sources=[B], approved=0)
+        ]
+        assert (await approvals.get(db, pending["id"]))["items"][0]["status"] == "pending"
+    await approvals.decide(db, pending["id"], dict(site=dict(decision="approve")), "", ORIGIN)
+    await clean_payloads(db)
+    assert (await content.site_data(db, True))["embed_sources"] == [B]
+    rows = await db.fetch("SELECT version,sources,approved FROM site_embed_sources ORDER BY version")
+    assert [{**dict(r), "sources": json.loads(r["sources"])} for r in rows] == [
+        dict(version=1, sources=[A], approved=1), dict(version=2, sources=[B], approved=1)
+    ]
 
 
 async def test_old_bundle_cannot_publish_an_unseen_source_sidecar(db):
@@ -115,7 +151,7 @@ async def test_conflicting_legacy_versions_refuse_without_stripping_or_widening(
     await db.execute(
         "UPDATE items SET data = $1 WHERE id = 'site'", dumps({**one["data"], "embed_sources": [B]})
     )
-    await db.execute("UPDATE live SET data = $1 WHERE item_id = 'site'", dumps(one["data"]))
+    await db.execute("UPDATE live SET data = $1 WHERE item_id = 'site'", dumps({k: v for k, v in one["data"].items() if k != "broker"}))
     with pytest.raises(Exception, match="sources disagree"):
         await migrate_sources(db)
     assert (await content.site_data(db, True))["embed_sources"] == [A]

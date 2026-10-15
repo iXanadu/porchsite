@@ -58,8 +58,6 @@ site's OAuth connector, and pictures held as files. In order:
   custom GPT, Meta AI's skills), then a run with each.
 
 ## AI READERS AND ASSISTANT GUIDANCE (owner's request, 2026-10-15; after the Listing look)
-- **AI-1** OPEN: neither edition serves `/sitemap.xml` (site_check only
-  treats the path as fixed). Serve one, with lastmod from approvals.
 - **AI-2** OPEN: JSON-LD for the Listing and Local business looks, from
   existing fields only; built and stored with build-ahead (S4-9), never per
   request. Structured listing facts (price, beds) would need fields stored
