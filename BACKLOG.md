@@ -69,6 +69,14 @@ site's OAuth connector, and pictures held as files. In order:
   by default (ids, kinds, titles, states, versions) and the full data per
   item or on request. Found: an assistant running updates.
 
+- **SP-S2** OPEN: `site_check`'s crawl has no page or link cap. A
+  look with a huge local link fan-out burns CPU inside the owner's own
+  check. Owner-authenticated only, not a visitor path. Found: stage 1
+  security review.
+- **SV-T1** OPEN: A server test run once failed its teardown (DROP
+  DATABASE ... FORCE, privilege error) and left a `porchsite_test_*`
+  database behind on the test cluster. Cause not yet known; seen once.
+
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
   live, with the audit-log check; left: another run on a fresh Cloudflare
