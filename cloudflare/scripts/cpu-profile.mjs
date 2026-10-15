@@ -12,6 +12,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const options = {};
 for (let i = 2; i < process.argv.length; i += 2) options[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
+const harnessSha256=createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex');
 const lock = '/tmp/porchsite-suite.lock';
 const startingLoad = loadavg()[0];
 if (startingLoad >= 8) throw new Error(`Wait for one-minute load below 8 (now ${startingLoad}).`);
@@ -42,14 +43,14 @@ const release = options.release ?? `${spawnSync('git',['show','-s','--format=%cd
 const minify = options.minify !== 'false';
 if(previousResults.length) {
  const previousMethod=JSON.parse(readFileSync(join(output,'method.json')));
- if(previousMethod.revision!==revision||previousMethod.diffSha256!==sourceState.diffSha256||previousMethod.release!==release||previousMethod.minify!==minify) throw new Error('Resume requires the identical build, release and minification.');
+ if(previousMethod.revision!==revision||previousMethod.diffSha256!==sourceState.diffSha256||previousMethod.release!==release||previousMethod.minify!==minify||previousMethod.harnessSha256!==harnessSha256) throw new Error('Resume requires the identical build, release, minification and harness.');
 }
 const selected = options.looks?.split(',') ?? readdirSync(join(repo, 'themes')).filter(n => existsSync(join(repo, 'themes', n, 'sample.json'))).sort();
 const wanted = options.cases?.split(',');
 const repeats = Number(options.repeats ?? 3);
 const modes = options.modes?.split(',') ?? ['cold', 'warm'];
 if (!Number.isInteger(repeats) || repeats < 1 || modes.some(m=>!['cold','warm'].includes(m))) throw new Error('Invalid repeats or modes');
-writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,release,minify,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:'One unmeasured same-case request, then measured requests; storage reset before each',samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
+writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,harnessSha256,release,minify,repeats,modes,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:'One unmeasured same-case request, then measured requests; storage reset before each',samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
 const token = `psk_${randomBytes(24).toString('base64url')}`, session = randomBytes(32).toString('base64url');
 const hash = s => createHash('sha256').update(s).digest('hex');
 const sql = v => v === null ? 'NULL' : `'${String(v).replaceAll("'", "''")}'`;

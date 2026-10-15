@@ -43,7 +43,7 @@ To yield the shared lock, send the harness process `SIGUSR2`. It finishes
 the current observation, writes an explicitly incomplete table and exits
 75 after shutting down Wrangler. Resume with the same arguments and
 `--resume true`; completed observations are preserved. Resuming refuses a
-different revision, product diff, release label or minification setting.
+different revision, product diff, release label, minification or harness hash.
 
 The measured path is the build's actual `index.ts` HTTP handler, including
 owner-session authentication for review pages and assistant-key lookup plus
