@@ -6,7 +6,7 @@ const MAX_FILES = 8;
 const MAX_TOTAL = 8 * 1024 * 1024;
 // Hex keeps D1's binding wrapper from expanding every byte to a JS number.
 // Decode in SQLite, retaining the existing BLOB storage/rollback format.
-const CHUNK = 1_000_000;
+const CHUNK = media.CHUNK;
 const NEXT = "Put image in an image field with a description, then ask for approval as usual.";
 
 function preflight(value: string): { raw: string; size: number } {
@@ -48,7 +48,10 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
     }
     const chunks = Math.ceil(bytes.length / CHUNK);
     for (let n = 0; n < chunks; n++) {
-      stmts.push(db.prepare("INSERT OR IGNORE INTO media_chunks (name, n, data) VALUES (?, ?, unhex(?))").bind(name, n, bytes.subarray(n * CHUNK, (n + 1) * CHUNK).toHex()));
+      const chunk = bytes.subarray(n * CHUNK, (n + 1) * CHUNK);
+      // Keep the existing writer's chunk boundaries. Split hex parameters to
+      // stay below D1's per-value limit, concatenating decoded bytes in SQL.
+      stmts.push(db.prepare("INSERT OR IGNORE INTO media_chunks (name, n, data) SELECT ?, ?, CAST(unhex(?) || unhex(?) AS BLOB) WHERE NOT EXISTS (SELECT 1 FROM media WHERE name = ?)").bind(name, n, chunk.subarray(0, 1_000_000).toHex(), chunk.subarray(1_000_000).toHex(), name));
     }
     stmts.push(db.prepare("INSERT OR IGNORE INTO media (name, type, size, chunks, source, created_at, width, height) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(name, type, bytes.length, chunks, actor.slice(0, 500), new Date().toISOString(), width, height));
   }

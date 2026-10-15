@@ -15,7 +15,7 @@ import { ApiError } from "./errors";
 import type { Kind } from "./models";
 
 export const MAX_BYTES = 8 * 1024 * 1024;
-const CHUNK = 1_900_000; // under D1's 2 MB row limit
+export const CHUNK = 1_900_000; // under D1's 2 MB row limit
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const TYPE: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
 
@@ -120,7 +120,7 @@ export async function store(db: D1Database, bytes: Uint8Array, type: string, sou
     const chunks = Math.max(1, Math.ceil(bytes.byteLength / CHUNK));
     const stmts = [];
     for (let n = 0; n < chunks; n++) {
-      stmts.push(db.prepare("INSERT OR REPLACE INTO media_chunks (name, n, data) VALUES (?, ?, ?)").bind(name, n, bytes.slice(n * CHUNK, (n + 1) * CHUNK)));
+      stmts.push(db.prepare("INSERT OR IGNORE INTO media_chunks (name, n, data) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM media WHERE name = ?)").bind(name, n, bytes.slice(n * CHUNK, (n + 1) * CHUNK), name));
     }
     // The media row goes last, so a half-written image is never served.
     stmts.push(

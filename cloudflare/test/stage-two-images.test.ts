@@ -7,6 +7,8 @@ import type { Env } from "../src/env";
 import { createServer } from "../src/mcp";
 import worker from "../src/index";
 import * as uploads from "../src/uploads";
+import * as media from "../src/media";
+import { imageAdd as addBatch } from "../src/image-add";
 
 const db = (env as unknown as Env).DB;
 const png = (n: number, bytes = 24) => btoa(String.fromCharCode(...[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,n,0,0,0,1]) + "\0".repeat(bytes - 24));
@@ -64,7 +66,7 @@ it("refuses 8 MiB plus one byte decoded before decoding any file", async () => {
   const before = await stored();
   const first = png(60, 4 * 1024 * 1024);
   const second = png(61, 4 * 1024 * 1024 + 1);
-  const decode = vi.spyOn(globalThis, "atob");
+  const decode = vi.spyOn(Uint8Array, "fromBase64");
   let result;
   try {
     result = await imageAdd([first, second]);
@@ -154,7 +156,13 @@ it("rejects bad base64 and an oversized individual file before writes", async ()
   const malformed = await imageAdd([png(94), "not base64!!"]);
   expect(malformed.error).toBe(true);
   expect(malformed.value.error).toBe("invalid");
-  const oversized = await imageAdd([png(95), png(96, 8 * 1024 * 1024 + 1)]);
+  const over = png(96, 8 * 1024 * 1024 + 1);
+  const decode = vi.spyOn(Uint8Array, "fromBase64");
+  let oversized;
+  try {
+    oversized = await imageAdd([png(95), over]);
+    expect(decode).not.toHaveBeenCalled();
+  } finally { decode.mockRestore(); }
   expect(oversized.error).toBe(true);
   expect(JSON.stringify(oversized.value)).toMatch(/8/);
   expect(await stored()).toEqual(before);
@@ -195,4 +203,35 @@ it("an overlapping failed call leaves only the successful batch's images", async
   const after = await stored();
   const known = new Set(before.media.map(row => row.name));
   expect(after.media.filter(row => !known.has(row.name)).map(row => `/media/${row.name}`).sort()).toEqual(success.value.images.map((x: any) => x.image).sort());
+});
+
+// Force both legal stale-read schedules across the two image writers.
+it.each([[1_500_000, true], [1_500_000, false], [3_000_000, true], [3_000_000, false]] as const)("preserves served bytes at %i bytes when batch waits: %s", async (length, batchWaits) => {
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i++) bytes[i] = i % 251;
+  bytes.set([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,batchWaits ? 1 : 2,0,0,0,1]);
+  const encoded = bytes.toBase64();
+  const original = db.batch.bind(db);
+  const spy = vi.spyOn(db, "batch").mockImplementation(async statements => {
+    spy.mockRestore();
+    if (batchWaits) await media.store(db, bytes, "image/png", "fixture");
+    else await addBatch(db, "assistant:test", undefined, [encoded]);
+    return original(statements);
+  });
+  let path: string;
+  try {
+    path = batchWaits ? (await addBatch(db, "assistant:test", undefined, [encoded])).images![0].image : await media.store(db, bytes, "image/png", "fixture");
+  } finally { spy.mockRestore(); }
+  const response = await media.serve(db, path.slice("/media/".length), false);
+  expect(new Uint8Array(await response!.arrayBuffer())).toEqual(bytes);
+});
+
+it("preserves all bytes of an 8 MiB legacy single-file upload", async () => {
+  const encoded = png(210, 8 * 1024 * 1024);
+  const result = await callImage({ data: encoded });
+  expect(result.error).toBe(false);
+  const response = await media.serve(db, result.value.image.slice("/media/".length), false);
+  const served = new Uint8Array(await response!.arrayBuffer());
+  expect(served.length).toBe(8 * 1024 * 1024);
+  expect(served.toBase64()).toBe(encoded);
 });
