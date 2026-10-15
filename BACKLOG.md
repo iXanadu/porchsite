@@ -24,26 +24,19 @@ Goal: every request (public pages, the review pages, every tool) under
 10 ms CPU on Free, with margin. Release held until a hosted re-measure
 shows no call over 10 ms. Gate: the usual nine checks plus that
 re-measure.
-- **S3-1** IN-PROGRESS: tester. A local CPU check: each public page kind,
-  each review page and each tool on every sample site, in local Wrangler
-  with the inspector's CPU profile, warm and cold; a table per build, and
-  a script others can rerun. Reproduce the hosted numbers' shape first.
-- **S3-2** IN-PROGRESS: coder. Find and cut the per-request cost every
-  call pays (a trivial tool call should cost a few ms). Profile first;
-  report the top costs before changing anything.
-- **S3-3** OPEN: coder, after S3-2. `site_check` works in steps: a per-call
-  page budget, a `next` cursor to continue, and the same answer once all
-  steps are done. Both editions, spec first. Find why main's check costs
-  3x release fbdd784's first.
 - **S3-5** OPEN: Uploads. One legal 8 MB `image_add` (or 8 x 1 MB) costs
   about 100-118 ms CPU cold and 52-59 ms warm locally (base64 decode,
   hash, encoding for D1, D1 serialization); today's release does the same
   work. First measure CPU per decoded MB (0.5, 1, 2, 4 MB) and find the
   largest per-call size that fits; then decide between a lower per-call
   limit with pictures sent in pieces across calls, or a leaner byte path.
-- **S3-4** OPEN: PM decision after S3-3's numbers. If the full check still
-  can't fit, the deep crawl becomes an add-on that is off by default and
-  marked as needing the paid plan, and the core keeps a quick check.
+- **S3-4** IN-PROGRESS: coder. Decided (2026-10-15): checking in steps
+  can't fit (one page alone is about 16 ms cold locally), so the rendered
+  reachability crawl becomes opt-in: `site_check` by default answers as
+  release 2026.10.14-fbdd784 did (broken links, empty sections; no
+  rendering), and `site_check({deep: true})` adds `unreachable` and
+  `crawl`, described as heavy and best on the paid plan. Both editions,
+  spec first; additive.
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
