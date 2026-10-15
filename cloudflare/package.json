@@ -19,6 +19,7 @@
     "@simplewebauthn/server": "14.0.2",
     "@types/mustache": "4.2.5",
     "agents": "0.24.0",
+    "entities": "8.1.0",
     "mustache": "4.2.0",
     "zod": "4.6.5"
   },

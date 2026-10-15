@@ -27,4 +27,21 @@ def test_reports_links_that_lead_nowhere_and_sections_with_nothing_in_them():
 
 def test_passes_a_site_whose_links_all_land():
     ok = validate("site", {"title": "Ok", "cta_label": "Read", "cta_link": "/news/hello/", "streams": [{"id": "updates", "title": "Updates", "path": "news"}], "sections": ["entries"]})  # fmt: skip
-    assert check_site(view(ok, [entry("e1", "hello", "Back [home](/#updates).")]), set()) == {"ok": True, "broken": [], "empty_sections": []}  # fmt: skip
+    assert check_site(view(ok, [entry("e1", "hello", "Back [home](/#updates).")]), set()) == {"ok": True, "broken": [], "empty_sections": [], "unreachable": []}  # fmt: skip
+
+
+
+
+def test_follows_rendered_archive_relative_links_and_escaped_external_destinations():
+    data = validate("site", {"title": "Paths", "theme": "product-page", "sections": ["entries"]})
+    v = view(data, [entry("a", "a", ""), entry("b", "b", ""), {
+        **entry("external", "external", ""), "data": validate("entry", {"title": "External", "date": "2026-10-10", "external_url": "https://example.com/?a=1&b=2"}),
+    }])
+    look = {"manifest": {}, "partials": {}, "static": {}, "pages": {
+        "home": '<!-- <a href="/journal/b/"> --> <a href="journal/">Archive</a>',
+        "archive": '<a href="a/">A</a>',
+        "entry": '{{#entry}}{{#body_html}}{{{body_html}}}{{/body_html}}{{/entry}}<a href="../b/">B</a><a href="https://example.com/?a=1&amp;b=2">External</a>',
+    }}
+    assert check_site(v, set(), look)["unreachable"] == []
+    look["pages"]["home"] = '<script>"<a href="/journal/a/">"</script><!-- <a href="/journal/b/"> -->'
+    assert [x["id"] for x in check_site(v, set(), look)["unreachable"]] == ["a", "b", "external"]

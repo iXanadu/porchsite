@@ -24,16 +24,6 @@ Gate (each command's exit code read on its own, never through a pipe):
 `cd server && pytest -q`; `scripts/parity.sh`;
 `scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
 `scripts/migration-check.py`; `scripts/upgrade-check.sh`.
-- **S1-1** (RA-6) IN-PROGRESS: spec + both editions. `site_check` gains
-  `unreachable`: published entries no visitor can reach from the home page
-  as the site's own look renders it, each with its id and why. A test look
-  that drops entries must fail the check in both editions.
-- **S1-2** (SP-S1) IN-PROGRESS: spec + both editions. `site_state` returns
-  a summary by default (id, kind, title, state, version per item; release
-  and update unchanged). Full data comes back with `full: true`, or with
-  `ids: [...]` for just those items. Additive only: nothing removed from the
-  full shape. Measure the summary on each look's sample site and put the
-  sizes in the commit message.
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
@@ -44,10 +34,6 @@ site's OAuth connector, and pictures held as files. In order:
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-6** IN-PROGRESS (S1-1): site_check should report entries no visitor can reach
-  from the home page (rendered by the site's own look), not just broken
-  links and empty sections: a look that drops some entries left a thin
-  home page and the check still passed.
 - **RA-9** OPEN: The install guide's setup code as a hashed row in the
   site's database (as the installer does), not a Worker secret: no secret
   to delete after the claim, one step fewer, nothing for the audit check.
@@ -64,10 +50,7 @@ site's OAuth connector, and pictures held as files. In order:
   custom GPT, Meta AI's skills), then a run with each.
 
 ## DEGRADING
-- **SP-S1** IN-PROGRESS (S1-2): `site_state` returns 34-51 KB for an ordinary site,
-  every item in full; heavy for an assistant's context. Consider a summary
-  by default (ids, kinds, titles, states, versions) and the full data per
-  item or on request. Found: an assistant running updates.
+_(none)_
 
 - **SP-S2** OPEN: `site_check`'s crawl has no page or link cap. A
   look with a huge local link fan-out burns CPU inside the owner's own

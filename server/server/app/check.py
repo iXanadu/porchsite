@@ -5,11 +5,18 @@ sections in the layout with nothing in them. Port of cloudflare/src/check.ts.
 """
 
 import re
+from html.parser import HTMLParser
+from uuid import uuid4
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from typing import Any
 
 from server.spec.jsutil import string, trim
 from server.spec.site import SiteView
+from server.spec import theme as views
 from server.spec.theme import streams
+
+from . import builtin, themes
+from .theme import Theme, render
 
 Data = dict[str, Any]
 
@@ -34,7 +41,7 @@ def _links_of(where: str, data: Data, fields: list[str]) -> list[tuple[str, str]
     return out
 
 
-def check_site(v: SiteView, media: set[str]) -> Data:
+def check_site(v: SiteView, media: set[str], look: Theme | None = None, origin: str = "https://example.invalid") -> Data:
     s = v.site
     st = streams(s)
     pages = set(FIXED)
@@ -122,4 +129,129 @@ def check_site(v: SiteView, media: set[str]) -> Data:
                 }
             )
     # Empty sections are reported, not failed: the site's menu leaves them out.
-    return {"ok": not broken, "broken": broken, "empty_sections": empty}
+    unreachable = _unreachable_entries(v, look, origin)
+    return {"ok": not broken and not unreachable, "broken": broken, "empty_sections": empty, "unreachable": unreachable}
+
+
+class _Links(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.links: list[str] = []
+        self.comments: list[str] = []
+        self.template_depth = 0
+
+    def handle_comment(self, data: str) -> None:
+        if not self.template_depth:
+            self.comments.append(data)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "template":
+            self.template_depth += 1
+        if not self.template_depth and tag in ("a", "area"):
+            href = dict(attrs).get("href")
+            if href is not None:
+                self.links.append(href)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "template" and self.template_depth:
+            self.template_depth -= 1
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # A self-closing slash does not close non-void HTML template elements.
+        self.handle_starttag(tag, attrs)
+
+
+def _address(href: str, base: str) -> str:
+    """Normalise HTTP destinations as new URL does: case, port and empty path."""
+    parts = urlsplit(urljoin(base, href))
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        return urlunsplit((scheme, parts.netloc, parts.path, parts.query, parts.fragment))
+    if not parts.hostname:
+        raise ValueError("not an HTTP address")
+    host = parts.hostname.encode("idna").decode("ascii").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if parts.port is not None and parts.port != (443 if scheme == "https" else 80):
+        host += f":{parts.port}"
+    credentials = parts.netloc.rsplit("@", 1)[0] + "@" if "@" in parts.netloc else ""
+    return urlunsplit((scheme, credentials + host, parts.path or "/", parts.query, parts.fragment))
+
+
+def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[Data]:
+    t = look or themes.built_in().get(themes.ALIASES.get(v.site["theme"], v.site["theme"]))
+    base = urlsplit(_address(origin or "https://example.invalid", "https://example.invalid"))
+    # Renderer contexts receive an origin, never a URL path or trailing slash.
+    origin = urlunsplit((base.scheme, base.netloc, "", "", ""))
+    reached: set[str] = set()
+    inline: set[str] = set()
+    marker = f"porchsite-check-{uuid4()}:"
+    indexes = {e["id"]: i for i, e in enumerate(v.entries)}
+
+    def marked(value: Any) -> Any:
+        if isinstance(value, list):
+            return [marked(x) for x in value]
+        if not isinstance(value, dict):
+            return value
+        out = {k: marked(val) for k, val in value.items()}
+        i = indexes.get(value.get("id"))
+        if i is not None and value.get("body_html"):
+            out["body_html"] = f"<!--{marker}{i}-->{value['body_html']}"
+        return out
+
+    visited: set[str] = set()
+    queue = ["/"]
+    while queue:
+        path = queue.pop(0)
+        if path in visited:
+            continue
+        visited.add(path)
+        old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
+        moved = next((e["page"] for e in v.entries if old and e["slug"] == old[1]), None) if old else builtin.redirect_for(v, path)
+        if moved:
+            queue.append(moved)
+            continue
+        e = next((e for e in v.entries if e["page"] == path), None)
+        if e and e.get("external_url"):
+            reached.add(_address(e["external_url"], origin))
+            continue
+        body = None
+        if t:
+            if path == "/":
+                body = render(t, "home", marked(views.home_view(v, "check", origin)))
+            elif e:
+                body = render(t, "entry", marked(views.entry_view(v, e, "check", origin)))
+            else:
+                arch = re.fullmatch(r"/([a-z][a-z0-9-]{0,29})/(?:tags/([a-z0-9-]{1,30})/)?", path)
+                av = views.archive_view(v, arch[1], "check", origin, arch[2]) if arch else None
+                if av:
+                    body = render(t, "tag" if arch[2] else "archive", marked(av))
+        else:
+            response = builtin.home(v) if path == "/" else builtin.entry_page(v, path)
+            if response:
+                body = response.body.decode("utf-8")
+        if body is None:
+            continue
+        parser = _Links()
+        parser.feed(body)
+        for comment in parser.comments:
+            if comment.startswith(marker) and comment[len(marker):].isdigit():
+                i = int(comment[len(marker):])
+                if i < len(v.entries):
+                    inline.add(v.entries[i]["id"])
+        for href in parser.links:
+            try:
+                url = _address(href, urljoin(origin, path))
+                parts = urlsplit(url)
+                if parts.scheme not in ("http", "https"):
+                    continue
+                reached.add(url)
+                if (parts.scheme, parts.netloc) == (base.scheme, base.netloc):
+                    queue.append(parts.path or "/")
+            except ValueError:
+                continue
+    return [
+        {"id": e["id"], "why": "no rendered link path from the home page to this entry"}
+        for e in v.entries
+        if e["id"] not in inline and e["page"] not in visited and (not e.get("external_url") or _address(e["external_url"], origin) not in reached)
+    ]

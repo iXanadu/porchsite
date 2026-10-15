@@ -5,8 +5,12 @@
  * sections in the layout with nothing in them. Read-only; the server
  * edition's server/app/check.py is the same check.
  */
+import { decodeHTMLAttribute } from "entities";
 import type { SiteView } from "./site";
-import { streams } from "./theme";
+import { streams, homeView, archiveView, entryView, render } from "./theme";
+import { THEMES } from "./themes.gen";
+import { ALIASES, type Theme } from "./themes";
+import { home, entryPage, redirectFor } from "./site";
 
 type Data = Record<string, any>;
 export interface Problem {
@@ -35,7 +39,7 @@ function linksOf(where: string, data: Data, fields: string[]): { where: string; 
   return out;
 }
 
-export function checkSite(v: SiteView, media: Set<string>): { ok: boolean; broken: Problem[]; empty_sections: string[] } {
+export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | null, origin = "https://example.invalid"): Promise<{ ok: boolean; broken: Problem[]; empty_sections: string[]; unreachable: { id: string; why: string }[] }> {
   const s = v.site;
   const st = streams(s);
   const pages = new Set(FIXED);
@@ -86,5 +90,78 @@ export function checkSite(v: SiteView, media: Set<string>): { ok: boolean; broke
     if (hash && page === "/" && !anchors.has(hash)) broken.push({ where, link, why: `the home page has no section #${hash} with anything in it` });
   }
   // Empty sections are reported, not failed: the site's menu leaves them out.
-  return { ok: !broken.length, broken, empty_sections: empty };
+  const unreachable = await unreachableEntries(v, look, origin);
+  return { ok: !broken.length && !unreachable.length, broken, empty_sections: empty, unreachable };
+}
+
+/** Crawl only pages reached by actual HTML links; never fetch a URL. */
+async function unreachableEntries(v: SiteView, look: Theme | null | undefined, origin: string) {
+  const t = look === undefined ? THEMES[ALIASES[v.site.theme] ?? v.site.theme] ?? null : look;
+  const base = new URL(origin || "https://example.invalid");
+  const reached = new Set<string>();
+  const inline = new Set<string>();
+  const marker = `porchsite-check-${crypto.randomUUID()}:`;
+  // Check-only comments identify full entry bodies that a look emits inline.
+  // They never reach the public renderer, and do not change Mustache truthiness.
+  const marked = (value: any): any => {
+    if (Array.isArray(value)) return value.map(marked);
+    if (!value || typeof value !== "object") return value;
+    const out = Object.fromEntries(Object.entries(value).map(([k, val]) => [k, marked(val)]));
+    const i = v.entries.findIndex((e) => e.id === value.id);
+    if (i >= 0 && value.body_html) out.body_html = `<!--${marker}${i}-->${value.body_html}`;
+    return out;
+  };
+  const visited = new Set<string>();
+  const queue = ["/"];
+  const address = (href: string, path: string): URL | null => {
+    try { return new URL(href, new URL(path, base)); } catch { return null; }
+  };
+  while (queue.length) {
+    const path = queue.shift()!;
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
+    const moved = old ? v.entries.find((e) => e.slug === old[1])?.page : redirectFor(v, path);
+    if (moved) { queue.push(moved); continue; }
+    const e = v.entries.find((e) => e.page === path);
+    if (e?.external_url) { reached.add(new URL(e.external_url, base).href); continue; }
+    let body: string | null = null;
+    if (t) {
+      if (path === "/") body = render(t, "home", marked(homeView(v, "check", base.origin)));
+      else if (e) body = render(t, "entry", marked(entryView(v, e, "check", base.origin)));
+      else {
+        const arch = /^\/([a-z][a-z0-9-]{0,29})\/(?:tags\/([a-z0-9-]{1,30})\/)?$/.exec(path);
+        const av = arch && archiveView(v, arch[1], "check", base.origin, arch[2]);
+        if (av) body = render(t, arch![2] ? "tag" : "archive", marked(av));
+      }
+    } else {
+      const response = path === "/" ? home(v) : entryPage(v, path);
+      if (response) body = await response.text();
+    }
+    if (body === null) continue;
+    // Template content is inert even when templates nest. Use parser events,
+    // so markup in script text and comments cannot change the nesting depth.
+    let templateDepth = 0;
+    await new HTMLRewriter().on("template", {
+      element(el) {
+        templateDepth++;
+        el.onEndTag(() => { templateDepth--; });
+      },
+    }).on("a[href], area[href]", {
+      element(el) {
+        if (templateDepth) return;
+        const url = address(decodeHTMLAttribute(el.getAttribute("href")!), path);
+        if (!url || !["http:", "https:"].includes(url.protocol)) return;
+        reached.add(url.href);
+        if (url.origin === base.origin) queue.push(url.pathname);
+      },
+    }).onDocument({ comments(comment) {
+      if (!templateDepth && comment.text.startsWith(marker)) {
+        const e = v.entries[Number(comment.text.slice(marker.length))];
+        if (e) inline.add(e.id);
+      }
+    } }).transform(new Response(body)).text();
+  }
+  return v.entries.filter((e) => !inline.has(e.id) && (e.external_url ? !reached.has(new URL(e.external_url, base).href) && !visited.has(e.page) : !visited.has(e.page)))
+    .map((e) => ({ id: String(e.id), why: "no rendered link path from the home page to this entry" }));
 }

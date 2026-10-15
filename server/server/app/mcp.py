@@ -55,7 +55,7 @@ CHECK_DESCRIPTION = (
     " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
     " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
     " with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them,"
-    " if you mean to). `ok` is true when nothing is broken. Run it before you ask for approval and before"
+    " if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when broken and unreachable are both empty. Run it before you ask for approval and before"
     " you tell your person the site is done."
 )
 STATES = {
@@ -92,8 +92,8 @@ def _tools() -> list[dict[str, Any]]:
     return [
         {
             "name": "site_state",
-            "description": "Start here. Returns: `items`, every item with id, kind, version (send it with item_update / item_remove / item_rollback), data, state (see `states`), pending_approval (the approval it's waiting in now, or null) and last_approval (its most recent request and how it ended, or null; an item whose last request was denied or superseded and that the owner didn't ask about again is best left alone); slug is part of the entry's page address, /<stream path>/<slug>/ (the stream's path, or its id), made from its date and title unless set with the entry's slug field; null for other kinds; `kinds`, what each kind is; `fields`, every field of every kind in plain words; `site_defaults`, the values the site item's fields take when unset; `release`, the Porchsite release running; `update`, whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then: change items, approval_request the ids you changed, give the owner the review_url.",
-            "inputSchema": _obj({}),
+            "description": "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
+            "inputSchema": _obj({"full": {"type": "boolean"}, "ids": {"type": "array", "items": {"type": "string"}}}),
             "annotations": read_only,
         },
         {
@@ -495,6 +495,25 @@ async def describe(db: Db, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+async def state_items(db: Db, full: bool = False, ids: list[str] | None = None) -> list[dict[str, Any]]:
+    """Keep full metadata available while making the default read small."""
+    items = await content.all_items(db)
+    if ids is not None:
+        selected = set(ids)
+        known = {i["id"] for i in items}
+        for id in ids:
+            if id not in known:
+                raise ApiError(404, "no_such_item", f"No item {id}.")
+        items = [i for i in items if i["id"] in selected]
+    described = await describe(db, items)
+    if full or ids is not None:
+        return described
+    return [
+        {"id": i["id"], "kind": i["kind"], "title": str(i["data"].get("title", i["data"].get("name", i["data"].get("text", "")))), "state": i["state"], "version": i["version"]}
+        for i in described
+    ]
+
+
 # --- the server ------------------------------------------------------------------------------
 
 
@@ -549,7 +568,7 @@ async def _call(
 
         async def site_state() -> Any:
             return {
-                "items": await describe(db, await content.all_items(db)),
+                "items": await state_items(db, a.get("full", False), a.get("ids")),
                 "states": STATES,
                 "kinds": kind_guide(),
                 "fields": field_guide(),
@@ -750,7 +769,7 @@ async def _call(
             changes = [{"id": i["id"], "version": i["version"]} for i in await content.staged(db)]
             v = await site.proposed_view(db, changes)
             names = {r["name"] for r in await db.fetch("SELECT name FROM media")}
-            return check.check_site(v, names)
+            return check.check_site(v, names, await themes.load(db, str(v.site["theme"])), origin)
 
         return await _run(site_check)
 

@@ -91,7 +91,7 @@ async def test_the_workflow_from_site_state_to_approval(db, http):
     assert st["items"][0]["status"] == "pending"
     err, listed, _ = await a.call("approval_status")
     assert [x["id"] for x in listed["approvals"]] == [req["id"]]
-    err, state, _ = await a.call("site_state")
+    err, state, _ = await a.call("site_state", full=True)
     item = next(i for i in state["items"] if i["id"] == made["id"])
     assert item["pending_approval"] == req["id"]
     assert item["last_approval"] == {"id": req["id"], "status": "pending", "note": ""}
