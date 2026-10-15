@@ -15,20 +15,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## BLOCKING
 _(none)_
 
-## STAGE 2 (2026-10-15): RA-10, P-2, SP-S2
-Spec first, then both editions. One owner role per item; the reviewer
-never reviews its own author's work; security reviews anything touching
-uploads. Done when the full gate below is green on the exact revision,
-review and security have passed it, and the full gate is green again on
-the merged main tip. Gate (each exit code read on its own):
-`cd cloudflare && npm test && npm run theme:check` and the typecheck;
-`cd server && pytest -q`; `scripts/parity.sh`;
-`scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
-`scripts/migration-check.py`; `scripts/upgrade-check.sh`.
-- **S2-3** (SP-S2) IN-PROGRESS: coder, after S2-1. Cap `site_check`'s
-  crawl (pages and links), the same numbers in both editions, with the
-  cap reported in the answer when it is hit.
-
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
@@ -55,22 +41,15 @@ site's OAuth connector, and pictures held as files. In order:
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing
   without rendering every page). Before the listing-site build.
-- **SP-S2** IN-PROGRESS (S2-3): `site_check`'s crawl has no page or link cap. A
-  look with a huge local link fan-out burns CPU inside the owner's own
-  check. Owner-authenticated only, not a visitor path. Found: stage 1
-  security review.
-
 - **SP-S3** OPEN: After SP-S1, the fixed part of `site_state` (guides,
   kinds, fields, defaults) is about 12.3 KB on every call, 86-96% of a
   sample site's summary answer (item summaries are 0.5-2 KB). Consider
   sending the fixed part once per session or on request. Measured on the
   ten sample sites in stage 1.
-
 - **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
   Needs its own security review.
-
 - **CF-M1** OPEN: One 8 MB picture through image_add peaks at about
   98 MiB in the Worker (measured locally, fresh isolate), about 23%
   under the 128 MiB limit. Consider a lower per-file limit or a leaner
