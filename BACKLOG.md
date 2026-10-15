@@ -42,9 +42,6 @@ Found building a single-property listing site on the live release.
 - **S4-5** OPEN: Analytics writes one database row per page view and per
   heartbeat; the free plan allows 100,000 row writes a day across the
   account, so a busy open-house weekend could use it up. Batch or sample.
-- **S4-6** OPEN: item_create with many pictures in its body is slow (an
-  entry with 40 pictures: about 128 ms CPU, 5 s); look up the pictures in
-  one query.
 - **S4-7** OPEN: The assistant can't see what it built before the owner
   approves: no preview it can open. Design with security (a short-lived
   read-only preview for the assistant).
