@@ -161,7 +161,7 @@ exception for video and tour players, not an image hotlink or outside script.
 
 **Content and authority.** Add `site.embed_sources`, an ordered list of at
 most 20 distinct canonical HTTPS origins, default `[]`. Place a player in
-an entry's Markdown body with a line containing only:
+`entry.body` with a line containing only:
 
 ```
 !embed[Title](https://example.com/player)
@@ -169,9 +169,15 @@ an entry's Markdown body with a line containing only:
 
 The title is non-empty single-line text, at most 200 characters; the URL is
 absolute HTTPS, at most 2,000 characters, subject to the URL rules below.
-The form occupies its own line, outside fenced/indented code and inline
-code; elsewhere it is literal text, not an embed or an ordinary Markdown
-link. An invalid standalone form also stays escaped literal text. There is
+Only `entry.body` recognises the form: never site about/intro, summaries,
+notes, cards, titles or other Markdown/text fields. The opening `!embed`
+must start at column zero, with no leading/trailing characters or spaces
+on that line. Fenced code (backtick or tilde), indented code, inline code,
+blockquotes and list-prefixed examples do not recognise it. A backslash
+before `!` escapes the form and never creates a player. In all these
+literal cases preserve ordinary Markdown code/escape presentation without
+turning the embed URL into a link or an image. Elsewhere an inline form is
+literal text, not an embed or an ordinary Markdown link. An invalid standalone form also stays escaped literal text. There is
 no `entry.embeds` field. No author-supplied HTML, sandbox flags, permission
 flags or scripts are accepted. `![]()` still means a locally stored image;
 embed URLs never enter image localisation or `media.store`. Ordinary links
