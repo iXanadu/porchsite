@@ -17,6 +17,12 @@ Two editions implement it, both in this repository:
 This folder (`spec/`) holds the contract, the conformance check and the
 template format. Both editions follow it; neither defines it.
 
+`scripts/parity.sh` compares every look's rendered sample pages and its
+`site_check` and `site_state` answers in both editions. Tool comparisons
+use the same item ids, versions and clock; JSON object keys may differ
+in order, but no response fields are removed before comparing. The check
+also covers equivalent external URLs and links built from `site.base_url`.
+
 ## 1. Roles
 
 | Role | Who | How they get in | What they can do |
