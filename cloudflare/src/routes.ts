@@ -244,6 +244,9 @@ function uploadForm(u: uploads.Upload, error: string): Response {
     html`<h1>Add a photo</h1>${u.purpose ? html`<p>For: ${u.purpose}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
 <form method="post" enctype="multipart/form-data"><label>Photo</label><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
 <label>What it shows, in a few words (for people who can't see it)</label><input type="text" name="alt" maxlength="200" required>
+<label><input type="checkbox" name="original" style="width:auto"> Keep the original size</label>
+<p class="meta">Bigger files use more of the free plan's limits, make pages slower and take more storage.</p>
+<p class="meta">By default, this browser makes a web-size JPEG, at most 2400 pixels on the long side. If it cannot resize the picture, the original file is sent instead.</p>
 <button>Upload</button></form><p class="meta">This link works once and stops at ${u.expires_at.slice(11, 16)} UTC.</p>`,
     { script: uploads.SHRINK_JS },
   );

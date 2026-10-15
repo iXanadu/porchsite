@@ -7,6 +7,8 @@ import re
 from . import media
 from .db import Db, transaction
 from .errors import ApiError
+from .photo_advice import photo_next
+from .image_privacy import strip_location
 
 MAX_FILES = 8
 MAX_TOTAL = 8 * 1024 * 1024
@@ -43,10 +45,12 @@ async def image_add(db: Db, actor: str, data: str | None = None, images: list[st
         type_ = media.sniff(decoded)
         if not type_:
             raise ApiError(422, "not_an_image", "That isn't a JPEG, PNG or WebP picture.")
+        decoded = strip_location(decoded, type_)
         checked.append((decoded, type_, media.size(decoded)))
     out = []
     async with transaction(db) as c:
         for decoded, type_, (width, height) in checked:
             image = await media.store(c, decoded, type_, actor)
             out.append({"image": image, "width": width, "height": height})
-    return {"images": out, "next": NEXT} if images is not None else {**out[0], "next": NEXT}
+    next_ = photo_next(NEXT, [len(decoded) for decoded, _, _ in checked], images is not None)
+    return {"images": out, "next": next_} if images is not None else {**out[0], "next": next_}

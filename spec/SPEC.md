@@ -202,6 +202,28 @@ come from headers; images are never rasterized here. The one-shot
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
 
+Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
+
+Pictures should be compressed before upload by default: web size, about
+2400 pixels on the long side, usually under 1 MB, as JPEG or WebP.
+Originals remain allowed, but the assistant must first tell the owner plainly:
+bigger files use more of the free plan's limits, make pages slower and take
+more storage. Both `image_add` and `photo_upload_link` describe this rule.
+For successful `image_add`, keep every response field and the existing `next`
+text. If any stored picture is over 1 MiB (1,048,576 bytes) after location
+metadata removal, append one newline and a plain advice line to `next`, giving each oversized picture's
+size in MB (MiB, rounded to two decimal places with ties rounded up) and the
+same advice for next time. Batch sizes identify the input positions; duplicate
+positions are included. Smaller pictures keep the previous response unchanged.
+
+The one-shot phone upload form defaults to re-encoding the selected picture
+as JPEG at quality 0.85, with neither dimension over 2400 pixels and no
+upscaling. Its unchecked "Keep the original size" checkbox explains all three
+risks. Choosing it sends the original bytes. Without JavaScript, or when the
+browser cannot decode, draw or encode the picture, submit the original file
+as before. The page says that fallback can happen. Compression runs only in
+the browser; the server keeps its existing single-file and 8 MiB limits.
+
 `site_check({deep: true})` examines at most 200 distinct local addresses (including
 redirects and missing pages) and 10,000 rendered `a[href]` or `area[href]`
 elements outside inert templates. Duplicate and non-HTTP links count

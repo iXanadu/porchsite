@@ -88,24 +88,32 @@ export async function receive(db: D1Database, token: string, file: File | null, 
 
 /** Shrinks big photos on the phone before sending: faster, and under the size cap. */
 export const SHRINK_JS = `
-const form = document.querySelector("form"), input = form.querySelector("input[type=file]"), btn = form.querySelector("button");
+const form = document.querySelector("form"), input = form.querySelector("input[type=file]"), original = form.querySelector("input[name=original]"), btn = form.querySelector("button");
 const MAX = 2400;
 form.addEventListener("submit", async (e) => {
-  const f = input.files[0];
-  if (!f || !window.createImageBitmap) return;
+  const file = input.files[0];
+  if (!file || original.checked || !window.createImageBitmap || !window.DataTransfer) return;
   e.preventDefault(); btn.disabled = true; btn.textContent = "Sending…";
+  let image;
   try {
-    const img = await createImageBitmap(f);
-    const k = Math.min(1, MAX / Math.max(img.width, img.height));
-    let blob = f;
-    if (k < 1 || f.size > 2500000) {
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.86));
-    }
-    const data = new FormData(form); data.set("photo", blob, "photo.jpg");
-    const r = await fetch(location.href, { method: "POST", body: data });
-    document.open(); document.write(await r.text()); document.close();
-  } catch (x) { btn.disabled = false; btn.textContent = "Upload"; form.submit(); }
+    image = await createImageBitmap(file);
+    const scale = Math.min(1, MAX / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Picture resizing unavailable");
+    context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob || blob.type !== "image/jpeg") throw new Error("Picture resizing unavailable");
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+    input.files = transfer.files;
+  } catch (error) {
+    // Keep the selected file: the native form still works without a canvas.
+  } finally {
+    if (image) image.close();
+    form.submit();
+  }
 });`;

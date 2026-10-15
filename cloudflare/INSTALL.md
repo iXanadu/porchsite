@@ -408,6 +408,13 @@ approve.
 
 ## Images
 
+Shrink pictures before sending: web size, about 2400 pixels on the long side, usually under 1 MB (JPEG or WebP). Sending the original is possible, but tell your person first, plainly: bigger files use more of the free plan's limits, make pages slower and take more storage.
+
+Prepare the web-size copy yourself before posting a file to an upload link;
+a direct file upload does not resize it. On the phone page, use the options
+shown by the installed site. If resizing is unavailable, choose a copy you
+have already shrunk. This advice also applies to older releases.
+
 Image fields (the site's `hero`, an entry's `cover`, a card's `image`) and
 Markdown images in an entry's body take a full https:// link to a JPEG, PNG
 or WebP, up to 8 MB. The site copies the image in when you save, and the item
@@ -420,7 +427,7 @@ the `url` it returns as `multipart/form-data`, with fields `photo` (the file)
 and `alt` (what it shows), and header `Accept: application/json`. The answer
 holds `image`, the path to use. The link works once, for 30 minutes. If you
 can't send files, give the link to your person instead: the page lets them
-pick the photo on their phone (and shrinks it first), and
+pick the photo on their phone, and
 `photo_upload_status` tells you when it's done.
 
 ## Moving to a new address later

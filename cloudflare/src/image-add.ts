@@ -1,4 +1,6 @@
 /** Authenticated image_add: bounded preflight, then one atomic D1 batch. */
+import { stripLocation } from "./image-privacy";
+import { photoNext } from "./photo-advice";
 import { ApiError } from "./errors";
 import * as media from "./media";
 import { reportUploadPhase } from "./upload-diagnostic";
@@ -60,18 +62,21 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
   let decoded;
   try { decoded = decodeFiles(values, files); }
   finally { reportUploadPhase("decode", "end"); }
+  const sizes: number[] = [];
   const stmts: D1PreparedStatement[] = [];
   const seen = new Set<string>();
   const out: { image: string; width: number; height: number }[] = [];
   // Consume the validated buffers so processed files need not stay live.
   while (decoded.length) {
-    const bytes = decoded.shift()!;
+    let bytes = decoded.shift()!;
     reportUploadPhase("sniff", "start");
     let type: string | null;
     let width: number, height: number;
     try {
       type = media.sniff(bytes);
       if (!type) throw new ApiError(422, "not_an_image", "That isn't a JPEG, PNG or WebP picture.");
+      bytes = stripLocation(bytes, type);
+      sizes.push(bytes.length);
       [width, height] = media.size(bytes);
     } finally { reportUploadPhase("sniff", "end"); }
     reportUploadPhase("hash", "start");
@@ -106,5 +111,6 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
     try { await db.batch(stmts); }
     finally { reportUploadPhase("d1", "end"); }
   }
-  return images !== undefined ? { images: out, next: NEXT } : { ...out[0], next: NEXT };
+  const next = photoNext(NEXT, sizes, images !== undefined);
+  return images !== undefined ? { images: out, next } : { ...out[0], next };
 }
