@@ -1,0 +1,14 @@
+[
+  {
+    "name": "url-equivalence",
+    "theme": "product-page",
+    "sample": {"site": {"title": "Test", "sections": ["entries"]}, "items": [{"kind": "entry", "slug": "entry", "data": {"title": "Entry", "date": "2026-10-10", "external_url": "https://example.com"}}]},
+    "home": "<a href=\"https://example.com/\">{{site.title}}</a>"
+  },
+  {
+    "name": "renderer-origin",
+    "theme": "product-page",
+    "sample": {"site": {"title": "Test", "sections": ["entries"]}, "items": [{"kind": "entry", "slug": "entry", "data": {"title": "Entry", "date": "2026-10-10", "body": "A complete body."}}]},
+    "home": "<a href=\"{{site.base_url}}/journal/entry/\">{{site.title}}</a>"
+  }
+]

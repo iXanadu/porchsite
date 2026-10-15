@@ -29,10 +29,6 @@ the merged main tip. Gate (each exit code read on its own):
   RA-10 below. Tests: 8 files pass, 9 refused, over 32 MB refused, one bad
   file among good ones stores none. Measure the Cloudflare edition at the
   cap under local wrangler.
-- **S2-2** (P-2) IN-PROGRESS: tester. `scripts/parity.sh` also runs each
-  look's sample site through both editions' `site_check` and `site_state`
-  and diffs the answers. Must fail on the stage 1 server URL defect
-  replayed on purpose.
 - **S2-3** (SP-S2) IN-PROGRESS: coder, after S2-1. Cap `site_check`'s
   crawl (pages and links), the same numbers in both editions, with the
   cap reported in the answer when it is hit.
@@ -71,12 +67,6 @@ _(none)_
 - **SV-T1** OPEN: A server test run once failed its teardown (DROP
   DATABASE ... FORCE, privilege error) and left a `porchsite_test_*`
   database behind on the test cluster. Cause not yet known; seen once.
-
-- **P-2** IN-PROGRESS (S2-2): Parity covers rendered pages only. The tools' answers
-  (`site_check`, `site_state`) can differ between editions unnoticed: in
-  stage 1 the server edition alone misjudged equivalent URLs and a
-  base_url link. Run each look's sample site through both editions' tools
-  and diff the answers as part of `scripts/parity.sh`.
 
 - **SP-S3** OPEN: After SP-S1, the fixed part of `site_state` (guides,
   kinds, fields, defaults) is about 12.3 KB on every call, 86-96% of a
