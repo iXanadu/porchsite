@@ -66,6 +66,24 @@ site's OAuth connector, and pictures held as files. In order:
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
   custom GPT, Meta AI's skills), then a run with each.
 
+## AI READERS AND ASSISTANT GUIDANCE (owner's request, 2026-10-15; after the Listing look)
+- **AI-1** OPEN: neither edition serves `/sitemap.xml` (site_check only
+  treats the path as fixed). Serve one, with lastmod from approvals.
+- **AI-2** OPEN: JSON-LD for the Listing and Local business looks, from
+  existing fields only; built and stored with build-ahead (S4-9), never per
+  request. Structured listing facts (price, beds) would need fields stored
+  where the previous release never reads them (see S4-11).
+- **AI-3** OPEN: site_check reports AI-reader facts on request (photos
+  without alt text, embeds without a caption, pages without a description,
+  heading order). Facts, never advice.
+- **AI-4** OPEN: per-site `/llms.txt` and a stored Markdown copy of each
+  page, built with build-ahead (S4-9).
+- **AI-5** NEEDS-DECISION: a short capability block (what Porchsite builds,
+  which look suits whom, how approval works) in the tool descriptions. The
+  capability facts fit; the behavioural coaching parts (recommend, push
+  back once) conflict with the passive-tool rule (Porchsite does not coach
+  assistants on content). Owner decides which applies.
+
 ## DEGRADING
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
