@@ -55,9 +55,9 @@ site's OAuth connector, and pictures held as files. In order:
 - **RA-10** IN-PROGRESS (S2-1): Uploading many photos costs one tool call each (34+ in a
   reunion build). Decided (2026-10-15): several pictures per image_add
   call, behind the same owner auth; at most 8 files, 8 MB each, and a
-  total decoded cap set by measurement: the largest that peaks at 96 MiB
-  or less in the Worker (32 MB peaked at 188.5 MiB, over the 128 MiB
-  limit); every file sniffed; stored by hash only (filenames ignored); all or
+  8 MB total decoded per call, the same as one picture today (measured
+  Worker peaks: one 8 MB picture 98 MiB; batches of 12, 16 and 32 MB
+  129-189 MiB, over the 128 MiB limit); every file sniffed; stored by hash only (filenames ignored); all or
   nothing (any bad file stores none). The one-shot photo upload link stays
   one file. Many phone photos at once would be a signed-in owner page, a
   separate item if wanted. Check the Worker's memory at the cap first.
@@ -96,6 +96,11 @@ _(none)_
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
   Needs its own security review.
+
+- **CF-M1** OPEN: One 8 MB picture through image_add peaks at about
+  98 MiB in the Worker (measured locally, fresh isolate), about 23%
+  under the 128 MiB limit. Consider a lower per-file limit or a leaner
+  decode and D1 path (see CF-S2). Found: stage 2 memory measurement.
 
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
