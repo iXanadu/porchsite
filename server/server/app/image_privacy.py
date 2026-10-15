@@ -40,22 +40,31 @@ def _tiff(value: int) -> bytes:
     )
 
 
+def _changes():
+    return {"out": None, "from": 0}
+
+
 def _edit(edits, b, start, end, replacement=b""):
-    if b[start:end] != replacement:
-        edits.append((start, end, replacement))
+    if end - start == len(replacement) and memoryview(b)[start:end] == replacement:
+        return
+    if edits["out"] is None:
+        edits["out"] = bytearray()
+    if start > edits["from"]:
+        edits["out"].extend(memoryview(b)[edits["from"] : start])
+    if replacement:
+        edits["out"].extend(replacement)
+    edits["from"] = end
 
 
 def _apply(b, edits):
-    if not edits:
+    if edits["out"] is None:
         return b
-    parts = []
-    start = 0
-    view = memoryview(b)
-    for a, z, replacement in sorted(edits):
-        parts.extend((view[start:a], replacement))
-        start = z
-    parts.append(view[start:])
-    return b"".join(parts)
+    edits["out"].extend(memoryview(b)[edits["from"] :])
+    return bytes(edits["out"])
+
+
+def _position(edits, at):
+    return len(edits["out"]) + at - edits["from"] if edits["out"] is not None else at
 
 
 def _safe_tail(b, start, names):
@@ -65,17 +74,28 @@ def _safe_tail(b, start, names):
             _bad()
 
 
+def _discarded_end(b, end):
+    while end + 4 <= len(b) and b[end] == 255:
+        code = b[end + 1]
+        length = (b[end + 2] << 8) | b[end + 3]
+        next_ = end + 2 + length
+        if length < 2 or next_ > len(b) or code not in (0xED, 0xFE, 0xE1):
+            break
+        if code == 0xE1 and length >= 8 and b[end + 4 : end + 10] == b"Exif\0\0":
+            break
+        end = next_
+    return end
+
+
 def _jpeg(b):
-    edits = []
-    at, segments = 2, 0
+    edits = _changes()
+    at = 2
     while at < len(b):
         start = b.find(b"\xff", at)
         if start < 0:
             break
         marker = start + 1
         while marker < len(b) and b[marker] == 255:
-            if marker - start > 4096:
-                _bad()
             marker += 1
         if marker >= len(b):
             break
@@ -83,9 +103,6 @@ def _jpeg(b):
         if code in (0, 1) or 0xD0 <= code <= 0xD9:
             at = marker + 1
             continue
-        segments += 1
-        if segments > 4096:
-            _bad()
         meta = code in (0xE1, 0xED, 0xFE)
         if marker + 2 >= len(b):
             if meta:
@@ -98,13 +115,19 @@ def _jpeg(b):
                 _bad()
             _safe_tail(b, marker + 1, [b"\xff\xe1", b"\xff\xed", b"\xff\xfe"])
             break
-        payload = b[marker + 3 : end]
         if code == 0xE1:
-            value = _orientation(payload) if payload.startswith(b"Exif\0\0") else None
+            payload = memoryview(b)[marker + 3 : end]
+            value = _orientation(payload) if payload[:6] == b"Exif\0\0" else None
             replacement = b"" if value is None else b"\xff\xe1\0\x22Exif\0\0" + _tiff(value)
+            if not replacement:
+                at = _discarded_end(b, end)
+                _edit(edits, b, start, at)
+                continue
             _edit(edits, b, start, end, replacement)
         elif code in (0xED, 0xFE):
-            _edit(edits, b, start, end)
+            at = _discarded_end(b, end)
+            _edit(edits, b, start, at)
+            continue
         at = end
     return _apply(b, edits)
 
@@ -115,13 +138,10 @@ def _png_exif(value):
 
 
 def _png(b):
-    edits = []
-    at, chunks = 8, 0
+    edits = _changes()
+    at = 8
     names = [b"eXIf", b"tEXt", b"iTXt", b"zTXt"]
     while at + 8 <= len(b):
-        chunks += 1
-        if chunks > 4096:
-            _bad()
         name = b[at + 4 : at + 8]
         length = int.from_bytes(b[at : at + 4], "big")
         end = at + 12 + length
@@ -131,7 +151,7 @@ def _png(b):
             _safe_tail(b, at, names)
             break
         if name in names:
-            value = _orientation(b[at + 8 : end - 4]) if name == b"eXIf" else None
+            value = _orientation(memoryview(b)[at + 8 : end - 4]) if name == b"eXIf" else None
             _edit(edits, b, at, end, b"" if value is None else _png_exif(value))
         at = end
     if at < len(b):
@@ -140,26 +160,25 @@ def _png(b):
 
 
 def _webp(b):
-    edits, flags = [], []
-    at, chunks, has_exif, metadata = 12, 0, False, False
+    edits, flags = _changes(), []
+    at, has_exif, metadata = 12, False, False
     names = [b"EXIF", b"XMP "]
     while at + 8 <= len(b):
-        chunks += 1
-        if chunks > 4096:
-            _bad()
         name = b[at : at + 4]
         length = int.from_bytes(b[at + 4 : at + 8], "little")
         end = at + 8 + length + length % 2
-        if end > len(b) or not re.fullmatch(b"[A-Za-z0-9 ]{4}", name):
+        if end > len(b):
             if name in names:
                 _bad()
             _safe_tail(b, at, names)
             break
         if name == b"VP8X" and length >= 10:
-            flags.append(at + 8)
+            flags.append(_position(edits, at + 8))
         if name in names:
             metadata = True
-            value = _orientation(b[at + 8 : at + 8 + length]) if name == b"EXIF" else None
+            value = (
+                _orientation(memoryview(b)[at + 8 : at + 8 + length]) if name == b"EXIF" else None
+            )
             replacement = b""
             if value is not None:
                 has_exif = True
@@ -168,16 +187,30 @@ def _webp(b):
         at = end
     if at < len(b):
         _safe_tail(b, at, names)
-    if metadata:
-        for offset in flags:
-            _edit(edits, b, offset, offset + 1, bytes([(b[offset] & ~12) | (8 if has_exif else 0)]))
     out = _apply(b, edits)
+    if metadata:
+        changed = None
+        for offset in flags:
+            value = (out[offset] & ~12) | (8 if has_exif else 0)
+            if value != out[offset]:
+                if changed is None:
+                    changed = bytearray(out)
+                changed[offset] = value
+        if changed is not None:
+            out = bytes(changed)
     if out is not b:
         out = out[:4] + struct.pack("<I", len(out) - 8) + out[8:]
     return out
 
 
 def strip_location(data: bytes, type_: str) -> bytes:
+    names = {
+        "image/jpeg": (b"\xff\xe1", b"\xff\xed", b"\xff\xfe"),
+        "image/png": (b"eXIf", b"tEXt", b"iTXt", b"zTXt"),
+        "image/webp": (b"EXIF", b"XMP "),
+    }.get(type_, ())
+    if not any(name in data for name in names):
+        return data
     if type_ == "image/jpeg":
         return _jpeg(data)
     if type_ == "image/png":

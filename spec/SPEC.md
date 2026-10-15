@@ -202,7 +202,7 @@ come from headers; images are never rasterized here. The one-shot
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
 
-Stored pictures carry no location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten.
+Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
 
 Pictures should be compressed before upload by default: web size, about
 2400 pixels on the long side, usually under 1 MB, as JPEG or WebP.
@@ -210,8 +210,8 @@ Originals remain allowed, but the assistant must first tell the owner plainly:
 bigger files use more of the free plan's limits, make pages slower and take
 more storage. Both `image_add` and `photo_upload_link` describe this rule.
 For successful `image_add`, keep every response field and the existing `next`
-text. If any input picture is over 1 MiB decoded (1,048,576 bytes), append
-one newline and a plain advice line to `next`, giving each oversized picture's
+text. If any stored picture is over 1 MiB (1,048,576 bytes) after location
+metadata removal, append one newline and a plain advice line to `next`, giving each oversized picture's
 size in MB (MiB, rounded to two decimal places with ties rounded up) and the
 same advice for next time. Batch sizes identify the input positions; duplicate
 positions are included. Smaller pictures keep the previous response unchanged.

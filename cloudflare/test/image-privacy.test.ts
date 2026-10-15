@@ -62,3 +62,43 @@ it("discards text and XMP without parsing XML or inflating compressed comments",
  for(const type of ["tEXt","iTXt","zTXt"]){const b=get("gps.png"),chunk=new Uint8Array(marker.length+12);new DataView(chunk.buffer).setUint32(0,marker.length);chunk.set(new TextEncoder().encode(type),4);chunk.set(marker,8);expect(stripLocation(joined(b.slice(0,33),chunk,b.slice(33)),"image/png")).toEqual(stripLocation(b,"image/png"));}
  const b=get("gps.webp"),chunk=new Uint8Array(8+marker.length+marker.length%2);chunk.set([88,77,80,32]);new DataView(chunk.buffer).setUint32(4,marker.length,true);chunk.set(marker,8);const input=joined(b,chunk);new DataView(input.buffer).setUint32(4,input.length-8,true);expect(stripLocation(input,"image/webp")).toEqual(stripLocation(b,"image/webp"));
 });
+
+it("preserves metadata-free PNGs with many empty pixel chunks",()=>{
+ const plain=get("plain.png"),empty=new Uint8Array([0,0,0,0,73,68,65,84,53,175,6,30]);
+ const input=new Uint8Array(plain.length+5000*empty.length);input.set(plain.subarray(0,plain.length-12));
+ for(let n=0;n<5000;n++)input.set(empty,plain.length-12+n*empty.length);
+ input.set(plain.subarray(plain.length-12),input.length-12);
+ expect(stripLocation(input,"image/png")).toBe(input);
+});
+
+it("stores the 4121-IDAT PNG byte-for-byte with its original dimensions",async()=>{
+ const db=(env as unknown as Env).DB,b=get("many-idat.png");
+ expect(b.length).toBe(61860);expect(stripLocation(b,"image/png")).toBe(b);
+ const added=await imageAdd(db,"assistant:test",b.toBase64()),path="image" in added?added.image!:"";
+ expect(added).toMatchObject({width:64,height:64});
+ const served=await media.serve(db,path.split("/").pop()!,false);expect(new Uint8Array(await served!.arrayBuffer())).toEqual(b);
+});
+const join=(...parts:Uint8Array[])=>{const out=new Uint8Array(parts.reduce((n,b)=>n+b.length,0));let at=0;for(const b of parts){out.set(b,at);at+=b.length;}return out;};
+const text=(s:string)=>new TextEncoder().encode(s);
+function pngChunk(name:string,data:Uint8Array){const out=join(new Uint8Array(4),text(name),data,new Uint8Array(4)),view=new DataView(out.buffer);view.setUint32(0,data.length);let crc=0xffffffff;for(const b of out.subarray(4,out.length-4)){crc^=b;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}view.setUint32(out.length-4,(crc^0xffffffff)>>>0);return out;}
+function webChunk(name:string,data:Uint8Array){const out=join(text(name),new Uint8Array(4),data,new Uint8Array(data.length%2));new DataView(out.buffer).setUint32(4,data.length,true);return out;}
+it("keeps JPEG APP2, PNG iCCP and WebP ICCP profile bytes",()=>{
+ const profile=text("opaque colour profile"),j=get("gps.jpeg"),payload=join(text("ICC_PROFILE\0"),new Uint8Array([1,1]),profile),header=new Uint8Array([255,226,0,payload.length+2]),app=join(header,payload);
+ expect(stripLocation(join(j.slice(0,2),app,j.slice(2)),"image/jpeg").toHex()).toContain(app.toHex());
+ const p=get("gps.png"),icc=pngChunk("iCCP",join(text("profile\0\0"),profile));
+ expect(stripLocation(join(p.slice(0,33),icc,p.slice(33)),"image/png").toHex()).toContain(icc.toHex());
+ const w=get("gps.webp"),chunk=webChunk("ICCP",profile),input=join(w,chunk);new DataView(input.buffer).setUint32(4,input.length-8,true);
+ expect(stripLocation(input,"image/webp").toHex()).toContain(chunk.toHex());
+});
+it("keeps more than 4096 non-metadata JPEG and WebP segments, including packet-like payloads",()=>{
+ const j=get("plain.jpeg"),app=new Uint8Array([255,226,0,4,255,225]),many=new Uint8Array(app.length*5000);for(let n=0;n<5000;n++)many.set(app,n*app.length);
+ const jpeg=join(j.slice(0,2),many,j.slice(2));expect(stripLocation(jpeg,"image/jpeg")).toBe(jpeg);
+ const w=get("plain.webp"),chunk=webChunk("JUNK",text("EXIF")),chunks=new Uint8Array(chunk.length*5000);for(let n=0;n<5000;n++)chunks.set(chunk,n*chunk.length);
+ const webp=join(w,chunks,webChunk("fAk!",text("EXIF")));new DataView(webp.buffer).setUint32(4,webp.length-8,true);expect(stripLocation(webp,"image/webp")).toBe(webp);
+});
+
+it("walks the many-IDAT image with GPS metadata and preserves all its pixel chunks",()=>{
+ const b=get("many-idat.png"),gps=parts(get("gps.png"),"png").find(p=>p.name==="eXIf")!.data;
+ const result=stripLocation(join(b.slice(0,33),pngChunk("eXIf",gps),b.slice(33)),"image/png");
+ expect(exif(result,"png")?.toHex()).toBe(minimal);expect(encoded(result,"png")).toEqual(encoded(b,"png"));
+});

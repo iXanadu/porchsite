@@ -1,4 +1,8 @@
 import base64
+import json
+from pathlib import Path
+
+from server.app import media
 
 from server.app.image_add import NEXT, image_add
 from server.app.photo_advice import PHOTO_ADVICE, photo_next
@@ -28,3 +32,17 @@ async def test_image_response_fields_and_small_next_unchanged(db):
     assert len(result["images"]) == 3
     assert result["images"][1] == result["images"][2]
     assert result["next"] == f"{NEXT}\nPictures over 1 MB: 2 (1.00 MB), 3 (1.00 MB). {PHOTO_ADVICE}"
+
+
+async def test_advice_uses_stored_size_after_metadata_removal(db):
+    cases = json.loads((Path(__file__).parents[3] / "spec/image-privacy-cases.json").read_text())
+    plain = base64.b64decode(cases["plain.jpeg"])
+    comment = b"\xff\xfe\xea\x62" + bytes(60000)
+    picture = plain[:2] + comment * 18 + plain[2:]
+    assert len(picture) > MB > len(plain)
+    single = await image_add(db, "assistant:test", base64.b64encode(picture).decode())
+    batch = await image_add(db, "assistant:test", images=[base64.b64encode(x).decode() for x in (picture, plain)])
+    assert single["next"] == NEXT
+    assert batch["next"] == NEXT
+    assert [x["image"] for x in batch["images"]] == [single["image"], single["image"]]
+    assert (await media.serve(db, single["image"].split("/")[-1], False))["body"] == plain
