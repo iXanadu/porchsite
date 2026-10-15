@@ -11,7 +11,12 @@ bad=0
 while IFS='|' read -r mutation expect; do
   [ -z "$mutation" ] && continue
   out="$(PORCHSITE_MUTATION="$mutation" CONFORMANCE_EXTRA_PATH="$ROOT/scripts/conformance-mutations" "$ROOT/scripts/conformance-server.sh" 2>&1)"
-  if grep -q "^FAIL  $expect" <<<"$out"; then
+  status=$?
+  if [ "$status" -eq 70 ]; then
+    echo "✗ $mutation: cleanup failed"
+    printf '%s\n' "$out"
+    bad=$((bad + 1))
+  elif grep -q "^FAIL  $expect" <<<"$out"; then
     echo "✓ $mutation: caught by \"$expect\""
   else
     echo "✗ $mutation: the check didn't fail \"$expect\""

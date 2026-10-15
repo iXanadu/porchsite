@@ -27,7 +27,7 @@ async def main(what, dsn, name):
         if what == "create":
             await c.execute(f'CREATE DATABASE "{name}"')
         else:
-            await c.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+            await c.execute(f'DROP DATABASE IF EXISTS "{name}"')
     finally:
         await c.close()
 
@@ -41,11 +41,25 @@ SITE="http://127.0.0.1:$PORT"
 PID=""
 
 cleanup() {
-  [ -n "$PID" ] && kill "$PID" 2>/dev/null && wait "$PID" 2>/dev/null
-  db drop || echo "! could not drop $NAME"
+  local status=$?
+  trap - EXIT
+  if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null || true
+    wait "$PID" 2>/dev/null || true
+  fi
+  # The app has closed its pool. Plain DROP also handles autovacuum without
+  # requiring the test role to have permission to signal other roles.
+  # 70 distinguishes cleanup failures from expected conformance failures.
+  if ! db drop; then
+    echo "! could not drop $NAME" >&2
+    status=70
+  fi
   rm -f "$LOG"
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 db create || { echo "✗ could not create a database on $ADMIN_DSN"; exit 1; }
 
