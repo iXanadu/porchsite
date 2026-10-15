@@ -37,9 +37,10 @@ changed for this request; site_check first) -> give the owner the review_url -> 
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
-The look: theme_list (what's installed, and the catalog to choose from, with previews) ->
-theme_install -> set the site item's theme -> theme_needs (the art and words that theme
-wants, and which are missing) -> fill them -> one approval_request.
+The look: theme_list (built-in looks are ready to use; the catalog has previews) ->
+set the site item's theme -> theme_needs (the art and words that theme wants, and which
+are missing) -> fill them -> one approval_request. Use theme_install only for a
+catalog look missing from installed, or to update one.
 Cards have a visibility: a private card is never shown and its name may not appear in
 anything public (the site refuses it); a mention card shows its name and description only,
 and an entry names it at most once in its summary and once in its body.
@@ -180,7 +181,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "theme_list",
-            "description": "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
+            "description": "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Looks marked source: built-in are ready to use without installing. Set the site theme, then call theme_needs. Use theme_install only for a catalog look missing from installed, or to update one. Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
             "inputSchema": _obj({}),
             "annotations": read_only,
         },
@@ -643,6 +644,7 @@ async def _call(
             return {
                 "current": {"live": live, "waiting": staged if staged != live else None},
                 "installed": await themes.installed(db),
+                "next": "Looks marked built-in are ready to use: set the site theme, then run theme_needs. Use theme_install only for a catalog look missing from installed or to update one.",
                 "catalog": catalog,
                 **({"catalog_error": catalog_error} if catalog_error else {}),
                 "my_requests": await requests.mine(db),
