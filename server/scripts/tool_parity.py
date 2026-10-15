@@ -90,7 +90,7 @@ async def main(output, names):
                 result = await mcp._call(pool, tool, args, {}, "dev")
                 # The mutation deliberately breaks the historical deep answer; let the
                 # cross-edition diff detect it, as in the parity self-test.
-                if not mutation and key in ("site_check", "site_check_deep"):
+                if not mutation and key in ("site_check", "site_check_deep") and case["name"] in baselines:
                     expected = baselines[case["name"]]["quick" if key == "site_check" else "deep"]
                     assert result.content[0].text == expected, f'{case["name"]} {key}: historical answer bytes differ'
                 answers[key] = {"error": bool(result.is_error), "value": json.loads(result.content[0].text)}

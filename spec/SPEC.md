@@ -153,9 +153,9 @@ one small dialect both editions render to the same bytes. The cases in
 
 Templates decide how kinds look, never what they say (see §6).
 
-### Owner-approved embeds (S4-1 proposal; not implemented)
+### Owner-approved embeds
 
-This proposal applies identically to both editions. S7 continues to require
+This applies identically to both editions. S7 continues to require
 local copies of images; the frames below are an explicit, owner-approved
 exception for video and tour players, not an image hotlink or outside script.
 
@@ -245,7 +245,11 @@ engine-made block, preserving its position between surrounding Markdown
 blocks. A body containing only that form is still a body. An entry with
 `external_url` keeps its existing outward-link behaviour. The engine, not a
 look or content author, produces frame markup.
-Look packages remain forbidden from supplying iframe/object/embed markup.
+Look packages remain forbidden from supplying iframe/object/embed markup
+or the engine's internal `porchsite-embed` placeholder. Tag names in looks
+are literal HTML; they cannot be assembled from Mustache values. Before
+expanding engine blocks, neutralise any authored iframe from an older look
+as an inert template, never as a player.
 The final rendered page enforces the fixed frame attributes and an actual
 page-wide limit of 12 frames, including repeated bodies: the first 12
 eligible occurrences in document order may become frames, and every later
@@ -348,7 +352,7 @@ Explain the effective origin when a provider URL is rewritten; propose
 when adding or removing authority. Existing approved sources need no second
 source approval, while entry publication still uses the normal approval.
 
-**Acceptance before implementation is complete.** Paired tests cover empty
+**Acceptance.** Paired tests cover empty
 and populated source lists, standalone-form placement/literal code cases,
 source caps, canonicalisation and spoof/IDN/IP
 cases, immutable approval versions, live versus proposed sources, add/remove/

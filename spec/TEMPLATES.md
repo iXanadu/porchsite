@@ -90,7 +90,7 @@ layouts it draws (a stream set to a layout the template lacks is drawn as
 - **Works small:** usable at 320 px wide; text contrast at least 4.5:1;
   every `<img>` gets `alt` from the view.
 
-### S4-1 proposal: engine-produced embeds (not implemented)
+### Engine-produced embeds
 
 A standalone `!embed[Title](https://example.com/player)` line in an entry's
 Markdown body is not raw HTML and does not change the image dialect. The
@@ -98,8 +98,9 @@ engine produces an approved player or fallback link at that exact position
 in the body, so every look uses its existing `body_html` position. A body
 containing only the embed form still has `has_body`. There is no appended
 `entry.embeds` field. The fixed, responsive frame and its
-link are engine-produced safe HTML, with policy from SPEC.md's embed proposal.
-Look packages still cannot contain iframe/object/embed tags or choose their
+link are engine-produced safe HTML, with policy from SPEC.md's embed rules.
+Look packages still cannot contain iframe/object/embed tags, the engine's
+internal `porchsite-embed` placeholders, or choose their
 sandbox/permissions. The outside-request exception is limited to approved
 public frames; it never grants remote images, scripts or owner-page players.
 The engine enforces the 12-frame cap on the actual selected page, including

@@ -120,7 +120,7 @@ def _item(line: str) -> dict | None:
 def _starts_block(line: str) -> bool:
     """A line that ends a lazy continuation (list item or quote)."""
     return _indent(line) < 4 and bool(
-        _fence(line) or _heading(line) or _hr(line) or _QUOTE.match(line) or _item(line)
+        line.startswith("!embed[") or _fence(line) or _heading(line) or _hr(line) or _QUOTE.match(line) or _item(line)
     )
 
 
@@ -138,7 +138,7 @@ def _interrupts(line: str, in_item: bool) -> bool:
 
 
 def _blocks(
-    lines: list[str], depth: int, in_item: bool = False
+    lines: list[str], depth: int, in_item: bool = False, block=None
 ) -> tuple[list[tuple[str, str | None]], bool]:
     """Block Markdown: [(html, paragraph's inline html or None)], and whether
     a blank line separated two of them (a loose list item)."""
@@ -182,6 +182,11 @@ def _blocks(
             cls = f' class="language-{esc(lang)}"' if lang else ""
             body = "\n".join(code) + "\n" if code else ""
             out.append((f"<pre><code{cls}>{esc(body)}</code></pre>", None))
+            continue
+        special = block(line) if depth == 0 and block else None
+        if special is not None:
+            out.append((special, None))
+            i += 1
             continue
         h = _heading(line)
         if h:
@@ -264,7 +269,7 @@ def _blocks(
             continue
         para = [_strip_left(line)]
         i += 1
-        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item):
+        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item) and not (depth == 0 and block and lines[i].startswith("!embed[")):
             para.append(_strip_left(lines[i]))
             i += 1
         text = _inline("\n".join(para).rstrip(" \t"))
@@ -379,6 +384,13 @@ def _inline(s: str) -> str:
                         continue
                 out.append(c)
                 i += 1
+                continue
+            if s.startswith("!embed[", i) or s.startswith("\\!embed[", i):
+                start = i + 1 if c == "\\" else i
+                stop = s.find(")", start, end)
+                to = end if stop < 0 else stop + 1
+                out.append(esc(s[start:to]))
+                i = to
                 continue
             if c == "\\":
                 nx = s[i + 1] if i + 1 < end else ""
@@ -507,9 +519,9 @@ def _inline(s: str) -> str:
     return done[0] if done else ""
 
 
-def markdown(src: str) -> str:
+def markdown(src: str, block=None) -> str:
     """Markdown, safe and deliberately small (spec/SPEC.md, "Markdown"): a
     line-for-line port of cloudflare/src/html.ts; both must give the same
     bytes (spec/markdown-cases.json)."""
     lines = src.replace("\r\n", "\n").split("\n")
-    return "\n".join(b[0] for b in _blocks(lines, 0)[0])
+    return "\n".join(b[0] for b in _blocks(lines, 0, block=block)[0])

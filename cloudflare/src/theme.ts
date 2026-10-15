@@ -6,6 +6,7 @@
  * carries its stream, so a theme names no stream and holds no words of its own
  * beyond its UI strings.
  */
+import { bodyMarkdown, finishEmbeds } from "./embeds";
 import Mustache from "mustache";
 import { THEMES } from "./themes.gen";
 import { dateString } from "./date-format";
@@ -73,7 +74,7 @@ function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: 
     date_short: shortDate(e.date),
     date_long: longDate(e.date),
     has_body: !!e.body && !e.external_url,
-    body_html: e.body && !e.external_url ? markdown(e.body).html : "",
+    body_html: e.body && !e.external_url ? bodyMarkdown(e.body) : "",
     stats: e.stats ?? [],
     has_stats: !!(e.stats ?? []).length,
     external: !!e.external_url,
@@ -317,8 +318,8 @@ for (const theme of Object.values(THEMES)) {
   for (const template of [...Object.values(theme.pages), ...Object.values(theme.partials)]) Mustache.parse(template);
 }
 
-export function render(t: Theme, page: string, view: Data): string {
-  return Mustache.render(t.pages[page], view, t.partials);
+export function render(t: Theme, page: string, view: Data, policy?: { sources: unknown; origin: string }): string {
+  return finishEmbeds(Mustache.render(t.pages[page], view, t.partials), policy?.sources, policy?.origin);
 }
 
 const STATIC_TYPES: Record<string, string> = { css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8" };

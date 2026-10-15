@@ -374,6 +374,8 @@ Strings = create_model(
 class SiteData(_Model):
     """Every word on the site that isn't an entry, card or note."""
 
+    embed_sources: list_of(text(_max(2000)), hi=20) = Field(default_factory=list)
+
     title: line(80) = "My site"
     tagline: opt_line(160) = ""
     description: opt_line(300) = ""

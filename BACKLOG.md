@@ -17,15 +17,6 @@ _(none)_
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
-- **S4-1** IN-PROGRESS (spec proposal, owner requirement): owner-approved embeds. Public pages
-  send `default-src 'none'`, so a video or a 3D tour can only be a link.
-  Each site keeps a list of allowed embed sources that changes only
-  through the owner's approval; an assistant proposes an embed (its URL),
-  the review page shows the source plainly, and the tools tell the owner
-  in plain words what an embed is and that they are approving a new
-  source. Nothing open by default, nothing the owner can't approve.
-  YouTube and Matterport first. Security threat model before code; spec
-  first; both editions.
 - **S4-2** OPEN: Many photos from the owner's phone at once. An assistant
   without a code runner can't send 40 photos (base64 in a tool call is
   about 16 MB of text). A signed-in owner page that takes many photos,

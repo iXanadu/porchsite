@@ -6,6 +6,7 @@
  * as a new publish, recorded with the owner's note. Nothing is deleted:
  * the revert is itself in the history and can be reverted.
  */
+import { embedSources, requestOrigin } from "./embed-url";
 import { liveWith, publishNow } from "./approvals";
 import * as content from "./content";
 import { SITE_ID } from "./models";
@@ -142,9 +143,10 @@ export async function plan(db: D1Database, id: number): Promise<{ publish: Publi
 }
 
 /** Put the site back to this publish, as a new publish by the owner. */
-export async function revert(db: D1Database, id: number, note: string): Promise<{ published: string[] }> {
+export async function revert(db: D1Database, id: number, note: string, origin = ""): Promise<{ published: string[] }> {
   const { publish, changes } = await plan(db, id);
   if (!changes.length) throw new ApiError(409, "nothing_to_revert", "The site already matches that publish.");
+  for (const c of changes) if (c.kind === "site" && !c.deleted && embedSources((c.data.embed_sources ?? []) as string[]).includes(requestOrigin(origin))) throw new ApiError(422,"invalid","An embed source cannot be this site's own origin.");
   // Checked before anything is written, so a refusal leaves no stray versions.
   await checkPublic(db, await liveWith(db, changes.map((c) => ({ ...c, slug: null, version: 0, created_at: "", updated_at: "", kind: c.kind as content.Item["kind"] }))));
   const reason = `back to the site as published ${publish.created_at.slice(0, 16).replace("T", " ")} UTC`;
@@ -155,5 +157,5 @@ export async function revert(db: D1Database, id: number, note: string): Promise<
     going.push({ id: done.id, version: done.version });
   }
   const words = `Put the site back to publish ${id}${note.trim() ? `: ${note.trim()}` : ""}`;
-  return { published: await publishNow(db, going, words) };
+  return { published: await publishNow(db, going, words, origin) };
 }

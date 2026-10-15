@@ -16,6 +16,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from server.spec import theme as views
+from server.spec.embed_review import embed_review
+from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import string, u16slice
 
 from . import (
@@ -306,15 +308,15 @@ async def login_page(req: Request, cx: Context) -> Response:
 THEME_CSP = "default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 
-def themed_html(body: str, status: int = 200) -> Response:
+def themed_html(body: str, status: int = 200, sources=None, origin="") -> Response:
     """Pages always check back, so an approved change is live for everyone at
     once; a miss is never stored, so a page published a moment later can't
     hide behind it."""
     return respond(
         body,
         status=status,
-        headers={"Cache-Control": "no-store" if status == 404 else "no-cache"},
-        csp=THEME_CSP,
+        headers={"Cache-Control": "no-store" if status == 404 else "no-cache", "Permissions-Policy": PERMISSIONS},
+        csp=frame_csp(THEME_CSP, sources, origin),
     )
 
 
@@ -342,6 +344,9 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
         return None
     v = await site.live_view(cx.db)
     origin = origin_of(req)
+    policy = {"sources": v.site.get("embed_sources"), "origin": origin}
+    def page(body):
+        return themed_html(body, sources=policy["sources"], origin=origin)
     # Entry addresses before streams had paths: /e/<slug>/ moves to the entry's own.
     old = _OLD.search(path)
     if old:
@@ -360,12 +365,12 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     if st:
         return _file(static_file(t, st.group(1), string(v.site.get("palette") or "")))
     if path == "/":
-        return themed_html(render(t, "home", views.home_view(v, release, origin)))
+        return page(render(t, "home", views.home_view(v, release, origin), policy))
     e = next((x for x in v.entries if x["page"] == path), None)
     if e and e.get("external_url"):
         return redirect(e["external_url"], 302)
     if e:
-        return themed_html(render(t, "entry", views.entry_view(v, e, release, origin)))
+        return page(render(t, "entry", views.entry_view(v, e, release, origin), policy))
     search = _SEARCH.search(path)
     if search:
         return _file(search_index(v, search.group(1)))
@@ -373,7 +378,7 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     if arch:
         av = views.archive_view(v, arch.group(1), release, origin, arch.group(2))
         if av:
-            return themed_html(render(t, "tag" if arch.group(2) else "archive", av))
+            return page(render(t, "tag" if arch.group(2) else "archive", av, policy))
     return None
 
 
@@ -396,10 +401,10 @@ async def not_found_page(req: Request, cx: Context) -> Response:
         return redirect(old, 301, {"Cache-Control": "max-age=86400"})
     t = await themes.load(cx.db, str(v.site["theme"]))
     if not t:
-        return builtin.not_found(v)
+        return builtin.not_found(v, origin_of(req))
     release = site.release_of(v)
     return themed_html(
-        render(t, "not_found", views.not_found_view(v, release, origin_of(req))), 404
+        render(t, "not_found", views.not_found_view(v, release, origin_of(req)), {"sources":v.site.get("embed_sources"),"origin":origin_of(req)}), 404, sources=v.site.get("embed_sources"), origin=origin_of(req)
     )
 
 
@@ -555,6 +560,7 @@ def _busy_word(n: int, what: str) -> str:
 async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Response:
     a = await approvals.get(cx.db, id)
     blocks = []
+    embed_changes = []
     for it in a["items"]:
         item = await content.get_item(cx.db, it["id"])
         live = await cx.db.fetchrow("SELECT data, slug FROM live WHERE item_id = $1", it["id"])
@@ -564,6 +570,8 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
             it["version"],
         )
         shown = json.loads(rev["data"]) if rev else item["data"]
+        if it["status"] == "pending":
+            embed_changes.append({"id":it["id"],"kind":it["kind"],"data":shown,"deleted":bool(rev["deleted"]) if rev else item["deleted"]})
         # An entry whose address changes says so: the old one will send visitors on.
         moves: list[str] = []
         if it["kind"] == "entry" and it["change"] == "changed" and live and live["slug"] and item["slug"]:  # fmt: skip
@@ -627,6 +635,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
         else ""
     )
     raised = await visibility.raises(cx.db, waiting)
+    embed_warn = await _embed_review_for(cx.db, embed_changes, origin_of(req))
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
         f"{esc(who)} has {count} change{'' if count == 1 else 's'} for your site"
@@ -653,7 +662,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
     return owner_page(
         "Review changes",
         f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>{heading}</h1>{f"<p>{esc(a['note'])}</p>" if a.get("note") else ""}{f'<p class="error">{esc(error)}</p>' if error else ""}
-{warn}
+{embed_warn}{warn}
 {look}
 <form method="post"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}">
 {big}{"".join(blocks)}{save}</form>""",
@@ -696,7 +705,7 @@ async def review_decide(req: Request, cx: Context, id: str) -> Response:
                 item_id = k[2:]
                 decisions[item_id] = {"decision": str(v), "note": _field(form, f"n_{item_id}")}
     try:
-        await approvals.decide(cx.db, id, decisions, "")
+        await approvals.decide(cx.db, id, decisions, "", origin_of(req))
     except ApiError as e:
         return await review_show(req, cx, id, e.message)
     origin = origin_of(req)
@@ -1300,6 +1309,7 @@ async def history_page(req: Request, cx: Context) -> Response:
 async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Response:
     p = await history.plan(cx.db, id)
     plan = p["changes"]
+    embed_warn = await _embed_review_for(cx.db, plan, origin_of(req))
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:
         listed = "".join(
@@ -1321,7 +1331,7 @@ async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Re
     return owner_page(
         "Put the site back",
         f"""<h1>Put the site back?</h1><p>Back to how it was after the change on {esc(_when(p["publish"]["created_at"]))}.</p>{err}
-{what}
+{embed_warn}{what}
 <p><a href="/review/history">Back to the history</a></p>""",
         signed_in=True,
         script=BUSY_JS,
@@ -1333,7 +1343,7 @@ async def revert_do(req: Request, cx: Context, id: int) -> Response:
     if _field(form, "csrf") != owner.csrf(req):
         return await revert_page(req, cx, id, "This form expired. Try again.")
     try:
-        await history.revert(cx.db, id, _field(form, "note"))
+        await history.revert(cx.db, id, _field(form, "note"), origin_of(req))
     except ApiError as e:
         return await revert_page(req, cx, id, e.message)
     return owner_page(
@@ -1425,7 +1435,7 @@ async def _route(req: Request, cx: Context) -> Response:
             if themed:
                 return themed
         if path == "/" and m == "GET":
-            return builtin.home(await site.live_view(cx.db))
+            return builtin.home(await site.live_view(cx.db), origin_of(req))
         # Open to every crawler and agent. Pages that mustn't be indexed (the
         # owner's) say so themselves with noindex, which a crawler can only see
         # if it may fetch them.
@@ -1446,7 +1456,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 },
             )
         if _ENTRY.search(path) and m == "GET":
-            page = builtin.entry_page(await site.live_view(cx.db), path)
+            page = builtin.entry_page(await site.live_view(cx.db), path, origin_of(req))
             if page:
                 return page
 
@@ -1460,7 +1470,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or builtin.not_found(await site.live_view(cx.db))
+            return _file(shown) or builtin.not_found(await site.live_view(cx.db), origin_of(req))
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):
@@ -1614,3 +1624,16 @@ async def _route(req: Request, cx: Context) -> Response:
         return owner_page(
             "Problem", f"<h1>Something's wrong</h1><p>{esc(e.message)}</p>", status=e.status
         )
+
+
+async def _embed_review_for(db, changes, origin):
+    if not any(c["kind"] == "site" or (c["kind"] == "entry" and "!embed[" in c["data"].get("body", "")) for c in changes):
+        return ""
+    live = await approvals.live_rows(db)
+    proposed = {r["id"]:r for r in live}
+    for c in changes:
+        if c.get("deleted"):
+            proposed.pop(c["id"], None)
+        else:
+            proposed[c["id"]] = c
+    return embed_review(live, list(proposed.values()), changes, origin)

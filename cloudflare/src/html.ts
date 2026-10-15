@@ -32,9 +32,9 @@ export function nonce(): string {
  * server/spec/html.py is a line-for-line port: both must give the same bytes
  * (spec/markdown-cases.json).
  */
-export function markdown(src: string): Raw {
+export function markdown(src: string, block?: (line: string) => string | null): Raw {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
-  return raw(mdBlocks(lines, 0).blocks.map((b) => b.html).join("\n"));
+  return raw(mdBlocks(lines, 0, false, block).blocks.map((b) => b.html).join("\n"));
 }
 
 type MdBlock = { html: string; para?: string };
@@ -119,7 +119,7 @@ function mdItem(line: string): MdItem | null {
 
 /** A line that ends a lazy continuation (list item or quote). */
 const mdStartsBlock = (line: string) =>
-  indentOf(line) < 4 && (!!mdFence(line) || !!mdHeading(line) || mdHr(line) || !!mdQuote(line) || !!mdItem(line));
+  indentOf(line) < 4 && (line.startsWith("!embed[") || !!mdFence(line) || !!mdHeading(line) || mdHr(line) || !!mdQuote(line) || !!mdItem(line));
 
 /** A line that ends a paragraph. In a list item any number starts a nested list; elsewhere only 1. does. */
 function mdInterrupts(line: string, inItem: boolean): boolean {
@@ -129,7 +129,7 @@ function mdInterrupts(line: string, inItem: boolean): boolean {
   return !!it && it.first.trim() !== "" && (it.kind === "ul" || it.start === 1 || inItem);
 }
 
-function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdBlock[]; gap: boolean } {
+function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null): { blocks: MdBlock[]; gap: boolean } {
   const out: MdBlock[] = [];
   let gap = false;
   let blankBefore = false;
@@ -167,6 +167,8 @@ function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdB
       out.push({ html: `<pre><code${cls}>${esc(code.length ? code.join("\n") + "\n" : "")}</code></pre>` });
       continue;
     }
+    const special = depth === 0 && block ? block(line) : null;
+    if (special !== null) { out.push({ html: special }); i++; continue; }
     const h = mdHeading(line);
     if (h) {
       out.push({ html: `<h${h.n}>${mdInline(h.text)}</h${h.n}>` });
@@ -245,7 +247,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdB
     }
     const para = [stripLeft(line)];
     i++;
-    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem)) para.push(stripLeft(lines[i++]));
+    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem) && !(depth === 0 && block && lines[i].startsWith("!embed["))) para.push(stripLeft(lines[i++]));
     const text = mdInline(para.join("\n").replace(/[ \t]+$/, ""));
     out.push({ html: `<p>${text}</p>`, para: text });
   }
@@ -357,6 +359,12 @@ function mdInline(s: string): string {
         out += c;
         i++;
         continue;
+      }
+      if (s.startsWith("!embed[", i) || s.startsWith("\\!embed[", i)) {
+        const start = c === "\\" ? i + 1 : i;
+        const stop = s.indexOf(")", start);
+        const to = stop < 0 || stop >= end ? end : stop + 1;
+        out += esc(s.slice(start, to)); i = to; continue;
       }
       if (c === "\\") {
         const nx = i + 1 < end ? s[i + 1] : "";

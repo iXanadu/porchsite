@@ -25,7 +25,7 @@
     },
     {
       "name": "item_create",
-      "description": "Create an item; nothing is public until the owner approves. Kinds: site: the site's standing text and layout. Exactly one, id \"site\"; create it once if site_state doesn't list it, then change it with item_update. entry: a dated post in one of the site's streams (its home section): with its own page (body in Markdown), or, with external_url, a listing that links to where it lives. card: a tile in the cards grid: projects, services, products. The grid's heading is the site's cards_title. note: a short dated line in the notes list (heading: the site's notes_title). data holds that kind's fields (see `fields` in site_state).",
+      "description": "Create an item; nothing is public until the owner approves. Kinds: site: the site's standing text and layout. Exactly one, id \"site\"; create it once if site_state doesn't list it, then change it with item_update. entry: a dated post in one of the site's streams (its home section): with its own page (body in Markdown), or, with external_url, a listing that links to where it lives. card: a tile in the cards grid: projects, services, products. The grid's heading is the site's cards_title. note: a short dated line in the notes list (heading: the site's notes_title). data holds that kind's fields (see `fields` in site_state). An embed shows a video or tour from another site on your page. Each new source needs your approval; once approved, pages can show anything from that source. Put it on its own line in the body: !embed[Title](https://example.com/player).",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -60,7 +60,7 @@
     },
     {
       "name": "item_update",
-      "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo.",
+      "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo. An embed shows a video or tour from another site on your page. Each new source needs your approval; once approved, pages can show anything from that source. Put it on its own line in the body: !embed[Title](https://example.com/player).",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -438,7 +438,7 @@
     },
     {
       "name": "site_check",
-      "description": "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.",
+      "description": "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Unapproved embed sources appear as non-failing embed_notes. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",

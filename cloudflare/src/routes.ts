@@ -4,6 +4,8 @@
  * assistant). Owner pages are server-rendered; the only script is the
  * passkey call, under a nonce.
  */
+import { embedReview } from "./embed-review";
+import { frameCsp, PERMISSIONS } from "./embeds";
 import { AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
 import * as analytics from "./analytics";
 import * as approvals from "./approvals";
@@ -153,8 +155,8 @@ const THEME_CSP =
 
 // Pages always check back, so an approved change is live for everyone at once;
 // a miss is never stored, so a page published a moment later can't hide behind it.
-function themedHtml(body: string, status = 200): Response {
-  return respond(raw(body), { status, headers: { "Cache-Control": status === 404 ? "no-store" : "no-cache" }, csp: THEME_CSP });
+function themedHtml(body: string, status = 200, sources?: unknown, origin = ""): Response {
+  return respond(raw(body), { status, headers: { "Cache-Control": status === 404 ? "no-store" : "no-cache", "Permissions-Policy": PERMISSIONS }, csp: frameCsp(THEME_CSP, sources, origin) });
 }
 
 /** Public pages through the site's theme, or null for the built-in look. */
@@ -166,6 +168,8 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   if (!isPublic) return null;
   const v = await site.liveView(env.DB);
   const origin = new URL(req.url).origin;
+  const policy = {sources: v.site.embed_sources, origin};
+  const page = (body: string) => themedHtml(body, 200, policy.sources, origin);
   // Entry addresses before streams had paths: /e/<slug>/ moves to the entry's own.
   const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
   if (old) {
@@ -180,16 +184,16 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   const release = v.updated.replace(/[^0-9A-Za-z]/g, "") || "0";
   const st = /^\/static\/([a-z0-9._-]+)$/.exec(path);
   if (st) return theme.staticFile(name, st[1], String(v.site.palette ?? ""));
-  if (path === "/") return themedHtml(theme.render(name, "home", theme.homeView(v, release, origin)));
+  if (path === "/") return page(theme.render(name, "home", theme.homeView(v, release, origin), policy));
   const e = v.entries.find((x) => x.page === path);
   if (e?.external_url) return Response.redirect(e.external_url, 302);
-  if (e) return themedHtml(theme.render(name, "entry", theme.entryView(v, e, release, origin)));
+  if (e) return page(theme.render(name, "entry", theme.entryView(v, e, release, origin), policy));
   const search = /^\/([a-z][a-z0-9-]{0,29})\/search\.json$/.exec(path);
   if (search) return theme.searchIndex(v, search[1]);
   const arch = /^\/([a-z][a-z0-9-]{0,29})\/(?:tags\/([a-z0-9-]{1,30})\/)?$/.exec(path);
   if (arch) {
     const av = theme.archiveView(v, arch[1], release, origin, arch[2]);
-    if (av) return themedHtml(theme.render(name, arch[2] ? "tag" : "archive", av));
+    if (av) return page(theme.render(name, arch[2] ? "tag" : "archive", av, policy));
   }
   return null;
 }
@@ -205,9 +209,9 @@ async function notFoundPage(req: Request, env: Env): Promise<Response> {
   // An hour, not forever: a browser keeps a bare 301 for good, and a stream can move again.
   if (to) return new Response(null, { status: 301, headers: { Location: to + u.search, "Cache-Control": "max-age=3600" } });
   const name = await themes.load(env.DB, String(v.site.theme));
-  if (!name) return site.notFound(v);
+  if (!name) return site.notFound(v, u.origin);
   const release = v.updated.replace(/[^0-9A-Za-z]/g, "") || "0";
-  return themedHtml(theme.render(name, "not_found", theme.notFoundView(v, release, new URL(req.url).origin)), 404);
+  return themedHtml(theme.render(name, "not_found", theme.notFoundView(v, release, u.origin), {sources:v.site.embed_sources,origin:u.origin}), 404, v.site.embed_sources, u.origin);
 }
 
 // --- the person's phone: a one-time photo upload ----------------------------------
@@ -310,6 +314,7 @@ const busyWord = (n: number, what: string) => `${what} ${n} change${n === 1 ? ""
 async function reviewShow(env: Env, req: Request, id: string, error = ""): Promise<Response> {
   const a = await approvals.get(env.DB, id);
   const blocks: Raw[] = [];
+  const embedChanges: {id:string;kind:string;data:Record<string,any>;deleted:boolean}[] = [];
   // The whole request in three queries, however many items it has.
   const ids = a.items.map((it) => it.id);
   const items = await content.itemsByIds(env.DB, ids);
@@ -322,6 +327,7 @@ async function reviewShow(env: Env, req: Request, id: string, error = ""): Promi
     const live = lives.get(it.id);
     const rev = revs.get(`${it.id}@${it.version}`);
     const shown = rev ? JSON.parse(rev.data) : item.data;
+    if (it.status === "pending") embedChanges.push({id: it.id, kind: it.kind, data: shown, deleted: !!rev?.deleted});
     // An entry whose address changes says so: the old one will send visitors on.
     const moves: Raw[] = [];
     if (it.kind === "entry" && it.change === "changed" && live?.slug && item.slug) {
@@ -358,6 +364,7 @@ ${it.status === "pending"
   return ownerPage(
     "Review changes",
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
+${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}
 ${raised.map((r) => html`<p class="warn">${raiseLine(r)}</p>`)}
 ${pending ? html`<p>${sentence} Nothing changes until you approve. Look first:</p><p><a class="button" href="/review/${a.id}/preview">See the site as it will look</a></p>` : ""}
 <form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}">
@@ -394,7 +401,7 @@ async function reviewDecide(env: Env, req: Request, id: string): Promise<Respons
     }
   }
   try {
-    await approvals.decide(env.DB, id, decisions, "");
+    await approvals.decide(env.DB, id, decisions, "", new URL(req.url).origin);
   } catch (e) {
     if (e instanceof ApiError) return reviewShow(env, req, id, e.message);
     throw e;
@@ -860,6 +867,7 @@ async function revertPage(env: Env, req: Request, id: number, error = ""): Promi
   return ownerPage(
     "Put the site back",
     html`<h1>Put the site back?</h1><p>Back to how it was after the change on ${when(publish.created_at)}.</p>${error ? html`<p class="error">${error}</p>` : ""}
+${raw(await embedReviewFor(env.DB, plan, new URL(req.url).origin))}
 ${plan.length
   ? html`<div class="card">${plan.map(
       (c) =>
@@ -879,7 +887,7 @@ async function revertDo(env: Env, req: Request, id: number): Promise<Response> {
   const form = await req.formData();
   if (form.get("csrf") !== (await owner.csrf(req))) return revertPage(env, req, id, "This form expired. Try again.");
   try {
-    await history.revert(env.DB, id, String(form.get("note") ?? ""));
+    await history.revert(env.DB, id, String(form.get("note") ?? ""), new URL(req.url).origin);
   } catch (e) {
     if (e instanceof ApiError) return revertPage(env, req, id, e.message);
     throw e;
@@ -935,7 +943,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       const themed = await themedPage(req, env, path);
       if (themed) return themed;
     }
-    if (path === "/" && m === "GET") return site.home(await site.liveView(env.DB));
+    if (path === "/" && m === "GET") return site.home(await site.liveView(env.DB), url.origin);
     // Open to every crawler and agent. Pages that mustn't be indexed (the
     // owner's) say so themselves with noindex, which a crawler can only see
     // if it may fetch them.
@@ -948,7 +956,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       return new Response("User-agent: *\nAllow: /\n", { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
     }
     if (/^\/[a-z][a-z0-9-]{0,29}\/[a-z0-9-]{1,80}\/$/.test(path) && m === "GET") {
-      const page = site.entryPage(await site.liveView(env.DB), path);
+      const page = site.entryPage(await site.liveView(env.DB), path, url.origin);
       if (page) return page;
     }
 
@@ -958,7 +966,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       // sees unpublished ones on the review page.
       const isPublic = await media.published(env.DB, img[1]);
       const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic) : null;
-      return shown ?? site.notFound(await site.liveView(env.DB));
+      return shown ?? site.notFound(await site.liveView(env.DB), url.origin);
     }
 
     const up = /^\/upload\/([A-Za-z0-9_-]{32})$/.exec(path);
@@ -1085,3 +1093,10 @@ async function route(req: Request, env: Env): Promise<Response> {
 }
 
 export { esc };
+
+async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;data:Record<string,any>;deleted?:boolean}[], origin:string):Promise<string> {
+  if (!changes.some(c=>c.kind === "site" || (c.kind === "entry" && String(c.data.body??"").includes("!embed[")))) return "";
+  const live = await approvals.liveWith(db, []), proposed = new Map(live.map(r=>[r.id,r]));
+  for(const c of changes) { if(c.deleted) proposed.delete(c.id); else proposed.set(c.id,c); }
+  return embedReview(live,[...proposed.values()],changes,origin);
+}

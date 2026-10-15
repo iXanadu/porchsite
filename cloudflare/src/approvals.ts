@@ -3,6 +3,7 @@
  * current versions; only the owner's decision publishes, and only exactly
  * what was shown.
  */
+import { embedSources, requestOrigin } from "./embed-url";
 import { type Item, allItems, getItem, itemsByIds, staged } from "./content";
 import { ApiError } from "./errors";
 import { checkPublic } from "./visibility";
@@ -162,6 +163,7 @@ export async function decide(
   id: string,
   decisions: Record<string, { decision: Decision; note?: string }>,
   overall: string,
+  origin = "",
 ): Promise<{ approval: Approval; published: string[] }> {
   const a = await get(db, id);
   const stmts: D1PreparedStatement[] = [];
@@ -181,6 +183,7 @@ export async function decide(
         it.status = "superseded";
         continue;
       }
+      checkEmbedOrigin(item, origin);
       stmts.push(liveStmt(db, item, at));
       going.push(item);
       it.status = "published";
@@ -232,13 +235,14 @@ export async function liveWith(db: D1Database, items: Item[]): Promise<{ id: str
  * whole-site revert. An item changed since is refused (item_changed). A
  * pending request for the same version is marked published.
  */
-export async function publishNow(db: D1Database, items: { id: string; version: number }[], note: string): Promise<string[]> {
+export async function publishNow(db: D1Database, items: { id: string; version: number }[], note: string, origin = ""): Promise<string[]> {
   const going: Item[] = [];
   for (const want of items) {
     const item = await getItem(db, want.id);
     if (item.version !== want.version) {
       throw new ApiError(409, "item_changed", `${item.id} changed since (version ${want.version} → ${item.version}). Reload and try again.`, { id: item.id, current_version: item.version });
     }
+    checkEmbedOrigin(item, origin);
     going.push(item);
   }
   if (!going.length) return [];
@@ -283,4 +287,10 @@ export async function unsent(db: D1Database): Promise<number> {
     if (!asked.has(`${i.id}@${i.version}`)) n++;
   }
   return n;
+}
+
+function checkEmbedOrigin(item: Item, origin: string): void {
+  if (item.kind !== "site" || item.deleted) return;
+  const sources = embedSources((item.data.embed_sources ?? []) as string[]);
+  if (origin && sources.includes(requestOrigin(origin))) throw new ApiError(422, "invalid", "An embed source cannot be this site's own origin.");
 }
