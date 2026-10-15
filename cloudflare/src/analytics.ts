@@ -25,6 +25,7 @@
  * Every number is worked out here from the raw rows, the same way in both
  * editions (server/server/app/analytics.py).
  */
+import { dateFormatter } from "./date-format";
 import { siteData } from "./content";
 
 export const NOTRACK_COOKIE = "sk_nt";
@@ -50,7 +51,7 @@ export const isBot = (ua: string): boolean => !ua || BOT.test(ua);
 
 /** YYYY-MM-DD on the site's clock. */
 export function localDay(now: Date, tz: string): string {
-  const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const p = dateFormatter({ year: "numeric", month: "2-digit", day: "2-digit" }, tz).formatToParts(now);
   const get = (t: string) => p.find((x) => x.type === t)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }

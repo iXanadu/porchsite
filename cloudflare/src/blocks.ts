@@ -5,6 +5,7 @@
  * with no script in the browser.
  */
 import { BLOCK_STRINGS } from "./strings";
+import { dateFormatter, dateString } from "./date-format";
 
 export { BLOCK_STRINGS };
 
@@ -16,7 +17,7 @@ const DAY_NAMES: Record<string, string> = { mon: "Monday", tue: "Tuesday", wed: 
 /** Now, as the site's wall clock: date YYYY-MM-DD, time HH:MM, weekday mon..sun. */
 export function localNow(now: Date, timeZone: string): { date: string; time: string; day: string } {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" })
+    dateFormatter({ year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }, timeZone)
       .formatToParts(now)
       .map((p) => [p.type, p.value]),
   );
@@ -29,12 +30,12 @@ export function clock(hhmm: string): string {
 }
 
 const at = (d: string) => new Date(`${d}T12:00:00Z`);
-const longDay = (d: string) => at(d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-const shortDay = (d: string) => at(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+const longDay = (d: string) => dateString(at(d), { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+const shortDay = (d: string) => dateString(at(d), { weekday: "short", month: "short", day: "numeric" });
 const addDays = (d: string, n: number) => new Date(at(d).getTime() + n * 86400_000).toISOString().slice(0, 10);
 const weekdayOf = (d: string) => DAYS[(at(d).getUTCDay() + 6) % 7];
 const zoneName = (timeZone: string, now: Date) =>
-  (new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "UTC").replace(/^([ECMP])[SD]T$/, "$1T");
+  (dateFormatter({ timeZoneName: "short" }, timeZone).formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "UTC").replace(/^([ECMP])[SD]T$/, "$1T");
 
 export function contactView(c: Data | undefined): Data {
   const a = c?.address ?? {};
