@@ -165,7 +165,7 @@ replacement, so a refresh whose answer was lost can be retried.
 
 | Tool | Does |
 |---|---|
-| `site_state` | Every item with its id, kind, version and data; what's live vs draft; the `release` running and `update` (below) |
+| `site_state(full?, ids?)` | By default, every item summarized as `{id, kind, title, state, version}`; `full: true` returns the complete existing item shape, including data and approval metadata; `ids: [...]` returns full items only for those ids. The `release` running and `update` (below), and all other top-level fields, are unchanged |
 | `item_create(kind, data, idempotency_key)` | New item (S4) |
 | `item_update(id, version, data)` | Change fields (S3) |
 | `item_remove(id, version)` | Remove (recoverable, S5) |
@@ -178,6 +178,16 @@ replacement, so a refresh whose answer was lost can be retried.
 | `site_stats(days?, content_id?, src?, post?, include_test?)` | Visitor numbers (§8), read-only |
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |
+
+`site_state` summary titles use the item's `title`, a card's `name`, or a
+note's `text` (empty if none). Full items retain every existing field:
+id, kind, slug, version, data, deleted, created_at, updated_at, state,
+live_version, pending_approval and last_approval. `ids` takes precedence
+over `full`, preserves the usual item order and returns each selected item
+once; an empty list returns no items. An unknown id refuses the whole call
+with `no_such_item`, never a partial result. Both reads use the same
+owner-authorized MCP interface as every other tool; neither exposes a
+public lookup. Reads do not change item versions or publication state.
 
 Reachability uses the selected look, including an installed or site-made look,
 on the same proposed site as the other checks. Starting at `/`, follow

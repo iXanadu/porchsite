@@ -87,6 +87,20 @@ async function describe(db: D1Database, items: content.Item[]) {
   });
 }
 
+/** Keep full item metadata available while making the default read small. */
+async function stateItems(db: D1Database, full?: boolean, ids?: string[]) {
+  let items = await content.allItems(db);
+  if (ids !== undefined) {
+    const selected = new Set(ids);
+    const known = new Set(items.map((i) => i.id));
+    for (const id of selected) if (!known.has(id)) throw new ApiError(404, "no_such_item", `No item ${id}.`);
+    items = items.filter((i) => selected.has(i.id));
+  }
+  const described = await describe(db, items);
+  if (full || ids !== undefined) return described;
+  return described.map((i) => ({ id: i.id, kind: i.kind, title: String(i.data.title ?? i.data.name ?? i.data.text ?? ""), state: i.state, version: i.version }));
+}
+
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
 const IMAGE_ADD_DESCRIPTION =
   "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it.";
@@ -108,14 +122,13 @@ export function createServer(): McpServer {
   server.registerTool(
     "site_state",
     {
-      description:
-        "Start here. Returns: `items`, every item with id, kind, version (send it with item_update / item_remove / item_rollback), data, state (see `states`), pending_approval (the approval it's waiting in now, or null) and last_approval (its most recent request and how it ended, or null; an item whose last request was denied or superseded and that the owner didn't ask about again is best left alone); slug is part of the entry's page address, /<stream path>/<slug>/ (the stream's path, or its id), made from its date and title unless set with the entry's slug field; null for other kinds; `kinds`, what each kind is; `fields`, every field of every kind in plain words; `site_defaults`, the values the site item's fields take when unset; `release`, the Porchsite release running; `update`, whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then: change items, approval_request the ids you changed, give the owner the review_url.",
-      inputSchema: z.object({}),
+      description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
+      inputSchema: z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional() }),
       annotations: { readOnlyHint: true },
     },
-    async () =>
+    async ({ full, ids }) =>
       run(async () => ({
-        items: await describe(db, await content.allItems(db)),
+        items: await stateItems(db, full, ids),
         states: STATES,
         kinds: KIND_GUIDE,
         fields: fieldGuide(),

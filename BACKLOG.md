@@ -24,12 +24,6 @@ Gate (each command's exit code read on its own, never through a pipe):
 `cd server && pytest -q`; `scripts/parity.sh`;
 `scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
 `scripts/migration-check.py`; `scripts/upgrade-check.sh`.
-- **S1-2** (SP-S1) IN-PROGRESS: spec + both editions. `site_state` returns
-  a summary by default (id, kind, title, state, version per item; release
-  and update unchanged). Full data comes back with `full: true`, or with
-  `ids: [...]` for just those items. Additive only: nothing removed from the
-  full shape. Measure the summary on each look's sample site and put the
-  sizes in the commit message.
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
@@ -52,10 +46,7 @@ site's OAuth connector, and pictures held as files. In order:
   custom GPT, Meta AI's skills), then a run with each.
 
 ## DEGRADING
-- **SP-S1** IN-PROGRESS (S1-2): `site_state` returns 34-51 KB for an ordinary site,
-  every item in full; heavy for an assistant's context. Consider a summary
-  by default (ids, kinds, titles, states, versions) and the full data per
-  item or on request. Found: an assistant running updates.
+_(none)_
 
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
