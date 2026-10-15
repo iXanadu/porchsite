@@ -2,6 +2,7 @@
 itself. Port of the service parts of cloudflare/test/media.test.ts, plus the
 server edition's public-only fetcher (the Worker gets that from a flag)."""
 
+import hashlib
 import json
 import re
 
@@ -264,3 +265,72 @@ async def test_connects_to_the_address_it_checked_not_a_later_answer(monkeypatch
         await capped_public_fetch(100)("https://rebind.example.com/a.jpg")
     assert lookups == ["rebind.example.com"]
     assert dialed == [public]
+
+
+async def test_batches_forty_local_pictures_across_create_and_update(db):
+    async with db.acquire() as conn:
+        paths = [
+            await media.store(conn, jpeg(100, i + 1), "image/jpeg", "fixture") for i in range(40)
+        ]
+        body = "\n\n".join(f"![Picture {i}]({path})" for i, path in enumerate(paths))
+
+        class Counted:
+            reads = 0
+
+            def __getattr__(self, name):
+                return getattr(conn, name)
+
+            async def fetch(self, sql, *args):
+                if sql.startswith("SELECT name FROM media WHERE name"):
+                    self.reads += 1
+                return await conn.fetch(sql, *args)
+
+        counted = Counted()
+        item = await content.create_item(
+            counted, who, "entry", {"title": "Pictures", "date": "2026-10-15", "body": body}, None
+        )
+        assert counted.reads == 1
+        assert item["data"]["body"] == body
+        counted.reads = 0
+        repeated = body + f"\n![Repeated]({paths[0]})"
+        changed = await content.update_item(
+            counted, who, item["id"], item["version"], {"body": repeated}
+        )
+        assert counted.reads == 1
+        assert changed["data"]["body"] == repeated
+
+
+async def test_keeps_error_order_and_accepts_an_earlier_hotlink(db):
+    data = jpeg(123, 61)
+    path = f"/media/{hashlib.sha256(data).digest()[:16].hex()}.jpg"
+    out = await media.localize(
+        db,
+        "entry",
+        {"cover": "https://example.com/new.jpg", "cover_alt": "Cover", "body": f"![Again]({path})"},
+        serving(data),
+    )
+    assert out["cover"] == path
+    assert out["body"] == f"![Again]({path})"
+    missing = "/media/00000000000000000000000000000000.jpg"
+    error = await refused(
+        media.localize(db, "entry", {"body": f"![]({path})\n![Missing]({missing})"})
+    )
+    assert error.code == "image_failed"
+    assert missing in error.message
+
+    async def gone(url, **kwargs):
+        return httpx.Response(404, content=b"gone")
+
+    first = await refused(
+        media.localize(
+            db,
+            "entry",
+            {
+                "cover": "https://example.com/gone",
+                "cover_alt": "Cover",
+                "body": f"![Missing]({missing})",
+            },
+            gone,
+        )
+    )
+    assert "404" in first.message

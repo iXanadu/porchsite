@@ -16,8 +16,8 @@ from server.spec.jsutil import NOT_S, S
 
 from .db import Db, now
 from .errors import ApiError
-from .image_privacy import strip_location
 from .fetch import Fetcher, capped_public_fetch
+from .image_privacy import strip_location
 
 MAX_BYTES = 8 * 1024 * 1024
 EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
@@ -162,14 +162,16 @@ async def store(db: Db, data: bytes, type_: str, source: str) -> str:
     return f"/media/{name}"
 
 
-async def _local_path(db: Db, field: str, url: str, fetcher: Fetcher) -> str:
+async def _local_path(db: Db, field: str, url: str, fetcher: Fetcher, known: set[str]) -> str:
     local = LOCAL.search(url)
     if local:
-        if not await db.fetchrow("SELECT name FROM media WHERE name = $1", local.group(1)):
+        if local.group(1) not in known:
             raise _failed(field, url, "this site has no image by that name")
         return url
     data, type_ = await _download(url, field, fetcher)
-    return await store(db, data, type_, url)
+    path = await store(db, data, type_, url)
+    known.add(LOCAL.search(path).group(1))
+    return path
 
 
 async def localize(
@@ -179,6 +181,30 @@ async def localize(
     for each. Returns the data with image fields pointing at /media."""
     fetcher = fetcher or _default_fetch
     out = dict(data)
+    body_images = (
+        list(MD_IMAGE.finditer(out["body"]))
+        if kind == "entry" and isinstance(out.get("body"), str)
+        else []
+    )
+    names = set()
+    for field, alt in IMAGE_FIELDS.get(kind, []):
+        local = LOCAL.search(str(out.get(field) or ""))
+        if local and str(out.get(alt) or "").strip():
+            names.add(local.group(1))
+    for match in body_images:
+        local = LOCAL.search(match.group(2))
+        if local and match.group(1).strip():
+            names.add(local.group(1))
+    known = (
+        {
+            row["name"]
+            for row in await db.fetch(
+                "SELECT name FROM media WHERE name = ANY($1::text[])", list(names)
+            )
+        }
+        if names
+        else set()
+    )
     problems: list[dict[str, str]] = []
     for field, alt in IMAGE_FIELDS.get(kind, []):
         url = str(out.get(field) or "")
@@ -192,10 +218,10 @@ async def localize(
                 }
             )
             continue
-        out[field] = await _local_path(db, field, url, fetcher)
+        out[field] = await _local_path(db, field, url, fetcher, known)
     if kind == "entry" and isinstance(out.get("body"), str):
         body = out["body"]
-        for m in list(MD_IMAGE.finditer(body)):
+        for m in body_images:
             whole, alt_text, url = m.group(0), m.group(1), m.group(2)
             if not alt_text.strip():
                 problems.append(
@@ -205,7 +231,7 @@ async def localize(
                     }
                 )
                 continue
-            path = await _local_path(db, "body", url, fetcher)
+            path = await _local_path(db, "body", url, fetcher, known)
             if path != url:
                 body = body.replace(whole, f"![{alt_text}]({path})", 1)
         out["body"] = body

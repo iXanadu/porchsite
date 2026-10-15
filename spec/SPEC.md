@@ -202,6 +202,10 @@ come from headers; images are never rasterized here. The one-shot
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
 
+When saving an item, check its local picture references together in one database
+lookup. Validation order and errors stay unchanged; a hotlink stored earlier
+in the same item can satisfy a later local reference.
+
 Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
 
 Pictures should be compressed before upload by default: web size, about
