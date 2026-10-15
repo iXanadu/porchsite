@@ -126,3 +126,15 @@ it("does not spend frame budget on noscript fallback occurrences",()=>{
   expect(embedsOf(src)).toEqual([]);expect(bodyMarkdown(src)).toBe(markdown(src).html);
  }
 });
+
+it("allows literal tags with conditional attributes in bundled and private looks",async()=>{
+ const {rules}=await import('../src/themecheck'), {THEMES}=await import('../src/themes.gen');
+ for(const [name,t] of Object.entries(THEMES)) expect(rules(name,t,{scripts:true}),name).toEqual([]);
+ const t=THEMES['personal-homepage'];
+ for(const home of ['<a{{#site.title}} id="{{site.title}}"{{/site.title}} href="/">{{site.title}}</a>', '<tr{{^site.title}} class="today"{{/site.title}}><td {{site.title}}>{{site.title}}</td></tr>', '<a {{#site.title}}id="{{site.title}}"{{/site.title}}>{{site.title}}</a>']) {
+  expect(rules('personal-homepage',{...t,pages:{...t.pages,home}},{scripts:true})).toEqual([]);
+ }
+ for(const home of ['<{{site.title}}>','</{{site.title}}>','<if{{site.title}}rame>','<if{{#site.title}}rame{{/site.title}}>','<if{{^site.title}}rame{{/site.title}}>','<if{{#site.title}} class="x"{{/site.title}}rame>','<iframe></iframe>','<object></object>','<embed>']) {
+  expect(rules('personal-homepage',{...t,pages:{...t.pages,home}},{scripts:true}).some(p=>p.includes('tag names')||p.includes('iframes')),home).toBe(true);
+ }
+});

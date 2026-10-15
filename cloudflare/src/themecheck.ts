@@ -61,7 +61,10 @@ export function rules(name: string, t: Theme, opts: { scripts: boolean }): strin
     } catch (e) {
       problems.push(`${file}: ${(e as Error).message}`);
     }
-    if (/<\/?[^\s/>]*\{\{/.test(src)) problems.push(`${file}: tag names must be literal HTML`);
+    // A conditional attribute starts with whitespace and leaves a name
+    // boundary even when omitted. It cannot change the literal tag name.
+    const names = src.replace(/(<\/?[a-z][a-z0-9:-]*)\{\{[#^]\s*([a-zA-Z0-9_.-]+)\s*\}\}[ \t\r\n]+[^<>]*?\{\{\/\s*\2\s*\}\}(?=[ \t\r\n/>])/gi, "$1 ");
+    if (/<\/?[^\s/>]*\{\{/.test(names)) problems.push(`${file}: tag names must be literal HTML`);
     if (/\{\{=/.test(src)) problems.push(`${file}: delimiter changes aren't allowed`);
     for (const tri of src.match(/\{\{\{[^}]*\}\}\}/g) ?? []) if (!/_html\s*\}\}\}$/.test(tri)) problems.push(`${file}: triple braces only for *_html values (${tri})`);
     if (/\{\{&/.test(src)) problems.push(`${file}: {{& }} (unescaped) isn't allowed`);

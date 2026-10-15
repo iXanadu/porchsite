@@ -127,7 +127,15 @@ def rules(name: str, t: Theme, scripts: bool) -> list[str]:
             mustache.parse(src)
         except Exception as e:  # mustache.js throws Error
             problems.append(f"{file}: {e}")
-        if re.search(r"</?[^\s/>]*\{\{", src):
+        # Conditional attributes begin with whitespace and leave a name
+        # boundary even when omitted; they cannot change the tag name.
+        names = re.sub(
+            r"(</?[a-z][a-z0-9:-]*)\{\{[#^]\s*([a-zA-Z0-9_.-]+)\s*\}\}[ \t\r\n]+[^<>]*?\{\{/\s*\2\s*\}\}(?=[ \t\r\n/>])",
+            r"\1 ",
+            src,
+            flags=_I,
+        )
+        if re.search(r"</?[^\s/>]*\{\{", names):
             problems.append(f"{file}: tag names must be literal HTML")
         if re.search(r"\{\{=", src):
             problems.append(f"{file}: delimiter changes aren't allowed")

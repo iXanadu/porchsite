@@ -240,3 +240,39 @@ def test_noscript_fallback_does_not_spend_frame_budget():
     assert "<iframe" not in finished.split("</noscript>")[0]
     for src in ["> `\n" + FORM + "\n`", "- ``\n" + FORM + "\n``"]:
         assert embeds_of(src) == [] and body_markdown(src) == markdown(src)
+
+
+def test_literal_tags_allow_conditional_attributes():
+    from server.app import themecheck, themes
+
+    for name, look in themes.built_in().items():
+        assert themecheck.rules(name, look, scripts=True) == []
+    look = themes.built_in()["personal-homepage"]
+    for home in [
+        '<a{{#site.title}} id="{{site.title}}"{{/site.title}} href="/">{{site.title}}</a>',
+        '<tr{{^site.title}} class="today"{{/site.title}}><td {{site.title}}>{{site.title}}</td></tr>',
+        '<a {{#site.title}}id="{{site.title}}"{{/site.title}}>{{site.title}}</a>',
+    ]:
+        assert (
+            themecheck.rules(
+                "personal-homepage",
+                {**look, "pages": {**look["pages"], "home": home}},
+                scripts=True,
+            )
+            == []
+        )
+    for home in [
+        "<{{site.title}}>",
+        "</{{site.title}}>",
+        "<if{{site.title}}rame>",
+        "<if{{#site.title}}rame{{/site.title}}>",
+        "<if{{^site.title}}rame{{/site.title}}>",
+        '<if{{#site.title}} class="x"{{/site.title}}rame>',
+        "<iframe></iframe>",
+        "<object></object>",
+        "<embed>",
+    ]:
+        probs = themecheck.rules(
+            "personal-homepage", {**look, "pages": {**look["pages"], "home": home}}, scripts=True
+        )
+        assert any("tag names" in p or "iframes" in p for p in probs), home
