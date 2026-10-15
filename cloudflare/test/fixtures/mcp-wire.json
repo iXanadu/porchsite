@@ -780,6 +780,119 @@
     "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
   },
   {
+    "name": "content type application/json; x=1, text/plain",
+    "status": 415,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "content-type": "application/json",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Unsupported Media Type: Content-Type must be application/json\"},\"id\":null}"
+  },
+  {
+    "name": "content type application/json; x=1",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+  },
+  {
+    "name": "content type application/json; charset=utf-8, text/plain",
+    "status": 415,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "content-type": "application/json",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Unsupported Media Type: Content-Type must be application/json\"},\"id\":null}"
+  },
+  {
+    "name": "content type application/json; charset=\"utf-8\"",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+  },
+  {
+    "name": "content type application/json; charset=\"unterminated",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+  },
+  {
+    "name": "content type Application/JSON",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+  },
+  {
+    "name": "content type application/json ; charset=utf-8",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "event: message\ndata: {\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"approvals\\\":[]}\"}],\"structuredContent\":{\"approvals\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}\n\n"
+  },
+  {
     "name": "content type ",
     "status": 415,
     "headers": {

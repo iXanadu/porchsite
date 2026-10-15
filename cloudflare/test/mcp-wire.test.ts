@@ -54,7 +54,7 @@ const cases: Case[] = [
  {name:"DELETE",method:"DELETE"},
  {name:"OPTIONS",method:"OPTIONS"},
  ...["application/json","text/event-stream","application/json, text/event-stream","*/*","text/plain", ""].map(accept=>({name:`accept ${accept}`,headers:{Accept:accept},body:call("approval_status")})),
- ...["text/plain","application/json; charset=utf-8",""].map(type=>({name:`content type ${type}`,headers:{"Content-Type":type},body:call("approval_status")})),
+ ...["text/plain","application/json; charset=utf-8","application/json; x=1, text/plain","application/json; x=1","application/json; charset=utf-8, text/plain","application/json; charset=\"utf-8\"","application/json; charset=\"unterminated","Application/JSON","application/json ; charset=utf-8",""].map(type=>({name:`content type ${type}`,headers:{"Content-Type":type},body:call("approval_status")})),
  {name:"session id",headers:{"Mcp-Session-Id":"fixture-session"},body:call("approval_status")},
  {name:"protocol header legacy",headers:{"Mcp-Protocol-Version":"2025-06-18"},body:call("approval_status")},
  {name:"protocol header modern",headers:{"Mcp-Protocol-Version":"2026-07-28"},body:call("approval_status")},

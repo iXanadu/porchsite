@@ -14,7 +14,8 @@ const streamed = createMcpHandler(createServer, { route: "/mcp" });
  */
 async function originalMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const accept = req.headers.get("Accept") ?? "";
-  if (req.method !== "POST" || accept.includes("text/event-stream")) return streamed(req, env, ctx);
+  if (!["", "*/*", "application/json", "text/plain", "application/json, text/event-stream"].includes(accept) ||
+      req.method !== "POST" || accept.includes("text/event-stream")) return streamed(req, env, ctx);
   const headers = new Headers(req.headers);
   headers.set("Accept", "application/json, text/event-stream");
   const res = await streamed(new Request(req, { headers }), env, ctx);
@@ -58,8 +59,9 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
   // The fast lane admits only the exact ordinary forms covered by the transcript.
   const accept = req.headers.get("Accept") ?? "";
   const version = req.headers.get("Mcp-Protocol-Version");
-  if (req.method !== "POST" || req.signal.aborted || req.headers.has("Origin") ||
-      !/^application\/json(?:;|$)/i.test(req.headers.get("Content-Type") ?? "") ||
+  if (!["", "*/*", "application/json", "text/plain", "application/json, text/event-stream"].includes(accept) ||
+      req.method !== "POST" || req.signal.aborted || req.headers.has("Origin") ||
+      !/^application\/json(?:; charset=utf-8)?$/i.test(req.headers.get("Content-Type") ?? "") ||
       (accept.includes("text/event-stream") && !accept.includes("application/json")) ||
       (version !== null && !versions.has(version)) ||
       [...req.headers.keys()].some(name => name.startsWith("mcp-") && name !== "mcp-protocol-version" && name !== "mcp-session-id")) return fallback();
