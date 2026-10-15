@@ -23,6 +23,11 @@ The lock is `/tmp/porchsite-suite.lock` on every platform. Local
 HTTP/inspector ports default to 8801/9241; change them with `--port`
 and `--inspector`. Do not run another measurement concurrently.
 
+Use committed builds for reproducible comparisons. For a dirty prototype,
+stage newly added product source files first: the product diff fingerprint
+covers tracked changes and omits untracked files. Keep the build checkout
+unchanged during the run. The exact executed bundle is retained separately.
+
 By default every sample is measured three times in each mode:
 
 - **Cold** is the first HTTP request in a newly launched Worker. The
@@ -50,7 +55,9 @@ The measured path is the build's actual `index.ts` HTTP handler, including
 owner-session authentication for review pages and assistant-key lookup plus
 MCP transport for tools. Every tool discovered by `tools/list` must have a
 successful measured case in a full run; an unexpected HTTP status, MCP error, or missing
-tool fails the run. This does not measure OAuth-token authentication.
+tool fails the run. MCP calls use the legacy JSON-RPC envelope, protocol
+version `2025-06-18` and JSON-only `Accept`. This does not measure OAuth-token
+authentication, modern protocol envelopes or fallback-only request forms.
 
 Wrangler's dry-run build preserves a minified install-style bundle and its
 source map; local dev executes that exact artifact with bundling disabled.
