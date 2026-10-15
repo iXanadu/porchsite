@@ -48,14 +48,7 @@ NEXT = (
     "When your changes are ready, call site_check, then approval_request with the ids you changed."
 )
 IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file."
-CHECK_DESCRIPTION = (
-    "Look over the site as it will be once everything you've changed is published, the way a visitor"
-    " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
-    " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
-    " with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them,"
-    " if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when the crawl completes and broken and unreachable are both empty. Run it before you ask for approval and before"
-    " you tell your person the site is done. Crawl stops after 200 distinct local addresses or 10000 rendered links. If incomplete, crawl reports the limit and counts, ok is false and unreachable is empty; do not treat that as a clean check."
-)
+CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites."
 STATES = {
     "live": "published, and the current version is what visitors see",
     "changed": "published, with a newer version that isn't approved yet",
@@ -289,7 +282,7 @@ def _tools() -> list[dict[str, Any]]:
         {
             "name": "site_check",
             "description": CHECK_DESCRIPTION,
-            "inputSchema": _obj({}),
+            "inputSchema": _obj({"deep": {"type": "boolean", "description": "Optional. Also crawl rendered links; this is a heavy check."}}),
             "annotations": read_only,
         },
         {
@@ -424,7 +417,7 @@ def parse_args(name: str, args: dict[str, Any] | None) -> tuple[dict[str, Any], 
     out: dict[str, Any] = {}
     issues: list[str] = []
     for key, prop in schema["properties"].items():
-        if key not in args or args[key] is None and key not in required and "default" not in prop and name != "image_add":
+        if key not in args or args[key] is None and key not in required and "default" not in prop and name not in ("image_add", "site_check"):
             if "default" in prop:
                 out[key] = prop["default"]
             elif key in required:
@@ -740,7 +733,9 @@ async def _call(
             changes = [{"id": i["id"], "version": i["version"]} for i in await content.staged(db)]
             v = await site.proposed_view(db, changes)
             names = {r["name"] for r in await db.fetch("SELECT name FROM media")}
-            return check.check_site(v, names, await themes.load(db, str(v.site["theme"])), origin)
+            if a.get("deep", False):
+                return check.check_site_deep(v, names, await themes.load(db, str(v.site["theme"])), origin)
+            return check.check_site(v, names)
 
         return await _run(site_check)
 

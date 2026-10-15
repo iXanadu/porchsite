@@ -1,7 +1,7 @@
 // site_check finds links that lead nowhere and empty sections (SPEC §4).
 // Port-matched: server/tests/app/test_check.py.
 import { describe, expect, it } from "vitest";
-import { checkSite } from "../src/check";
+import { checkSite, checkSiteDeep } from "../src/check";
 import { validate } from "../src/content";
 import * as site from "../src/site";
 
@@ -31,7 +31,7 @@ describe("site_check", () => {
 
   it("passes a site whose links all land", async () => {
     const ok = validate("site", { title: "Ok", cta_label: "Read", cta_link: "/news/hello/", streams: [{ id: "updates", title: "Updates", path: "news" }], sections: ["entries"] });
-    expect(await checkSite(site.view(ok, [entry("e1", "hello", "Back [home](/#updates).")]), new Set())).toEqual({ ok: true, broken: [], empty_sections: [], unreachable: [] });
+    expect(await checkSite(site.view(ok, [entry("e1", "hello", "Back [home](/#updates).")]), new Set())).toEqual({ ok: true, broken: [], empty_sections: [] });
   });
 });
 
@@ -46,7 +46,7 @@ it("follows a rendered archive and relative links, and decodes external destinat
     archive: '<a href="a/">A</a>',
     entry: '{{#entry}}{{#body_html}}{{{body_html}}}{{/body_html}}{{/entry}}<a href="../b/">B</a><a href="https://example.com/?a=1&amp;b=2">External</a>',
   } };
-  expect((await checkSite(v, new Set(), look)).unreachable).toEqual([]);
+  expect((await checkSiteDeep(v, new Set(), look)).unreachable).toEqual([]);
   look.pages.home = '<script>"<a href="/journal/a/">"</script><!-- <a href="/journal/b/"> -->';
-  expect((await checkSite(v, new Set(), look)).unreachable.map(x => x.id)).toEqual(["a", "b", "external"]);
+  expect((await checkSiteDeep(v, new Set(), look)).unreachable.map(x => x.id)).toEqual(["a", "b", "external"]);
 });

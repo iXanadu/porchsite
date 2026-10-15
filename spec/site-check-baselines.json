@@ -1,0 +1,54 @@
+{
+  "quick_revision": "fbdd784",
+  "deep_revision": "5c89708",
+  "cases": {
+    "catalogue-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "event-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "group-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "link-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "local-business": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "menu-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "personal-homepage": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "portfolio": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "product-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "renderer-origin": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "services-page": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    },
+    "url-equivalence": {
+      "quick": "{\"ok\":true,\"broken\":[],\"empty_sections\":[]}",
+      "deep": "{\"ok\":true,\"broken\":[],\"empty_sections\":[],\"unreachable\":[]}"
+    }
+  }
+}

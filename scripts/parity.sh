@@ -92,7 +92,7 @@ elif ! diff -ru "$TMP/tools-cf" "$TMP/tools-py" >"$TMP/tools.diff"; then
   head -60 "$TMP/tools.diff"
   bad=$((bad + 1))
 else
-  echo "✓ tool answers: ${#looks[@]} samples and regression fixtures identical (site_check; site_state summary/full/ids/empty/unknown)"
+  echo "✓ tool answers: ${#looks[@]} samples and regression fixtures identical (site_check quick/deep; site_state summary/full/ids/empty/unknown)"
 fi
 
 [ "$bad" -eq 0 ] && echo "parity: ${#looks[@]}/${#looks[@]} looks identical" || echo "parity: $bad of ${#looks[@]} looks differ"

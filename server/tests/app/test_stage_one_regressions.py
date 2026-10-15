@@ -1,7 +1,7 @@
 """Review regressions: port of stage-one-regressions.test.ts."""
 import pytest
 
-from server.app.check import check_site
+from server.app.check import check_site_deep as check_site
 from server.app.content import validate
 from server.spec.site import view
 

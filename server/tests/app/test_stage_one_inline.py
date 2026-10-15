@@ -16,7 +16,7 @@ async def test_counts_full_inline_feature_body_but_not_a_title_or_summary_alone(
     assert "The complete inline feature body." in home
     assert 'href="/front/overview/"' not in home
     assert "porchsite-check-" not in home
-    err, inline, _ = await a.call("site_check")
+    err, inline, _ = await a.call("site_check", deep=True)
     assert not err
     assert inline["ok"] is True
     assert inline["unreachable"] == []
@@ -32,7 +32,7 @@ async def test_counts_full_inline_feature_body_but_not_a_title_or_summary_alone(
     summary_home = (await http.get("/")).text
     assert "Short summary" in summary_home
     assert "The complete inline feature body." not in summary_home
-    err, omitted, _ = await a.call("site_check")
+    err, omitted, _ = await a.call("site_check", deep=True)
     assert not err
     assert omitted["ok"] is False
     assert [x["id"] for x in omitted["unreachable"]] == [feature["id"]]

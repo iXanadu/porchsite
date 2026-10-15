@@ -37,6 +37,7 @@ async def main(output, names):
     output.mkdir(parents=True, exist_ok=True)
     cases = [{"name": n, "theme": n, "sample": json.loads((ROOT / "themes" / n / "sample.json").read_text())} for n in names]
     cases += json.loads((ROOT / "spec" / "tool-parity-cases.json").read_text())
+    baselines = json.loads((ROOT / "spec" / "site-check-baselines.json").read_text())["cases"]
     fixed = datetime.fromisoformat(os.environ.get("NOW", "2026-10-15T15:30:00Z").replace("Z", "+00:00"))
     proposed = site.proposed_view
 
@@ -78,7 +79,7 @@ async def main(output, names):
                     await conn.execute("INSERT INTO items (id, kind, slug, version, data, deleted, created_at, updated_at) VALUES ($1, $2, $3, 1, $4, FALSE, $5, $5)", row["id"], row["kind"], row["slug"], raw, stamp)
                     await conn.execute("INSERT INTO live (item_id, kind, slug, version, data, published_at) VALUES ($1, $2, $3, 1, $4, $5)", row["id"], row["kind"], row["slug"], raw, stamp)
             calls = [
-                ("site_check", "site_check", {}), ("site_state", "site_state", {}),
+                ("site_check", "site_check", {}), ("site_check_deep", "site_check", {"deep": True}), ("site_state", "site_state", {}),
                 ("site_state_full", "site_state", {"full": True}),
                 ("site_state_ids", "site_state", {"ids": ["site", "i0"]}),
                 ("site_state_empty", "site_state", {"ids": []}),
@@ -87,6 +88,11 @@ async def main(output, names):
             answers = {}
             for key, tool, args in calls:
                 result = await mcp._call(pool, tool, args, {}, "dev")
+                # The mutation deliberately breaks the historical deep answer; let the
+                # cross-edition diff detect it, as in the parity self-test.
+                if not mutation and key in ("site_check", "site_check_deep"):
+                    expected = baselines[case["name"]]["quick" if key == "site_check" else "deep"]
+                    assert result.content[0].text == expected, f'{case["name"]} {key}: historical answer bytes differ'
                 answers[key] = {"error": bool(result.is_error), "value": json.loads(result.content[0].text)}
             write_json(output / f'{case["name"]}.json', answers)
         print(f"Server tool parity: {len(names)} samples and {len(cases) - len(names)} regression fixtures")

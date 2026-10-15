@@ -30,13 +30,7 @@ re-measure.
   work. First measure CPU per decoded MB (0.5, 1, 2, 4 MB) and find the
   largest per-call size that fits; then decide between a lower per-call
   limit with pictures sent in pieces across calls, or a leaner byte path.
-- **S3-4** IN-PROGRESS: coder. Decided (2026-10-15): checking in steps
-  can't fit (one page alone is about 16 ms cold locally), so the rendered
-  reachability crawl becomes opt-in: `site_check` by default answers as
-  release 2026.10.14-fbdd784 did (broken links, empty sections; no
-  rendering), and `site_check({deep: true})` adds `unreachable` and
-  `crawl`, described as heavy and best on the paid plan. Both editions,
-  spec first; additive.
+
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was

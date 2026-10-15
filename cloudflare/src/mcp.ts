@@ -8,7 +8,7 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import * as analytics from "./analytics";
 import { imageAdd } from "./image-add";
-import { checkSite } from "./check";
+import { checkSite, checkSiteDeep } from "./check";
 import * as approvals from "./approvals";
 import * as content from "./content";
 import type { Env } from "./env";
@@ -104,8 +104,7 @@ async function stateItems(db: D1Database, full?: boolean, ids?: string[]) {
 
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
 const IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file.";
-const CHECK_DESCRIPTION =
-  "Look over the site as it will be once everything you've changed is published, the way a visitor clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them, if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when the crawl completes and broken and unreachable are both empty. Run it before you ask for approval and before you tell your person the site is done. Crawl stops after 200 distinct local addresses or 10000 rendered links. If incomplete, crawl reports the limit and counts, ok is false and unreachable is empty; do not treat that as a clean check.";
+const CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.";
 const STATES = {
   live: "published, and the current version is what visitors see",
   changed: "published, with a newer version that isn't approved yet",
@@ -185,7 +184,7 @@ const INPUT_SCHEMAS = {
   theme_needs: toolSchema(z.object({ name: z.string().optional() })),
   approval_request: toolSchema(z.object({ ids: z.array(z.string()).min(1).max(50), note: z.string().max(1000).default("") })),
   approval_status: toolSchema(z.object({ approval_id: z.string().optional() })),
-  site_check: toolSchema(z.object({})),
+  site_check: toolSchema(z.object({ deep: z.boolean().optional().describe("Optional. Also crawl rendered links; this is a heavy check.") })),
   site_stats: toolSchema(z.object({
         days: z.number().int().min(1).max(90).default(7).describe("the last N days, today included, 1 to 90"),
         content_id: z.string().optional().describe("only visits that read this item (an entry's id)"),
@@ -492,12 +491,13 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
   server.registerTool(
     "site_check",
     TOOL_DEFINITIONS.site_check,
-    async () =>
+    async ({ deep }) =>
       run(async () => {
         const changes = (await content.staged(db)).map((i) => ({ id: i.id, version: i.version }));
         const v = await proposedView(db, changes);
         const { results } = await db.prepare("SELECT name FROM media").all<{ name: string }>();
-        return checkSite(v, new Set(results.map((r) => r.name)), await themes.load(db, String(v.site.theme)), origin());
+        const names = new Set(results.map((r) => r.name));
+        return deep ? checkSiteDeep(v, names, await themes.load(db, String(v.site.theme)), origin()) : checkSite(v, names);
       }),
   );
 

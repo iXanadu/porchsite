@@ -438,11 +438,16 @@
     },
     {
       "name": "site_check",
-      "description": "Look over the site as it will be once everything you've changed is published, the way a visitor clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them, if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when the crawl completes and broken and unreachable are both empty. Run it before you ask for approval and before you tell your person the site is done. Crawl stops after 200 distinct local addresses or 10000 rendered links. If incomplete, crawl reports the limit and counts, ok is false and unreachable is empty; do not treat that as a clean check.",
+      "description": "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "properties": {}
+        "properties": {
+          "deep": {
+            "description": "Optional. Also crawl rendered links; this is a heavy check.",
+            "type": "boolean"
+          }
+        }
       },
       "annotations": {
         "readOnlyHint": true
