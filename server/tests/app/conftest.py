@@ -77,13 +77,20 @@ def test_dsn():
     async def drop():
         c = await asyncpg.connect(ADMIN_DSN)
         try:
-            await c.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+            # Dependent app/pool fixtures close first. Plain DROP handles
+            # autovacuum without requiring cross-role signal privileges.
+            await c.execute(f'DROP DATABASE IF EXISTS "{name}"')
         finally:
             await c.close()
 
-    _run(create())
-    yield _with_db(ADMIN_DSN, name)
-    _run(drop())
+    try:
+        _run(create())
+        yield _with_db(ADMIN_DSN, name)
+    finally:
+        try:
+            _run(drop())
+        except Exception as exc:
+            raise RuntimeError(f"could not drop {name}") from exc
 
 
 @pytest.fixture(scope="module")
