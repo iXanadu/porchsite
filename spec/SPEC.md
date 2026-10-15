@@ -175,8 +175,13 @@ one small dialect both editions render to the same bytes. The cases in
   `“a”`), `--` an en dash, `---` an em dash, `...` an ellipsis; never inside
   code, link addresses, titles, alt text, or a bare `http(s)://` address.
 - Safety: raw HTML is escaped, never passed through. Links go only to
-  `http://`, `https://`, `mailto:`, `/…` or `#…` addresses, anything else
-  stays text; images only to the site's own `/media/` files (any other
+  `http://`, `https://`, `mailto:`, `tel:`, `/…` or `#…` addresses, anything else
+  stays text. A `tel:` destination contains at least one ASCII digit and
+  otherwise only ASCII digits, `+`, `-`, balanced parentheses and literal
+  spaces; no letters, extensions, percent escapes, tabs or newlines. For
+  example, `[Call](tel:+1 (202) 555-0123)` is a link. Optional quoted titles
+  work as on other links. `mailto:` behavior is unchanged.
+  Images only to the site's own `/media/` files (any other
   image renders as a plain link, or as text).
 
 Templates decide how kinds look, never what they say (see §6).
@@ -201,8 +206,10 @@ frame authority it never showed for approval. Reads, review, rollback and
 whole-site revert reconstruct the logical field from the same version.
 An absent list is empty, never an inherited list from another version.
 
-On the first content or approval write, atomically move any legacy inline
-lists out of all current, revision and live site snapshots, preserving
+Any content write or approval action (request, owner decision or publish
+now) repairs legacy inline lists; no approval is required after a content
+write. Boot and read-only requests do not run the repair. Atomically move
+any legacy inline lists out of all current, revision and live site snapshots, preserving
 versions and the already-live authority without approving staged sources.
 Conflicting lists for one version refuse the repair rather than guessing.
 Keep old JSON free of the key on every subsequent write and publish, so a

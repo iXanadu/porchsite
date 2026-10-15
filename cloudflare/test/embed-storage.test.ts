@@ -74,6 +74,40 @@ it("repairs all legacy snapshots without promoting a staged list or changing app
   await cleanPayloads();
 });
 
+it.each(["request", "decide"])("repairs legacy inline lists through approval %s without any content write", async (action) => {
+  const one = await content.createItem(db, "assistant:test", "site", { embed_sources: [A] }, undefined);
+  await publish(one);
+  const two = await content.updateItem(db, "assistant:test", "site", 1, { embed_sources: [B] });
+  let pending = await approvals.request(db, "assistant:test", ["site"], "");
+  // Reconstruct the previous inline-storage format, including live and pending versions.
+  await db.batch([
+    db.prepare("DELETE FROM site_embed_sources"),
+    db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify(two.data)),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 1").bind(JSON.stringify(one.data)),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 2").bind(JSON.stringify(two.data)),
+    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify(one.data)),
+  ]);
+  // A read does not repair; no content write or direct migration follows this seed.
+  await content.siteData(db, true);
+  expect(await db.prepare("SELECT COUNT(*) AS n FROM site_embed_sources").first("n")).toBe(0);
+  if (action === "request") {
+    pending = await approvals.request(db, "assistant:test", ["site"], "");
+    await cleanPayloads();
+    const { results } = await db.prepare("SELECT version, sources, approved FROM site_embed_sources ORDER BY version").all<{version:number;sources:string;approved:number}>();
+    expect(results.map(r=>({...r,sources:JSON.parse(r.sources)}))).toEqual([
+      {version:1,sources:[A],approved:1}, {version:2,sources:[B],approved:0},
+    ]);
+    expect((await approvals.get(db, pending.id)).items[0]).toMatchObject({version:2,status:"pending"});
+  }
+  await approvals.decide(db, pending.id, {site:{decision:"approve"}}, "", origin);
+  await cleanPayloads();
+  expect((await content.siteData(db, true)).embed_sources).toEqual([B]);
+  const { results } = await db.prepare("SELECT version, sources, approved FROM site_embed_sources ORDER BY version").all<{version:number;sources:string;approved:number}>();
+  expect(results.map(r=>({...r,sources:JSON.parse(r.sources)}))).toEqual([
+    {version:1,sources:[A],approved:1}, {version:2,sources:[B],approved:1},
+  ]);
+});
+
 it("an old bundle cannot approve an unseen sidecar by copying raw staged JSON to live", async () => {
   const one = await content.createItem(db, "assistant:test", "site", { embed_sources: [A] }, undefined);
   await publish(one);
