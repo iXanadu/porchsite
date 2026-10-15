@@ -57,6 +57,31 @@ Found building a single-property listing site on the live release.
   source. Nothing open by default, nothing the owner can't approve.
   YouTube and Matterport first. Security threat model before code; spec
   first; both editions.
+- **S4-2** OPEN: Many photos from the owner's phone at once. An assistant
+  without a code runner can't send 40 photos (base64 in a tool call is
+  about 16 MB of text). A signed-in owner page that takes many photos,
+  shrinks each in the browser (S3-6 rules), strips location (S3-7) and
+  tells the assistant the stored paths. Security review first.
+- **S4-3** OPEN: A look for a property listing. No catalog look fits;
+  product-page wants a square engraving-style hero and its art guidance
+  ("engraving, pick an animal") misleads for a photo listing. A Listing
+  look with a wide photographic hero, a photo gallery, stats, map and
+  visit/contact; per-look art guidance in theme_needs.
+- **S4-4** OPEN: Owner told promptly and privately when an approval is
+  waiting, not only through a link the assistant passes on. Design first
+  (browser push to the owner's signed-in device, or email), owner picks.
+- **S4-5** OPEN: Analytics writes one database row per page view and per
+  heartbeat; the free plan allows 100,000 row writes a day across the
+  account, so a busy open-house weekend could use it up. Batch or sample.
+- **S4-6** OPEN: item_create with many pictures in its body is slow (an
+  entry with 40 pictures: about 128 ms CPU, 5 s); look up the pictures in
+  one query.
+- **S4-7** OPEN: The assistant can't see what it built before the owner
+  approves: no preview it can open. Design with security (a short-lived
+  read-only preview for the assistant).
+- **S4-8** OPEN: theme_list shows every catalog look as installed, so the
+  guide's "theme_list then theme_install" confuses a first-time assistant.
+  Say plainly which looks need installing (none, today).
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
