@@ -129,19 +129,25 @@ def check_site(v: SiteView, media: set[str], look: Theme | None = None, origin: 
                 }
             )
     # Empty sections are reported, not failed: the site's menu leaves them out.
-    unreachable = _unreachable_entries(v, look, origin)
-    return {"ok": not broken and not unreachable, "broken": broken, "empty_sections": empty, "unreachable": unreachable}
+    unreachable, crawl = _unreachable_entries(v, look, origin)
+    return {"ok": not broken and not unreachable and not crawl, "broken": broken, "empty_sections": empty, "unreachable": unreachable, **({"crawl": crawl} if crawl else {})}
+
+
+MAX_PAGES = 200
+MAX_LINKS = 10_000
 
 
 class _Links(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, remaining: int = MAX_LINKS) -> None:
         super().__init__(convert_charrefs=True)
         self.links: list[str] = []
         self.comments: list[str] = []
         self.template_depth = 0
+        self.remaining = remaining
+        self.limited = False
 
     def handle_comment(self, data: str) -> None:
-        if not self.template_depth:
+        if not self.template_depth and not self.limited:
             self.comments.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -150,7 +156,10 @@ class _Links(HTMLParser):
         if not self.template_depth and tag in ("a", "area"):
             href = dict(attrs).get("href")
             if href is not None:
-                self.links.append(href)
+                if len(self.links) == self.remaining:
+                    self.limited = True
+                elif not self.limited:
+                    self.links.append(href)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "template" and self.template_depth:
@@ -178,7 +187,7 @@ def _address(href: str, base: str) -> str:
     return urlunsplit((scheme, credentials + host, parts.path or "/", parts.query, parts.fragment))
 
 
-def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[Data]:
+def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[list[Data], Data | None]:
     t = look or themes.built_in().get(themes.ALIASES.get(v.site["theme"], v.site["theme"]))
     base = urlsplit(_address(origin or "https://example.invalid", "https://example.invalid"))
     # Renderer contexts receive an origin, never a URL path or trailing slash.
@@ -199,12 +208,17 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
             out["body_html"] = f"<!--{marker}{i}-->{value['body_html']}"
         return out
 
+    links = 0
+    limit = None
     visited: set[str] = set()
     queue = ["/"]
     while queue:
         path = queue.pop(0)
         if path in visited:
             continue
+        if len(visited) == MAX_PAGES:
+            limit = "pages"
+            break
         visited.add(path)
         old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
         moved = next((e["page"] for e in v.entries if old and e["slug"] == old[1]), None) if old else builtin.redirect_for(v, path)
@@ -232,8 +246,9 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
                 body = response.body.decode("utf-8")
         if body is None:
             continue
-        parser = _Links()
+        parser = _Links(MAX_LINKS - links)
         parser.feed(body)
+        links += len(parser.links)
         for comment in parser.comments:
             if comment.startswith(marker) and comment[len(marker):].isdigit():
                 i = int(comment[len(marker):])
@@ -250,8 +265,13 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
                     queue.append(parts.path or "/")
             except ValueError:
                 continue
+        if parser.limited:
+            limit = "links"
+            break
+    if limit:
+        return [], {"limit": limit, "max_pages": MAX_PAGES, "max_links": MAX_LINKS, "pages": len(visited), "links": links}
     return [
         {"id": e["id"], "why": "no rendered link path from the home page to this entry"}
         for e in v.entries
         if e["id"] not in inline and e["page"] not in visited and (not e.get("external_url") or _address(e["external_url"], origin) not in reached)
-    ]
+    ], None

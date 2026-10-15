@@ -55,8 +55,8 @@ CHECK_DESCRIPTION = (
     " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
     " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
     " with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them,"
-    " if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when broken and unreachable are both empty. Run it before you ask for approval and before"
-    " you tell your person the site is done."
+    " if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when the crawl completes and broken and unreachable are both empty. Run it before you ask for approval and before"
+    " you tell your person the site is done. Crawl stops after 200 distinct local addresses or 10000 rendered links. If incomplete, crawl reports the limit and counts, ok is false and unreachable is empty; do not treat that as a clean check."
 )
 STATES = {
     "live": "published, and the current version is what visitors see",

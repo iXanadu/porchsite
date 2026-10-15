@@ -29,9 +29,6 @@ the merged main tip. Gate (each exit code read on its own):
   RA-10 below. Tests: 8 files pass, 9 refused, over the total cap refused, one bad
   file among good ones stores none. Measure the Cloudflare edition at the
   cap under local wrangler.
-- **S2-3** (SP-S2) IN-PROGRESS: coder, after S2-1. Cap `site_check`'s
-  crawl (pages and links), the same numbers in both editions, with the
-  cap reported in the answer when it is hit.
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
@@ -61,11 +58,6 @@ site's OAuth connector, and pictures held as files. In order:
 
 ## DEGRADING
 _(none)_
-
-- **SP-S2** IN-PROGRESS (S2-3): `site_check`'s crawl has no page or link cap. A
-  look with a huge local link fan-out burns CPU inside the owner's own
-  check. Owner-authenticated only, not a visitor path. Found: stage 1
-  security review.
 
 - **SP-S3** OPEN: After SP-S1, the fixed part of `site_state` (guides,
   kinds, fields, defaults) is about 12.3 KB on every call, 86-96% of a

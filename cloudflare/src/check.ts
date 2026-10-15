@@ -13,6 +13,10 @@ import { ALIASES, type Theme } from "./themes";
 import { home, entryPage, redirectFor } from "./site";
 
 type Data = Record<string, any>;
+interface CrawlLimit { limit: "pages" | "links"; max_pages: number; max_links: number; pages: number; links: number }
+const MAX_PAGES = 200;
+const MAX_LINKS = 10_000;
+
 export interface Problem {
   where: string;
   link: string;
@@ -39,7 +43,7 @@ function linksOf(where: string, data: Data, fields: string[]): { where: string; 
   return out;
 }
 
-export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | null, origin = "https://example.invalid"): Promise<{ ok: boolean; broken: Problem[]; empty_sections: string[]; unreachable: { id: string; why: string }[] }> {
+export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | null, origin = "https://example.invalid"): Promise<{ ok: boolean; broken: Problem[]; empty_sections: string[]; unreachable: { id: string; why: string }[]; crawl?: CrawlLimit }> {
   const s = v.site;
   const st = streams(s);
   const pages = new Set(FIXED);
@@ -90,8 +94,8 @@ export async function checkSite(v: SiteView, media: Set<string>, look?: Theme | 
     if (hash && page === "/" && !anchors.has(hash)) broken.push({ where, link, why: `the home page has no section #${hash} with anything in it` });
   }
   // Empty sections are reported, not failed: the site's menu leaves them out.
-  const unreachable = await unreachableEntries(v, look, origin);
-  return { ok: !broken.length && !unreachable.length, broken, empty_sections: empty, unreachable };
+  const { unreachable, crawl } = await unreachableEntries(v, look, origin);
+  return { ok: !broken.length && !unreachable.length && !crawl, broken, empty_sections: empty, unreachable, ...(crawl ? { crawl } : {}) };
 }
 
 /** Crawl only pages reached by actual HTML links; never fetch a URL. */
@@ -111,6 +115,8 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
     if (i >= 0 && value.body_html) out.body_html = `<!--${marker}${i}-->${value.body_html}`;
     return out;
   };
+  let links = 0;
+  let limit: "pages" | "links" | undefined;
   const visited = new Set<string>();
   const queue = ["/"];
   const address = (href: string, path: string): URL | null => {
@@ -119,6 +125,7 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
   while (queue.length) {
     const path = queue.shift()!;
     if (visited.has(path)) continue;
+    if (visited.size === MAX_PAGES) { limit = "pages"; break; }
     visited.add(path);
     const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
     const moved = old ? v.entries.find((e) => e.slug === old[1])?.page : redirectFor(v, path);
@@ -149,19 +156,23 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
       },
     }).on("a[href], area[href]", {
       element(el) {
-        if (templateDepth) return;
+        if (templateDepth || limit) return;
+        if (links === MAX_LINKS) { limit = "links"; return; }
+        links++;
         const url = address(decodeHTMLAttribute(el.getAttribute("href")!), path);
         if (!url || !["http:", "https:"].includes(url.protocol)) return;
         reached.add(url.href);
         if (url.origin === base.origin) queue.push(url.pathname);
       },
     }).onDocument({ comments(comment) {
-      if (!templateDepth && comment.text.startsWith(marker)) {
+      if (!limit && !templateDepth && comment.text.startsWith(marker)) {
         const e = v.entries[Number(comment.text.slice(marker.length))];
         if (e) inline.add(e.id);
       }
     } }).transform(new Response(body)).text();
+    if (limit) break;
   }
-  return v.entries.filter((e) => !inline.has(e.id) && (e.external_url ? !reached.has(new URL(e.external_url, base).href) && !visited.has(e.page) : !visited.has(e.page)))
-    .map((e) => ({ id: String(e.id), why: "no rendered link path from the home page to this entry" }));
+  if (limit) return { unreachable: [], crawl: { limit, max_pages: MAX_PAGES, max_links: MAX_LINKS, pages: visited.size, links } as CrawlLimit };
+  return { unreachable: v.entries.filter((e) => !inline.has(e.id) && (e.external_url ? !reached.has(new URL(e.external_url, base).href) && !visited.has(e.page) : !visited.has(e.page)))
+    .map((e) => ({ id: String(e.id), why: "no rendered link path from the home page to this entry" })), crawl: undefined };
 }
