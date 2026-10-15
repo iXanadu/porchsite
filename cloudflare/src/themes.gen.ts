@@ -808,6 +808,7 @@ export const THEMES: Record<string, { manifest: Record<string, unknown>; pages: 
    "type": "property",
    "description": "One property, room to look. A wide photograph, the price and key figures, a gallery, video and walk-through tour, then open-house and visit details. Built for a phone first.",
    "heading_ids": true,
+   "body_h1_as_h2": true,
    "sections": [
     "entries",
     "cards",

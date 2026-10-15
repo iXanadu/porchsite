@@ -31,6 +31,7 @@ export function rules(name: string, t: Theme, opts: { scripts: boolean }): strin
   const problems: string[] = [];
   const m = t.manifest ?? {};
   if ("heading_ids" in m && typeof m.heading_ids !== "boolean") problems.push("heading_ids must be a boolean");
+  if ("body_h1_as_h2" in m && typeof m.body_h1_as_h2 !== "boolean") problems.push("body_h1_as_h2 must be a boolean");
   const need = (ok: unknown, msg: string) => !ok && problems.push(msg);
   need(m.name === name, `template.json name is "${m.name}", not "${name}"`);
   need(/^[a-z][a-z0-9-]{0,39}$/.test(name), "name: lowercase letters, digits and dashes");

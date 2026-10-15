@@ -19,30 +19,30 @@ export function embedLine(line: string): Embed | null {
   if (!m || !m[1].trim() || /[\ud800-\udfff]/u.test(m[1])) return null;
   try { const u = embedURL(m[2]); return {url:u.href, title:m[1], origin:u.origin}; } catch { return null; }
 }
-export function bodyMarkdown(src: string, visit?: (e: Embed) => void, headingIds = false): string {
-  if (!src.includes("!embed[")) return markdown(src, undefined, headingIds).html;
+export function bodyMarkdown(src: string, visit?: (e: Embed) => void, headingIds = false, bodyH1AsH2 = false): string {
+  if (!src.includes("!embed[")) return markdown(src, undefined, headingIds, bodyH1AsH2).html;
   const markers = new Map<string, Embed>();
   const html = markdown(src, line => {
     const e = embedLine(line); if (!e) return null;
     visit?.(e);
     const key = crypto.randomUUID(); markers.set(key, e);
     return `<porchsite-embed data-key="${key}" data-url="${encodeURIComponent(e.url)}" data-title="${encodeURIComponent(e.title)}"></porchsite-embed>`;
-  }, headingIds).html;
+  }, headingIds, bodyH1AsH2).html;
   if (!markers.size) return html;
   const result = new String(html); capabilities.set(result, markers);
   return result as unknown as string;
 }
 /** Regenerate only engine Markdown bodies; genuine embed provenance stays private. */
-export function headingBodies(value: unknown, bodies = new Map<string, string>()): any {
-  if (Array.isArray(value)) return value.map(child => headingBodies(child, bodies));
+export function headingBodies(value: unknown, headingIds = true, bodyH1AsH2 = false, bodies = new Map<string, string>()): any {
+  if (Array.isArray(value)) return value.map(child => headingBodies(child, headingIds, bodyH1AsH2, bodies));
   if (!value || typeof value !== "object" || value instanceof String) return value;
   const source = value as Record<string, unknown>;
   return Object.fromEntries(Object.entries(source).map(([key, child]) => {
     if (key === "body_html" && child && typeof source.body === "string") {
-      if (!bodies.has(source.body)) bodies.set(source.body, bodyMarkdown(source.body, undefined, true));
+      if (!bodies.has(source.body)) bodies.set(source.body, bodyMarkdown(source.body, undefined, headingIds, bodyH1AsH2));
       return [key, bodies.get(source.body)];
     }
-    return [key, headingBodies(child, bodies)];
+    return [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)];
   }));
 }
 export function embedsOf(src: string): Embed[] {

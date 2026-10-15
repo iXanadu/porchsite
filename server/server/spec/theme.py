@@ -502,22 +502,26 @@ def _read(p: Path) -> str:
 
 
 @cache
-def _theme(root: Path, name: str) -> tuple[mustache.Writer, dict[str, str], dict[str, str], bool]:
+def _theme(
+    root: Path, name: str
+) -> tuple[mustache.Writer, dict[str, str], dict[str, str], bool, bool]:
     d = root / name
     partials = {
         p.name[: -len(".mustache")]: _read(p) for p in sorted((d / "partials").glob("*.mustache"))
     }
     pages = {p.name[: -len(".mustache")]: _read(p) for p in sorted(d.glob("*.mustache"))}
+    manifest = json.loads(_read(d / "template.json"))
     return (
         mustache.Writer(escape),
         pages,
         partials,
-        json.loads(_read(d / "template.json")).get("heading_ids") is True,
+        manifest.get("heading_ids") is True,
+        manifest.get("body_h1_as_h2") is True,
     )
 
 
 def render(name: str, page: str, view: Data, root: Path = THEMES) -> str:
-    writer, pages, partials, heading_ids = _theme(Path(root), name)
-    if heading_ids:
-        view = heading_bodies(view)
+    writer, pages, partials, heading_ids, body_h1_as_h2 = _theme(Path(root), name)
+    if heading_ids or body_h1_as_h2:
+        view = heading_bodies(view, heading_ids, body_h1_as_h2)
     return finish_embeds(writer.render(pages[page], view, partials), view=view)

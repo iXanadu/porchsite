@@ -75,15 +75,25 @@ the site, so an assistant can gather it before switching:
 `heading_ids` (optional boolean, default `false`): opt in to stable ids on
 headings in entry Markdown bodies, on home, entry and archive/tag views.
 The same heading has the same id wherever that body is shown. Derive ids
-from the rendered heading's text: lowercase, NFKD normalization, discard
-combining marks, replace runs outside ASCII letters/digits with `-`, and
-trim `-`. Empty results use `section`. Repeats in one body add `-2`, `-3`,
-and so on; collisions with an already used id also advance that suffix.
+from the rendered heading's visible text: lowercase ASCII A-Z only, keep
+`[a-z0-9]`, replace every run of anything else (including all non-ASCII)
+with one `-`, and trim `-`. Cut the base to 64 characters and trim `-`
+again; an empty base becomes `section`. There is no Unicode normalization:
+for example, `Café` becomes `caf`. This is identical on every runtime.
+Repeats in one body add `-2`, `-3`, and so on; collisions with an already
+used id also advance that suffix. A per-base next-suffix map keeps repeated
+allocation linear in the number of headings, including pre-existing suffixes.
 Fenced/indented code and inline code keep their ordinary Markdown behavior.
 The flag changes no stored content, and omitted/false keeps all existing
 look output byte-identical. Menus and hero buttons can already use local
 paths with fragments such as `/listing/home/#video-tour`; no new URL form
 is needed. Theme-authored element ids remain the look's responsibility.
+
+`body_h1_as_h2` (optional boolean, default `false`) renders entry-body
+Markdown level-one headings as `<h2>`; all other levels and heading-id
+text stay unchanged. Only the Listing look enables this flag, so each of
+its pages has one look-authored `<h1>` even when a body contains `# Photos`.
+Both flags are manifest-scoped and do not change stored Markdown.
 
 The built-in `listing-page` look is for one property. It uses a wide real
 property photo, price/stat figures, entry-body photos as a responsive

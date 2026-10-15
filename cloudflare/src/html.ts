@@ -32,17 +32,22 @@ export function nonce(): string {
  * server/spec/html.py is a line-for-line port: both must give the same bytes
  * (spec/markdown-cases.json).
  */
-export function markdown(src: string, block?: (line: string) => string | null, headingIds = false): Raw {
+export function markdown(src: string, block?: (line: string) => string | null, headingIds = false, bodyH1AsH2 = false): Raw {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
-  return raw(mdBlocks(lines, 0, false, block, headingIds ? new Set<string>() : undefined).blocks.map((b) => b.html).join("\n"));
+  return raw(mdBlocks(lines, 0, false, block, headingIds ? {used:new Set<string>(), next:new Map<string, number>()} : undefined, bodyH1AsH2).blocks.map((b) => b.html).join("\n"));
 }
 
 /** Slugs use the visible inline text, not link targets or Markdown punctuation. */
-function headingId(inner: string, used: Set<string>): string {
+type HeadingIds = {used: Set<string>; next: Map<string, number>};
+function headingId(inner: string, {used, next}: HeadingIds): string {
   const text = inner.replace(/<[^>]*>/g, "").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
-  const base = text.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section";
-  let id = base, count = 2;
-  while (used.has(id)) id = `${base}-${count++}`;
+  const base = text.replace(/[A-Z]/g, c => c.toLowerCase()).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64).replace(/-$/, "") || "section";
+  let id = base;
+  if (used.has(id)) {
+    let count = next.get(base) ?? 2;
+    do { id = `${base}-${count++}`; } while (used.has(id));
+    next.set(base, count);
+  }
   used.add(id);
   return id;
 }
@@ -139,7 +144,7 @@ function mdInterrupts(line: string, inItem: boolean): boolean {
   return !!it && it.first.trim() !== "" && (it.kind === "ul" || it.start === 1 || inItem);
 }
 
-function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null, ids?: Set<string>): { blocks: MdBlock[]; gap: boolean } {
+function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null, ids?: HeadingIds, bodyH1AsH2 = false): { blocks: MdBlock[]; gap: boolean } {
   const out: MdBlock[] = [];
   let gap = false;
   let blankBefore = false;
@@ -183,7 +188,8 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
     if (h) {
       const inner = mdInline(h.text);
       const id = ids ? ` id="${headingId(inner, ids)}"` : "";
-      out.push({ html: `<h${h.n}${id}>${inner}</h${h.n}>` });
+      const level = bodyH1AsH2 && h.n === 1 ? 2 : h.n;
+      out.push({ html: `<h${level}${id}>${inner}</h${level}>` });
       i++;
       continue;
     }
@@ -206,7 +212,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
         } else break;
         i++;
       }
-      out.push({ html: `<blockquote>${mdBlocks(inner, depth + 1, false, undefined, ids).blocks.map((b) => b.html).join("")}</blockquote>` });
+      out.push({ html: `<blockquote>${mdBlocks(inner, depth + 1, false, undefined, ids, bodyH1AsH2).blocks.map((b) => b.html).join("")}</blockquote>` });
       continue;
     }
     const first = depth < MD_MAX_DEPTH ? mdItem(line) : null;
@@ -238,7 +244,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
           content.pop();
           trailing++;
         }
-        const r = mdBlocks(content, depth + 1, true, undefined, ids);
+        const r = mdBlocks(content, depth + 1, true, undefined, ids, bodyH1AsH2);
         if (r.gap) loose = true;
         items.push(r.blocks);
         const next = i < lines.length ? mdItem(lines[i]) : null;

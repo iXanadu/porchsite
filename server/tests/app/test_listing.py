@@ -1,5 +1,8 @@
 import json
+import re
+from copy import deepcopy
 from pathlib import Path
+from time import perf_counter
 
 from server.app import themes
 from server.app.theme import render
@@ -22,7 +25,7 @@ def test_heading_ids_visible_text_collisions_and_opt_in():
     for identifier in [
         "video-tour",
         "video-tour-2",
-        "cafe-garden",
+        "caf-garden",
         "section",
         "section-2",
         "video-tour-2-2",
@@ -94,3 +97,49 @@ async def test_listing_pages_local_links_and_actual_photo_brief(db):
         },
     )
     assert live.count("<iframe ") == 2
+
+
+def test_shared_ascii_heading_contract():
+    cases = json.loads((ROOT / "spec/heading-id-cases.json").read_text())
+    for case in cases:
+        assert (
+            re.findall(r' id="([^"]+)"', markdown(case["source"], heading_ids=True)) == case["ids"]
+        )
+
+
+def test_repeated_headings_and_adversarial_suffixes_are_bounded():
+    start = perf_counter()
+    html = markdown("# a\n" * 4000, heading_ids=True)
+    elapsed_ms = (perf_counter() - start) * 1000
+    assert 'id="a-4000"' in html and html.count("<h1 ") == 4000
+    assert elapsed_ms < 300
+    source = "# a\n" + "\n".join(f"# a-{i + 2}" for i in range(2000)) + "\n# a\n# a"
+    result = markdown(source, heading_ids=True)
+    assert 'id="a-2002"' in result and 'id="a-2003"' in result
+
+
+async def test_listing_body_h1_is_h2_and_other_looks_keep_markdown_levels(db):
+    sample = deepcopy(SAMPLE)
+    sample["items"][0]["data"]["body"] = "# Photos\n\n## Video tour\n\n### A room"
+    pages = render_sample("listing-page", sample)
+    for page in pages.values():
+        assert len(re.findall(r"<h1(?: |>).*?</h1>", page)) == 1
+    for key in ["index.html", "listing/home/index.html"]:
+        assert '<h2 id="photos">Photos</h2>' in pages[key]
+        assert '<h2 id="video-tour">' in pages[key] and '<h3 id="a-room">' in pages[key]
+    assert markdown("# Photos") == "<h1>Photos</h1>"
+    mini = {
+        "manifest": {"body_h1_as_h2": True},
+        "pages": {"entry": "{{{entry.body_html}}}"},
+        "partials": {},
+    }
+    assert (
+        render(
+            mini, "entry", {"entry": {"body": "# Photos", "body_html": body_markdown("# Photos")}}
+        )
+        == "<h2>Photos</h2>"
+    )
+    t = await themes.load(db, "listing-page")
+    assert "body_h1_as_h2 must be a boolean" in rules(
+        "listing-page", {**t, "manifest": {**t["manifest"], "body_h1_as_h2": "true"}}, True
+    )

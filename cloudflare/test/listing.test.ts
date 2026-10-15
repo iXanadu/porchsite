@@ -11,12 +11,13 @@ import {MODELS} from '../src/models';
 import type {Env} from '../src/env';
 import type {Theme} from '../src/themes';
 import sample from '../../themes/listing-page/sample.json';
+import headingCases from '../../spec/heading-id-cases.json';
 const db=(env as unknown as Env).DB,t=THEMES['listing-page'] as Theme;
 it('makes stable visible-text heading ids only when opted in',()=>{
  const source='## Video **tour**\n\n## [Video tour](https://example.com/private)\n\n### Café & garden\n\n## 你好\n\n## !!!\n\n## Video tour-2\n\n> ## A room\n\n- ## A room\n\n```\n## No anchor\n```';
  const ordinary=markdown(source).html,html=markdown(source,undefined,true).html;
  expect(ordinary).not.toMatch(/<h[1-6] id=/);
- for(const id of ['video-tour','video-tour-2','cafe-garden','section','section-2','video-tour-2-2','a-room','a-room-2'])expect(html).toContain('id="'+id+'"');
+ for(const id of ['video-tour','video-tour-2','caf-garden','section','section-2','video-tour-2-2','a-room','a-room-2'])expect(html).toContain('id="'+id+'"');
  expect(html).not.toContain('id="no-anchor"');
  const view={entry:{body:source,body_html:bodyMarkdown(source)}};
  const mini:any={manifest:{},pages:{entry:'{{{entry.body_html}}}'},partials:{}};
@@ -45,4 +46,26 @@ it('renders all listing pages, on-site anchor actions, gallery, price, visit and
  for(const path of ['/listing/home/#video-tour','/#visit','#photos'])expect(()=>MODELS.site.parse({cta_link:path,links:[{label:'Photos',url:path}]})).not.toThrow();
  const live=render(t,'home',homeView(state,'1','https://site.example'),{sources:['https://www.youtube-nocookie.com','https://my.matterport.com'],origin:'https://site.example'});expect(live.match(/<iframe /g)).toHaveLength(2);
  const v=sampleView(t,sample);expect(render(t,'home',homeView(v,'1','https://example.com'))).toContain('id="video-tour"');expect(render(t,'entry',entryView(v,v.entries[0],'1','https://example.com'))).toContain('id="video-tour"');
+});
+
+it('uses the shared ASCII-only heading contract without host Unicode tables',()=>{
+ for(const c of headingCases)expect(Array.from(markdown(c.source,undefined,true).html.matchAll(/ id="([^"]+)"/g),m=>m[1])).toEqual(c.ids);
+});
+it('allocates repeated and adversarial suffixes within a bounded parser interval',()=>{
+ const start=performance.now(),html=markdown('# a\n'.repeat(4000),undefined,true).html,elapsed=performance.now()-start;
+ expect(html).toContain('id="a-4000"');expect(html.match(/<h1 /g)).toHaveLength(4000);expect(elapsed).toBeLessThan(150);
+ const source='# a\n'+Array.from({length:2000},(_,i)=>'# a-'+(i+2)).join('\n')+'\n# a\n# a';
+ const result=markdown(source,undefined,true).html;expect(result).toContain('id="a-2002"');expect(result).toContain('id="a-2003"');
+});
+it('keeps exactly one Listing h1 with a legal body h1, without changing other levels or flag-off rendering',()=>{
+ const input=structuredClone(sample);input.items[0].data.body='# Photos\n\n## Video tour\n\n### A room';
+ const pages=renderSample(t,input);
+ for(const page of Object.values(pages))expect(page.match(/<h1(?: |>)/g)).toHaveLength(1);
+ for(const key of ['index.html','listing/home/index.html']){
+  expect(pages[key]).toContain('<h2 id="photos">Photos</h2>');expect(pages[key]).toContain('<h2 id="video-tour">');expect(pages[key]).toContain('<h3 id="a-room">');
+ }
+ expect(markdown('# Photos').html).toBe('<h1>Photos</h1>');
+ const mini:any={manifest:{body_h1_as_h2:true},pages:{entry:'{{{entry.body_html}}}'},partials:{}};
+ expect(render(mini,'entry',{entry:{body:'# Photos',body_html:bodyMarkdown('# Photos')}})).toBe('<h2>Photos</h2>');
+ expect(rules('listing-page',{...t,manifest:{...t.manifest,body_h1_as_h2:'true'}},{scripts:true})).toContain('body_h1_as_h2 must be a boolean');
 });

@@ -29,8 +29,11 @@ _writer = mustache.Writer(escape)
 
 
 def render(t: Theme, page: str, view: dict[str, Any], policy=None) -> str:
-    if (t.get("manifest") or {}).get("heading_ids") is True:
-        view = heading_bodies(view)
+    manifest = t.get("manifest") or {}
+    if manifest.get("heading_ids") is True or manifest.get("body_h1_as_h2") is True:
+        view = heading_bodies(
+            view, manifest.get("heading_ids") is True, manifest.get("body_h1_as_h2") is True
+        )
     return finish_embeds(
         _writer.render(t["pages"][page], view, t.get("partials") or {}),
         (policy or {}).get("sources"),

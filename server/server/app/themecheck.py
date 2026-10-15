@@ -51,6 +51,8 @@ def rules(name: str, t: Theme, scripts: bool) -> list[str]:
     m = t.get("manifest") or {}
     if "heading_ids" in m and not isinstance(m["heading_ids"], bool):
         problems.append("heading_ids must be a boolean")
+    if "body_h1_as_h2" in m and not isinstance(m["body_h1_as_h2"], bool):
+        problems.append("body_h1_as_h2 must be a boolean")
 
     def need(ok: Any, msg: str) -> None:
         if _falsy(ok):
