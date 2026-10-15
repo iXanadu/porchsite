@@ -30,6 +30,42 @@ async function refused(p: Promise<unknown>): Promise<ApiError> {
 }
 
 describe("images", () => {
+  it("batches forty local pictures across create and update", async () => {
+    const paths = await Promise.all(Array.from({ length: 40 }, (_, i) => media.store(db, jpeg(100, i + 1), "image/jpeg", "fixture")));
+    const body = paths.map((path, i) => `![Picture ${i}](${path})`).join("\n\n");
+    let reads = 0;
+    const counted = new Proxy(db, { get(target, key) {
+      if (key === "prepare") return (sql: string) => {
+        if (sql.startsWith("SELECT name FROM media WHERE name")) reads++;
+        return target.prepare(sql);
+      };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    const item = await content.createItem(counted, who, "entry", { title: "Pictures", date: "2026-10-15", body }, undefined);
+    expect(reads).toBe(1);
+    expect(item.data.body).toBe(body);
+    reads = 0;
+    const changed = await content.updateItem(counted, who, item.id, item.version, { body: body + `\n![Repeated](${paths[0]})` });
+    expect(reads).toBe(1);
+    expect(changed.data.body).toBe(body + `\n![Repeated](${paths[0]})`);
+  });
+
+  it("keeps error order and accepts a local image created by an earlier hotlink", async () => {
+    const bytes = jpeg(123, 61);
+    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const path = `/media/${Array.from(hash.slice(0, 16), b => b.toString(16).padStart(2, "0")).join("")}.jpg`;
+    const out = await media.localize(db, "entry", { cover: "https://example.com/new.jpg", cover_alt: "Cover", body: `![Again](${path})` }, serving(bytes));
+    expect(out.cover).toBe(path);
+    expect(out.body).toBe(`![Again](${path})`);
+    const missing = "/media/00000000000000000000000000000000.jpg";
+    const error = await refused(media.localize(db, "entry", { body: `![](${path})\n![Missing](${missing})` }));
+    expect(error.code).toBe("image_failed");
+    expect(error.message).toContain(missing);
+    const first = await refused(media.localize(db, "entry", { cover: "https://example.com/gone", cover_alt: "Cover", body: `![Missing](${missing})` }, async () => new Response("gone", { status: 404 })));
+    expect(first.message).toContain("404");
+  });
+
   it("copies a cover in, by hash, and serves the same bytes back", async () => {
     const bytes = jpeg(4_100_000); // three chunks
     const out = await media.localize(db, "entry", { title: "x", cover: "https://example.com/a.jpg", cover_alt: "A boat" }, serving(bytes));

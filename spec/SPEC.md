@@ -396,6 +396,11 @@ replacement, so a refresh whose answer was lost can be retried.
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |
 
+`theme_list` keeps its existing fields and adds `next`: "Looks marked built-in are ready to use: set the site theme, then run theme_needs. Use theme_install only for a catalog look missing from installed or to update one."
+Its `installed` list includes bundled looks with `source: built-in`, ready
+to use without downloading. `theme_install` remains available for catalog
+looks missing from that list or for updates.
+
 `image_add` keeps the single-picture `data` argument and its existing
 `{image, width, height, next}` response. `images` is a separate optional
 array, so neither tool argument needs a string-or-array schema. Both or
@@ -412,6 +417,10 @@ come from headers; images are never rasterized here. The one-shot
 `photo_upload_link` remains a single-file upload. The server edition
 accepts MCP request bodies up to 16 MiB, enough for the base64 batch and
 its JSON envelope; larger transport bodies are refused before tool execution.
+
+When saving an item, check its local picture references together in one database
+lookup. Validation order and errors stay unchanged; a hotlink stored earlier
+in the same item can satisfy a later local reference.
 
 Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
 

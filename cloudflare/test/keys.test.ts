@@ -2,7 +2,8 @@
 // assistant sends it to /mcp as a bearer token and drafts like any other;
 // revoked, it stops working. Port-matched: server/tests/app/test_web_keys.py.
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as themes from "../src/themes";
 import * as content from "../src/content";
 import type { Env } from "../src/env";
 import worker from "../src/index";
@@ -93,4 +94,23 @@ describe("plain JSON", () => {
     expect(body.id).toBe(7);
     expect(body.result.tools.length).toBeGreaterThan(10);
   });
+});
+
+
+it("explains built-in looks without changing theme_list's existing fields", async () => {
+  const catalog = vi.spyOn(themes, "catalog").mockResolvedValue([]);
+  try {
+    const { create } = await import("../src/keys");
+    const { token } = await create(e.DB, "Look picker");
+    const expected = await themes.installed(e.DB);
+    const response = await json(await rpc(token, "tools/call", { name: "theme_list", arguments: {} }));
+    const out = JSON.parse(response.result.content[0].text);
+    expect(response.result.isError).not.toBe(true);
+    expect(Object.keys(out).sort()).toEqual(["catalog", "current", "installed", "my_requests", "my_submissions", "next"]);
+    expect(out.installed).toEqual(expected);
+    expect(out.installed.some((look: { source: string }) => look.source === "built-in")).toBe(true);
+    expect(out.next).toBe("Looks marked built-in are ready to use: set the site theme, then run theme_needs. Use theme_install only for a catalog look missing from installed or to update one.");
+  } finally {
+    catalog.mockRestore();
+  }
 });

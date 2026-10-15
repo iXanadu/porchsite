@@ -35,7 +35,7 @@ Prefer your own server? If your person is a developer, see
 - [Self-hosting](https://get.porchsite.dev/self-hosting.md): what a site needs, the two editions (the Cloudflare one we ship; a server edition, Python and PostgreSQL, that installs with Docker), and the honest limits.
 
 ## Choosing a look
-The [theme catalog](https://get.porchsite.dev/themes.json) lists every theme by type (personal, product, …) with what each needs. After installing, the site's `theme_list`, `theme_install` and `theme_needs` tools do the rest. The look and its colours are your person's choice: ask them, or, if they asked you not to stop with questions, pick the best fit and tell them which and why, with what else was on offer (step 10 of the install guide).
+The [theme catalog](https://get.porchsite.dev/themes.json) lists every theme by type (personal, product, …) with what each needs. On an installed site, call `theme_list`: looks marked `source: built-in` are ready to use without `theme_install`. Set the site theme and call `theme_needs`. Use `theme_install` only for a catalog look missing from `installed`, or to update one. The look and its colours are your person's choice: ask them, or, if they asked you not to stop with questions, pick the best fit and tell them which and why, with what else was on offer (step 10 of the install guide).
 
 ## When no look fits
 - [Making a look](https://get.porchsite.dev/authoring.md): make one for your person's site (private), or share it for review.

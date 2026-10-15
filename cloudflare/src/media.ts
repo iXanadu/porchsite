@@ -135,16 +135,18 @@ export async function store(db: D1Database, bytes: Uint8Array, type: string, sou
   return `/media/${name}`;
 }
 
-async function localPath(db: D1Database, field: string, url: string, fetcher: Fetcher): Promise<string> {
+async function localPath(db: D1Database, field: string, url: string, fetcher: Fetcher, known: Set<string>): Promise<string> {
   const local = LOCAL.exec(url);
   if (local) {
-    if (!(await db.prepare("SELECT name FROM media WHERE name = ?").bind(local[1]).first())) {
+    if (!known.has(local[1])) {
       throw failed(field, url, "this site has no image by that name");
     }
     return url;
   }
   const { bytes, type } = await download(url, field, fetcher);
-  return store(db, bytes, type, url);
+  const path = await store(db, bytes, type, url);
+  known.add(LOCAL.exec(path)![1]);
+  return path;
 }
 
 /**
@@ -158,6 +160,22 @@ export async function localize(
   fetcher: Fetcher = (u) => fetch(u, { headers: { Accept: "image/*" } }),
 ): Promise<Record<string, unknown>> {
   const out = { ...data };
+  const bodyImages = kind === "entry" && typeof out.body === "string" ? [...out.body.matchAll(MD_IMAGE)] : [];
+  const names = new Set<string>();
+  for (const [field, alt] of IMAGE_FIELDS[kind] ?? []) {
+    const local = LOCAL.exec(String(out[field] ?? ""));
+    if (local && String(out[alt] ?? "").trim()) names.add(local[1]);
+  }
+  for (const [, alt, url] of bodyImages) {
+    const local = LOCAL.exec(url);
+    if (local && alt.trim()) names.add(local[1]);
+  }
+  const known = new Set<string>();
+  if (names.size) {
+    const { results } = await db.prepare("SELECT name FROM media WHERE name IN (SELECT value FROM json_each(?))")
+      .bind(JSON.stringify([...names])).all<{ name: string }>();
+    for (const row of results) known.add(row.name);
+  }
   const problems: { field: string; problem: string }[] = [];
   for (const [field, alt] of IMAGE_FIELDS[kind] ?? []) {
     const url = String(out[field] ?? "");
@@ -166,17 +184,17 @@ export async function localize(
       problems.push({ field: alt, problem: `describe the image in ${field} in a few words, for people who can't see it` });
       continue;
     }
-    out[field] = await localPath(db, field, url, fetcher);
+    out[field] = await localPath(db, field, url, fetcher, known);
   }
   if (kind === "entry" && typeof out.body === "string") {
     let body = out.body;
-    for (const m of [...body.matchAll(MD_IMAGE)]) {
+    for (const m of bodyImages) {
       const [whole, altText, url] = m;
       if (!altText.trim()) {
         problems.push({ field: "body", problem: `the image ${url} needs a description: ![what it shows](${url})` });
         continue;
       }
-      const path = await localPath(db, "body", url, fetcher);
+      const path = await localPath(db, "body", url, fetcher, known);
       if (path !== url) body = body.replace(whole, `![${altText}](${path})`);
     }
     out.body = body;
