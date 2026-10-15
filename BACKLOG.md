@@ -83,6 +83,12 @@ site's OAuth connector, and pictures held as files. In order:
   base_url link. Run each look's sample site through both editions' tools
   and diff the answers as part of `scripts/parity.sh`.
 
+- **SP-S3** OPEN: After SP-S1, the fixed part of `site_state` (guides,
+  kinds, fields, defaults) is about 12.3 KB on every call, 86-96% of a
+  sample site's summary answer (item summaries are 0.5-2 KB). Consider
+  sending the fixed part once per session or on request. Measured on the
+  ten sample sites in stage 1.
+
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
   live, with the audit-log check; left: another run on a fresh Cloudflare
