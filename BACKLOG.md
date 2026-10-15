@@ -17,7 +17,7 @@ _(none)_
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
-- **S4-1** OPEN (owner requirement): owner-approved embeds. Public pages
+- **S4-1** IN-PROGRESS (spec proposal, owner requirement): owner-approved embeds. Public pages
   send `default-src 'none'`, so a video or a 3D tour can only be a link.
   Each site keeps a list of allowed embed sources that changes only
   through the owner's approval; an assistant proposes an embed (its URL),

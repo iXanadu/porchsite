@@ -90,6 +90,19 @@ layouts it draws (a stream set to a layout the template lacks is drawn as
 - **Works small:** usable at 320 px wide; text contrast at least 4.5:1;
   every `<img>` gets `alt` from the view.
 
+### S4-1 proposal: engine-produced embeds (not implemented)
+
+The proposed `entry.embeds` field is not raw HTML and does not change the
+Markdown image dialect. The engine adds approved players or fallback links
+to a full entry body, so every look uses its existing `body_html` position;
+`has_body` also covers non-empty embeds. The fixed, responsive frame and its
+link are engine-produced safe HTML, with policy from SPEC.md's embed proposal.
+Look packages still cannot contain iframe/object/embed tags or choose their
+sandbox/permissions. The outside-request exception is limited to approved
+public frames; it never grants remote images, scripts or owner-page players.
+The engine enforces the 12-frame cap on the actual selected page, including
+repeated bodies. No-embed view/body output remains unchanged.
+
 ## 3. The view (what every template receives)
 
 Every page gets:
