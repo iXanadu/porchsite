@@ -382,10 +382,13 @@ your person's to choose, so show them the choice, one way or the other:
   to them) which you chose and why, with the other looks and palettes on
   offer and their demo links, and that switching is one more approval.
 
-Either way: `theme_install` the look, set the site item's `theme` (and
-`palette`) to it, call `theme_needs` and fill what it asks for (words and
-pictures), then ask for approval. Nothing changes for visitors until they
-approve.
+The bundled looks are ready to use: `theme_list` marks them `source: built-in`
+in `installed`. No `theme_install` is needed for those looks. Use it only
+for a catalog look missing from `installed`, or to update an installed look.
+
+Either way: set the site item's `theme` (and `palette`) to the chosen look,
+call `theme_needs` and fill what it asks for (words and pictures), then ask
+for approval. Nothing changes for visitors until they approve.
 
 ## Check
 

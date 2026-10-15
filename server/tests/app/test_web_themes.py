@@ -25,3 +25,30 @@ async def test_the_site_renders_with_an_installed_theme_once_approved(db, http):
     assert css.status_code == 200
     assert css.headers["cache-control"] == "public, max-age=3600"
     assert (await http.get("/static/nothing.css")).status_code == 404
+
+
+async def test_explains_built_in_looks_without_changing_existing_fields(db, http, monkeypatch):
+    from .test_web_mcp import assistant
+
+    async def empty_catalog():
+        return []
+
+    monkeypatch.setattr(themes, "catalog", empty_catalog)
+    expected = await themes.installed(db)
+    caller = await assistant(db, http)
+    error, out, _ = await caller.call("theme_list")
+    assert not error
+    assert sorted(out) == [
+        "catalog",
+        "current",
+        "installed",
+        "my_requests",
+        "my_submissions",
+        "next",
+    ]
+    assert out["installed"] == expected
+    assert any(look["source"] == "built-in" for look in out["installed"])
+    assert (
+        out["next"]
+        == "Looks marked built-in are ready to use: set the site theme, then run theme_needs. Use theme_install only for a catalog look missing from installed or to update one."
+    )
