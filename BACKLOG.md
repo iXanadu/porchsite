@@ -33,6 +33,9 @@ the merged main tip. Gate (each exit code read on its own):
   look's sample site through both editions' `site_check` and `site_state`
   and diffs the answers. Must fail on the stage 1 server URL defect
   replayed on purpose.
+- **S2-4** (SV-T1) IN-PROGRESS: close owned connections, then a plain
+  DROP in both cleanup paths; a failed drop fails the run and names the
+  database, through the mutation wrapper too; a test proves it.
 - **S2-3** (SP-S2) IN-PROGRESS: coder, after S2-1. Cap `site_check`'s
   crawl (pages and links), the same numbers in both editions, with the
   cap reported in the answer when it is hit.
@@ -68,9 +71,12 @@ _(none)_
   look with a huge local link fan-out burns CPU inside the owner's own
   check. Owner-authenticated only, not a visitor path. Found: stage 1
   security review.
-- **SV-T1** OPEN: A server test run once failed its teardown (DROP
-  DATABASE ... FORCE, privilege error) and left a `porchsite_test_*`
-  database behind on the test cluster. Cause not yet known; seen once.
+- **SV-T1** IN-PROGRESS (S2-4): Test teardown leaves databases behind.
+  Cause found: `DROP DATABASE ... WITH (FORCE)` fails when an autovacuum
+  worker is in the disposable database and the role may not signal it;
+  a plain DROP succeeds. The conformance trap downgrades the failure to
+  an echo and the mutation wrapper hides it. Both cleanup paths
+  (`scripts/conformance-server.sh`, `server/tests/app/conftest.py`).
 
 - **P-2** IN-PROGRESS (S2-2): Parity covers rendered pages only. The tools' answers
   (`site_check`, `site_state`) can differ between editions unnoticed: in
