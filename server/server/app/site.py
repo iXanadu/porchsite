@@ -18,6 +18,7 @@ from server.spec.site import SiteView, view
 from . import approvals, themes
 from .content import validate
 from .db import Db, now
+from .embed_storage import source_data
 from .media import LOCAL, size_of
 from .theme import render, static_file
 
@@ -88,7 +89,7 @@ async def proposed_view(
     if shown:
         shown["data"] = {**shown["data"], "status": "ready"}
     site_row = rows.get(SITE_ID)
-    site = validate("site", site_row["data"] if site_row else {})
+    site = validate("site", await source_data(db, SITE_ID, site_row["version"], site_row["data"], not any(c["id"] == SITE_ID for c in changes)) if site_row else {})
     v = view(site, [r for r in rows.values() if r["kind"] != "site"])
     v.share_cards = {
         c["item_id"]: f"/media/{c['name']}"

@@ -1,0 +1,236 @@
+// Seed through current HTTP/MCP/owner APIs, restart the PREVIOUS real runtime
+// on the SAME database, and check public routes plus a signed passkey login.
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import net from 'node:net';
+import path from 'node:path';
+import os from 'node:os';
+import dns from 'node:dns';
+
+dns.setDefaultResultOrder('ipv4first');
+const [root, previous, bundle, release, onlyEdition] = process.argv.slice(2);
+if (!release) throw Error('usage: rollback-data.mjs ROOT PREVIOUS_CHECKOUT PREVIOUS_BUNDLE RELEASE');
+if (onlyEdition && !['cloudflare', 'server'].includes(onlyEdition)) throw Error('optional diagnostic edition must be cloudflare or server');
+const python = process.env.PYTHON || 'python3';
+const require = createRequire(path.join(root, 'cloudflare/package.json'));
+const { build } = require('esbuild');
+const temp = mkdtempSync(path.join(os.tmpdir(), 'porchsite-rollback-data-'));
+const setupCode = 'local-rollback-setup-code';
+const environment = { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' };
+const adapter = path.join(root, 'scripts/upgrade/server-runtime.py');
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+const running = new Set(), databases = new Set();
+async function cleanup() {
+  for (const stop of [...running]) await stop();
+  for (const name of [...databases]) {
+    command(python, [adapter, 'drop', name]);
+    databases.delete(name);
+  }
+  rmSync(temp, { recursive: true, force: true });
+}
+let interrupted = false;
+for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(signal, async () => {
+  if (interrupted) return;
+  interrupted = true;
+  try { await cleanup(); } finally { process.exit(status); }
+});
+async function freePort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  await new Promise(resolve => server.close(resolve));
+  return port;
+}
+function command(executable, args, options = {}) {
+  const result = spawnSync(executable, args, { env: environment, encoding: 'utf8', ...options });
+  if (result.status !== 0) throw Error(`${path.basename(executable)} ${args[0]} failed (${result.status})\n${result.stdout}\n${result.stderr}`);
+  return result.stdout.trim();
+}
+async function launch(executable, args, env, base) {
+  const process = spawn(executable, args, { env: { ...environment, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+  let log = '';
+  process.stdout.on('data', value => { log += value; });
+  process.stderr.on('data', value => { log += value; });
+  const exited = new Promise(resolve => process.once('exit', resolve));
+  async function stop() {
+    if (process.exitCode === null && process.signalCode === null) {
+      globalThis.process.kill(-process.pid, 'SIGTERM');
+      await Promise.race([exited, pause(15000)]);
+      if (process.exitCode === null && process.signalCode === null) {
+        globalThis.process.kill(-process.pid, 'SIGKILL');
+        await exited;
+      }
+    }
+    running.delete(stop);
+  }
+  running.add(stop);
+  for (let attempt = 0; attempt < 150; attempt++) {
+    if (process.exitCode !== null || process.signalCode !== null) throw Error(`runtime exited\n${log.slice(-3000)}`);
+    try {
+      const response = await fetch(base + '/robots.txt', { signal: AbortSignal.timeout(1000) });
+      if (response.status === 200) return { stop };
+    } catch {}
+    await pause(200);
+  }
+  await stop();
+  throw Error(`runtime readiness failed\n${log.slice(-3000)}`);
+}
+
+await build({ entryPoints: [path.join(root, 'cloudflare/test/softkey.ts')], outfile: path.join(temp, 'softkey.mjs'), bundle: true, platform: 'node', format: 'esm' });
+const { SoftKey } = await import(pathToFileURL(path.join(temp, 'softkey.mjs')));
+const images = JSON.parse(readFileSync(path.join(root, 'spec/image-privacy-cases.json'), 'utf8'));
+
+function client(base) {
+  const jar = new Map();
+  async function request(route, init = {}, authenticated = true) {
+    const headers = new Headers(init.headers);
+    if (authenticated && jar.size) headers.set('cookie', [...jar].map(([k,v]) => `${k}=${v}`).join('; '));
+    const response = await fetch(base + route, { ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(20000) });
+    if (authenticated) for (const cookie of response.headers.getSetCookie()) {
+      const match = /^([^=;]+)=([^;]*)/.exec(cookie);
+      if (match) { if (match[2]) jar.set(match[1], match[2]); else jar.delete(match[1]); }
+    }
+    return response;
+  }
+  const post = (route, body) => request(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  return { request, post, jar };
+}
+async function seed(base) {
+  const http = client(base), key = await SoftKey.make();
+  let response = await http.post('/setup/options', { code: setupCode, name: 'Rollback owner' });
+  assert.equal(response.status, 200, await response.clone().text());
+  const options = (await response.json()).options;
+  response = await http.post('/setup/verify', await key.create(options, base));
+  assert.equal(response.status, 200, await response.clone().text());
+  const access = await (await http.request('/__rollback/key')).json();
+  let serial = 0;
+  async function rpc(method, params) {
+    const response = await http.request('/mcp', { method: 'POST', headers: { authorization: `Bearer ${access.token}`, 'content-type': 'application/json', accept: 'application/json', 'mcp-protocol-version': '2025-06-18' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++serial, method, params }) });
+    assert.equal(response.status, 200, await response.clone().text());
+    const result = await response.json();
+    assert(!result.error, JSON.stringify(result.error));
+    return result.result;
+  }
+  async function call(name, args) {
+    const result = await rpc('tools/call', { name, arguments: args });
+    assert(!result.isError, `${name}: ${JSON.stringify(result)}`);
+    return JSON.parse(result.content[0].text);
+  }
+  const tools = (await rpc('tools/list', {})).tools.map(t => t.name);
+  const picture = await call('image_add', { data: images['gps.jpeg'] });
+  const site = await call('item_create', { kind: 'site', data: { title: 'Rollback fixture', theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], timezone: 'UTC' } });
+  const entry = await call('item_create', { kind: 'entry', data: { title: 'Rollback entry', date: '2026-10-15', tags: ['rollback'], cover: picture.image, cover_alt: 'Synthetic fixture', body: 'Rollback content.\n\n!embed[Demo](https://youtu.be/M7lc1UVf-VE)' } });
+  const approval = await call('approval_request', { ids: [site.id, entry.id], note: 'Rollback fixture' });
+  const review = await http.request(new URL(approval.review_url).pathname);
+  const page = await review.text(), csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1];
+  assert(csrf, 'owner review must have a CSRF token');
+  response = await http.request(new URL(approval.review_url).pathname, { method: 'POST', body: new URLSearchParams({ csrf, all: 'approve' }) });
+  assert([200,302,303].includes(response.status), await response.text());
+  const full = await call('site_state', { ids: [entry.id] });
+  const slug = full.items[0].slug;
+  assert(slug, 'new entry slug');
+  const paths = ['/', '/journal/', '/journal/tags/rollback/', `/journal/${slug}/`, '/journal/search.json', '/journal/feed.xml', '/static/site.css', '/static/a.js', '/robots.txt', picture.image];
+  response = await http.request(`/journal/${slug}/`, {}, false);
+  assert.equal(response.status, 200);
+  assert((await response.text()).includes('<iframe'), 'new code must actually publish an engine embed');
+  const stored = new Uint8Array(await (await http.request(picture.image, {}, false)).arrayBuffer());
+  assert(stored.length < Buffer.from(images['gps.jpeg'], 'base64').length, 'the stored picture must have stripped metadata');
+  for (const event of [{ t: 'pv', id: 'rollback-view-0001', p: '/', k: 'home' }, { t: 'hb', id: 'rollback-view-0001', e: 30000, d: 25 }, { t: 'hb', id: 'rollback-view-0001', e: 90000, d: 100 }]) {
+    const r = await http.request('/collect', { method: 'POST', headers: { 'user-agent': 'Mozilla/5.0 (rollback reader)', 'content-type': 'text/plain' }, body: JSON.stringify(event) }, false);
+    assert.equal(r.status, 204);
+  }
+  const statistics = await call('site_stats', { include_test: true });
+  assert.equal(statistics.totals.views, 1, 'new analytics must write a view');
+  assert(statistics.totals.engaged_ms > 0, 'new analytics must store cumulative engagement');
+  assert.equal(statistics.pages[0].reached['100'], 100, 'new analytics must store the final scroll snapshot');
+  // Keep a second, unapproved source version too: the old owner UI must be
+  // able to read current drafts/history without parsing a new JSON field.
+  await call('item_update', { id: site.id, version: site.version, data: { embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
+  const pending = await call('approval_request', { ids: [site.id], note: 'Pending source fixture' });
+  let batch = false;
+  if (tools.includes('photo_batch_link')) {
+    const link = await call('photo_batch_link', { purpose: 'Rollback photos' });
+    const pathname = new URL(link.url).pathname;
+    const html = await (await http.request(pathname)).text();
+    const csrf = /(?:name="csrf" value="|data-csrf=")([^"]+)/.exec(html)?.[1];
+    assert(csrf, 'batch CSRF token');
+    const form = new FormData(); form.set('photo', new Blob([Buffer.from(images['gps.jpeg'], 'base64')], { type: 'image/jpeg' }), 'fixture.jpg'); form.set('alt', 'Rollback fixture'); form.set('csrf', csrf);
+    const uploaded = await http.request(pathname, { method: 'POST', headers: { 'X-CSRF': csrf, Origin: base, Referer: base + pathname }, body: form });
+    assert([200,302,303].includes(uploaded.status), await uploaded.text());
+    const status = await call('photo_batch_status', { id: link.id });
+    assert.equal(status.images.length, 1, 'batch image must be committed');
+    const completed = await http.request(pathname + '/complete', { method: 'POST', headers: { 'X-CSRF': csrf, Origin: base, Referer: base + pathname }, body: new URLSearchParams({ csrf }) });
+    assert([200,302,303].includes(completed.status), await completed.text());
+    assert.equal((await call('photo_batch_status', { id: link.id })).status, 'done');
+    batch = true;
+  }
+  return { key, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+}
+async function checkPrevious(base, fixture, edition) {
+  const http = client(base);
+  const failures = [];
+  for (const route of fixture.paths) {
+    const response = await http.request(route, {}, false), bytes = new Uint8Array(await response.arrayBuffer()), body = new TextDecoder().decode(bytes);
+    if (response.status !== 200) { failures.push(`${route}: HTTP ${response.status}`); continue; }
+    if (route === fixture.picture) assert.deepEqual(bytes, fixture.imageBytes, 'previous media bytes must equal the newly stored stripped picture');
+    if (route === '/' || route === '/journal/' || route.includes('/tags/') || route === fixture.paths[3]) {
+      assert(body.includes('<html') && body.includes('Rollback'), `${edition} previous ${route}: missing populated HTML`);
+    }
+    if (route.endsWith('/feed.xml')) assert(body.includes('<feed') && body.includes('Rollback entry'), 'previous feed must include the new entry');
+    const header = response.headers.get('X-Porchsite-Release');
+    if (header) assert.equal(header, release, 'must exercise the previous runtime');
+  }
+  let response = await http.post('/login/options', {});
+  assert.equal(response.status, 200, await response.clone().text());
+  response = await http.post('/login/verify', await fixture.key.get((await response.json()).options, base));
+  assert.equal(response.status, 200, await response.clone().text());
+  response = await http.request('/review');
+  assert.equal(response.status, 200, 'previous owner sign-in must work');
+  response = await http.request(fixture.pending);
+  assert.equal(response.status, 200, 'previous owner must be able to review the new pending item');
+  assert.equal(failures.length, 0, `${edition} previous runtime failed after current feature writes: ${failures.join('; ')}`);
+  console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
+}
+
+const failures = [];
+try {
+  for (const edition of onlyEdition ? [onlyEdition] : ['cloudflare', 'server']) {
+    const port = await freePort(), base = `http://localhost:${port}`;
+    let runtime, database;
+    try {
+      let current, old;
+      if (edition === 'cloudflare') {
+        const dir = path.join(temp, 'worker'); mkdirSync(dir);
+        const entry = path.join(dir, 'current.ts');
+        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
+        copyFileSync(bundle, path.join(dir, 'previous.js'));
+        const config = main => ({ name: 'rollback-fixture', main, compatibility_date: '2026-08-15', compatibility_flags: ['nodejs_compat'], d1_databases: [{ binding: 'DB', database_name: 'rollback-fixture', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: path.join(root,'cloudflare/migrations') }], kv_namespaces: [{ binding: 'OAUTH_KV', id: 'rollback-fixture' }], vars: { SETUP_CODE: setupCode } });
+        writeFileSync(path.join(dir,'current.json'),JSON.stringify({...config(entry),define:{RELEASE:JSON.stringify('rollback-current')}}));
+        writeFileSync(path.join(dir,'previous.json'),JSON.stringify({...config(path.join(dir,'previous.js')),no_bundle:true}));
+        const wrangler = path.join(root,'cloudflare/node_modules/.bin/wrangler'), state = path.join(temp,'d1');
+        command(wrangler,['d1','migrations','apply','rollback-fixture','--local','--config',path.join(dir,'current.json'),'--persist-to',state]);
+        const args = file => ['dev','--local','--config',path.join(dir,file),'--ip','127.0.0.1','--port',String(port),'--inspector-port','0','--persist-to',state,'--show-interactive-dev-session=false'];
+        current = () => launch(wrangler,args('current.json'),{},base); old = () => launch(wrangler,args('previous.json'),{},base);
+      } else {
+        database = command(python,[adapter,'create']); databases.add(database);
+        const url = new URL(process.env.PORCHSITE_TEST_DSN); url.pathname = '/' + database;
+        const common = { PORCHSITE_DSN: url.href, PORCHSITE_SETUP_CODE: setupCode, ROLLBACK_PORT: String(port) };
+        current = () => launch(python,[adapter,'serve-current'],{...common,PYTHONPATH:path.join(root,'server'),PORCHSITE_RELEASE:'rollback-current'},base);
+        old = () => launch(python,[adapter,'serve-old'],{...common,PYTHONPATH:path.join(previous,'server'),PORCHSITE_RELEASE:release},base);
+      }
+      runtime = await current(); const fixture = await seed(base);
+      console.log(`rollback-data: ${edition}: seeded current features ${JSON.stringify(fixture.features)}`);
+      await runtime.stop(); runtime = null;
+      runtime = await old(); await checkPrevious(base,fixture,edition);
+    } catch (error) {
+      failures.push(`${edition}: ${error.stack || error}`);
+    } finally {
+      if (runtime) await runtime.stop();
+      if (database) { command(python,[adapter,'drop',database]); databases.delete(database); }
+    }
+  }
+} finally { await cleanup(); }
+if (failures.length) throw Error(failures.join('\n'));

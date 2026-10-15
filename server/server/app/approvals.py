@@ -17,6 +17,7 @@ from server.spec.jsutil import u16slice
 
 from .content import all_items, get_item, staged
 from .db import Db, dumps, now, transaction
+from .embed_storage import migrate_sources, source_approval, source_data, stored_data
 from .errors import ApiError
 from .visibility import check_public
 
@@ -62,6 +63,7 @@ async def _update(c: Any, a: Approval) -> None:
 
 
 async def request(db: Db, actor: str, ids: list[str], note: str) -> Approval:
+    await migrate_sources(db)
     if not ids:
         raise ApiError(422, "invalid", "Name at least one item.")
     pending = {i["id"]: i for i in await staged(db)}
@@ -166,6 +168,7 @@ async def decide(
     """Apply the owner's decisions. Approved items go live together, at the
     exact version the owner saw; an item edited since is refused, not published.
     Returns {approval, published}."""
+    await migrate_sources(db)
     a = await get(db, id)
     published: list[str] = []
     at = now()
@@ -187,7 +190,8 @@ async def decide(
                 if row["version"] != it["version"]:
                     it["status"] = "superseded"
                     continue
-                _check_embed_origin(row, origin)
+                shown = {**dict(row), "data": dumps(await source_data(c, row["id"], row["version"], json.loads(row["data"])))}
+                _check_embed_origin(shown, origin)
                 await _go_live(c, row, at)
                 it["status"] = "published"
                 published.append(row["id"])
@@ -228,16 +232,19 @@ async def _go_live(c: Any, row: Any, at: str) -> None:
             row["kind"],
             row["slug"],
             row["version"],
-            row["data"],
+            dumps(stored_data(row["kind"], json.loads(row["data"]))),
             at,
         )
+
+        if row["kind"] == "site":
+            await source_approval(c, row["version"])
 
 
 async def live_rows(db: Db) -> "list[dict[str, Any]]":
     """What's live, as rows {id, kind, data}."""
     return [
-        {"id": r["item_id"], "kind": r["kind"], "data": json.loads(r["data"])}
-        for r in await db.fetch('SELECT item_id, kind, data FROM live ORDER BY item_id COLLATE "C"')
+        {"id": r["item_id"], "kind": r["kind"], "data": await source_data(db, r["item_id"], r["version"], json.loads(r["data"]), True)}
+        for r in await db.fetch('SELECT item_id, kind, data, version FROM live ORDER BY item_id COLLATE "C"')
     ]
 
 
@@ -246,6 +253,7 @@ async def publish_now(db: Db, items: "list[dict[str, Any]]", note: str, origin: 
     these versions, with no approval request (the owner is the approver): the
     writing desk and the whole-site revert. An item changed since is refused
     (item_changed). A pending request for the same version is marked published."""
+    await migrate_sources(db)
     if not items:
         return []
     at = now()
@@ -264,7 +272,8 @@ async def publish_now(db: Db, items: "list[dict[str, Any]]", note: str, origin: 
                 )
             going.append(row)
         for row in going:
-            _check_embed_origin(row, origin)
+            shown = {**dict(row), "data": dumps(await source_data(c, row["id"], row["version"], json.loads(row["data"])))}
+            _check_embed_origin(shown, origin)
             await _go_live(c, row, at)
         await check_public(c, await live_rows(c))
         for a in await _list_raw(c, "pending"):

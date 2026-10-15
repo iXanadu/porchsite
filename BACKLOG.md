@@ -13,15 +13,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## BLOCKING
-- **S4-11** OPEN: Rolling back after an embed source is approved takes the
-  site down. The live release validates the site item strictly, so a site
-  item carrying `embed_sources` makes every public page answer 422 after a
-  rollback (seen on a real site, two minutes down). Keep the source list
-  where the previous release ignores it (an additive table), and add to
-  `scripts/upgrade-check.sh` a run of the previous release against data
-  the new release has written with every new feature in use (embeds and
-  sources, batch uploads, coalesced analytics): every public page 200,
-  only new markup degrading to plain text or links.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.

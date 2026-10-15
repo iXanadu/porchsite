@@ -15,6 +15,7 @@ from server.spec.models import SITE_ID
 from . import content
 from .approvals import live_rows, publish_now
 from .db import Db, dumps, transaction
+from .embed_storage import source_data
 from .errors import ApiError
 from .visibility import RANK, check_public
 
@@ -28,12 +29,13 @@ def label_of(kind: str, data: Data) -> str:
 
 
 async def _revision(db: Db, id: str, version: int) -> Any:
-    return await db.fetchrow(
+    row = await db.fetchrow(
         "SELECT r.data, r.deleted, i.kind FROM revisions r JOIN items i ON i.id = r.item_id"
         " WHERE r.item_id = $1 AND r.version = $2",
         id,
         version,
     )
+    return {**dict(row), "data": dumps(await source_data(db, id, version, json.loads(row["data"])))} if row else None
 
 
 async def _to_publish(db: Db, r: Any) -> dict[str, Any]:
@@ -96,7 +98,7 @@ async def plan(db: Db, id: int) -> dict[str, Any]:
     publish = await get_publish(db, id)
     state = await _state_at(db, id)
     live = {
-        r["item_id"]: {"version": r["version"], "data": json.loads(r["data"])}
+        r["item_id"]: {"version": r["version"], "data": await source_data(db, r["item_id"], r["version"], json.loads(r["data"]), True)}
         for r in await db.fetch("SELECT item_id, version, data FROM live")
     }
     changes = []

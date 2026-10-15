@@ -19,7 +19,7 @@ ORIGIN = "https://site.example"
 
 @pytest.fixture(autouse=True)
 async def clean_content(db):
-    await db.execute("TRUNCATE approvals, publishes, live, revisions, items, idempotency")
+    await db.execute("TRUNCATE site_embed_sources, approvals, publishes, live, revisions, items, idempotency")
 
 
 def test_canonicalisation_and_rejection_list():

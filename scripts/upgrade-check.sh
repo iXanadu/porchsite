@@ -20,6 +20,9 @@
 #      the NEW schema first and then the previous release's own startup
 #      schema step on top (scripts/upgrade/new_schema.py), less the few
 #      explained exceptions in scripts/upgrade/known-failures.txt.
+#   5. BOTH previous runtimes on the same databases populated through the
+#      current release's content, approval, media and analytics APIs. Public
+#      pages/feed must remain HTTP 200 and owner passkey sign-in must work.
 #
 # Needs: git, node (cloudflare/node_modules installed), PYTHON (the server
 # edition's virtualenv python; default python3) and PORCHSITE_TEST_DSN (a
@@ -115,4 +118,10 @@ done < scripts/upgrade/known-failures.txt
   tail -1 "$TMP/sv.log"
 ) || exit 1
 
-say "ok: $PREV runs on the new schema in both editions; rollback needs no schema step"
+# 5. A schema-compatible old binary may still reject new content JSON. Seed
+# through this checkout first, then restart the actual old bundle/server on
+# those populated databases. New tables must not poison old validated rows.
+node scripts/upgrade/rollback-data.mjs "$ROOT" "$TMP/prev" "$BUNDLE" "$PREV" \
+  || die "previous runtimes cannot read data written by this release"
+
+say "ok: $PREV runs on the new schema and newly written feature data in both editions"

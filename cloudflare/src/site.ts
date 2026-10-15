@@ -1,3 +1,4 @@
+import { sourceData } from "./embed-storage";
 /**
  * The public site, rendered from `live` only: nothing a visitor sees has
  * skipped the owner's approval. This built-in look is the first template;
@@ -102,7 +103,7 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   const shown = ready ? rows.get(ready) : undefined;
   if (shown) shown.data = { ...shown.data, status: "ready" };
   const siteRow = rows.get(SITE_ID);
-  const site = validate("site", siteRow ? siteRow.data : {});
+  const site = validate("site", siteRow ? await sourceData(db, SITE_ID, siteRow.version, siteRow.data, !changes.some(c => c.id === SITE_ID)) : {});
   const v = view(site, [...rows.values()].filter((r) => r.kind !== "site"));
   const { results: cards } = await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>();
   v.share_cards = Object.fromEntries(cards.filter((c) => rows.get(c.item_id)?.version === c.version).map((c) => [c.item_id, `/media/${c.name}`]));

@@ -111,7 +111,6 @@ const LINK = "a full https:// link (e.g. https://example.com/page), a path on th
 /** Every word on the site that isn't an entry, card or note. */
 export const SiteData = z
   .object({
-    embed_sources: z.array(z.string().max(2000)).max(20).default([]).describe("approved HTTPS player origins; adding or removing one requires owner approval"),
     title: line(80).default("My site").describe("site name, shown top left and in the browser tab"),
     tagline: optLine(160).describe("the big headline on the home page"),
     description: optLine(300).describe("one or two sentences about the site, for search results and link previews; empty uses the tagline"),
@@ -303,7 +302,12 @@ export const NoteData = z
   })
   .strict();
 
-export const MODELS = { site: SiteData, entry: EntryData, card: CardData, note: NoteData } as const;
+const SiteInput = z.object({
+    embed_sources: z.array(z.string().max(2000)).max(20).default([]).describe("approved HTTPS player origins; adding or removing one requires owner approval"),
+  ...SiteData.shape,
+}).strict();
+
+export const MODELS = { site: SiteInput, entry: EntryData, card: CardData, note: NoteData } as const;
 export type Kind = keyof typeof MODELS;
 export const KINDS = Object.keys(MODELS) as Kind[];
 export const PREFIX: Record<Kind, string> = { site: "site", entry: "ent", card: "crd", note: "nte" };

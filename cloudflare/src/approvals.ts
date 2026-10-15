@@ -1,3 +1,4 @@
+import { storedData, sourceData, sourceApproval, migrateSources } from "./embed-storage";
 /**
  * The owner's yes (SPEC S1, S2). An assistant asks for named items at their
  * current versions; only the owner's decision publishes, and only exactly
@@ -59,6 +60,7 @@ function newId(): string {
 }
 
 export async function request(db: D1Database, actor: string, ids: string[], note: string): Promise<Approval> {
+  await migrateSources(db);
   if (!ids.length) throw new ApiError(422, "invalid", "Name at least one item.");
   const pending = new Map((await staged(db)).map((i) => [i.id, i]));
   const items: ApprovalItem[] = [];
@@ -165,6 +167,7 @@ export async function decide(
   overall: string,
   origin = "",
 ): Promise<{ approval: Approval; published: string[] }> {
+  await migrateSources(db);
   const a = await get(db, id);
   const stmts: D1PreparedStatement[] = [];
   const published: string[] = [];
@@ -185,6 +188,7 @@ export async function decide(
       }
       checkEmbedOrigin(item, origin);
       stmts.push(liveStmt(db, item, at));
+      if (item.kind === "site") stmts.push(sourceApproval(db, item.version));
       going.push(item);
       it.status = "published";
       published.push(item.id);
@@ -215,13 +219,13 @@ function liveStmt(db: D1Database, item: Item, at: string): D1PreparedStatement {
            ON CONFLICT (item_id) DO UPDATE SET slug = excluded.slug, version = excluded.version,
              data = excluded.data, published_at = excluded.published_at`,
         )
-        .bind(item.id, item.kind, item.slug, item.version, JSON.stringify(item.data), at);
+        .bind(item.id, item.kind, item.slug, item.version, JSON.stringify(storedData(item.kind, item.data)), at);
 }
 
 /** The site as it would be with these items published on top of what's live (rows shaped like `live`). */
 export async function liveWith(db: D1Database, items: Item[]): Promise<{ id: string; kind: string; data: Record<string, unknown> }[]> {
-  const { results } = await db.prepare("SELECT item_id, kind, data FROM live ORDER BY item_id").all<{ item_id: string; kind: string; data: string }>();
-  const rows = new Map(results.map((r) => [r.item_id, { id: r.item_id, kind: r.kind, data: JSON.parse(r.data) as Record<string, unknown> }]));
+  const { results } = await db.prepare("SELECT item_id, kind, data, version FROM live ORDER BY item_id").all<{ item_id: string; kind: string; data: string; version: number }>();
+  const rows = new Map(await Promise.all(results.map(async r => [r.item_id, { id: r.item_id, kind: r.kind, data: await sourceData(db, r.item_id, r.version, JSON.parse(r.data), true) }] as const)));
   for (const it of items) {
     if (it.deleted) rows.delete(it.id);
     else rows.set(it.id, { id: it.id, kind: it.kind, data: it.data });
@@ -236,6 +240,7 @@ export async function liveWith(db: D1Database, items: Item[]): Promise<{ id: str
  * pending request for the same version is marked published.
  */
 export async function publishNow(db: D1Database, items: { id: string; version: number }[], note: string, origin = ""): Promise<string[]> {
+  await migrateSources(db);
   const going: Item[] = [];
   for (const want of items) {
     const item = await getItem(db, want.id);
@@ -248,7 +253,7 @@ export async function publishNow(db: D1Database, items: { id: string; version: n
   if (!going.length) return [];
   await checkPublic(db, await liveWith(db, going));
   const at = now();
-  const stmts = going.map((i) => liveStmt(db, i, at));
+  const stmts = going.flatMap(i => i.kind === "site" ? [liveStmt(db, i, at), sourceApproval(db, i.version)] : [liveStmt(db, i, at)]);
   for (const a of await listRaw(db, "pending")) {
     let touched = false;
     for (const it of a.items) {

@@ -569,7 +569,9 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
             it["id"],
             it["version"],
         )
-        shown = json.loads(rev["data"]) if rev else item["data"]
+        shown = await content.source_data(cx.db, it["id"], it["version"], json.loads(rev["data"])) if rev else item["data"]
+        if live and it["kind"] == "site":
+            live = {**dict(live), "data": json.dumps(await content.site_data(cx.db, True))}
         if it["status"] == "pending":
             embed_changes.append({"id":it["id"],"kind":it["kind"],"data":shown,"deleted":bool(rev["deleted"]) if rev else item["deleted"]})
         # An entry whose address changes says so: the old one will send visitors on.
