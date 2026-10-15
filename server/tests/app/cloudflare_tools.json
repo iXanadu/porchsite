@@ -187,19 +187,25 @@
     },
     {
       "name": "image_add",
-      "description": "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it.",
+      "description": "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
           "data": {
-            "type": "string",
-            "description": "the picture's bytes, base64 (standard or URL-safe alphabet)"
+            "description": "one picture's bytes, base64 (standard or URL-safe alphabet); give data or images",
+            "type": "string"
+          },
+          "images": {
+            "description": "1 to 8 base64 pictures, at most 8 MB each and 8 MB decoded in total; give images or data",
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
-        },
-        "required": [
-          "data"
-        ]
+        }
       }
     },
     {

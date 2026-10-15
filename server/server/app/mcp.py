@@ -9,8 +9,6 @@ Who is calling comes from the access token (main.py puts its props on the
 request): {client, clientId, origin}.
 """
 
-import base64
-import binascii
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -21,7 +19,7 @@ import mcp_types as types
 from mcp.server.lowlevel.server import NotificationOptions, Server
 from mcp.shared.exceptions import MCPError
 
-from . import analytics, approvals, check, content, media, requests, site, themes, updates, uploads
+from . import analytics, approvals, check, content, image_add, media, requests, site, themes, updates, uploads
 from .db import Db, dumps
 from .errors import ApiError
 from .fields import field_guide, kind_guide
@@ -49,7 +47,7 @@ site_stats: who reads the site."""
 NEXT = (
     "When your changes are ready, call site_check, then approval_request with the ids you changed."
 )
-IMAGE_ADD_DESCRIPTION = "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it."
+IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file."
 CHECK_DESCRIPTION = (
     "Look over the site as it will be once everything you've changed is published, the way a visitor"
     " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
@@ -175,15 +173,10 @@ def _tools() -> list[dict[str, Any]]:
         {
             "name": "image_add",
             "description": IMAGE_ADD_DESCRIPTION,
-            "inputSchema": _obj(
-                {
-                    "data": {
-                        "description": "the picture's bytes, base64 (standard or URL-safe alphabet)",
-                        "type": "string",
-                    },
-                },
-                ["data"],
-            ),
+            "inputSchema": _obj({
+                "data": {"type": "string", "description": "one picture's bytes, base64 (standard or URL-safe alphabet); give data or images"},
+                "images": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 8, "description": "1 to 8 base64 pictures, at most 8 MB each and 8 MB decoded in total; give images or data"},
+            }),
         },
         {
             "name": "photo_upload_status",
@@ -431,7 +424,7 @@ def parse_args(name: str, args: dict[str, Any] | None) -> tuple[dict[str, Any], 
     out: dict[str, Any] = {}
     issues: list[str] = []
     for key, prop in schema["properties"].items():
-        if key not in args or args[key] is None and key not in required and "default" not in prop:
+        if key not in args or args[key] is None and key not in required and "default" not in prop and name != "image_add":
             if "default" in prop:
                 out[key] = prop["default"]
             elif key in required:
@@ -624,29 +617,7 @@ async def _call(
         return await _run(item_rollback)
 
     if name == "image_add":
-
-        async def image_add() -> Any:
-            raw = re.sub(r"^data:[^,]*,", "", a["data"])
-            raw = re.sub(r"\s", "", raw).replace("-", "+").replace("_", "/")
-            try:
-                data = base64.b64decode(raw + "=" * (-len(raw) % 4), validate=True)
-            except (ValueError, binascii.Error):
-                raise ApiError(422, "invalid", "data isn't base64.") from None
-            if len(data) > media.MAX_BYTES:
-                raise ApiError(413, "too_large", "A picture can be at most 8 MB.")
-            type_ = media.sniff(data)
-            if not type_:
-                raise ApiError(422, "not_an_image", "That isn't a JPEG, PNG or WebP picture.")
-            image = await media.store(db, data, type_, actor)
-            width, height = media.size(data)
-            return {
-                "image": image,
-                "width": width,
-                "height": height,
-                "next": "Put image in an image field with a description, then ask for approval as usual.",
-            }
-
-        return await _run(image_add)
+        return await _run(lambda: image_add.image_add(db, actor, a.get("data"), a.get("images")))
 
     if name == "photo_upload_link":
 

@@ -413,8 +413,10 @@ async def upload_page(req: Request, cx: Context, token: str) -> Response:
         wants_json = "application/json" in (req.headers.get("accept") or "")
         form = await _form(req)
         file = form.get("photo") if form else None
-        data = await file.read() if isinstance(file, UploadFile) else None
         try:
+            if not form or len(form.getlist("photo")) != 1 or sum(isinstance(v, UploadFile) for _, v in form.multi_items()) != 1:
+                raise ApiError(422, "invalid", "Choose exactly one photo.")
+            data = await file.read() if isinstance(file, UploadFile) else None
             done = await uploads.receive(cx.db, token, data, _field(form, "alt"))
             if wants_json:
                 return json_response(done)

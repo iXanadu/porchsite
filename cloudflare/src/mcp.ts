@@ -7,6 +7,7 @@ import { getMcpAuthContext } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import * as analytics from "./analytics";
+import { imageAdd } from "./image-add";
 import { checkSite } from "./check";
 import * as approvals from "./approvals";
 import * as content from "./content";
@@ -102,8 +103,7 @@ async function stateItems(db: D1Database, full?: boolean, ids?: string[]) {
 }
 
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
-const IMAGE_ADD_DESCRIPTION =
-  "For a picture you hold as a file (one you made, or one sent to you) when you can't send it to a photo_upload_link: send its bytes here, base64-encoded (JPEG, PNG or WebP, up to 8 MB). Returns `image` (a /media path) with its pixel `width` and `height`. Put `image` in an image field (hero, cover, a card's image, or ![what it shows](image) in a body) with a description in its alt field. Nothing shows publicly until the owner approves an item that uses it.";
+const IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file.";
 const CHECK_DESCRIPTION =
   "Look over the site as it will be once everything you've changed is published, the way a visitor clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them, if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when broken and unreachable are both empty. Run it before you ask for approval and before you tell your person the site is done.";
 const STATES = {
@@ -225,24 +225,11 @@ export function createServer(): McpServer {
     {
       description: IMAGE_ADD_DESCRIPTION,
       inputSchema: z.object({
-        data: z.string().describe("the picture's bytes, base64 (standard or URL-safe alphabet)"),
+        data: z.string().optional().describe("one picture's bytes, base64 (standard or URL-safe alphabet); give data or images"),
+        images: z.array(z.string()).min(1).max(8).optional().describe("1 to 8 base64 pictures, at most 8 MB each and 8 MB decoded in total; give images or data"),
       }),
     },
-    async ({ data }) =>
-      run(async () => {
-        let bytes: Uint8Array;
-        try {
-          bytes = Uint8Array.from(atob(data.replace(/^data:[^,]*,/, "").replace(/-/g, "+").replace(/_/g, "/").replace(/\s/g, "")), (c) => c.charCodeAt(0));
-        } catch {
-          throw new ApiError(422, "invalid", "data isn't base64.");
-        }
-        if (bytes.length > media.MAX_BYTES) throw new ApiError(413, "too_large", "A picture can be at most 8 MB.");
-        const type = media.sniff(bytes);
-        if (!type) throw new ApiError(422, "not_an_image", "That isn't a JPEG, PNG or WebP picture.");
-        const image = await media.store(db, bytes, type, actor());
-        const [width, height] = media.size(bytes);
-        return { image, width, height, next: "Put image in an image field with a description, then ask for approval as usual." };
-      }),
+    async ({ data, images }) => run(() => imageAdd(db, actor(), data, images)),
   );
 
   server.registerTool(

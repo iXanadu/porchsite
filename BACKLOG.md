@@ -26,7 +26,7 @@ the merged main tip. Gate (each exit code read on its own):
 `scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
 `scripts/migration-check.py`; `scripts/upgrade-check.sh`.
 - **S2-1** (RA-10) IN-PROGRESS: coder. Batch `image_add` as decided in
-  RA-10 below. Tests: 8 files pass, 9 refused, over 32 MB refused, one bad
+  RA-10 below. Tests: 8 files pass, 9 refused, over 8 MiB refused, one bad
   file among good ones stores none. Measure the Cloudflare edition at the
   cap under local wrangler.
 - **S2-2** (P-2) IN-PROGRESS: tester. `scripts/parity.sh` also runs each
@@ -51,7 +51,7 @@ site's OAuth connector, and pictures held as files. In order:
   to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-10** IN-PROGRESS (S2-1): Uploading many photos costs one tool call each (34+ in a
   reunion build). Decided (2026-10-15): several pictures per image_add
-  call, behind the same owner auth; at most 8 files and 32 MB decoded per
+  call, behind the same owner auth; at most 8 files and 8 MiB decoded per
   call; every file sniffed; stored by hash only (filenames ignored); all or
   nothing (any bad file stores none). The one-shot photo upload link stays
   one file. Many phone photos at once would be a signed-in owner page, a
