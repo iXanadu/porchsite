@@ -116,7 +116,7 @@ async def home_page(db: Db, origin: str) -> str | None:
     t = await themes.load(db, str(v.site["theme"]))
     if not t:
         return None
-    return render(t, "home", views.home_view(v, release_of(v), origin))
+    return render(t, "home", views.home_view(v, release_of(v), origin), {"sources":v.site.get("embed_sources"),"origin":origin})
 
 
 async def preview_page(db: Db, approval_id: str, origin: str, path: str = "/") -> str | None:

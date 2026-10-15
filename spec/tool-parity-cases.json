@@ -2,13 +2,76 @@
   {
     "name": "url-equivalence",
     "theme": "product-page",
-    "sample": {"site": {"title": "Test", "sections": ["entries"]}, "items": [{"kind": "entry", "slug": "entry", "data": {"title": "Entry", "date": "2026-10-10", "external_url": "https://example.com"}}]},
+    "sample": {
+      "site": {
+        "title": "Test",
+        "sections": [
+          "entries"
+        ]
+      },
+      "items": [
+        {
+          "kind": "entry",
+          "slug": "entry",
+          "data": {
+            "title": "Entry",
+            "date": "2026-10-10",
+            "external_url": "https://example.com"
+          }
+        }
+      ]
+    },
     "home": "<a href=\"https://example.com/\">{{site.title}}</a>"
   },
   {
     "name": "renderer-origin",
     "theme": "product-page",
-    "sample": {"site": {"title": "Test", "sections": ["entries"]}, "items": [{"kind": "entry", "slug": "entry", "data": {"title": "Entry", "date": "2026-10-10", "body": "A complete body."}}]},
+    "sample": {
+      "site": {
+        "title": "Test",
+        "sections": [
+          "entries"
+        ]
+      },
+      "items": [
+        {
+          "kind": "entry",
+          "slug": "entry",
+          "data": {
+            "title": "Entry",
+            "date": "2026-10-10",
+            "body": "A complete body."
+          }
+        }
+      ]
+    },
     "home": "<a href=\"{{site.base_url}}/journal/entry/\">{{site.title}}</a>"
+  },
+  {
+    "name": "embed-sources",
+    "theme": "product-page",
+    "sample": {
+      "site": {
+        "title": "Test",
+        "sections": [
+          "entries"
+        ],
+        "embed_sources": [
+          "https://www.youtube-nocookie.com"
+        ]
+      },
+      "items": [
+        {
+          "kind": "entry",
+          "slug": "tour",
+          "data": {
+            "title": "Tour",
+            "date": "2026-10-10",
+            "body": "Before\n!embed[Video](https://youtu.be/Ab_C-123)\nMiddle\n!embed[Tour](https://my.matterport.com/show/?m=Ab_C-123)\nAfter\n\n```\n!embed[Literal](https://unapproved.example/player)\n```"
+          }
+        }
+      ]
+    },
+    "home": "<a href=\"/journal/tour/\">Tour</a>{{#latest}}{{{body_html}}}{{/latest}}"
   }
 ]

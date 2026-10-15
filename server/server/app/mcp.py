@@ -19,7 +19,21 @@ import mcp_types as types
 from mcp.server.lowlevel.server import NotificationOptions, Server
 from mcp.shared.exceptions import MCPError
 
-from . import analytics, approvals, check, content, image_add, media, requests, site, themes, updates, uploads
+from server.spec.embed_url import EMBED_ADVICE, EMBED_SYNTAX
+from server.spec.embeds import embed_notes
+
+from . import (
+    analytics,
+    approvals,
+    check,
+    content,
+    image_add,
+    requests,
+    site,
+    themes,
+    updates,
+    uploads,
+)
 from .db import Db, dumps
 from .errors import ApiError
 from .fields import field_guide, kind_guide
@@ -50,7 +64,7 @@ NEXT = (
     "When your changes are ready, call site_check, then approval_request with the ids you changed."
 )
 IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file." + " " + PHOTO_ADVICE
-CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites."
+CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Unapproved embed sources appear as non-failing embed_notes. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites."
 STATES = {
     "live": "published, and the current version is what visitors see",
     "changed": "published, with a newer version that isn't approved yet",
@@ -93,7 +107,7 @@ def _tools() -> list[dict[str, Any]]:
             "name": "item_create",
             "description": "Create an item; nothing is public until the owner approves. Kinds: "
             + ". ".join(f"{k}: {v}" for k, v in kinds.items())
-            + ". data holds that kind's fields (see `fields` in site_state).",
+            + ". data holds that kind's fields (see `fields` in site_state). " + EMBED_ADVICE + " " + EMBED_SYNTAX,
             "inputSchema": _obj(
                 {
                     "kind": {"type": "string", "enum": list(kinds)},
@@ -109,7 +123,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "item_update",
-            "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo.",
+            "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo." + " " + EMBED_ADVICE + " " + EMBED_SYNTAX,
             "inputSchema": _obj(
                 {
                     "id": {"type": "string"},
@@ -736,9 +750,9 @@ async def _call(
             changes = [{"id": i["id"], "version": i["version"]} for i in await content.staged(db)]
             v = await site.proposed_view(db, changes)
             names = {r["name"] for r in await db.fetch("SELECT name FROM media")}
-            if a.get("deep", False):
-                return check.check_site_deep(v, names, await themes.load(db, str(v.site["theme"])), origin)
-            return check.check_site(v, names)
+            result = check.check_site_deep(v, names, await themes.load(db, str(v.site["theme"])), origin) if a.get("deep", False) else check.check_site(v, names)
+            notes = embed_notes(v.entries, (await content.site_data(db, True)).get("embed_sources"), origin) if any("!embed[" in e.get("body", "") for e in v.entries) else []
+            return {**result, **({"embed_notes": notes} if notes else {})}
 
         return await _run(site_check)
 

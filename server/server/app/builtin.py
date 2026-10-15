@@ -10,6 +10,7 @@ from typing import Any
 
 from starlette.responses import Response
 
+from server.spec.embeds import PERMISSIONS, body_markdown, finish_embeds, frame_csp
 from server.spec.jsutil import DOT, long_date, short_date, u16slice
 from server.spec.site import SiteView
 from server.spec.strings import strings_of
@@ -62,11 +63,28 @@ def _page_html(
     )
 
 
-def page(v: SiteView, title: str, description: str, main: str, kind: str, id: str = "") -> Response:
+def page(
+    v: SiteView,
+    title: str,
+    description: str,
+    main: str,
+    kind: str,
+    id: str = "",
+    origin: str = "",
+    provenance=None,
+) -> Response:
     return respond(
-        _page_html(v, title, description, main, kind, id),
-        headers={"Cache-Control": "no-cache"},
-        csp=CSP,
+        finish_embeds(
+            _page_html(v, title, description, main, kind, id),
+            v.site.get("embed_sources") if origin else [],
+            origin,
+            provenance,
+        ),
+        headers={
+            "Cache-Control": "no-cache",
+            **({"Permissions-Policy": PERMISSIONS} if origin else {}),
+        },
+        csp=frame_csp(CSP, v.site.get("embed_sources") if origin else [], origin),
     )
 
 
@@ -128,7 +146,7 @@ def _card(c: Data) -> str:
     )
 
 
-def home(v: SiteView) -> Response:
+def home(v: SiteView, origin: str = "") -> Response:
     s = v.site
     streams: list[Data] = s["streams"]
     named = set(s["sections"])
@@ -168,10 +186,12 @@ def home(v: SiteView) -> Response:
     main = f"{hero}<h1>{esc(s.get('tagline') or s['title'])}</h1>{lede}" + "".join(
         sections.get(k, "") for k in s["sections"]
     )
-    return page(v, s["title"], s.get("tagline") or u16slice(s["intro"], 0, 160), main, "home")
+    return page(
+        v, s["title"], s.get("tagline") or u16slice(s["intro"], 0, 160), main, "home", origin=origin
+    )
 
 
-def entry_page(v: SiteView, address: str) -> Response | None:
+def entry_page(v: SiteView, address: str, origin: str = "") -> Response | None:
     """An entry's page, at its address (/<stream path>/<slug>/)."""
     e = next((x for x in v.entries if x["page"] == address), None)
     if not e:
@@ -199,10 +219,11 @@ def entry_page(v: SiteView, address: str) -> Response | None:
         if e["tags"]
         else ""
     )
+    body = body_markdown(e["body"])
     main = (
         f'<article><p class="meta"><a href="/">← {esc(v.site["title"])}</a></p>'
         f'<div class="meta">{esc(long_date(e["date"]))}</div><h1>{esc(e["title"])}</h1>'
-        f"{summary}{cover}{stats_html}{markdown(e['body'])}{tags}</article>"
+        f"{summary}{cover}{stats_html}{body}{tags}</article>"
     )
     return page(
         v,
@@ -211,6 +232,8 @@ def entry_page(v: SiteView, address: str) -> Response | None:
         main,
         "entry",
         e["id"],
+        origin,
+        body,
     )
 
 
@@ -250,7 +273,7 @@ def redirect_for(v: SiteView, path: str) -> str | None:
     return to if real else None
 
 
-def not_found(v: SiteView) -> Response:
+def not_found(v: SiteView, origin: str = "") -> Response:
     title = esc(v.site["title"])
     t = strings_of(v.site)
     body = _page_html(
@@ -260,4 +283,12 @@ def not_found(v: SiteView) -> Response:
         f'<h1>{esc(t["not_found_title"])}</h1><p><a href="/">{title}</a></p>',
         "notfound",
     )
-    return respond(body, status=404, headers={"Cache-Control": "no-store"}, csp=CSP)
+    return respond(
+        body,
+        status=404,
+        headers={
+            "Cache-Control": "no-store",
+            **({"Permissions-Policy": PERMISSIONS} if origin else {}),
+        },
+        csp=frame_csp(CSP, v.site.get("embed_sources") if origin else [], origin),
+    )

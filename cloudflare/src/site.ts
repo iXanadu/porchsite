@@ -3,6 +3,7 @@
  * skipped the owner's approval. This built-in look is the first template;
  * every word on it comes from content (SPEC §6).
  */
+import { bodyMarkdown, finishEmbeds, frameCsp, PERMISSIONS } from "./embeds";
 import { dateFormatter, dateString } from "./date-format";
 import { stringsOf } from "./strings";
 import { siteData, toItem, validate } from "./content";
@@ -151,17 +152,17 @@ article img,.hero,.cover{max-width:100%;height:auto;border-radius:8px;display:bl
 // The kit's beacon (SPEC §8) is the page's only script, and posts to this site only.
 const BUILTIN_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = ""): Response {
+function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = "", origin = "", provenance?: unknown): Response {
   const s = v.site;
   return respond(
-    html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    raw(finishEmbeds(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title><meta name="description" content="${description}"><meta property="og:title" content="${title}">
 <meta property="og:description" content="${description}"><style>${raw(CSS)}</style></head>
 <body data-kind="${kind}" data-id="${id}"><div class="wrap"><header><a class="logo" href="/">${s.title}</a><nav>${s.links.map(
       (l: Data) => html`<a href="${l.url}">${l.label}</a>`,
     )}</nav></header><main>${main}</main>
-<footer>${s.owner_name ? html`${s.owner_name} · ` : ""}${s.footer_line || raw("Kept up to date by an assistant, published with the owner's approval.")}</footer></div><script src="/static/a.js" defer></script></body></html>`,
-    { headers: { "Cache-Control": "no-cache" }, csp: BUILTIN_CSP },
+<footer>${s.owner_name ? html`${s.owner_name} · ` : ""}${s.footer_line || raw("Kept up to date by an assistant, published with the owner's approval.")}</footer></div><script src="/static/a.js" defer></script></body></html>`.html, origin ? s.embed_sources : [], origin, provenance)),
+    { headers: { "Cache-Control": "no-cache", ...(origin ? {"Permissions-Policy": PERMISSIONS} : {}) }, csp: frameCsp(BUILTIN_CSP, origin ? s.embed_sources : [], origin) },
   );
 }
 
@@ -186,7 +187,7 @@ function entryCard(e: Data): Raw {
   }</div>`;
 }
 
-export function home(v: SiteView): Response {
+export function home(v: SiteView, origin = ""): Response {
   const s = v.site;
   const streams = s.streams as Data[];
   const named = new Set(s.sections as string[]);
@@ -210,21 +211,22 @@ export function home(v: SiteView): Response {
     about: s.about ? html`<section><h2>${s.about_title}</h2>${markdown(s.about)}</section>` : "",
   };
   const main = html`${s.hero ? html`<img class="hero" src="${s.hero}" alt="${s.hero_alt}">` : ""}<h1>${s.tagline || s.title}</h1>${s.intro ? html`<p class="lede">${s.intro}</p>` : ""}${s.sections.map((k: string) => raw(String(sections[k] ?? "")))}`;
-  return page(v, s.title, s.tagline || s.intro.slice(0, 160), main, "home");
+  return page(v, s.title, s.tagline || s.intro.slice(0, 160), main, "home", "", origin);
 }
 
 /** An entry's page, at its address (/<stream path>/<slug>/). */
-export function entryPage(v: SiteView, address: string): Response | null {
+export function entryPage(v: SiteView, address: string, origin = ""): Response | null {
   const e = v.entries.find((x) => x.page === address);
   if (!e) return null;
   // A post that lives elsewhere has no page here; its address goes there.
   if (e.external_url) return Response.redirect(e.external_url, 302);
+  const body = bodyMarkdown(e.body);
   const main = html`<article><p class="meta"><a href="/">← ${v.site.title}</a></p><div class="meta">${longDate(e.date)}</div><h1>${e.title}</h1>${
     e.summary ? html`<p class="lede">${e.summary}</p>` : ""
   }${e.cover ? html`<img class="cover" src="${e.cover}" alt="${e.cover_alt}">` : ""}${
     (e.stats ?? []).length ? html`<div class="stats">${e.stats.map((x: Data) => html`<div class="stat"><b>${x.value}</b><span>${x.label}</span></div>`)}</div>` : ""
-  }${markdown(e.body)}${e.tags.length ? html`<p class="tags">${e.tags.map((t: string) => html`<span class="meta">#${t}</span> `)}</p>` : ""}</article>`;
-  return page(v, `${e.title} · ${v.site.title}`, e.summary || e.title, main, "entry", e.id);
+  }${raw(body)}${e.tags.length ? html`<p class="tags">${e.tags.map((t: string) => html`<span class="meta">#${t}</span> `)}</p>` : ""}</article>`;
+  return page(v, `${e.title} · ${v.site.title}`, e.summary || e.title, main, "entry", e.id, origin, body);
 }
 
 /**
@@ -247,9 +249,9 @@ export function redirectFor(v: SiteView, path: string): string | null {
   return real ? to : null;
 }
 
-export function notFound(v: SiteView): Response {
+export function notFound(v: SiteView, origin = ""): Response {
   const t = stringsOf(v.site);
-  const r = page(v, `${t.not_found_title} · ${v.site.title}`, "", html`<h1>${t.not_found_title}</h1><p><a href="/">${v.site.title}</a></p>`, "notfound");
+  const r = page(v, `${t.not_found_title} · ${v.site.title}`, "", html`<h1>${t.not_found_title}</h1><p><a href="/">${v.site.title}</a></p>`, "notfound", "", origin);
   const headers = new Headers(r.headers);
   headers.set("Cache-Control", "no-store");
   return new Response(r.body, { status: 404, headers });

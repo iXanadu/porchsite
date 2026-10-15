@@ -12,6 +12,7 @@ import json
 import secrets
 from typing import Any
 
+from server.spec.embed_url import embed_sources, request_origin
 from server.spec.jsutil import u16slice
 
 from .content import all_items, get_item, staged
@@ -160,6 +161,7 @@ async def decide(
     id: str,
     decisions: dict[str, dict[str, Any]],
     overall: str,
+    origin: str = "",
 ) -> dict[str, Any]:
     """Apply the owner's decisions. Approved items go live together, at the
     exact version the owner saw; an item edited since is refused, not published.
@@ -185,6 +187,7 @@ async def decide(
                 if row["version"] != it["version"]:
                     it["status"] = "superseded"
                     continue
+                _check_embed_origin(row, origin)
                 await _go_live(c, row, at)
                 it["status"] = "published"
                 published.append(row["id"])
@@ -238,7 +241,7 @@ async def live_rows(db: Db) -> "list[dict[str, Any]]":
     ]
 
 
-async def publish_now(db: Db, items: "list[dict[str, Any]]", note: str) -> "list[str]":
+async def publish_now(db: Db, items: "list[dict[str, Any]]", note: str, origin: str = "") -> "list[str]":
     """The owner publishes exactly these items ({id, version}), at exactly
     these versions, with no approval request (the owner is the approver): the
     writing desk and the whole-site revert. An item changed since is refused
@@ -261,6 +264,7 @@ async def publish_now(db: Db, items: "list[dict[str, Any]]", note: str) -> "list
                 )
             going.append(row)
         for row in going:
+            _check_embed_origin(row, origin)
             await _go_live(c, row, at)
         await check_public(c, await live_rows(c))
         for a in await _list_raw(c, "pending"):
@@ -304,3 +308,12 @@ async def unsent(db: Db) -> int:
         if (i["id"], i["version"]) not in asked:
             n += 1
     return n
+
+
+def _check_embed_origin(row, origin):
+    if row["kind"] != "site" or row["deleted"]:
+        return
+    data = json.loads(row["data"]) if isinstance(row["data"], str) else row["data"]
+    sources = embed_sources(data.get("embed_sources", []))
+    if origin and request_origin(origin) in sources:
+        raise ApiError(422, "invalid", "An embed source cannot be this site's own origin.")

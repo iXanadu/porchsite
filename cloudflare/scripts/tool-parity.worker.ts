@@ -53,7 +53,7 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
           const response = await transport.handleRequest(new Request("https://example.invalid/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) }));
           expect(response.status).toBe(200);
           const rpc = await response.json() as any;
-          if (key === "site_check" || key === "site_check_deep") {
+          if ((key === "site_check" || key === "site_check_deep") && c.name in BASELINES.cases) {
             const expected = BASELINES.cases[c.name as keyof typeof BASELINES.cases];
             expect(rpc.result.content[0].text, `${c.name} ${key} historical bytes`).toBe(key === "site_check" ? expected.quick : expected.deep);
           }

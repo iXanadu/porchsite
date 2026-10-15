@@ -153,6 +153,223 @@ one small dialect both editions render to the same bytes. The cases in
 
 Templates decide how kinds look, never what they say (see §6).
 
+### Owner-approved embeds
+
+This applies identically to both editions. S7 continues to require
+local copies of images; the frames below are an explicit, owner-approved
+exception for video and tour players, not an image hotlink or outside script.
+
+**Content and authority.** Add `site.embed_sources`, an ordered list of at
+most 20 distinct canonical HTTPS origins, default `[]`. Place a player in
+`entry.body` with a line containing only:
+
+```
+!embed[Title](https://example.com/player)
+```
+
+The title is non-empty single-line text, at most 200 characters; the URL is
+absolute HTTPS, at most 2,000 characters, subject to the URL rules below.
+Only `entry.body` recognises the form: never site about/intro, summaries,
+notes, cards, titles or other Markdown/text fields. The opening `!embed`
+must start at column zero, with no leading/trailing characters or spaces
+on that line. Fenced code (backtick or tilde), indented code, inline code,
+blockquotes and list-prefixed examples do not recognise it. A backslash
+before `!` escapes the form and never creates a player. In all these
+literal cases preserve ordinary Markdown code/escape presentation without
+turning the embed URL into a link or an image. Elsewhere an inline form is
+literal text, not an embed or an ordinary Markdown link. An invalid standalone form also stays escaped literal text. There is
+no `entry.embeds` field. No author-supplied HTML, sandbox flags, permission
+flags or scripts are accepted. `![]()` still means a locally stored image;
+embed URLs never enter image localisation or `media.store`. Ordinary links
+never become players.
+
+The source list and Markdown body are ordinary versioned content fields:
+creating, updating, removing,
+rolling back or restoring a source never bypasses passkey approval. Only
+the approved live `site` item grants frame authority. Saving a URL never
+adds its source to the list. A source and its first entry may be included
+in one approval, which names both item versions; until the source is live,
+its URLs are ordinary links. A missing source list means `[]`. Invalid
+source values are refused as `invalid`, with the existing field problem shape. Duplicate origins after canonicalisation are refused.
+
+**Origins and URLs.** Parse URLs structurally, never by string prefix. An
+origin has scheme `https`, a lowercased ASCII/punycode host and an optional
+non-default port; port 443 and an empty/root path disappear. Source input
+may have no path except `/`, and no query, fragment or user information.
+Reject whitespace, controls, backslashes, wildcards, trailing-dot hosts,
+fullwidth/ideographic dot variants, invalid ports and malformed addresses.
+Content URLs may have paths, queries and fragments, but have the same
+scheme, host, user-information and control-character checks. Preserve
+otherwise valid generic paths and parameters; escape them as attributes.
+
+Both editions use the [WHATWG URL host parser and origin serializer](https://url.spec.whatwg.org/#concept-host-parser),
+with the stricter rejections above. Require an explicit `https://` scheme
+(case-insensitive) and no base URL. Check both raw and percent-decoded
+authority before normalisation, including empty user-information syntax
+and encoded forbidden host characters. Both editions use the same
+international-domain mapping and canonical IPv4/IPv6 spelling. Browser-equivalent alternate IPv4 spellings must not
+bypass address checks. Reject localhost and its subdomains, all non-public
+IP literals (including mapped IPv4). At approval time, reject any proposed
+source equal to that approval request's origin. At render time, a source
+equal to the current request origin always becomes a link, never a frame.
+No deployment-origin inventory is required. Another alias of this same
+installation is a different origin and may be approved: this is an accepted
+residual, and the browser still enforces the cross-origin sandbox. Validation
+and rendering do not resolve or fetch the source URL.
+DNS names are not a server-side DNS or redirect-fetch service.
+
+Known share links are normalised before their effective source is checked:
+
+- Exact YouTube hosts `youtube.com`, `www.youtube.com`, `m.youtube.com`,
+  `youtu.be` and `www.youtube-nocookie.com`, on their default HTTPS port:
+  recognised `/watch?v=ID`, short-link `/ID`, `/shorts/ID` and `/embed/ID`
+  forms become `https://www.youtube-nocookie.com/embed/ID`. IDs are non-empty and contain
+  only ASCII letters, digits, `_` and `-`, at most 128 characters. Ambiguous
+  repeated ID parameters are refused. Tracking and player parameters are
+  dropped by this canonical form. The source to approve is
+  `https://www.youtube-nocookie.com`, not a watch-link host.
+- Exact `my.matterport.com`, default HTTPS port: `/show/?m=ID` becomes
+  `https://my.matterport.com/show/?m=ID`, with the same ID alphabet/bound
+  and no extra parameters. The source is `https://my.matterport.com`.
+- Other HTTPS URLs, including unsupported provider paths and non-default
+  ports, stay generic URLs. Any eligible origin can be approved; there is
+  no provider-only source list. `youtube.com.example.com` is never YouTube.
+
+Keep the URL and title in the Markdown form, never iframe markup.
+Canonicalise recognised URLs before source comparison and rendering; store
+the normalised origin list independently of the Markdown body. A URL's
+effective source must match an approved origin exactly: scheme, host and port.
+
+**Public rendering.** Render each recognised standalone form in place as an
+engine-made block, preserving its position between surrounding Markdown
+blocks. A body containing only that form is still a body. An entry with
+`external_url` keeps its existing outward-link behaviour. The engine, not a
+look or content author, produces frame markup.
+Look checks reject literal iframe/object/embed/frame tags, the engine's
+internal placeholder, and tag names beginning with a template expression
+(`<{{` or `</{{`). Attribute expressions and sections remain allowed.
+The guarantee is applied to rendered output: before expanding genuine
+engine blocks, neutralise every authored iframe/object/embed/frame tag,
+including names assembled by a look. An opening tag with a permitted https
+src/data/cite becomes a plain link; otherwise remove its tags and retain
+its text. Closing tags are removed with a separating space. Engine markers
+have unpredictable capabilities in a private render map; copying a static
+placeholder or its attributes cannot create a frame. Capabilities are not
+persisted in content; only the private render map can authorize a marker.
+The final rendered page enforces the fixed frame attributes and an actual
+page-wide limit of 12 frames, including repeated bodies: the first 12
+eligible occurrences in document order may become frames, and every later
+occurrence is a normal link. Count after the look selects the bodies it
+renders, not while constructing unused view contexts.
+
+For an approved source on a published public HTML page, produce a responsive
+frame with the escaped URL and title, `loading="lazy"`, `allowfullscreen`,
+`referrerpolicy="strict-origin-when-cross-origin"`, and exactly:
+
+```
+sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen; xr-spatial-tracking"
+```
+
+No other sandbox or permission tokens, `srcdoc`, data/blob URLs, inline
+player scripts, postMessage listeners or remote sizing code are introduced.
+The provider may load its own dependencies inside its separate frame;
+source approval is not a per-subresource allowlist for that provider.
+Always include a normal HTTPS link bearing the title beside the player;
+it remains usable when the remote site refuses framing. An unapproved
+source or a page-budget overflow produces only that link, with no frame
+or automatic remote request. Escape titles and URL attributes normally.
+
+Owner, review, preview, writing, upload, setup, login and passkey pages
+never contain frames or remote-player requests: show escaped URLs and titles
+as text/links. Feeds and search data do not contain executable frame HTML.
+The local `site_check` renderer also uses links and never fetches a player.
+Bodies without the standalone form keep their previous rendered bytes.
+
+**Check notes.** Default `site_check()` scans the proposed public entries'
+Markdown for recognised forms without loading a look, rendering pages or
+fetching URLs. If any effective source is absent from the LIVE list (or is
+the check request's own origin), append `embed_notes`, an array in entry
+order then occurrence order. Each note is `{id, url, origin, note}`: the
+entry id, canonical URL, canonical effective origin, and plain guidance to
+ask the owner to approve that source (or use a different source for a
+self-origin URL). These are notes, never `broken`, and do not change `ok`.
+Keep repeated occurrences in order. Omit `embed_notes` entirely when there
+are none, preserving existing no-embed answer bytes. `deep: true` retains
+these same notes alongside its existing reachability fields and caps.
+The proposed source list does not grant authority until approved.
+
+**Response policy.** Follow [CSP frame-source matching](https://w3c.github.io/webappsec-csp/#directive-frame-src)
+and [Permissions Policy inheritance](https://www.w3.org/TR/permissions-policy/).
+Only published public HTML may gain `frame-src`, built
+from the live approved canonical origins, in deterministic order. Omit it
+entirely when the list is empty; `default-src 'none'` already blocks frames.
+Keep CSP in the response header only. No approved origin is added to
+script, connect, image, style, font, media or object sources. Effective
+`object-src` and `frame-ancestors` remain `'none'`. Public HTML also sends:
+
+```
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), display-capture=(), publickey-credentials-get=()
+```
+
+Frame delegation is limited to the fixed `allow` list above. Owner/review
+and all other owner-capability pages keep their current separate CSP and
+`X-Frame-Options: DENY`; they do not inherit public `frame-src` or the public
+credential policy (which would break passkey sign-in). No public lookup or
+new authentication exception is added.
+
+Compute frame authority and markup from the current live allowlist on each
+public response. Removing a source is an approval: after publication every
+affected stored URL becomes a link and the next response's CSP shrinks,
+without republishing those entries. Never persist active iframe markup as
+content. If rendered-page caching is later added, every allowlist change
+must invalidate it before the changed policy is served.
+
+**Approval text.** Every add, removal and restoration of a source, including
+a whole-site revert, shows the exact canonical origin as isolated,
+HTML-escaped left-to-right text. For internationalised hosts, show both
+Unicode and punycode on the same line. Show the current published embed
+count using it and the count in this approval's prospective public snapshot.
+For each new/restored source, say plainly:
+
+> This lets published pages show anything from ORIGIN in a frame. That site
+> can play sound, use fullscreen and open separate pages; it can see that
+> the visitor came from this site. You are approving the whole source,
+> not one video or tour.
+
+For removal, name the origin and say its players become normal links.
+Adding or changing an entry with an embed shows its URL, title, effective
+origin and whether that source is already approved, proposed in the same approval, or remains
+unapproved. Review never loads the player. An approved hosting origin may
+serve arbitrary paths or other people's content; whole-origin approval
+and this warning are the control, not a promise about the host's contents.
+
+**Assistant guidance.** Both editions' `item_create` and `item_update`
+descriptions, and the generated field/tool contract, include this exact line:
+
+> An embed shows a video or tour from another site on your page. Each new source needs your approval; once approved, pages can show anything from that source.
+
+Follow that sentence with this syntax line in both tool descriptions:
+
+> Put it on its own line in the body: !embed[Title](https://example.com/player).
+
+Explain the effective origin when a provider URL is rewritten; propose
+`site.embed_sources` explicitly and include the `site` item in the approval
+when adding or removing authority. Existing approved sources need no second
+source approval, while entry publication still uses the normal approval.
+
+**Acceptance.** Paired tests cover empty
+and populated source lists, standalone-form placement/literal code cases,
+source caps, canonicalisation and spoof/IDN/IP
+cases, immutable approval versions, live versus proposed sources, add/remove/
+restore review text, fixed frame attributes, exactly/over 12 actually rendered
+frames, plain-link fallbacks, unchanged owner policies and zero owner-page
+players, default/deep embed notes and unchanged no-embed answers. Page/tool
+parity covers all sample looks with no embeds and shared embed fixtures. Browser tests cover YouTube and Matterport, fallback links,
+source removal and phone layout. Security verifies the source parser,
+headers, sandbox and proposed/live separation. No hosted CPU claim follows
+from these functional checks.
+
 ## 4. Assistant interface (MCP)
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID

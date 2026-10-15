@@ -2,6 +2,7 @@
  * Every content write goes through here, so the safety rules always apply:
  * versions (S3), idempotency (S4), revisions (S5) and the guard (S6).
  */
+import { embedSources } from "./embed-url";
 import { z } from "zod";
 import { ApiError } from "./errors";
 import { checkGuard } from "./guard";
@@ -67,6 +68,8 @@ export function validate(kind: string, data: unknown): Record<string, unknown> {
   }
   const out = parsed.data as Record<string, unknown>;
   if (kind === "site") {
+    try { out.embed_sources = embedSources(out.embed_sources as string[]); }
+    catch (e) { throw new ApiError(422, "invalid", "The content doesn't validate. Fix the listed fields and resend.", { problems: [{field: "embed_sources", problem: "Use distinct public https:// origins, without a path, login, query or fragment."}] }); }
     const ids = (out.streams as { id: string }[]).map((x) => x.id);
     const bad = (out.sections as string[]).filter((x) => !["entries", "cards", "notes", "about", ...ids].includes(x));
     if (bad.length) {

@@ -90,6 +90,26 @@ layouts it draws (a stream set to a layout the template lacks is drawn as
 - **Works small:** usable at 320 px wide; text contrast at least 4.5:1;
   every `<img>` gets `alt` from the view.
 
+### Engine-produced embeds
+
+A standalone `!embed[Title](https://example.com/player)` line in an entry's
+Markdown body is not raw HTML and does not change the image dialect. The
+engine produces an approved player or fallback link at that exact position
+in the body, so every look uses its existing `body_html` position. A body
+containing only the embed form still has `has_body`. There is no appended
+`entry.embeds` field. The fixed, responsive frame and its
+link are engine-produced safe HTML, with policy from SPEC.md's embed rules.
+Look checks reject literal iframe/object/embed/frame tags, internal
+placeholders, and `<{{` / `</{{` names, while allowing attribute sections.
+Rendered authored frame elements are neutralised before genuine engine
+markers expand: a permitted https target becomes a link; otherwise remove
+the tags and keep their text. Private, unpredictable marker capabilities
+prevent look-authored placeholders from creating frames. Looks cannot choose
+the engine's sandbox/permissions. The outside-request exception is limited to approved
+public frames; it never grants remote images, scripts or owner-page players.
+The engine enforces the 12-frame cap on the actual selected page, including
+repeated bodies. No-embed view/body output remains unchanged.
+
 ## 3. The view (what every template receives)
 
 Every page gets:

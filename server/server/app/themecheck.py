@@ -127,6 +127,8 @@ def rules(name: str, t: Theme, scripts: bool) -> list[str]:
             mustache.parse(src)
         except Exception as e:  # mustache.js throws Error
             problems.append(f"{file}: {e}")
+        if re.search(r"</?\{\{", src):
+            problems.append(f"{file}: tag names cannot start with a template expression")
         if re.search(r"\{\{=", src):
             problems.append(f"{file}: delimiter changes aren't allowed")
         for tri in re.findall(r"\{\{\{[^}]*\}\}\}", src):
@@ -145,7 +147,7 @@ def rules(name: str, t: Theme, scripts: bool) -> list[str]:
                     )
         if re.search(rf"{S}on[a-z]+{S}*=", src, _I):
             problems.append(f"{file}: inline event handlers (onclick=…) aren't allowed")
-        if re.search(r"<(iframe|object|embed|form)\b", src, _I):
+        if re.search(r"<(iframe|object|embed|frame|form|porchsite-embed)\b", src, _I):
             problems.append(f"{file}: no iframes, objects, embeds or forms")
         for img in re.findall(r"<img\b[^>]*>", src, _I):
             if not re.search(r'\balt="', img, _A):

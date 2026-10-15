@@ -111,6 +111,7 @@ const LINK = "a full https:// link (e.g. https://example.com/page), a path on th
 /** Every word on the site that isn't an entry, card or note. */
 export const SiteData = z
   .object({
+    embed_sources: z.array(z.string().max(2000)).max(20).default([]).describe("approved HTTPS player origins; adding or removing one requires owner approval"),
     title: line(80).default("My site").describe("site name, shown top left and in the browser tab"),
     tagline: optLine(160).describe("the big headline on the home page"),
     description: optLine(300).describe("one or two sentences about the site, for search results and link previews; empty uses the tagline"),
@@ -232,7 +233,7 @@ export const EntryData = z
       .string()
       .max(60000)
       .default("")
-      .describe("the post itself, Markdown. Images: ![what it shows](https://...) on a line of its own; each is copied into the site when you save"),
+      .describe("the post itself, Markdown. Embed on its own line: !embed[Title](https://example.com/player). Images: ![what it shows](https://...) on a line of its own; each is copied into the site when you save"),
     cover: image,
     cover_alt: alt("cover image"),
     external_url: optLink.describe("the full https:// address when the post lives elsewhere (an article on another site): the site lists it and links there instead of giving it a page; empty for a post on this site"),

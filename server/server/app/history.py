@@ -145,7 +145,7 @@ async def plan(db: Db, id: int) -> dict[str, Any]:
     return {"publish": publish, "changes": changes}
 
 
-async def revert(db: Db, id: int, note: str) -> dict[str, Any]:
+async def revert(db: Db, id: int, note: str, origin: str = "") -> dict[str, Any]:
     """Put the site back to this publish, as a new publish by the owner."""
     async with transaction(db) as c:
         p = await plan(c, id)
@@ -170,4 +170,4 @@ async def revert(db: Db, id: int, note: str) -> dict[str, Any]:
             )
             going.append({"id": done["id"], "version": done["version"]})
         words = f"Put the site back to publish {id}" + (f": {note.strip()}" if note.strip() else "")
-        return {"published": await publish_now(c, going, words)}
+        return {"published": await publish_now(c, going, words, origin)}

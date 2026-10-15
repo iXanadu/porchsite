@@ -32,9 +32,9 @@ export function nonce(): string {
  * server/spec/html.py is a line-for-line port: both must give the same bytes
  * (spec/markdown-cases.json).
  */
-export function markdown(src: string): Raw {
+export function markdown(src: string, block?: (line: string) => string | null): Raw {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
-  return raw(mdBlocks(lines, 0).blocks.map((b) => b.html).join("\n"));
+  return raw(mdBlocks(lines, 0, false, block).blocks.map((b) => b.html).join("\n"));
 }
 
 type MdBlock = { html: string; para?: string };
@@ -129,7 +129,7 @@ function mdInterrupts(line: string, inItem: boolean): boolean {
   return !!it && it.first.trim() !== "" && (it.kind === "ul" || it.start === 1 || inItem);
 }
 
-function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdBlock[]; gap: boolean } {
+function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null): { blocks: MdBlock[]; gap: boolean } {
   const out: MdBlock[] = [];
   let gap = false;
   let blankBefore = false;
@@ -167,6 +167,8 @@ function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdB
       out.push({ html: `<pre><code${cls}>${esc(code.length ? code.join("\n") + "\n" : "")}</code></pre>` });
       continue;
     }
+    const special = depth === 0 && block ? block(line) : null;
+    if (special !== null) { out.push({ html: special }); i++; continue; }
     const h = mdHeading(line);
     if (h) {
       out.push({ html: `<h${h.n}>${mdInline(h.text)}</h${h.n}>` });
@@ -245,7 +247,23 @@ function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdB
     }
     const para = [stripLeft(line)];
     i++;
-    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem)) para.push(stripLeft(lines[i++]));
+    let spans: [number, number][] | undefined;
+    let offset = para[0].length + 1;
+    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem)) {
+      if (depth === 0 && block && lines[i].startsWith("!embed[")) {
+        if (!para.some(p => p.includes("`"))) break;
+        if (spans === undefined) {
+          // Ask the ordinary inline parser: only spans in its chosen output
+          // count, including multiline spans and escaped/backtracking cases.
+          const rest: string[] = [];
+          for (let j = i; j < lines.length && !isBlank(lines[j]) && !mdInterrupts(lines[j], inItem); j++) rest.push(stripLeft(lines[j]));
+          const probe = mdInline([...para, ...rest].join("\n").replace(/[ \t]+$/, ""), true);
+          spans = [...probe.matchAll(/<code data-md-code="(\d+):(\d+)">/g)].map(m => [Number(m[1]), Number(m[2])]);
+        }
+        if (!spans.some(([start, end]) => start <= offset && offset < end)) break;
+      }
+      const next = stripLeft(lines[i++]); para.push(next); offset += next.length + 1;
+    }
     const text = mdInline(para.join("\n").replace(/[ \t]+$/, ""));
     out.push({ html: `<p>${text}</p>`, para: text });
   }
@@ -253,7 +271,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false): { blocks: MdB
 }
 
 /** Inline Markdown for one paragraph or heading: code, images, links, emphasis, breaks, smart punctuation. */
-function mdInline(s: string): string {
+function mdInline(s: string, positions = false): string {
   // Lookup tables keep the scan near-linear however the text is built.
   const n = s.length;
   const runEnd = new Int32Array(n + 1); // end of the run of equal characters at i
@@ -358,6 +376,12 @@ function mdInline(s: string): string {
         i++;
         continue;
       }
+      if (s.startsWith("!embed[", i) || s.startsWith("\\!embed[", i)) {
+        const start = c === "\\" ? i + 1 : i;
+        const stop = s.indexOf(")", start);
+        const to = stop < 0 || stop >= end ? end : stop + 1;
+        out += esc(s.slice(start, to)); i = to; continue;
+      }
       if (c === "\\") {
         const nx = i + 1 < end ? s[i + 1] : "";
         if (nx === "\n") {
@@ -382,7 +406,7 @@ function mdInline(s: string): string {
         }
         let code = s.slice(i + t, found).replace(/\n/g, " ");
         if (code.length > 2 && code[0] === " " && code[code.length - 1] === " " && code.trim() !== "") code = code.slice(1, -1);
-        out += `<code>${esc(code)}</code>`;
+        out += `<code${positions ? ` data-md-code="${i}:${found + t}"` : ""}>${esc(code)}</code>`;
         i = found + t;
         continue;
       }

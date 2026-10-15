@@ -138,7 +138,7 @@ def _interrupts(line: str, in_item: bool) -> bool:
 
 
 def _blocks(
-    lines: list[str], depth: int, in_item: bool = False
+    lines: list[str], depth: int, in_item: bool = False, block=None
 ) -> tuple[list[tuple[str, str | None]], bool]:
     """Block Markdown: [(html, paragraph's inline html or None)], and whether
     a blank line separated two of them (a loose list item)."""
@@ -182,6 +182,11 @@ def _blocks(
             cls = f' class="language-{esc(lang)}"' if lang else ""
             body = "\n".join(code) + "\n" if code else ""
             out.append((f"<pre><code{cls}>{esc(body)}</code></pre>", None))
+            continue
+        special = block(line) if depth == 0 and block else None
+        if special is not None:
+            out.append((special, None))
+            i += 1
             continue
         h = _heading(line)
         if h:
@@ -264,15 +269,32 @@ def _blocks(
             continue
         para = [_strip_left(line)]
         i += 1
+        spans = None
+        offset = len(para[0]) + 1
         while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item):
-            para.append(_strip_left(lines[i]))
+            if depth == 0 and block and lines[i].startswith("!embed["):
+                if not any("`" in p for p in para):
+                    break
+                if spans is None:
+                    rest = []
+                    j = i
+                    while j < len(lines) and not _is_blank(lines[j]) and not _interrupts(lines[j], in_item):
+                        rest.append(_strip_left(lines[j]))
+                        j += 1
+                    probe = _inline("\n".join(para + rest).rstrip(" \t"), True)
+                    spans = [(int(a), int(b)) for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)]
+                if not any(start <= offset < end for start, end in spans):
+                    break
+            nxt = _strip_left(lines[i])
+            para.append(nxt)
+            offset += len(nxt) + 1
             i += 1
         text = _inline("\n".join(para).rstrip(" \t"))
         out.append((f"<p>{text}</p>", text))
     return out, gap
 
 
-def _inline(s: str) -> str:
+def _inline(s: str, positions=False) -> str:
     """Inline Markdown for one paragraph or heading: code, images, links,
     emphasis, breaks, smart punctuation."""
     # Lookup tables keep the scan near-linear however the text is built.
@@ -380,6 +402,13 @@ def _inline(s: str) -> str:
                 out.append(c)
                 i += 1
                 continue
+            if s.startswith("!embed[", i) or s.startswith("\\!embed[", i):
+                start = i + 1 if c == "\\" else i
+                stop = s.find(")", start, end)
+                to = end if stop < 0 else stop + 1
+                out.append(esc(s[start:to]))
+                i = to
+                continue
             if c == "\\":
                 nx = s[i + 1] if i + 1 < end else ""
                 if nx == "\n":
@@ -402,7 +431,7 @@ def _inline(s: str) -> str:
                 code = s[i + t : found].replace("\n", " ")
                 if len(code) > 2 and code[0] == " " and code[-1] == " " and trim(code) != "":
                     code = code[1:-1]
-                out.append(f"<code>{esc(code)}</code>")
+                out.append(f'<code{f" data-md-code=\"{i}:{found + t}\"" if positions else ""}>{esc(code)}</code>')
                 i = found + t
                 continue
             if c == "!" and at(i + 1) == "[" and i + 1 < end:
@@ -507,9 +536,9 @@ def _inline(s: str) -> str:
     return done[0] if done else ""
 
 
-def markdown(src: str) -> str:
+def markdown(src: str, block=None) -> str:
     """Markdown, safe and deliberately small (spec/SPEC.md, "Markdown"): a
     line-for-line port of cloudflare/src/html.ts; both must give the same
     bytes (spec/markdown-cases.json)."""
     lines = src.replace("\r\n", "\n").split("\n")
-    return "\n".join(b[0] for b in _blocks(lines, 0)[0])
+    return "\n".join(b[0] for b in _blocks(lines, 0, block=block)[0])

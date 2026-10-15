@@ -2,6 +2,8 @@
  * The assistant's tools (SPEC §4). Every tool goes through content.ts and
  * approvals.ts; none of them can publish (S1).
  */
+import { EMBED_ADVICE, EMBED_SYNTAX } from "./embed-url";
+import { embedNotes } from "./embeds";
 import { McpServer } from "@modelcontextprotocol/server";
 import { toolProps } from "./tool-context";
 import { env } from "cloudflare:workers";
@@ -106,7 +108,7 @@ async function stateItems(db: D1Database, full?: boolean, ids?: string[]) {
 
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
 const IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file." + " " + PHOTO_ADVICE;
-const CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.";
+const CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Unapproved embed sources appear as non-failing embed_notes. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.";
 const STATES = {
   live: "published, and the current version is what visitors see",
   changed: "published, with a newer version that isn't approved yet",
@@ -205,11 +207,11 @@ export const TOOL_DEFINITIONS = {
   item_create: {
       description: `Create an item; nothing is public until the owner approves. Kinds: ${Object.entries(KIND_GUIDE)
         .map(([k, v]) => `${k}: ${v}`)
-        .join(". ")}. data holds that kind's fields (see \`fields\` in site_state).`,
+        .join(". ")}. data holds that kind's fields (see \`fields\` in site_state). ${EMBED_ADVICE} ${EMBED_SYNTAX}`,
       inputSchema: INPUT_SCHEMAS.item_create,
     },
   item_update: {
-      description: "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo.",
+      description: "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo." + " " + EMBED_ADVICE + " " + EMBED_SYNTAX,
       inputSchema: INPUT_SCHEMAS.item_update,
     },
   item_remove: {
@@ -500,7 +502,9 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
         const v = await proposedView(db, changes);
         const { results } = await db.prepare("SELECT name FROM media").all<{ name: string }>();
         const names = new Set(results.map((r) => r.name));
-        return deep ? checkSiteDeep(v, names, await themes.load(db, String(v.site.theme)), origin()) : checkSite(v, names);
+        const result = deep ? await checkSiteDeep(v, names, await themes.load(db, String(v.site.theme)), origin()) : checkSite(v, names);
+        const notes = v.entries.some(e => String(e.body ?? "").includes("!embed[")) ? embedNotes(v.entries, (await content.siteData(db, true)).embed_sources, origin()) : [];
+        return {...result, ...(notes.length ? {embed_notes: notes} : {})};
       }),
   );
 

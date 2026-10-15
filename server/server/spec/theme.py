@@ -13,7 +13,7 @@ from typing import Any
 
 from . import mustache
 from .blocks import contact_view, event_view, hours_view, notice_view
-from .html import markdown
+from .embeds import body_markdown, finish_embeds
 from .jsutil import S, long_date, short_date, string, trim, u16key, u16slice, url_host
 from .site import SiteView
 from .strings import STRINGS, strings_of
@@ -111,7 +111,7 @@ def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None) -> Da
         "date_short": short_date(e["date"]),
         "date_long": long_date(e["date"]),
         "has_body": bool(e.get("body")) and not e.get("external_url"),
-        "body_html": markdown(e["body"]) if e.get("body") and not e.get("external_url") else "",
+        "body_html": body_markdown(e["body"]) if e.get("body") and not e.get("external_url") else "",
         "stats": stats,
         "has_stats": bool(len(stats)),
         "external": bool(e.get("external_url")),
@@ -510,4 +510,4 @@ def _theme(root: Path, name: str) -> tuple[mustache.Writer, dict[str, str], dict
 
 def render(name: str, page: str, view: Data, root: Path = THEMES) -> str:
     writer, pages, partials = _theme(Path(root), name)
-    return writer.render(pages[page], view, partials)
+    return finish_embeds(writer.render(pages[page], view, partials), view=view)

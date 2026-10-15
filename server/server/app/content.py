@@ -17,6 +17,7 @@ from typing import Any
 import asyncpg
 from pydantic import ValidationError
 
+from server.spec.embed_url import embed_sources
 from server.spec.models import KINDS, MODELS, PREFIX, SITE_ID
 
 from . import media
@@ -112,6 +113,10 @@ def validate(kind: str, data: Any) -> dict[str, Any]:
     except ValidationError as e:
         raise ApiError(422, "invalid", INVALID, {"problems": problems_of(e)}) from None
     if kind == "site":
+        try:
+            out["embed_sources"] = embed_sources(out["embed_sources"])
+        except (ValueError, UnicodeError):
+            raise ApiError(422, "invalid", INVALID, {"problems": [{"field": "embed_sources", "problem": "Use distinct public https:// origins, without a path, login, query or fragment."}]}) from None
         ids = [x["id"] for x in out["streams"]]
         bad = [x for x in out["sections"] if x not in ["entries", "cards", "notes", "about", *ids]]
         if bad:

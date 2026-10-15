@@ -7,6 +7,7 @@
   },
   "fields": {
     "site": {
+      "embed_sources": "approved HTTPS player origins; adding or removing one requires owner approval",
       "title": "site name, shown top left and in the browser tab",
       "tagline": "the big headline on the home page",
       "description": "one or two sentences about the site, for search results and link previews; empty uses the tagline",
@@ -55,7 +56,7 @@
       "title": "required. the post's title",
       "date": "required. the owner's local date, written YYYY-MM-DD, e.g. 2026-10-08",
       "summary": "one or two sentences shown in lists",
-      "body": "the post itself, Markdown. Images: ![what it shows](https://...) on a line of its own; each is copied into the site when you save",
+      "body": "the post itself, Markdown. Embed on its own line: !embed[Title](https://example.com/player). Images: ![what it shows](https://...) on a line of its own; each is copied into the site when you save",
       "cover": "an image: a full https:// link to a JPEG, PNG or WebP (up to 8 MB), copied into the site when you save, or a /media/... path this site gave you; empty for none",
       "cover_alt": "a few words saying what the cover image shows, for people who can't see it; required when there is a cover image",
       "external_url": "the full https:// address when the post lives elsewhere (an article on another site): the site lists it and links there instead of giving it a page; empty for a post on this site",
