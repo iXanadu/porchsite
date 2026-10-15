@@ -59,15 +59,10 @@ def _apply(b, edits):
 
 
 def _safe_tail(b, start, names):
-    # Preserve header-only legacy fixtures only when no metadata packet hides
-    # in the damaged tail. Candidate counts bound hostile repeated prefixes.
+    # A native fixed-byte search neither copies nor decodes the picture.
     for name in names:
-        at, count = start, 0
-        while (at := b.find(name[:1], at)) >= 0:
-            count += 1
-            if count > 65536 or b.startswith(name, at):
-                _bad()
-            at += 1
+        if b.find(name, start) >= 0:
+            _bad()
 
 
 def _jpeg(b):
@@ -79,6 +74,8 @@ def _jpeg(b):
             break
         marker = start + 1
         while marker < len(b) and b[marker] == 255:
+            if marker - start > 4096:
+                _bad()
             marker += 1
         if marker >= len(b):
             break

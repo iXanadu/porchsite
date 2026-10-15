@@ -1,4 +1,5 @@
 /** Remove location metadata without decoding pixels or following EXIF pointers. */
+import { Buffer } from "node:buffer";
 import { ApiError } from "./errors";
 type Edit = { start: number; end: number; bytes: Uint8Array };
 const ascii = (b: Uint8Array, i: number, s: string) => [...s].every((c, n) => b[i + n] === c.charCodeAt(0));
@@ -45,22 +46,18 @@ function apply(b: Uint8Array, edits: Edit[]): Uint8Array {
 // Header-only legacy pictures may be incomplete. Never pass through a damaged
 // tail containing a possible metadata packet; reject it without exposing bytes.
 function safeTail(b: Uint8Array, start: number, names: string[]): void {
-  for (const name of names) {
-    let at = start, candidates = 0;
-    while ((at = b.indexOf(name.charCodeAt(0), at)) >= 0) {
-      if (++candidates > 65536 || ascii(b, at, name)) bad();
-      at++;
-    }
-  }
+  const view = Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+  for (const name of names) if (view.indexOf(name, start, "latin1") >= 0) bad();
 }
 function jpeg(b: Uint8Array): Uint8Array {
   const edits: Edit[] = [];
+  const view = Buffer.from(b.buffer, b.byteOffset, b.byteLength);
   let at = 2, segments = 0;
   while (at < b.length) {
-    const start = b.indexOf(255, at);
+    const start = view.indexOf("\xff", at, "latin1");
     if (start < 0) break;
     let marker = start + 1;
-    while (marker < b.length && b[marker] === 255) marker++;
+    while (marker < b.length && b[marker] === 255) { if (marker - start > 4096) bad(); marker++; }
     if (marker >= b.length) break;
     const code = b[marker];
     if (code === 0 || code === 1 || (code >= 0xd0 && code <= 0xd9)) { at = marker + 1; continue; }
