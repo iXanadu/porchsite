@@ -52,8 +52,12 @@ site's OAuth connector, and pictures held as files. In order:
   site's database (as the installer does), not a Worker secret: no secret
   to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-10** OPEN: Uploading many photos costs one tool call each (34+ in a
-  reunion build). A batch: several pictures per image_add call, or one
-  upload link for many files.
+  reunion build). Decided (2026-10-15): several pictures per image_add
+  call, behind the same owner auth; at most 8 files and 32 MB decoded per
+  call; every file sniffed; stored by hash only (filenames ignored); all or
+  nothing (any bad file stores none). The one-shot photo upload link stays
+  one file. Many phone photos at once would be a signed-in owner page, a
+  separate item if wanted. Check the Worker's memory at the cap first.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
   guide (by app), and Grok Bot's Porchsite template, public and linked.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
