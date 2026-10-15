@@ -3,7 +3,7 @@
 //   npm run theme:check <name>     check the rules, render every page, take previews
 //   node scripts/theme.mjs raw <name> <themes> <outdir> [now]   the sample's pages, unmodified
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { paletteCss } from "../src/blocks";
 import { check, renderSample } from "../src/themecheck";
@@ -21,15 +21,26 @@ export function loadTheme(name: string): Theme {
   return { manifest: JSON.parse(readFileSync(join(dir, "template.json"), "utf8")), pages: read(dir, ".mustache"), partials: read(join(dir, "partials"), ".mustache"), static: read(join(dir, "static"), "") };
 }
 
-function writeSite(pages: Record<string, string>, t: Theme, dir: string, palette = ""): void {
+function writeSite(pages: Record<string, string>, t: Theme, dir: string, palette = "", sampleMedia = ""): void {
   for (const [p, html] of Object.entries(pages)) {
     const depth = p.split("/").length - 1;
     const up = "../".repeat(depth);
     const local = html
+      .replace(/(href|src)="\/media\/([a-f0-9]{32}\.(?:jpg|png|webp))"/g, `$1="${up}media/$2"`)
       .replace(/(href|src)="\/static\/([^"?]+)[^"]*"/g, `$1="${up}static/$2"`)
-      .replace(/href="\/([^"#]*)"/g, (_m, q) => `href="${up}${q}${q === "" || q.endsWith("/") ? "index.html" : ""}"`);
+      .replace(/href="\/([^"]*)"/g, (_m, q) => {
+        const hash = q.indexOf("#"), path = hash < 0 ? q : q.slice(0, hash), anchor = hash < 0 ? "" : q.slice(hash);
+        return `href="${up}${path}${path === "" || path.endsWith("/") ? "index.html" : ""}${anchor}"`;
+      });
     mkdirSync(join(dir, p, ".."), { recursive: true });
     writeFileSync(join(dir, p), local);
+  }
+  if (sampleMedia && existsSync(sampleMedia)) {
+    mkdirSync(join(dir, "media"), { recursive: true });
+    for (const name of readdirSync(sampleMedia)) {
+      const source = join(sampleMedia, name);
+      if (/^[a-f0-9]{32}\.(?:jpg|png|webp)$/.test(name) && statSync(source).isFile()) copyFileSync(source, join(dir, "media", name));
+    }
   }
   mkdirSync(join(dir, "static"), { recursive: true });
   // The site's palette goes after the theme's stylesheet, as the site serves it.
@@ -55,7 +66,7 @@ function main() {
     const t = loadTheme(name);
     const dir = resolve(process.argv[5] ?? join("theme-preview", name));
     const sample = JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8"));
-    writeSite(renderSample(t as any, sample), t, dir, String(sample.site?.palette ?? ""));
+    writeSite(renderSample(t as any, sample), t, dir, String(sample.site?.palette ?? ""), join(ROOT, name, "sample-media"));
     console.log(`rendered ${join(dir, "index.html")}`);
     if (cmd === "preview") execFileSync(process.platform === "darwin" ? "open" : "xdg-open", [join(dir, "index.html")]);
     return;

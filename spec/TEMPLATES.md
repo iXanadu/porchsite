@@ -21,9 +21,17 @@ my-template/
 ├── tag.mustache         # a stream's entries with one tag (required)
 ├── not_found.mustache   # the 404 page (required)
 ├── partials/            # optional *.mustache, used as {{> name}}
+├── sample-media/        # optional example photos for local/catalog previews only
 └── static/              # site.css (required) and the template's scripts,
                          # served at /static/<file>
 ```
+
+`sample-media/` may hold licensed example JPEG/PNG/WebP files named like the
+sample's `/media/<32-hex>.<ext>` paths, with source/license notes. The kit's
+local/catalog preview copies them into its preview folder. They are never
+installed as site media, included in the Worker registry or theme package,
+or published by choosing a look; real sites upload their own photographs.
+Raw parity output retains the ordinary `/media/` paths.
 
 `template.json`:
 
@@ -63,6 +71,36 @@ the site, so an assistant can gather it before switching:
   `recommended` or `optional`; `prompt` is a starting point for making one.
 - `content`: `[{field, need, purpose}]`, the words and settings the
   template reads and what it does with each.
+
+`heading_ids` (optional boolean, default `false`): opt in to stable ids on
+headings in entry Markdown bodies, on home, entry and archive/tag views.
+The same heading has the same id wherever that body is shown. Derive ids
+from the rendered heading's visible text: lowercase ASCII A-Z only, keep
+`[a-z0-9]`, replace every run of anything else (including all non-ASCII)
+with one `-`, and trim `-`. Cut the base to 64 characters and trim `-`
+again; an empty base becomes `section`. There is no Unicode normalization:
+for example, `Café` becomes `caf`. This is identical on every runtime.
+Repeats in one body add `-2`, `-3`, and so on; collisions with an already
+used id also advance that suffix. A per-base next-suffix map keeps repeated
+allocation linear in the number of headings, including pre-existing suffixes.
+Fenced/indented code and inline code keep their ordinary Markdown behavior.
+The flag changes no stored content, and omitted/false keeps all existing
+look output byte-identical. Menus and hero buttons can already use local
+paths with fragments such as `/listing/home/#video-tour`; no new URL form
+is needed. Theme-authored element ids remain the look's responsibility.
+
+`body_h1_as_h2` (optional boolean, default `false`) renders entry-body
+Markdown level-one headings as `<h2>`; all other levels and heading-id
+text stay unchanged. Only the Listing look enables this flag, so each of
+its pages has one look-authored `<h1>` even when a body contains `# Photos`.
+Both flags are manifest-scoped and do not change stored Markdown.
+
+The built-in `listing-page` look is for one property. It uses a wide real
+property photo, price/stat figures, entry-body photos as a responsive
+gallery, in-place video/tour embeds, open-house information, contact and a
+map link. Its `art` brief asks for the property's actual photos, never
+invented rooms, engravings or mascot art. `theme_needs` returns that look's
+own manifest art brief and image purposes, including for built-in looks.
 
 `sections`: the home section kinds the template draws. `layouts`: the stream
 layouts it draws (a stream set to a layout the template lacks is drawn as

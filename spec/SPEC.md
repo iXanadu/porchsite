@@ -400,6 +400,13 @@ source removal and phone layout. Security verifies the source parser,
 headers, sandbox and proposed/live separation. No hosted CPU claim follows
 from these functional checks.
 
+When a look opts in with `heading_ids: true` in its manifest, entry-body
+headings receive stable ASCII-only ids as defined in TEMPLATES.md. The Listing
+look also enables `body_h1_as_h2`, so body `#` headings render as `<h2>`
+and its page title remains the only `<h1>`. Both flags default to off;
+existing looks and stored item data are unchanged. On-site menu and button
+links may include a fragment (for example `/listing/home/#video-tour`).
+
 ## 4. Assistant interface (MCP)
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID

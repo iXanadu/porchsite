@@ -6,7 +6,7 @@
  * carries its stream, so a theme names no stream and holds no words of its own
  * beyond its UI strings.
  */
-import { bodyMarkdown, finishEmbeds } from "./embeds";
+import { bodyMarkdown, finishEmbeds, headingBodies } from "./embeds";
 import Mustache from "mustache";
 import { THEMES } from "./themes.gen";
 import { dateString } from "./date-format";
@@ -319,6 +319,7 @@ for (const theme of Object.values(THEMES)) {
 }
 
 export function render(t: Theme, page: string, view: Data, policy?: { sources: unknown; origin: string }): string {
+  if (t.manifest?.heading_ids === true || t.manifest?.body_h1_as_h2 === true) view = headingBodies(view, t.manifest.heading_ids === true, t.manifest.body_h1_as_h2 === true);
   return finishEmbeds(Mustache.render(t.pages[page], view, t.partials), policy?.sources, policy?.origin, view);
 }
 

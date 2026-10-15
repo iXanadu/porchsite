@@ -137,8 +137,27 @@ def _interrupts(line: str, in_item: bool) -> bool:
     )
 
 
+def _heading_id(inner, used):
+    text = re.sub(r"<[^>]*>", "", inner)
+    text = re.sub(r"&#(\d+);", lambda m: chr(int(m[1])), text)
+    text = re.sub(r"[A-Z]", lambda m: m[0].lower(), text)
+    base = re.sub(r"[^a-z0-9]+", "-", text).strip("-")[:64].rstrip("-") or "section"
+    taken, next_suffix = used
+    identifier = base
+    if identifier in taken:
+        count = next_suffix.get(base, 2)
+        while True:
+            identifier = f"{base}-{count}"
+            count += 1
+            if identifier not in taken:
+                break
+        next_suffix[base] = count
+    taken.add(identifier)
+    return identifier
+
+
 def _blocks(
-    lines: list[str], depth: int, in_item: bool = False, block=None
+    lines: list[str], depth: int, in_item: bool = False, block=None, ids=None, body_h1_as_h2=False
 ) -> tuple[list[tuple[str, str | None]], bool]:
     """Block Markdown: [(html, paragraph's inline html or None)], and whether
     a blank line separated two of them (a loose list item)."""
@@ -190,7 +209,10 @@ def _blocks(
             continue
         h = _heading(line)
         if h:
-            out.append((f"<h{h[0]}>{_inline(h[1])}</h{h[0]}>", None))
+            inner = _inline(h[1])
+            identifier = f' id="{_heading_id(inner, ids)}"' if ids is not None else ""
+            level = 2 if body_h1_as_h2 and h[0] == 1 else h[0]
+            out.append((f"<h{level}{identifier}>{inner}</h{level}>", None))
             i += 1
             continue
         if _hr(line):
@@ -210,7 +232,9 @@ def _blocks(
                 else:
                     break
                 i += 1
-            quoted = "".join(b[0] for b in _blocks(inner, depth + 1)[0])
+            quoted = "".join(
+                b[0] for b in _blocks(inner, depth + 1, ids=ids, body_h1_as_h2=body_h1_as_h2)[0]
+            )
             out.append((f"<blockquote>{quoted}</blockquote>", None))
             continue
         first = _item(line) if depth < MAX_DEPTH else None
@@ -243,7 +267,9 @@ def _blocks(
                 while content and _is_blank(content[-1]):
                     content.pop()
                     trailing += 1
-                bs, item_gap = _blocks(content, depth + 1, True)
+                bs, item_gap = _blocks(
+                    content, depth + 1, True, ids=ids, body_h1_as_h2=body_h1_as_h2
+                )
                 if item_gap:
                     loose = True
                 items.append(bs)
@@ -278,11 +304,18 @@ def _blocks(
                 if spans is None:
                     rest = []
                     j = i
-                    while j < len(lines) and not _is_blank(lines[j]) and not _interrupts(lines[j], in_item):
+                    while (
+                        j < len(lines)
+                        and not _is_blank(lines[j])
+                        and not _interrupts(lines[j], in_item)
+                    ):
                         rest.append(_strip_left(lines[j]))
                         j += 1
                     probe = _inline("\n".join(para + rest).rstrip(" \t"), True)
-                    spans = [(int(a), int(b)) for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)]
+                    spans = [
+                        (int(a), int(b))
+                        for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)
+                    ]
                 if not any(start <= offset < end for start, end in spans):
                     break
             nxt = _strip_left(lines[i])
@@ -431,7 +464,9 @@ def _inline(s: str, positions=False) -> str:
                 code = s[i + t : found].replace("\n", " ")
                 if len(code) > 2 and code[0] == " " and code[-1] == " " and trim(code) != "":
                     code = code[1:-1]
-                out.append(f'<code{f" data-md-code=\"{i}:{found + t}\"" if positions else ""}>{esc(code)}</code>')
+                out.append(
+                    f"<code{f' data-md-code="{i}:{found + t}"' if positions else ''}>{esc(code)}</code>"
+                )
                 i = found + t
                 continue
             if c == "!" and at(i + 1) == "[" and i + 1 < end:
@@ -536,9 +571,18 @@ def _inline(s: str, positions=False) -> str:
     return done[0] if done else ""
 
 
-def markdown(src: str, block=None) -> str:
+def markdown(src: str, block=None, heading_ids=False, body_h1_as_h2=False) -> str:
     """Markdown, safe and deliberately small (spec/SPEC.md, "Markdown"): a
     line-for-line port of cloudflare/src/html.ts; both must give the same
     bytes (spec/markdown-cases.json)."""
     lines = src.replace("\r\n", "\n").split("\n")
-    return "\n".join(b[0] for b in _blocks(lines, 0, block=block)[0])
+    return "\n".join(
+        b[0]
+        for b in _blocks(
+            lines,
+            0,
+            block=block,
+            ids=(set(), {}) if heading_ids else None,
+            body_h1_as_h2=body_h1_as_h2,
+        )[0]
+    )

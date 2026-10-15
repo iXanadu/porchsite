@@ -4,6 +4,7 @@ set. Rendering is mustache.js's (see mustache.py), escaping & < > " ' and
 nothing else, as the Cloudflare edition does.
 """
 
+import json
 import os
 import re
 from datetime import UTC, datetime
@@ -13,7 +14,7 @@ from typing import Any
 
 from . import mustache
 from .blocks import contact_view, event_view, hours_view, notice_view
-from .embeds import body_markdown, finish_embeds
+from .embeds import body_markdown, finish_embeds, heading_bodies
 from .jsutil import S, long_date, short_date, string, trim, u16key, u16slice, url_host
 from .site import SiteView
 from .strings import STRINGS, strings_of
@@ -111,7 +112,9 @@ def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None) -> Da
         "date_short": short_date(e["date"]),
         "date_long": long_date(e["date"]),
         "has_body": bool(e.get("body")) and not e.get("external_url"),
-        "body_html": body_markdown(e["body"]) if e.get("body") and not e.get("external_url") else "",
+        "body_html": body_markdown(e["body"])
+        if e.get("body") and not e.get("external_url")
+        else "",
         "stats": stats,
         "has_stats": bool(len(stats)),
         "external": bool(e.get("external_url")),
@@ -499,15 +502,26 @@ def _read(p: Path) -> str:
 
 
 @cache
-def _theme(root: Path, name: str) -> tuple[mustache.Writer, dict[str, str], dict[str, str]]:
+def _theme(
+    root: Path, name: str
+) -> tuple[mustache.Writer, dict[str, str], dict[str, str], bool, bool]:
     d = root / name
     partials = {
         p.name[: -len(".mustache")]: _read(p) for p in sorted((d / "partials").glob("*.mustache"))
     }
     pages = {p.name[: -len(".mustache")]: _read(p) for p in sorted(d.glob("*.mustache"))}
-    return mustache.Writer(escape), pages, partials
+    manifest = json.loads(_read(d / "template.json"))
+    return (
+        mustache.Writer(escape),
+        pages,
+        partials,
+        manifest.get("heading_ids") is True,
+        manifest.get("body_h1_as_h2") is True,
+    )
 
 
 def render(name: str, page: str, view: Data, root: Path = THEMES) -> str:
-    writer, pages, partials = _theme(Path(root), name)
+    writer, pages, partials, heading_ids, body_h1_as_h2 = _theme(Path(root), name)
+    if heading_ids or body_h1_as_h2:
+        view = heading_bodies(view, heading_ids, body_h1_as_h2)
     return finish_embeds(writer.render(pages[page], view, partials), view=view)

@@ -46,9 +46,9 @@ def embed_line(line):
     return {"url": u.href, "title": m[1], "origin": u.origin}
 
 
-def body_markdown(src, visit=None):
+def body_markdown(src, visit=None, heading_ids=False, body_h1_as_h2=False):
     if "!embed[" not in src:
-        return markdown(src)
+        return markdown(src, heading_ids=heading_ids, body_h1_as_h2=body_h1_as_h2)
 
     markers = {}
 
@@ -64,8 +64,29 @@ def body_markdown(src, visit=None):
         title = quote(e["title"], safe="-_.!~*'()")
         return f'<porchsite-embed data-key="{key}" data-url="{url}" data-title="{title}"></porchsite-embed>'
 
-    html = markdown(src, block)
+    html = markdown(src, block, heading_ids, body_h1_as_h2)
     return _Body(html, markers) if markers else html
+
+
+def heading_bodies(value, heading_ids=True, body_h1_as_h2=False, bodies=None):
+    """Rebuild each Markdown source once, keeping its private engine capabilities."""
+    bodies = {} if bodies is None else bodies
+    if isinstance(value, list):
+        return [heading_bodies(child, heading_ids, body_h1_as_h2, bodies) for child in value]
+    if not isinstance(value, dict):
+        return value
+    out = {}
+    for key, child in value.items():
+        if key == "body_html" and child and isinstance(value.get("body"), str):
+            source = value["body"]
+            if source not in bodies:
+                bodies[source] = body_markdown(
+                    source, heading_ids=heading_ids, body_h1_as_h2=body_h1_as_h2
+                )
+            out[key] = bodies[source]
+        else:
+            out[key] = heading_bodies(child, heading_ids, body_h1_as_h2, bodies)
+    return out
 
 
 def embeds_of(src):

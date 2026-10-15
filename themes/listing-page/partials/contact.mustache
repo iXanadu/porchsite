@@ -1,0 +1,6 @@
+{{#site.contact.has}}<section class="visit" id="about"><div class="visit-copy"><p class="eyebrow">{{site.title}}</p><h2>{{site.about_title}}</h2>{{#site.about}}<p>{{site.about}}</p>{{/site.about}}</div><div class="visit-actions">
+{{#site.contact.email}}<a class="button" href="mailto:{{site.contact.email}}">{{site.contact.email}}</a>{{/site.contact.email}}
+{{#site.contact.phone}}<a class="button secondary" href="{{site.contact.phone_href}}">{{site.contact.phone}}</a>{{/site.contact.phone}}
+{{#site.contact.address_one_line}}<p>{{site.contact.address_one_line}}</p>{{/site.contact.address_one_line}}
+{{#site.contact.map_link}}<a class="text-link" href="{{site.contact.map_link}}">{{strings.directions}} ↗</a>{{/site.contact.map_link}}
+</div></section>{{/site.contact.has}}
