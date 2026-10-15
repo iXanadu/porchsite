@@ -1,35 +1,9 @@
 /** Fast dispatch for proven legacy forms; every other request uses the original handler. */
-import { createMcpHandler } from "agents/mcp/server";
-import { createServer, createToolHandlers, INSTRUCTIONS, TOOL_DEFINITIONS } from "./mcp";
+import { originalMcp } from "./mcp-original";
+import { createToolHandlers, INSTRUCTIONS, TOOL_DEFINITIONS } from "./mcp";
 import type { Env } from "./env";
 import { withToolContext } from "./tool-context";
 import { reportMcpDispatch } from "./mcp-dispatch-diagnostic";
-
-const streamed = createMcpHandler(createServer, { route: "/mcp" });
-
-/**
- * A client that accepts only JSON gets JSON, as from the server edition: the
- * MCP library answers a POST only as an event stream, so the stream's one
- * message is unwrapped here.
- */
-async function originalMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  const accept = req.headers.get("Accept") ?? "";
-  if (!["", "*/*", "application/json", "text/plain", "application/json, text/event-stream"].includes(accept) ||
-      req.method !== "POST" || accept.includes("text/event-stream")) return streamed(req, env, ctx);
-  const headers = new Headers(req.headers);
-  headers.set("Accept", "application/json, text/event-stream");
-  const res = await streamed(new Request(req, { headers }), env, ctx);
-  if (!(res.headers.get("Content-Type") ?? "").includes("text/event-stream")) return res;
-  const messages = (await res.text())
-    .split("\n")
-    .filter((l) => l.startsWith("data:"))
-    .map((l) => l.slice(5).trim())
-    .filter(Boolean);
-  const out = new Headers(res.headers);
-  out.set("Content-Type", "application/json");
-  out.delete("Content-Length");
-  return new Response(messages.length === 1 ? messages[0] : `[${messages.join(",")}]`, { status: res.status, headers: out });
-}
 
 const listedResult = { tools: Object.entries(TOOL_DEFINITIONS).map(([name, definition]) => ({
   name,
