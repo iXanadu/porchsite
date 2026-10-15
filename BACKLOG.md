@@ -15,6 +15,30 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## BLOCKING
 _(none)_
 
+## STAGE 3 (2026-10-15): fit the free plan's 10 ms CPU limit
+Measured on a hosted test Worker on Workers Free (Observability
+`cpuTimeMs`, 10 calls each): `site_check` 13/38/60 ms (min/median/max) on
+release 2026.10.14-fbdd784 and 77/112/183 ms on main 90398c4; a trivial
+tool call 14-49 ms. No call was cut off, but nothing may rely on that.
+Goal: every request (public pages, the review pages, every tool) under
+10 ms CPU on Free, with margin. Release held until a hosted re-measure
+shows no call over 10 ms. Gate: the usual nine checks plus that
+re-measure.
+- **S3-1** IN-PROGRESS: tester. A local CPU check: each public page kind,
+  each review page and each tool on every sample site, in local Wrangler
+  with the inspector's CPU profile, warm and cold; a table per build, and
+  a script others can rerun. Reproduce the hosted numbers' shape first.
+- **S3-2** IN-PROGRESS: coder. Find and cut the per-request cost every
+  call pays (a trivial tool call should cost a few ms). Profile first;
+  report the top costs before changing anything.
+- **S3-3** OPEN: coder, after S3-2. `site_check` works in steps: a per-call
+  page budget, a `next` cursor to continue, and the same answer once all
+  steps are done. Both editions, spec first. Find why main's check costs
+  3x release fbdd784's first.
+- **S3-4** OPEN: PM decision after S3-3's numbers. If the full check still
+  can't fit, the deep crawl becomes an add-on that is off by default and
+  marked as needing the paid plan, and the core keeps a quick check.
+
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
 Porchsite works end to end for an assistant built like the one it was
 developed with (own machine, open network, a local file passed into a tool
@@ -33,10 +57,6 @@ site's OAuth connector, and pictures held as files. In order:
   custom GPT, Meta AI's skills), then a run with each.
 
 ## DEGRADING
-- **CF-C1** OPEN: `site_check` on the menu-page sample (21 items) used
-  about 18.9 ms of sampled CPU in local Wrangler (cold isolate, no I/O);
-  the free plan allows 10 ms per request. Not yet seen failing on a hosted
-  site. Measure warm and hosted before acting. Found: stage 2.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing
