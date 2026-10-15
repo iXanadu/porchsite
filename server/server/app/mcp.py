@@ -24,6 +24,7 @@ from .db import Db, dumps
 from .errors import ApiError
 from .fields import field_guide, kind_guide
 from .home import HOME
+from .photo_advice import PHOTO_ADVICE
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ site_stats: who reads the site."""
 NEXT = (
     "When your changes are ready, call site_check, then approval_request with the ids you changed."
 )
-IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file."
+IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file." + " " + PHOTO_ADVICE
 CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites."
 STATES = {
     "live": "published, and the current version is what visitors see",
@@ -151,7 +152,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "photo_upload_link",
-            "description": "For a photo file: one your person sent you, or one you have yourself (an image with a public https link can go straight into an image field instead). Returns url, which works once, for 30 minutes. Send the file to it yourself: POST multipart/form-data with fields `photo` (the file: JPEG, PNG or WebP, up to 8 MB) and `alt` (what it shows, in a few words), with header Accept: application/json; the answer has `image` (a /media path) and `alt`. If you can't send files, give the url to your person instead: they open it, pick the photo and describe it, and photo_upload_status tells you when it's done. Put `image` in an image field (hero, cover, a card's image, or ![alt](image) in a body) and `alt` in its description field. Nothing shows publicly until the owner approves an item that uses it.",
+            "description": "For a photo file: one your person sent you, or one you have yourself (an image with a public https link can go straight into an image field instead). Returns url, which works once, for 30 minutes. Send the file to it yourself: POST multipart/form-data with fields `photo` (the file: JPEG, PNG or WebP, up to 8 MB) and `alt` (what it shows, in a few words), with header Accept: application/json; the answer has `image` (a /media path) and `alt`. If you can't send files, give the url to your person instead: they open it, pick the photo and describe it, and photo_upload_status tells you when it's done. Put `image` in an image field (hero, cover, a card's image, or ![alt](image) in a body) and `alt` in its description field. Nothing shows publicly until the owner approves an item that uses it." + " " + PHOTO_ADVICE,
             "inputSchema": _obj(
                 {
                     "purpose": {

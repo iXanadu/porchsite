@@ -24,16 +24,7 @@ Goal: every request (public pages, the review pages, every tool) under
 10 ms CPU on Free, with margin. Release held until a hosted re-measure
 shows no call over 10 ms. Gate: the usual nine checks plus that
 re-measure.
-- **S3-6** IN-PROGRESS (decided 2026-10-15, replaces S3-5): pictures
-  are compressed before upload by default; originals stay possible, and
-  the assistant says plainly before using them that bigger files use more
-  of the free plan's limits, make pages slower and take more storage.
-  Same words in the `image_add` and `photo_upload_link` descriptions and
-  in `image_add`'s reply when a big picture arrives; the phone upload
-  page shrinks pictures in the browser to web size (about 2400 px on the
-  long side) unless the person ticks "keep the original". Limits stay 8
-  MB. Both editions, spec first; the guide's photo advice too, worded so
-  it is true for the live release as well (main's INSTALL.md is read live).
+
 
 
 

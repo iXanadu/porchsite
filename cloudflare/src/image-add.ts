@@ -1,4 +1,5 @@
 /** Authenticated image_add: bounded preflight, then one atomic D1 batch. */
+import { photoNext } from "./photo-advice";
 import { ApiError } from "./errors";
 import * as media from "./media";
 import { reportUploadPhase } from "./upload-diagnostic";
@@ -60,6 +61,7 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
   let decoded;
   try { decoded = decodeFiles(values, files); }
   finally { reportUploadPhase("decode", "end"); }
+  const sizes = decoded.map(bytes => bytes.length);
   const stmts: D1PreparedStatement[] = [];
   const seen = new Set<string>();
   const out: { image: string; width: number; height: number }[] = [];
@@ -106,5 +108,6 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
     try { await db.batch(stmts); }
     finally { reportUploadPhase("d1", "end"); }
   }
-  return images !== undefined ? { images: out, next: NEXT } : { ...out[0], next: NEXT };
+  const next = photoNext(NEXT, sizes, images !== undefined);
+  return images !== undefined ? { images: out, next } : { ...out[0], next };
 }

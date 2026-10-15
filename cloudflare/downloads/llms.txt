@@ -81,6 +81,15 @@ account, their passkey, adding a connector or key) and saying yes or no on
 the review page. Never ask them to edit content, fill in fields or upload
 corrections: make the change yourself and send it for approval.
 
+## Pictures
+
+Shrink pictures before sending: web size, about 2400 pixels on the long side, usually under 1 MB (JPEG or WebP). Sending the original is possible, but tell your person first, plainly: bigger files use more of the free plan's limits, make pages slower and take more storage.
+
+Prepare a web-size copy before sending a file directly. If you cannot send
+files, use the installed site's one-shot phone upload page. Follow the
+options shown there; if resizing is unavailable, choose an already shrunk
+copy. This advice applies to existing releases too.
+
 ## Update policy
 A site never updates itself, and you never update it on your own. The site
 checks latest.json once a day and only tells: `site_state` returns `update`
