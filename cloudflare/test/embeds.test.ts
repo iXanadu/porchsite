@@ -13,7 +13,7 @@ import type { Env } from "../src/env";
 const db=(env as unknown as Env).DB, actor="assistant:test", source="https://www.youtube-nocookie.com", form="!embed[Tour](https://youtu.be/Ab_C-123)", origin="https://site.example";
 const make=(kind:string,data:any)=>content.createItem(db,actor,kind,data,undefined);
 const go=(path:string,init?:RequestInit)=>handle(new Request(origin+path,init),env as unknown as Env);
-beforeEach(async()=>{await db.batch(["approvals","publishes","live","revisions","items","idempotency"].map(t=>db.prepare(`DELETE FROM ${t}`)));});
+beforeEach(async()=>{await db.batch(["site_embed_sources","approvals","publishes","live","revisions","items","idempotency"].map(t=>db.prepare(`DELETE FROM ${t}`)));});
 async function publish(items:content.Item[]) {const a=await approvals.request(db,actor,items.map(i=>i.id),"");await approvals.decide(db,a.id,Object.fromEntries(items.map(i=>[i.id,{decision:"approve" as const}])),"",origin);}
 async function signedIn() {const token="embed-owner-session", bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token))), hash=btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");await db.prepare("INSERT OR IGNORE INTO owner(id,name,user_handle,created_at) VALUES(1,'Owner','AA','2026-01-01')").run(); await db.prepare("INSERT OR REPLACE INTO sessions(token_hash,created_at,expires_at) VALUES(?,'2026-01-01','2099-01-01')").bind(hash).run();return `__Host-sk_owner=${token}`;}
 it("canonicalises with browser URL semantics and rejects non-public or malformed authorities",()=>{

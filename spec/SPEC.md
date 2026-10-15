@@ -160,7 +160,37 @@ local copies of images; the frames below are an explicit, owner-approved
 exception for video and tour players, not an image hotlink or outside script.
 
 **Content and authority.** Add `site.embed_sources`, an ordered list of at
-most 20 distinct canonical HTTPS origins, default `[]`. Place a player in
+most 20 distinct canonical HTTPS origins, default `[]`.
+
+The tool/view field is logical, not a key in stored site JSON. Store each
+site version's source list in an additive `site_embed_sources` table;
+`items.data`, `revisions.data` and `live.data` contain only fields understood
+by the previous release. Save the source list atomically with its exact
+site version. Only the owner's approval/publish path marks that version's
+list approved; public authority requires both that mark and the matching
+live site version. A previous bundle publishing a draft cannot grant new
+frame authority it never showed for approval. Reads, review, rollback and
+whole-site revert reconstruct the logical field from the same version.
+An absent list is empty, never an inherited list from another version.
+
+On the first content or approval write, atomically move any legacy inline
+lists out of all current, revision and live site snapshots, preserving
+versions and the already-live authority without approving staged sources.
+Conflicting lists for one version refuse the repair rather than guessing.
+Keep old JSON free of the key on every subsequent write and publish, so a
+rollback needs no reverse schema migration. New tables are ignored by the
+previous bundle; new body markup may degrade to literal text.
+
+Rollback payload audit against the previous release: `embed_sources` is
+the only new logical site/content field. Entry/card/note stored key sets,
+settings and existing media/analytics columns gain no new keys. Image
+privacy changes only existing byte/hash values; coalesced analytics changes
+existing cumulative values and sending cadence. Tool guidance/response
+notes are not persisted content fields. The new source-version table is
+additive and ignored by old code; future photo batches likewise use only
+new tables, not new keys in validated item or settings JSON.
+
+Place a player in
 `entry.body` with a line containing only:
 
 ```

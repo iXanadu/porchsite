@@ -1,3 +1,4 @@
+import { storedData, sourceData, sourceWrite, migrateSources } from "./embed-storage";
 /**
  * Every content write goes through here, so the safety rules always apply:
  * versions (S3), idempotency (S4), revisions (S5) and the guard (S6).
@@ -129,7 +130,7 @@ async function sha(text: string): Promise<string> {
 export async function getItem(db: D1Database, id: string): Promise<Item> {
   const row = await db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<Row>();
   if (!row) throw new ApiError(404, "not_found", `No item ${id}.`);
-  return toItem(row);
+  return { ...toItem(row), data: await sourceData(db, row.id, row.version, JSON.parse(row.data)) };
 }
 
 // Many at once: a 30-item review is a few queries, not a few per item (each
@@ -140,7 +141,7 @@ export async function getItem(db: D1Database, id: string): Promise<Item> {
 export async function itemsByIds(db: D1Database, ids: string[]): Promise<Map<string, Item>> {
   if (!ids.length) return new Map();
   const { results } = await db.prepare("SELECT * FROM items WHERE id IN (SELECT value FROM json_each(?))").bind(JSON.stringify(ids)).all<Row>();
-  return new Map(results.map((r) => [r.id, toItem(r)]));
+  return new Map(await Promise.all(results.map(async r => [r.id, { ...toItem(r), data: await sourceData(db, r.id, r.version, JSON.parse(r.data)) }] as const)));
 }
 
 /** What's live for these ids. */
@@ -150,7 +151,7 @@ export async function liveByIds(db: D1Database, ids: string[]): Promise<Map<stri
     .prepare("SELECT item_id, data, slug, version FROM live WHERE item_id IN (SELECT value FROM json_each(?))")
     .bind(JSON.stringify(ids))
     .all<{ item_id: string; data: string; slug: string | null; version: number }>();
-  return new Map(results.map((r) => [r.item_id, r]));
+  return new Map(await Promise.all(results.map(async r => [r.item_id, { ...r, data: JSON.stringify(await sourceData(db, r.item_id, r.version, JSON.parse(r.data), true)) }] as const)));
 }
 
 /** Revisions at exact versions, keyed "id@version". */
@@ -162,19 +163,19 @@ export async function revisionsAt(db: D1Database, at: { id: string; version: num
     )
     .bind(JSON.stringify(at.map((x) => ({ id: x.id, version: x.version }))))
     .all<{ item_id: string; version: number; data: string; deleted: number }>();
-  return new Map(results.map((r) => [`${r.item_id}@${r.version}`, { data: r.data, deleted: r.deleted }]));
+  return new Map(await Promise.all(results.map(async r => [`${r.item_id}@${r.version}`, { data: JSON.stringify(await sourceData(db, r.item_id, r.version, JSON.parse(r.data))), deleted: r.deleted }] as const)));
 }
 
 export async function allItems(db: D1Database): Promise<Item[]> {
   const { results } = await db.prepare("SELECT * FROM items ORDER BY kind, created_at").all<Row>();
-  return results.map(toItem);
+  return Promise.all(results.map(async r => ({ ...toItem(r), data: await sourceData(db, r.id, r.version, JSON.parse(r.data)) })));
 }
 
 /** The site item, with defaults filled in, whether or not it has been edited. */
 export async function siteData(db: D1Database, live: boolean): Promise<Record<string, unknown>> {
-  const sql = live ? "SELECT data FROM live WHERE item_id = ?" : "SELECT data FROM items WHERE id = ?";
-  const row = await db.prepare(sql).bind(SITE_ID).first<{ data: string }>();
-  return validate("site", row ? JSON.parse(row.data) : {});
+  const sql = live ? "SELECT data, version FROM live WHERE item_id = ?" : "SELECT data, version FROM items WHERE id = ?";
+  const row = await db.prepare(sql).bind(SITE_ID).first<{ data: string; version: number }>();
+  return validate("site", row ? await sourceData(db, SITE_ID, row.version, JSON.parse(row.data), live) : {});
 }
 
 async function write(
@@ -186,8 +187,9 @@ async function write(
   reason: string,
   from: string | null = null,
 ): Promise<Item> {
+  await migrateSources(db);
   const at = now();
-  const data = JSON.stringify(item.data);
+  const data = JSON.stringify(storedData(item.kind, item.data));
   const stmts =
     expected === null
       ? [
@@ -213,6 +215,7 @@ async function write(
       )
       .bind(action, actor, reason, at, item.id, item.version),
   );
+  if (item.kind === "site") stmts.push(sourceWrite(db, item.version, item.data));
   // A changed address is remembered, so the old one can send visitors on.
   if (expected !== null && from && item.slug && from !== item.slug) {
     stmts.push(
@@ -247,6 +250,7 @@ export async function createItem(
   input: unknown,
   idempotencyKey: string | undefined,
 ): Promise<Item> {
+  await migrateSources(db);
   const data = validate(kind, input);
   checkGuard(data);
   await checkStream(db, kind, data);
@@ -327,12 +331,12 @@ export async function history(db: D1Database, id: string) {
     .bind(id)
     .all<{ version: number; slug: string; new_slug: string }>();
   const moved = new Map(moves.results.map((m) => [m.version, { from: m.slug, to: m.new_slug }]));
-  return results.map((r) => ({
+  return Promise.all(results.map(async (r) => ({
     ...r,
-    data: JSON.parse(r.data),
+    data: await sourceData(db, id, r.version, JSON.parse(r.data)),
     deleted: !!r.deleted,
     ...(moved.has(r.version) ? { address_change: moved.get(r.version) } : {}),
-  }));
+  })));
 }
 
 export async function rollback(db: D1Database, actor: string, id: string, toVersion: number, version: number, reason = ""): Promise<Item> {
@@ -342,7 +346,7 @@ export async function rollback(db: D1Database, actor: string, id: string, toVers
     .bind(id, toVersion)
     .first<{ data: string; deleted: number }>();
   if (!old) throw new ApiError(404, "not_found", `Item ${id} has no version ${toVersion}.`);
-  let data = JSON.parse(old.data);
+  let data = await sourceData(db, id, toVersion, JSON.parse(old.data));
   // A rollback never changes a card's visibility; that stays an explicit change.
   if (current.kind === "card") data = { ...data, visibility: current.data.visibility ?? "public" };
   checkGuard(data);
@@ -393,7 +397,7 @@ export async function staged(db: D1Database): Promise<(Item & { live_version: nu
         ORDER BY i.updated_at`,
     )
     .all<Row & { live_version: number | null }>();
-  return results.map((r) => ({ ...toItem(r), live_version: r.live_version }));
+  return Promise.all(results.map(async r => ({ ...toItem(r), data: await sourceData(db, r.id, r.version, JSON.parse(r.data)), live_version: r.live_version })));
 }
 
 export const DataPatch = z.record(z.string(), z.unknown());

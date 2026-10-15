@@ -194,6 +194,17 @@ CREATE TABLE assistant_keys (
 );
 """,
     ),
+    (
+        # Site-version extension kept outside JSON read by earlier bundles.
+        "0010_embed_sources",
+        """
+CREATE TABLE site_embed_sources (
+  version INTEGER PRIMARY KEY,
+  sources TEXT NOT NULL,
+  approved INTEGER NOT NULL DEFAULT 0
+);
+""",
+    ),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

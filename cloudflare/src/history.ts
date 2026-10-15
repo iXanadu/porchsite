@@ -1,3 +1,4 @@
+import { sourceData } from "./embed-storage";
 /**
  * The site's past publishes, and putting the whole site back to one of them
  * (SPEC S5, §5 /review/history). A revert is the owner's own act: every item
@@ -61,10 +62,11 @@ export function labelOf(kind: string, data: Data): string {
 }
 
 async function revision(db: D1Database, id: string, version: number) {
-  return db
+  const row = await db
     .prepare("SELECT r.data, r.deleted, i.kind FROM revisions r JOIN items i ON i.id = r.item_id WHERE r.item_id = ? AND r.version = ?")
     .bind(id, version)
     .first<{ data: string; deleted: number; kind: string }>();
+  return row ? { ...row, data: JSON.stringify(await sourceData(db, id, version, JSON.parse(row.data))) } : null;
 }
 
 async function toPublish(db: D1Database, r: Row): Promise<Publish> {
@@ -109,7 +111,7 @@ export async function plan(db: D1Database, id: number): Promise<{ publish: Publi
   const publish = await getPublish(db, id);
   const state = await stateAt(db, id);
   const { results } = await db.prepare("SELECT item_id, version, data FROM live").all<{ item_id: string; version: number; data: string }>();
-  const live = new Map(results.map((r) => [r.item_id, { version: r.version, data: JSON.parse(r.data) as Data }]));
+  const live = new Map(await Promise.all(results.map(async r => [r.item_id, { version: r.version, data: await sourceData(db, r.item_id, r.version, JSON.parse(r.data), true) }] as const)));
   const ids = [...new Set([...state.keys(), ...live.keys()])].sort();
   const changes: Change[] = [];
   for (const itemId of ids) {

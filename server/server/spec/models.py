@@ -374,8 +374,6 @@ Strings = create_model(
 class SiteData(_Model):
     """Every word on the site that isn't an entry, card or note."""
 
-    embed_sources: list_of(text(_max(2000)), hi=20) = Field(default_factory=list)
-
     title: line(80) = "My site"
     tagline: opt_line(160) = ""
     description: opt_line(300) = ""
@@ -526,8 +524,18 @@ class NoteData(_Model):
     link: OptLink = ""
 
 
+# The tool/view extension is separate from the rollback-compatible SiteData.
+# Keep its existing field order, shared with the Cloudflare field guide.
+SiteInput = create_model(
+    "SiteInput",
+    __base__=_Model,
+    embed_sources=(list_of(text(_max(2000)), hi=20), Field(default_factory=list)),
+    **{name: (field.annotation, field) for name, field in SiteData.model_fields.items()},
+)
+
+
 MODELS: dict[str, type[_Model]] = {
-    "site": SiteData,
+    "site": SiteInput,
     "entry": EntryData,
     "card": CardData,
     "note": NoteData,

@@ -22,6 +22,7 @@ from server.spec.models import KINDS, MODELS, PREFIX, SITE_ID
 
 from . import media
 from .db import Db, dumps, now, transaction
+from .embed_storage import migrate_sources, source_data, stored_data
 from .errors import ApiError
 from .guard import check_guard
 from .visibility import check_save
@@ -193,22 +194,22 @@ async def get_item(db: Db, id: str) -> Item:
     row = await db.fetchrow("SELECT * FROM items WHERE id = $1", id)
     if not row:
         raise ApiError(404, "not_found", f"No item {id}.")
-    return to_item(row)
+    return {**to_item(row), "data": await source_data(db, id, row["version"], json.loads(row["data"]))}
 
 
 async def all_items(db: Db) -> list[Item]:
-    return [to_item(r) for r in await db.fetch("SELECT * FROM items ORDER BY kind, created_at")]
+    return [{**to_item(r), "data": await source_data(db, r["id"], r["version"], json.loads(r["data"]))} for r in await db.fetch("SELECT * FROM items ORDER BY kind, created_at")]
 
 
 async def site_data(db: Db, live: bool) -> dict[str, Any]:
     """The site item, with defaults filled in, whether or not it has been edited."""
     sql = (
-        "SELECT data FROM live WHERE item_id = $1"
+        "SELECT data, version FROM live WHERE item_id = $1"
         if live
-        else "SELECT data FROM items WHERE id = $1"
+        else "SELECT data, version FROM items WHERE id = $1"
     )
     row = await db.fetchrow(sql, SITE_ID)
-    return validate("site", json.loads(row["data"]) if row else {})
+    return validate("site", await source_data(db, SITE_ID, row["version"], json.loads(row["data"]), live) if row else {})
 
 
 # --- writes --------------------------------------------------------------------------
@@ -223,8 +224,9 @@ async def _write(
     reason: str,
     from_slug: str | None = None,
 ) -> Item:
+    await migrate_sources(db)
     at = now()
-    data = dumps(item["data"])
+    data = dumps(stored_data(item["kind"], item["data"]))
     changed = True
     try:
         async with transaction(db) as c:
@@ -264,6 +266,8 @@ async def _write(
                     item["id"],
                     item["version"],
                 )
+                if item["kind"] == "site":
+                    await c.execute("INSERT INTO site_embed_sources (version,sources) VALUES ($1,$2)", item["version"], dumps(item["data"].get("embed_sources", [])))
                 # A changed address is remembered, so the old one can send visitors on.
                 if (
                     expected is not None
@@ -309,6 +313,7 @@ async def create_item(
     idempotency_key: str | None,
     fetcher: Any = None,
 ) -> Item:
+    await migrate_sources(db)
     data = validate(kind, input)
     check_guard(data)
     await _check_stream(db, kind, data)
@@ -425,7 +430,7 @@ async def history(db: Db, id: str) -> list[dict[str, Any]]:
     return [
         {
             **dict(r),
-            "data": json.loads(r["data"]),
+            "data": await source_data(db, id, r["version"], json.loads(r["data"])),
             "deleted": bool(r["deleted"]),
             **({"address_change": moved[r["version"]]} if r["version"] in moved else {}),
         }
@@ -442,7 +447,7 @@ async def rollback(
     )
     if not old:
         raise ApiError(404, "not_found", f"Item {id} has no version {to_version}.")
-    data = json.loads(old["data"])
+    data = await source_data(db, id, to_version, json.loads(old["data"]))
     # A rollback never changes a card's visibility; that stays an explicit change.
     if current["kind"] == "card":
         vis = current["data"].get("visibility")
@@ -532,4 +537,4 @@ async def staged(db: Db) -> list[Item]:
         " WHERE (l.item_id IS NULL AND NOT i.deleted) OR (l.item_id IS NOT NULL AND l.version <> i.version)"
         " ORDER BY i.updated_at"
     )
-    return [{**to_item(r), "live_version": r["live_version"]} for r in rows]
+    return [{**to_item(r), "data": await source_data(db, r["id"], r["version"], json.loads(r["data"])), "live_version": r["live_version"]} for r in rows]
