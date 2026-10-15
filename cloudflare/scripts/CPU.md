@@ -74,8 +74,9 @@ previews, writing index/new/editor/preview, import, share-card listing,
 passkeys, assistants, stats, publish history and revert page. These are GET
 page measurements; form submissions and passkey ceremonies are not covered.
 MCP includes initialization, discovery, every tool, summary/full/selected
-`site_state`, and image upload with a small PNG, 0.5/1/2/4 MiB, the legacy
-8 MiB limit, and eight distinct 1 MiB PNGs when the
+`site_state`, default and opt-in deep `site_check` when supported, and image
+upload with a small PNG, 0.5/1/2/4 MiB, the legacy 8 MiB limit, and eight
+distinct 1 MiB PNGs when the
 build supports batches. Padded PNG fixtures exercise decoded-byte and D1
 storage costs, not pixel decoding.
 

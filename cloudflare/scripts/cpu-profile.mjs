@@ -71,6 +71,7 @@ const smallPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0
 const paddedPng = (size, variant=0) => { const b=Buffer.alloc(size);smallPng.copy(b);b[b.length-1]=variant;return b.toString('base64'); };
 const largeImage = paddedPng(8*1024*1024), batchImages = Array.from({length:8},(_,i)=>paddedPng(1024*1024,i));
 const sizeImages=[0.5,1,2,4].map(mib=>({mib,data:paddedPng(mib*1024*1024)}));
+const hasDeepCheck = /deep: z\.boolean/.test(readFileSync(join(cf,'src/mcp.ts'),'utf8'));
 const hasBatch = /images: z\.array/.test(readFileSync(join(cf,'src/mcp.ts'),'utf8'));
 const hasStateSelection = /ids: z\.array/.test(readFileSync(join(cf,'src/mcp.ts'),'utf8')) && /full: z\.boolean/.test(readFileSync(join(cf,'src/mcp.ts'),'utf8'));
 
@@ -233,7 +234,7 @@ function casesFor({ sample, rows }) {
     {...get('public:authorize',()=>'/authorize?'+new URLSearchParams({client_id:oauthClientId,redirect_uri:'https://client.example/callback',response_type:'code',scope:'site:draft',code_challenge:'A'.repeat(43),code_challenge_method:'S256',state:'fixture'})),owner:true},get('public:media',`/media/${hash(smallPng).slice(0,32)}.png`),
     ...['','/import','/cards.json','/passkeys','/assistants','/stats','/history','/history/1','/write','/write/new',`/write/${entry.id}`,`/write/${entry.id}/preview`,'/fixture_approval','/fixture_approval/preview/',`/fixture_approval/preview${path}`,`/fixture_approval/preview/${stream.path||stream.id}/`,`/fixture_approval/preview/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`].map(p=>get(`review:${p||'index'}`,`/review${p}`, p===`/fixture_approval/preview${path}`&&entry.data.external_url?302:200)),
     { name:'mcp:initialize',method:'initialize',params:{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'local-cpu-fixture',version:'1.0'}},status:200 },{ name:'mcp:tools/list', method:'tools/list',status:200 },
-    tool('site_state'),...(hasStateSelection?[tool('site_state',{full:true},':full'),tool('site_state',{ids:['site']},':ids')]:[]),tool('approval_status'),tool('site_check'),tool('site_stats'),tool('theme_list'),tool('theme_needs'),
+    tool('site_state'),...(hasStateSelection?[tool('site_state',{full:true},':full'),tool('site_state',{ids:['site']},':ids')]:[]),tool('approval_status'),tool('site_check'),...(hasDeepCheck?[tool('site_check',{deep:true},':deep')]:[]),tool('site_stats'),tool('theme_list'),tool('theme_needs'),
     tool('item_create',{kind:'note',data:{text:'Fixture note',date:'2026-10-10'}}),tool('item_update',{id:'site',version:2,data:{tagline:'Profile fixture'}}),tool('item_remove',{id:entry.id,version:1}),tool('item_history',{id:entry.id}),tool('item_rollback',{id:'site',to_version:1,version:2}),tool('photo_upload_link'),tool('image_add',{data:png}),...sizeImages.map(({mib,data})=>tool('image_add',{data},`:${mib}MiB`)),tool('image_add',{data:largeImage},':8MiB'),...(hasBatch?[tool('image_add',{images:batchImages},':batch8MiB')]:[]),tool('approval_request',{ids:['site']}),
     // Status and theme creation/submission/install need per-case preparation.
     tool('photo_upload_status',{id:'fixture_upload'}),tool('theme_request',{type:'business',title:'Local fixture',description:'A local profiling fixture'}),tool('theme_install',{name:'personal-homepage'}),
