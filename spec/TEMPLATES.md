@@ -92,10 +92,12 @@ layouts it draws (a stream set to a layout the template lacks is drawn as
 
 ### S4-1 proposal: engine-produced embeds (not implemented)
 
-The proposed `entry.embeds` field is not raw HTML and does not change the
-Markdown image dialect. The engine adds approved players or fallback links
-to a full entry body, so every look uses its existing `body_html` position;
-`has_body` also covers non-empty embeds. The fixed, responsive frame and its
+A standalone `!embed[Title](https://example.com/player)` line in an entry's
+Markdown body is not raw HTML and does not change the image dialect. The
+engine produces an approved player or fallback link at that exact position
+in the body, so every look uses its existing `body_html` position. A body
+containing only the embed form still has `has_body`. There is no appended
+`entry.embeds` field. The fixed, responsive frame and its
 link are engine-produced safe HTML, with policy from SPEC.md's embed proposal.
 Look packages still cannot contain iframe/object/embed tags or choose their
 sandbox/permissions. The outside-request exception is limited to approved
