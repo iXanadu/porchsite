@@ -24,12 +24,14 @@ Goal: every request (public pages, the review pages, every tool) under
 10 ms CPU on Free, with margin. Release held until a hosted re-measure
 shows no call over 10 ms. Gate: the usual nine checks plus that
 re-measure.
-- **S3-5** OPEN: Uploads. One legal 8 MB `image_add` (or 8 x 1 MB) costs
-  about 100-118 ms CPU cold and 52-59 ms warm locally (base64 decode,
-  hash, encoding for D1, D1 serialization); today's release does the same
-  work. First measure CPU per decoded MB (0.5, 1, 2, 4 MB) and find the
-  largest per-call size that fits; then decide between a lower per-call
-  limit with pictures sent in pieces across calls, or a leaner byte path.
+- **S3-5** BLOCKED (owner decision): Uploads. Cheap wins merged (same
+  limits and answers): a 4 MB picture costs about 30 ms CPU cold locally,
+  a 1 MB about 12, 0.5 MB about 10; nothing fits 10 ms reliably. Options
+  put to the owner: shrink pictures to web size before upload (the
+  upload page in the browser; assistants told to send web size), keep
+  full size and rely on Cloudflare's tolerance, or send big pictures in
+  pieces. Recommended: shrink before upload.
+
 
 
 ## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
