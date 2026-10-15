@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "vitest run",
+    "test": "node --test scripts/beacon.test.mjs && vitest run",
     "typecheck": "tsc --noEmit",
     "themes": "node scripts/themes.mjs",
     "theme:check": "node scripts/theme.mjs check",

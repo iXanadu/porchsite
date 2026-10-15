@@ -184,9 +184,12 @@ export async function collect(db: D1Database, raw: string, v: Visit): Promise<bo
       .first<{ created_at: string; engaged_ms: number; max_scroll: number }>();
     if (!row) return false;
     const wall = now.getTime() - new Date(row.created_at).getTime() + 5000;
+    // Compare against the current row in SQL: overlapping requests may both
+    // have read the same older snapshot. A no-progress heartbeat is accepted
+    // without a write (including an updated_at-only write).
     await db
-      .prepare("UPDATE pageviews SET engaged_ms = ?, max_scroll = ?, updated_at = ? WHERE id = ?")
-      .bind(Math.max(row.engaged_ms, Math.min(engaged, wall)), Math.max(row.max_scroll, scroll), at, ev.id as string)
+      .prepare("UPDATE pageviews SET engaged_ms = MAX(engaged_ms, ?), max_scroll = MAX(max_scroll, ?), updated_at = ? WHERE id = ? AND (engaged_ms < ? OR max_scroll < ?)")
+      .bind(Math.min(engaged, wall), scroll, at, ev.id as string, Math.min(engaged, wall), scroll)
       .run();
     return true;
   }
@@ -369,7 +372,7 @@ export async function stats(db: D1Database, q: StatsQuery = {}): Promise<Record<
   return {
     range: { start, end },
     filter: { content_id: q.content_id ?? null, src: q.src ?? null, post: q.post ?? null, include_test: includeTest },
-    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. The owner, bots and test runs are not counted.`,
+    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. The owner, bots and test runs are not counted. Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.`,
     totals: {
       visits: all.length,
       views: sum(all.map((v) => v.pages)),

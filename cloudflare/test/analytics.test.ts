@@ -117,6 +117,9 @@ describe("analytics", () => {
     const text = await page.text();
     for (const part of [
       "<h1>Who's reading</h1>",
+      "Time on page and scroll can lag up to a minute while someone is still reading.",
+      "Browser or connection delays can make that longer.",
+      "If the final message is lost, recorded time and scroll can be lower.",
       '<a class="range on" href="/review/stats?days=7">7 days</a>',
       '<div class="stat"><b>2</b><span>visitors</span></div>',
       '<div class="stat"><b>3</b><span>pages read</span></div>',
