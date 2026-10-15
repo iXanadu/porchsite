@@ -446,6 +446,12 @@ first.
 
 Not part of the contract; one edition has them for how it is run.
 
+- **Cloudflare edition: immutable preparation caches.** Tool input schemas
+  and their JSON representations, built-in template parses, and date formatters with fixed options,
+  may be reused between requests. Authentication, request context, item
+  data and time-dependent rendered values are evaluated per request. Cache
+  reuse never changes tool answers, schema metadata or rendered bytes.
+
 - **Server edition: `/health`.** `GET` answers `200` with
   `{"status": "ok", "database": "ok", "release": "<release>"}` when the
   database answers, `503` otherwise; never cached. For the container's

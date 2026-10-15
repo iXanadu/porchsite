@@ -114,6 +114,186 @@ const STATES = {
   removed: "removed and not published",
 };
 
+/** Share only immutable schemas; servers, callbacks and auth stay per request. */
+function toolSchema<T extends z.ZodType>(schema: T): T {
+  const standard = schema["~standard"];
+  const cached = <F extends (...args: any[]) => any>(convert: F): F => {
+    const values = new Map<string, ReturnType<F>>();
+    return ((...args: Parameters<F>) => {
+      const key = JSON.stringify(args);
+      if (!values.has(key)) values.set(key, convert(...args));
+      return values.get(key)!;
+    }) as F;
+  };
+  const input = cached(standard.jsonSchema.input);
+  // The pinned MCP SDK requests this target. Prepare it during module startup,
+  // while retaining normal conversion for any other options it may request.
+  input({ target: "draft-2020-12" });
+  Object.defineProperty(schema, "~standard", { value: { ...standard, jsonSchema: {
+    input, output: cached(standard.jsonSchema.output),
+  } } });
+  return schema;
+}
+const INPUT_SCHEMAS = {
+  site_state: toolSchema(z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional() })),
+  item_create: toolSchema(z.object({
+        kind: z.enum(KINDS as [string, ...string[]]),
+        data: z.record(z.string(), z.unknown()),
+        idempotency_key: z
+          .string()
+          .max(100)
+          .optional()
+          .describe("Optional. Resending the same key returns the item already created (with replayed: true) instead of a duplicate. Use a new key for a different item."),
+      })),
+  item_update: toolSchema(z.object({
+        id: z.string(),
+        version: z.number().int(),
+        data: z.record(z.string(), z.unknown()),
+        reason: z.string().max(300).optional(),
+      })),
+  item_remove: toolSchema(z.object({ id: z.string(), version: z.number().int(), reason: z.string().max(300).optional() })),
+  item_history: toolSchema(z.object({ id: z.string() })),
+  item_rollback: toolSchema(z.object({ id: z.string(), to_version: z.number().int(), version: z.number().int(), reason: z.string().max(300).optional() })),
+  photo_upload_link: toolSchema(z.object({
+        purpose: z.string().max(200).default("").describe("shown on the upload page, e.g. the cover for your trip post"),
+      })),
+  image_add: toolSchema(z.object({
+        data: z.string().optional().describe("one picture's bytes, base64 (standard or URL-safe alphabet); give data or images"),
+        images: z.array(z.string()).min(1).max(8).optional().describe("1 to 8 base64 pictures, at most 8 MB each and 8 MB decoded in total; give images or data"),
+      })),
+  photo_upload_status: toolSchema(z.object({ id: z.string() })),
+  theme_list: toolSchema(z.object({})),
+  theme_request: toolSchema(z.object({
+        type: z.string().regex(/^[a-z][a-z0-9-]{1,29}$/).describe("what the site is for, one word or two with a dash: business, club, event, portfolio, family"),
+        title: z.string().min(3).max(80).describe("a short name for the look, e.g. Small business with opening hours"),
+        description: z.string().min(10).max(600).describe("what the site needs that no theme has, e.g. opening hours, a booking button, a weekly specials list"),
+        examples: z.array(z.string().url()).max(3).default([]).describe("up to 3 https links to sites your person likes the look of"),
+      })),
+  theme_install: toolSchema(z.object({ name: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/) })),
+  theme_create: toolSchema(z.object({
+        manifest: z.record(z.string(), z.any()),
+        sample: z.record(z.string(), z.any()),
+        pages: z.record(z.string(), z.string()),
+        partials: z.record(z.string(), z.string()).default({}),
+        css: z.string(),
+      })),
+  theme_submit: toolSchema(z.object({
+        name: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+        note: z.string().min(10).max(600),
+        author_x: z.string().regex(/^[A-Za-z0-9_]{1,15}$/).optional().describe("the maker's X handle without the @, to credit them in the catalog once verified"),
+      })),
+  theme_needs: toolSchema(z.object({ name: z.string().optional() })),
+  approval_request: toolSchema(z.object({ ids: z.array(z.string()).min(1).max(50), note: z.string().max(1000).default("") })),
+  approval_status: toolSchema(z.object({ approval_id: z.string().optional() })),
+  site_check: toolSchema(z.object({})),
+  site_stats: toolSchema(z.object({
+        days: z.number().int().min(1).max(90).default(7).describe("the last N days, today included, 1 to 90"),
+        content_id: z.string().optional().describe("only visits that read this item (an entry's id)"),
+        src: z.string().optional().describe("only visits that came from links tagged ?src=<this>"),
+        post: z.string().optional().describe("only visits that came from links tagged ?p=<this>"),
+        include_test: z.boolean().default(false).describe("also count test visits (your own checks, automated browsers)"),
+      }))
+};
+
+const TOOL_DEFINITIONS = {
+  site_state: {
+      description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
+      inputSchema: INPUT_SCHEMAS.site_state,
+      annotations: { readOnlyHint: true },
+    },
+  item_create: {
+      description: `Create an item; nothing is public until the owner approves. Kinds: ${Object.entries(KIND_GUIDE)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(". ")}. data holds that kind's fields (see \`fields\` in site_state).`,
+      inputSchema: INPUT_SCHEMAS.item_create,
+    },
+  item_update: {
+      description: "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo.",
+      inputSchema: INPUT_SCHEMAS.item_update,
+    },
+  item_remove: {
+      description: "Remove an item (recoverable with item_rollback). Takes effect on the site once approved.",
+      inputSchema: INPUT_SCHEMAS.item_remove,
+    },
+  item_history: {
+      description: "Every version of an item, newest first, with who changed it and why; address_change {from, to} marks a version that changed an entry's slug (the old address redirects to the new one).",
+      inputSchema: INPUT_SCHEMAS.item_history,
+      annotations: { readOnlyHint: true },
+    },
+  item_rollback: {
+      description: "Stage an earlier version of an item as a new version. Then ask for approval.",
+      inputSchema: INPUT_SCHEMAS.item_rollback,
+    },
+  photo_upload_link: {
+      description:
+        "For a photo file: one your person sent you, or one you have yourself (an image with a public https link can go straight into an image field instead). Returns url, which works once, for 30 minutes. Send the file to it yourself: POST multipart/form-data with fields `photo` (the file: JPEG, PNG or WebP, up to 8 MB) and `alt` (what it shows, in a few words), with header Accept: application/json; the answer has `image` (a /media path) and `alt`. If you can't send files, give the url to your person instead: they open it, pick the photo and describe it, and photo_upload_status tells you when it's done. Put `image` in an image field (hero, cover, a card's image, or ![alt](image) in a body) and `alt` in its description field. Nothing shows publicly until the owner approves an item that uses it.",
+      inputSchema: INPUT_SCHEMAS.photo_upload_link,
+    },
+  image_add: {
+      description: IMAGE_ADD_DESCRIPTION,
+      inputSchema: INPUT_SCHEMAS.image_add,
+    },
+  photo_upload_status: {
+      description: "How a photo_upload_link is going: status waiting (not sent yet), done (image and alt are ready to use) or expired (ask for a new link).",
+      inputSchema: INPUT_SCHEMAS.photo_upload_status,
+      annotations: { readOnlyHint: true },
+    },
+  theme_list: {
+      description:
+        "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
+      inputSchema: INPUT_SCHEMAS.theme_list,
+      annotations: { readOnlyHint: true },
+    },
+  theme_request: {
+      description:
+        "When no catalog theme fits what your person's site is for, ask the Porchsite community for one. Sent privately from this site to a queue a curator reads; nothing your person says is published. Describe the site and what it needs, in your own words, without names, addresses or anything personal. Then build with the closest theme meanwhile; theme_list's my_requests shows when it's answered. A site can file 3 a day.",
+      inputSchema: INPUT_SCHEMAS.theme_request,
+    },
+  theme_install: {
+      description:
+        "Install (or update) a theme from the Porchsite catalog, by name. Only catalog themes can be installed, and the download is checked against the catalog. Installing changes nothing visitors see: to use it, set the site item's theme field and ask for approval. Then call theme_needs.",
+      inputSchema: INPUT_SCHEMAS.theme_install,
+    },
+  theme_create: {
+      description:
+        `Make a look of your own for this site only (nobody else sees it), when no catalog theme fits and your person wants one now. Read ${HOME}/authoring.md first. Send the whole look: manifest (template.json's fields: name, title, type, version, description, slots, art), sample (generic sample content, no real person), pages (home, entry, archive, tag, not_found as Mustache), partials (optional) and css (the stylesheet). No scripts. The site checks it against the template rules and refuses with the list of problems, or stores it. Sending the same name again replaces it (bump version). Then set the site item's theme to its name and ask for approval; your person sees it on the preview first.`,
+      inputSchema: INPUT_SCHEMAS.theme_create,
+    },
+  theme_submit: {
+      description:
+        "Share a look this site made (theme_create) with everyone, ONLY when your person has said yes to sharing it. It goes privately to the Porchsite review queue from this site's server; the checks run again there, a curator reviews it, and the Porchsite owner decides whether it joins the public catalog. theme_list's my_submissions shows where it stands. In note: who the look is for and what it does that no catalog theme does. To credit the maker, pass author_x: their X handle (credit is an X handle and nothing else; never send a name, email or link), only if they want it; the answer's credit.instructions say what they post on X to prove it. A site can share 3 a day.",
+      inputSchema: INPUT_SCHEMAS.theme_submit,
+    },
+  theme_needs: {
+      description:
+        "What a theme wants from this site, checked against the site as it stands now (your unapproved changes included). `images`: each picture slot with field, size (width x height; the shape matters), need (required, recommended, optional), purpose, alt_hint, prompt (a starting point if you make the image) and status (filled, missing, wrong shape, too small). `content`: the words and settings it reads, with what it does with each. `art`: how to make the pictures, as a designer would brief you: what to ask your person (the subject), the style, a prompt_prefix, and the steps, including the checks to run before you use any of it. Follow it. Your person may change the style. Omit name for the site's theme.",
+      inputSchema: INPUT_SCHEMAS.theme_needs,
+      annotations: { readOnlyHint: true },
+    },
+  approval_request: {
+      description:
+        "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; there is no preview link for you). Nothing goes live until they approve.",
+      inputSchema: INPUT_SCHEMAS.approval_request,
+    },
+  approval_status: {
+      description:
+        "Look up one approval by approval_id, or omit it for the 10 most recent. Each has review_url, status (pending: something still waits for the owner | decided) and per item: status (pending | published | changes_requested: make the edit in its note, then ask again | denied | superseded: the item changed after you asked, ask again) and note, plus the owner's decision_note.",
+      inputSchema: INPUT_SCHEMAS.approval_status,
+      annotations: { readOnlyHint: true },
+    },
+  site_check: {
+      description: CHECK_DESCRIPTION,
+      inputSchema: INPUT_SCHEMAS.site_check,
+      annotations: { readOnlyHint: true },
+    },
+  site_stats: {
+      description:
+        "Who reads the site: first-party visitor numbers, nothing that identifies a person; the owner, bots and test runs aren't counted. Returns `totals` (visits: one visitor on one day; views; engaged time; the typical visit; bounce_rate; multi_page_rate), `daily`, `pages` (per address: readers, typical and mean engaged time, how far down they read, landings, bounce_rate, exits), `sources` and `referring_domains`, and `tagged` (links you shared with ?src=<where>&p=<post> on the end), and `earlier` (past 90 days only the counts are kept: visits and views by month, newest first; the whole site only). Narrow to the visits that read one item with content_id, or that came from one tagged link with src and post.",
+      inputSchema: INPUT_SCHEMAS.site_stats,
+      annotations: { readOnlyHint: true },
+    }
+};
+
 export function createServer(): McpServer {
   const db = (env as unknown as Env).DB;
   const server = new McpServer({ name: "porchsite", version: "0.0.1" }, { instructions: INSTRUCTIONS });
@@ -121,11 +301,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "site_state",
-    {
-      description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
-      inputSchema: z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional() }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.site_state,
     async ({ full, ids }) =>
       run(async () => ({
         items: await stateItems(db, full, ids),
@@ -140,20 +316,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "item_create",
-    {
-      description: `Create an item; nothing is public until the owner approves. Kinds: ${Object.entries(KIND_GUIDE)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(". ")}. data holds that kind's fields (see \`fields\` in site_state).`,
-      inputSchema: z.object({
-        kind: z.enum(KINDS as [string, ...string[]]),
-        data: z.record(z.string(), z.unknown()),
-        idempotency_key: z
-          .string()
-          .max(100)
-          .optional()
-          .describe("Optional. Resending the same key returns the item already created (with replayed: true) instead of a duplicate. Use a new key for a different item."),
-      }),
-    },
+    TOOL_DEFINITIONS.item_create,
     async ({ kind, data, idempotency_key }) =>
       run(async () => {
         const item = await content.createItem(db, actor(), kind, data, idempotency_key);
@@ -164,55 +327,31 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "item_update",
-    {
-      description: "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo.",
-      inputSchema: z.object({
-        id: z.string(),
-        version: z.number().int(),
-        data: z.record(z.string(), z.unknown()),
-        reason: z.string().max(300).optional(),
-      }),
-    },
+    TOOL_DEFINITIONS.item_update,
     async ({ id, version, data, reason }) => run(async () => ({ ...(await describe(db, [await content.updateItem(db, actor(), id, version, data, reason)]))[0], next: NEXT })),
   );
 
   server.registerTool(
     "item_remove",
-    {
-      description: "Remove an item (recoverable with item_rollback). Takes effect on the site once approved.",
-      inputSchema: z.object({ id: z.string(), version: z.number().int(), reason: z.string().max(300).optional() }),
-    },
+    TOOL_DEFINITIONS.item_remove,
     async ({ id, version, reason }) => run(async () => ({ ...(await describe(db, [await content.removeItem(db, actor(), id, version, reason)]))[0], next: NEXT })),
   );
 
   server.registerTool(
     "item_history",
-    {
-      description: "Every version of an item, newest first, with who changed it and why; address_change {from, to} marks a version that changed an entry's slug (the old address redirects to the new one).",
-      inputSchema: z.object({ id: z.string() }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.item_history,
     async ({ id }) => run(async () => ({ versions: await content.history(db, id) })),
   );
 
   server.registerTool(
     "item_rollback",
-    {
-      description: "Stage an earlier version of an item as a new version. Then ask for approval.",
-      inputSchema: z.object({ id: z.string(), to_version: z.number().int(), version: z.number().int(), reason: z.string().max(300).optional() }),
-    },
+    TOOL_DEFINITIONS.item_rollback,
     async ({ id, to_version, version, reason }) => run(async () => ({ ...(await describe(db, [await content.rollback(db, actor(), id, to_version, version, reason)]))[0], next: NEXT })),
   );
 
   server.registerTool(
     "photo_upload_link",
-    {
-      description:
-        "For a photo file: one your person sent you, or one you have yourself (an image with a public https link can go straight into an image field instead). Returns url, which works once, for 30 minutes. Send the file to it yourself: POST multipart/form-data with fields `photo` (the file: JPEG, PNG or WebP, up to 8 MB) and `alt` (what it shows, in a few words), with header Accept: application/json; the answer has `image` (a /media path) and `alt`. If you can't send files, give the url to your person instead: they open it, pick the photo and describe it, and photo_upload_status tells you when it's done. Put `image` in an image field (hero, cover, a card's image, or ![alt](image) in a body) and `alt` in its description field. Nothing shows publicly until the owner approves an item that uses it.",
-      inputSchema: z.object({
-        purpose: z.string().max(200).default("").describe("shown on the upload page, e.g. the cover for your trip post"),
-      }),
-    },
+    TOOL_DEFINITIONS.photo_upload_link,
     async ({ purpose }) =>
       run(async () => {
         const { path, ...u } = await uploads.create(db, actor(), purpose);
@@ -222,34 +361,19 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "image_add",
-    {
-      description: IMAGE_ADD_DESCRIPTION,
-      inputSchema: z.object({
-        data: z.string().optional().describe("one picture's bytes, base64 (standard or URL-safe alphabet); give data or images"),
-        images: z.array(z.string()).min(1).max(8).optional().describe("1 to 8 base64 pictures, at most 8 MB each and 8 MB decoded in total; give images or data"),
-      }),
-    },
+    TOOL_DEFINITIONS.image_add,
     async ({ data, images }) => run(() => imageAdd(db, actor(), data, images)),
   );
 
   server.registerTool(
     "photo_upload_status",
-    {
-      description: "How a photo_upload_link is going: status waiting (not sent yet), done (image and alt are ready to use) or expired (ask for a new link).",
-      inputSchema: z.object({ id: z.string() }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.photo_upload_status,
     async ({ id }) => run(async () => uploads.get(db, id)),
   );
 
   server.registerTool(
     "theme_list",
-    {
-      description:
-        "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
-      inputSchema: z.object({}),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.theme_list,
     async () =>
       run(async () => {
         const live = String((await content.siteData(db, true)).theme);
@@ -275,26 +399,13 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "theme_request",
-    {
-      description:
-        "When no catalog theme fits what your person's site is for, ask the Porchsite community for one. Sent privately from this site to a queue a curator reads; nothing your person says is published. Describe the site and what it needs, in your own words, without names, addresses or anything personal. Then build with the closest theme meanwhile; theme_list's my_requests shows when it's answered. A site can file 3 a day.",
-      inputSchema: z.object({
-        type: z.string().regex(/^[a-z][a-z0-9-]{1,29}$/).describe("what the site is for, one word or two with a dash: business, club, event, portfolio, family"),
-        title: z.string().min(3).max(80).describe("a short name for the look, e.g. Small business with opening hours"),
-        description: z.string().min(10).max(600).describe("what the site needs that no theme has, e.g. opening hours, a booking button, a weekly specials list"),
-        examples: z.array(z.string().url()).max(3).default([]).describe("up to 3 https links to sites your person likes the look of"),
-      }),
-    },
+    TOOL_DEFINITIONS.theme_request,
     async (input) => run(async () => ({ ...(await requests.file(db, origin(), actor(), input)), next: "Tell your person you've asked; build with the closest theme meanwhile." })),
   );
 
   server.registerTool(
     "theme_install",
-    {
-      description:
-        "Install (or update) a theme from the Porchsite catalog, by name. Only catalog themes can be installed, and the download is checked against the catalog. Installing changes nothing visitors see: to use it, set the site item's theme field and ask for approval. Then call theme_needs.",
-      inputSchema: z.object({ name: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/) }),
-    },
+    TOOL_DEFINITIONS.theme_install,
     async ({ name }) =>
       run(async () => ({
         ...(await themes.install(db, name, actor())),
@@ -304,17 +415,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "theme_create",
-    {
-      description:
-        `Make a look of your own for this site only (nobody else sees it), when no catalog theme fits and your person wants one now. Read ${HOME}/authoring.md first. Send the whole look: manifest (template.json's fields: name, title, type, version, description, slots, art), sample (generic sample content, no real person), pages (home, entry, archive, tag, not_found as Mustache), partials (optional) and css (the stylesheet). No scripts. The site checks it against the template rules and refuses with the list of problems, or stores it. Sending the same name again replaces it (bump version). Then set the site item's theme to its name and ask for approval; your person sees it on the preview first.`,
-      inputSchema: z.object({
-        manifest: z.record(z.string(), z.any()),
-        sample: z.record(z.string(), z.any()),
-        pages: z.record(z.string(), z.string()),
-        partials: z.record(z.string(), z.string()).default({}),
-        css: z.string(),
-      }),
-    },
+    TOOL_DEFINITIONS.theme_create,
     async (made) =>
       run(async () => ({
         ...(await themes.create(db, made, actor())),
@@ -325,15 +426,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "theme_submit",
-    {
-      description:
-        "Share a look this site made (theme_create) with everyone, ONLY when your person has said yes to sharing it. It goes privately to the Porchsite review queue from this site's server; the checks run again there, a curator reviews it, and the Porchsite owner decides whether it joins the public catalog. theme_list's my_submissions shows where it stands. In note: who the look is for and what it does that no catalog theme does. To credit the maker, pass author_x: their X handle (credit is an X handle and nothing else; never send a name, email or link), only if they want it; the answer's credit.instructions say what they post on X to prove it. A site can share 3 a day.",
-      inputSchema: z.object({
-        name: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
-        note: z.string().min(10).max(600),
-        author_x: z.string().regex(/^[A-Za-z0-9_]{1,15}$/).optional().describe("the maker's X handle without the @, to credit them in the catalog once verified"),
-      }),
-    },
+    TOOL_DEFINITIONS.theme_submit,
     async ({ name, note, author_x }) =>
       run(async () => {
         const r = await requests.submit(db, origin(), actor(), name, note, undefined, author_x);
@@ -348,12 +441,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "theme_needs",
-    {
-      description:
-        "What a theme wants from this site, checked against the site as it stands now (your unapproved changes included). `images`: each picture slot with field, size (width x height; the shape matters), need (required, recommended, optional), purpose, alt_hint, prompt (a starting point if you make the image) and status (filled, missing, wrong shape, too small). `content`: the words and settings it reads, with what it does with each. `art`: how to make the pictures, as a designer would brief you: what to ask your person (the subject), the style, a prompt_prefix, and the steps, including the checks to run before you use any of it. Follow it. Your person may change the style. Omit name for the site's theme.",
-      inputSchema: z.object({ name: z.string().optional() }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.theme_needs,
     async ({ name }) =>
       run(async () => {
         const want = name ?? String((await content.siteData(db, false)).theme);
@@ -365,11 +453,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "approval_request",
-    {
-      description:
-        "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; there is no preview link for you). Nothing goes live until they approve.",
-      inputSchema: z.object({ ids: z.array(z.string()).min(1).max(50), note: z.string().max(1000).default("") }),
-    },
+    TOOL_DEFINITIONS.approval_request,
     async ({ ids, note }) =>
       run(async () => {
         const a = await approvals.request(db, actor(), ids, note);
@@ -383,12 +467,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "approval_status",
-    {
-      description:
-        "Look up one approval by approval_id, or omit it for the 10 most recent. Each has review_url, status (pending: something still waits for the owner | decided) and per item: status (pending | published | changes_requested: make the edit in its note, then ask again | denied | superseded: the item changed after you asked, ask again) and note, plus the owner's decision_note.",
-      inputSchema: z.object({ approval_id: z.string().optional() }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.approval_status,
     async ({ approval_id }) =>
       run(async () => {
         const withUrl = (a: approvals.Approval) => ({ ...a, review_url: `${origin()}/review/${a.id}` });
@@ -398,11 +477,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "site_check",
-    {
-      description: CHECK_DESCRIPTION,
-      inputSchema: z.object({}),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.site_check,
     async () =>
       run(async () => {
         const changes = (await content.staged(db)).map((i) => ({ id: i.id, version: i.version }));
@@ -414,18 +489,7 @@ export function createServer(): McpServer {
 
   server.registerTool(
     "site_stats",
-    {
-      description:
-        "Who reads the site: first-party visitor numbers, nothing that identifies a person; the owner, bots and test runs aren't counted. Returns `totals` (visits: one visitor on one day; views; engaged time; the typical visit; bounce_rate; multi_page_rate), `daily`, `pages` (per address: readers, typical and mean engaged time, how far down they read, landings, bounce_rate, exits), `sources` and `referring_domains`, and `tagged` (links you shared with ?src=<where>&p=<post> on the end), and `earlier` (past 90 days only the counts are kept: visits and views by month, newest first; the whole site only). Narrow to the visits that read one item with content_id, or that came from one tagged link with src and post.",
-      inputSchema: z.object({
-        days: z.number().int().min(1).max(90).default(7).describe("the last N days, today included, 1 to 90"),
-        content_id: z.string().optional().describe("only visits that read this item (an entry's id)"),
-        src: z.string().optional().describe("only visits that came from links tagged ?src=<this>"),
-        post: z.string().optional().describe("only visits that came from links tagged ?p=<this>"),
-        include_test: z.boolean().default(false).describe("also count test visits (your own checks, automated browsers)"),
-      }),
-      annotations: { readOnlyHint: true },
-    },
+    TOOL_DEFINITIONS.site_stats,
     async ({ days, content_id, src, post, include_test }) => run(async () => analytics.stats(db, { days, content_id, src, post, include_test })),
   );
 

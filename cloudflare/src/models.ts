@@ -1,4 +1,5 @@
 /** Content kinds (SPEC §3). Unknown fields are refused, so typos fail loudly. */
+import { dateFormatter } from "./date-format";
 import { z } from "zod";
 import { STRINGS } from "./strings";
 
@@ -169,7 +170,7 @@ export const SiteData = z
       .max(60)
       .refine((tz) => {
         try {
-          new Intl.DateTimeFormat("en-US", { timeZone: tz });
+          dateFormatter({}, tz);
           return true;
         } catch {
           return false;

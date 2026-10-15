@@ -7,6 +7,8 @@
  * beyond its UI strings.
  */
 import Mustache from "mustache";
+import { THEMES } from "./themes.gen";
+import { dateString } from "./date-format";
 import { markdown } from "./html";
 import type { SiteView } from "./site";
 import { contactView, eventView, hoursView, noticeView, paletteCss } from "./blocks";
@@ -18,8 +20,8 @@ type Data = Record<string, any>;
 
 
 const day = (d: string) => new Date(`${d}T12:00:00Z`);
-const shortDate = (d: string) => day(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const longDate = (d: string) => day(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+const shortDate = (d: string) => dateString(day(d), { month: "short", day: "numeric" });
+const longDate = (d: string) => dateString(day(d), { month: "long", day: "numeric", year: "numeric" });
 const host = (u: string) => {
   try {
     return new URL(u).host.replace(/^www\./, "");
@@ -308,6 +310,12 @@ export function notFoundView(v: SiteView, release: string, origin: string): Data
 // the same bytes on both: & < > " ' and nothing else.
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&#34;", "'": "&#39;" };
 Mustache.escape = (v: unknown) => String(v).replace(/[&<>"']/g, (c) => ESC[c]);
+
+// The built-in registry is static: parsing its templates belongs to startup,
+// while installed looks keep Mustache's normal cache on first use.
+for (const theme of Object.values(THEMES)) {
+  for (const template of [...Object.values(theme.pages), ...Object.values(theme.partials)]) Mustache.parse(template);
+}
 
 export function render(t: Theme, page: string, view: Data): string {
   return Mustache.render(t.pages[page], view, t.partials);

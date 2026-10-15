@@ -3,6 +3,7 @@
  * skipped the owner's approval. This built-in look is the first template;
  * every word on it comes from content (SPEC §6).
  */
+import { dateFormatter, dateString } from "./date-format";
 import { stringsOf } from "./strings";
 import { siteData, toItem, validate } from "./content";
 import { SITE_ID } from "./models";
@@ -112,19 +113,19 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   if (last) {
     const d = new Date(last);
     const timeZone = String(site.timezone || "UTC");
-    const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
-    const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone });
+    const time = dateString(d, { hour: "numeric", minute: "2-digit" }, timeZone);
+    const day = dateString(d, { month: "short", day: "numeric" }, timeZone);
     // "EDT" / "EST" read better as "ET" (likewise CT, MT, PT).
-    const zone = (new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(d).find((p) => p.type === "timeZoneName")?.value ?? "UTC").replace(/^([ECMP])[SD]T$/, "$1T");
+    const zone = (dateFormatter({ timeZoneName: "short" }, timeZone).formatToParts(d).find((p) => p.type === "timeZoneName")?.value ?? "UTC").replace(/^([ECMP])[SD]T$/, "$1T");
     v.updated = `${day}, ${time} ${zone}`;
   }
   return v;
 }
 
 const longDate = (d: string) =>
-  new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  dateString(new Date(`${d}T12:00:00Z`), { month: "long", day: "numeric", year: "numeric" });
 const shortDate = (d: string) =>
-  new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  dateString(new Date(`${d}T12:00:00Z`), { month: "short", day: "numeric" });
 
 const CSS = `
 :root{--bg:#f6f4ef;--card:#fffdf8;--ink:#1d1f1c;--body:#363a34;--muted:#5b6159;--rule:#ddd8cc;--accent:#2f5d50}
