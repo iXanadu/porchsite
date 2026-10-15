@@ -7,7 +7,7 @@ sections in the layout with nothing in them. Port of cloudflare/src/check.ts.
 import re
 from html.parser import HTMLParser
 from uuid import uuid4
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from typing import Any
 
 from server.spec.jsutil import string, trim
@@ -138,20 +138,49 @@ class _Links(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.links: list[str] = []
         self.comments: list[str] = []
+        self.template_depth = 0
 
     def handle_comment(self, data: str) -> None:
-        self.comments.append(data)
+        if not self.template_depth:
+            self.comments.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in ("a", "area"):
+        if tag == "template":
+            self.template_depth += 1
+        if not self.template_depth and tag in ("a", "area"):
             href = dict(attrs).get("href")
             if href is not None:
                 self.links.append(href)
 
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "template" and self.template_depth:
+            self.template_depth -= 1
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # A self-closing slash does not close non-void HTML template elements.
+        self.handle_starttag(tag, attrs)
+
+
+def _address(href: str, base: str) -> str:
+    """Normalise HTTP destinations as new URL does: case, port and empty path."""
+    parts = urlsplit(urljoin(base, href))
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        return urlunsplit((scheme, parts.netloc, parts.path, parts.query, parts.fragment))
+    if not parts.hostname:
+        raise ValueError("not an HTTP address")
+    host = parts.hostname.encode("idna").decode("ascii").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if parts.port is not None and parts.port != (443 if scheme == "https" else 80):
+        host += f":{parts.port}"
+    credentials = parts.netloc.rsplit("@", 1)[0] + "@" if "@" in parts.netloc else ""
+    return urlunsplit((scheme, credentials + host, parts.path or "/", parts.query, parts.fragment))
+
 
 def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[Data]:
     t = look or themes.built_in().get(themes.ALIASES.get(v.site["theme"], v.site["theme"]))
-    origin = origin or "https://example.invalid"
+    origin = _address(origin or "https://example.invalid", "https://example.invalid")
     base = urlsplit(origin)
     reached: set[str] = set()
     inline: set[str] = set()
@@ -183,7 +212,7 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
             continue
         e = next((e for e in v.entries if e["page"] == path), None)
         if e and e.get("external_url"):
-            reached.add(urljoin(origin, e["external_url"]))
+            reached.add(_address(e["external_url"], origin))
             continue
         body = None
         if t:
@@ -203,7 +232,7 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
         if body is None:
             continue
         parser = _Links()
-        parser.feed(re.sub(r"<template\b[^>]*>[\s\S]*?</template\s*>", "", body, flags=re.I))
+        parser.feed(body)
         for comment in parser.comments:
             if comment.startswith(marker) and comment[len(marker):].isdigit():
                 i = int(comment[len(marker):])
@@ -211,7 +240,7 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
                     inline.add(v.entries[i]["id"])
         for href in parser.links:
             try:
-                url = urljoin(urljoin(origin, path), href)
+                url = _address(href, urljoin(origin, path))
                 parts = urlsplit(url)
                 if parts.scheme not in ("http", "https"):
                     continue
@@ -223,5 +252,5 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> list[D
     return [
         {"id": e["id"], "why": "no rendered link path from the home page to this entry"}
         for e in v.entries
-        if e["id"] not in inline and e["page"] not in visited and (not e.get("external_url") or urljoin(origin, e["external_url"]) not in reached)
+        if e["id"] not in inline and e["page"] not in visited and (not e.get("external_url") or _address(e["external_url"], origin) not in reached)
     ]

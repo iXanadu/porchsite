@@ -139,18 +139,24 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
       if (response) body = await response.text();
     }
     if (body === null) continue;
-    // Inert template contents are not visitor links. The HTML parser handles
-    // comments, script text, quoting and character references.
-    body = body.replace(/<template\b[^>]*>[\s\S]*?<\/template\s*>/gi, "");
-    await new HTMLRewriter().on("a[href], area[href]", {
+    // Template content is inert even when templates nest. Use parser events,
+    // so markup in script text and comments cannot change the nesting depth.
+    let templateDepth = 0;
+    await new HTMLRewriter().on("template", {
       element(el) {
+        templateDepth++;
+        el.onEndTag(() => { templateDepth--; });
+      },
+    }).on("a[href], area[href]", {
+      element(el) {
+        if (templateDepth) return;
         const url = address(decodeHTMLAttribute(el.getAttribute("href")!), path);
         if (!url || !["http:", "https:"].includes(url.protocol)) return;
         reached.add(url.href);
         if (url.origin === base.origin) queue.push(url.pathname);
       },
     }).onDocument({ comments(comment) {
-      if (comment.text.startsWith(marker)) {
+      if (!templateDepth && comment.text.startsWith(marker)) {
         const e = v.entries[Number(comment.text.slice(marker.length))];
         if (e) inline.add(e.id);
       }
