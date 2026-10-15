@@ -1077,6 +1077,7 @@ async def stats_page(req: Request, cx: Context) -> Response:
         f"""<h1>Who's reading</h1>
 <div class="ranges">{ranges}</div>
 <p class="meta">{esc(s["range"]["start"])} to {esc(s["range"]["end"])} · you, bots and test runs aren't counted</p>
+<p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">{tiles}</div>
 {multi}
 {by_day}

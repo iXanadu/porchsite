@@ -120,7 +120,7 @@ def _int(v: Any) -> int:
 async def collect(
     db: Db, raw: bytes, *, ip: str, ua: str, notrack: bool, host: str, now: datetime | None = None
 ) -> bool:
-    """Record one beacon event. Returns whether it was recorded; never raises
+    """Accept one beacon event. Unchanged heartbeats need no write; never raises
     for bad input (the beacon can't do anything with an error)."""
     if len(raw) > MAX_BODY or notrack:
         return False
@@ -197,10 +197,14 @@ async def collect(
             return False
         began = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
         wall = int((now - began) / timedelta(milliseconds=1)) + 5000
+        # Use the current row's maxima, not the earlier SELECT's snapshot.
+        # A no-progress heartbeat is accepted without an updated_at-only write.
         await db.execute(
-            "UPDATE pageviews SET engaged_ms = $1, max_scroll = $2, updated_at = $3 WHERE id = $4",
-            max(row["engaged_ms"], min(engaged, wall)),
-            max(row["max_scroll"], scroll),
+            "UPDATE pageviews SET engaged_ms = GREATEST(engaged_ms, $1),"
+            " max_scroll = GREATEST(max_scroll, $2), updated_at = $3"
+            " WHERE id = $4 AND (engaged_ms < $1 OR max_scroll < $2)",
+            min(engaged, wall),
+            scroll,
             at,
             ev["id"],
         )
@@ -424,7 +428,10 @@ async def stats(
             "A visit = one visitor on one day (visitors are not linked across days). "
             "Engaged time counts only while the page is visible and the reader is active. "
             f"Bounce = under {BOUNCE_MS // 1000} s engaged, or one page with no scroll "
-            "past 25%. The owner, bots and test runs are not counted."
+            "past 25%. The owner, bots and test runs are not counted. "
+            "Time on page and scroll can lag up to a minute while someone is still reading. "
+            "Browser or connection delays can make that longer. "
+            "If the final message is lost, recorded time and scroll can be lower."
         ),
         "totals": {
             "visits": len(every),

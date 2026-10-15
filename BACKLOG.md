@@ -30,9 +30,6 @@ Found building a single-property listing site on the live release.
 - **S4-4** OPEN: Owner told promptly and privately when an approval is
   waiting, not only through a link the assistant passes on. Design first
   (browser push to the owner's signed-in device, or email), owner picks.
-- **S4-5** OPEN: Analytics writes one database row per page view and per
-  heartbeat; the free plan allows 100,000 row writes a day across the
-  account, so a busy open-house weekend could use it up. Batch or sample.
 - **S4-7** OPEN: The assistant can't see what it built before the owner
   approves: no preview it can open. Design with security (a short-lived
   read-only preview for the assistant).

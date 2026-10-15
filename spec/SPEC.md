@@ -658,7 +658,23 @@ itself Sitekeeper-safe.
 
 First-party and privacy-preserving; nothing identifies a person. The site
 kit's beacon (`/static/a.js`, every look) posts each page view, then
-heartbeats, to the same site's `POST /collect` (always 204):
+heartbeats, to the same site's `POST /collect` (always 204). Send the page
+view immediately. Keep engagement ticks and scroll measurements in the browser;
+coalesce cumulative heartbeats into one at 30 seconds, then one every 60
+seconds. Flush on visibility-hidden and pagehide, suppressing unchanged
+snapshots. A valid heartbeat for a known view stays accepted even when it
+makes no progress, but only increasing bounded engagement or scroll writes
+a row. Apply those maxima atomically so duplicate, out-of-order and
+concurrent heartbeats cannot lower recorded values. Keep the current input,
+wall-time, four-hour engagement and six-hour heartbeat limits unchanged.
+There is no visitor sampling or change to report calculations. The owner
+stats page and `site_stats` report notes
+say: "Time on page and scroll can lag up to a minute while someone is still
+reading." If a final beacon is lost, recorded time and scroll may be lower.
+The minute is a target sending cadence, not a delivery guarantee: browser
+throttling or a failed connection can delay or lose a message.
+
+Collection and counting rules:
 
 - **Visitors.** A visitor is the first 32 hex digits of sha256(day's salt +
   address + "\n" + user agent). The salt is random, belongs to one day (on

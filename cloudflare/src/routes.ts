@@ -669,6 +669,7 @@ async function statsPage(env: Env, req: Request): Promise<Response> {
     html`<h1>Who's reading</h1>
 <div class="ranges">${RANGES.map(([k, label]) => html`<a class="range${k === days ? " on" : ""}" href="/review/stats?days=${k}">${label}</a>`)}</div>
 <p class="meta">${s.range.start} to ${s.range.end} · you, bots and test runs aren't counted</p>
+<p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">${tile(String(t.visits), "visitors")}${tile(String(t.views), "pages read")}${tile(duration(t.median_visit_engaged_ms), "typical stay")}${tile(`${whole(t.bounce_rate)}%`, "left right away")}</div>
 ${t.visits ? html`<p class="meta">${whole(t.multi_page_rate)}% read more than one page. A visitor is one person on one day.</p>` : ""}
 ${s.daily.length > 1

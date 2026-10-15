@@ -85,7 +85,12 @@ export const BEACON_JS = String.raw`// Visitor analytics beacon, part of the sit
     if (now !== sent) { sent = now; send({ t: "hb", e: engaged, d: depth }); }
   }
   setInterval(tick, 1000);
-  setInterval(function () { if (document.visibilityState === "visible") beat(); }, 15000);
+  // Keep cumulative measurements local; write less while a page stays open.
+  function periodicBeat() { if (document.visibilityState === "visible") beat(); }
+  setTimeout(function () {
+    periodicBeat();
+    setInterval(periodicBeat, 60000);
+  }, 30000);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") beat(); else { lastTick = Date.now(); input(); }
   });
