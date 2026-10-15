@@ -799,6 +799,184 @@ export const THEMES: Record<string, { manifest: Record<string, unknown>; pages: 
    "site.css": "/* Link page: one centred column. Your face or mark, your name, one line, then big buttons. Bricolage Grotesque throughout. */\n@import url(\"https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap\");\n\n:root {\n  color-scheme: light;\n  /* The palette's colours (the site's palette is added after this file and wins). */\n  --bg: #ffffff;\n  --ink: #111111;\n  --muted: #555555;\n  --accent: #1a3fb4;\n  --accent-2: #b3261e;\n  --line: #d4d4d4;\n  --on-accent: #ffffff;\n  /* The theme's own names, from the palette. */\n  --surface: color-mix(in srgb, var(--ink) 4%, var(--bg));\n  --surface-hover: color-mix(in srgb, var(--accent) 9%, var(--bg));\n  --glow: color-mix(in srgb, var(--accent) 14%, var(--bg));\n  --glow-2: color-mix(in srgb, var(--accent-2) 9%, var(--bg));\n  --font: \"Bricolage Grotesque\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  --radius: 18px;\n}\n\n*, *::before, *::after { box-sizing: border-box; }\nhtml { -webkit-text-size-adjust: 100%; }\nbody {\n  margin: 0;\n  min-height: 100vh;\n  color: var(--ink);\n  font-family: var(--font);\n  font-size: 17px;\n  line-height: 1.5;\n  text-wrap: pretty;\n  -webkit-font-smoothing: antialiased;\n  background:\n    radial-gradient(640px 420px at 18% -6%, var(--glow) 0%, transparent 70%),\n    radial-gradient(560px 380px at 92% 4%, var(--glow-2) 0%, transparent 70%),\n    var(--bg);\n  background-repeat: no-repeat;\n}\na { color: inherit; }\n:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }\nimg { max-width: 100%; height: auto; display: block; }\nh1, h2, h3, p { margin: 0; }\n\n.col {\n  width: 100%;\n  max-width: 36rem;\n  margin: 0 auto;\n  padding: 0 16px;\n  min-height: 100vh;\n  display: flex;\n  flex-direction: column;\n}\nmain { flex: 1 0 auto; }\n\n.notice {\n  margin: 16px 0 0;\n  padding: 10px 16px;\n  border-radius: 999px;\n  background: var(--ink);\n  color: var(--bg);\n  font-size: 14px;\n  font-weight: 500;\n  text-align: center;\n}\n\n/* The person. */\n.me { text-align: center; padding: clamp(40px, 9vh, 80px) 0 28px; }\n.avatar {\n  width: 112px;\n  height: 112px;\n  margin: 0 auto 20px;\n  border-radius: 50%;\n  object-fit: cover;\n  box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--accent);\n}\n.me h1 { font-size: clamp(32px, 8vw, 44px); font-weight: 800; line-height: 1.05; letter-spacing: -0.025em; }\n.line { margin-top: 10px; font-size: 19px; font-weight: 500; }\n.lede { margin: 12px auto 0; max-width: 28rem; color: var(--muted); font-size: 16px; }\n\n/* The buttons: the whole point. The first is the one that matters most. */\n.buttons { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }\n.button {\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  align-items: center;\n  gap: 2px;\n  min-height: 64px;\n  padding: 14px 22px;\n  border: 1.5px solid var(--line);\n  border-radius: var(--radius);\n  background: var(--surface);\n  color: var(--ink);\n  text-align: center;\n  text-decoration: none;\n  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;\n}\n.button:hover { transform: translateY(-2px); background: var(--surface-hover); border-color: var(--accent); }\n.button:active { transform: translateY(0); }\n.button-label { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }\n.button-note { font-size: 14px; color: var(--muted); }\n.buttons li:first-child .button { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-height: 72px; }\n.buttons li:first-child .button-note { color: var(--on-accent); opacity: 0.85; }\n.buttons li:first-child .button:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }\n\n/* Elsewhere. */\n.social { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 22px 0 0; padding: 0; }\n.social a {\n  display: inline-block;\n  padding: 6px 14px;\n  border-radius: 999px;\n  border: 1px solid var(--line);\n  font-size: 14px;\n  font-weight: 500;\n  text-decoration: none;\n  background: var(--bg);\n}\n.social a:hover { border-color: var(--accent); color: var(--accent); }\n\n/* A few recent updates, and anything else the owner put on the page. */\n.block { margin-top: 44px; }\n.block h2 {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  margin-bottom: 12px;\n  font-size: 13px;\n  font-weight: 700;\n  letter-spacing: 0.08em;\n  text-transform: uppercase;\n  color: var(--muted);\n}\n.block h2::before, .block h2::after { content: \"\"; flex: 1; height: 1px; background: var(--line); }\n.block h3 { margin: 18px 0 8px; font-size: 15px; font-weight: 700; }\n.updates, .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }\n.upd, .card > a, .card:not(:has(> a)) {\n  display: grid;\n  grid-template-columns: 4.2rem minmax(0, 1fr);\n  gap: 0 12px;\n  padding: 12px 16px;\n  border-radius: 14px;\n  background: var(--surface);\n  text-decoration: none;\n}\n.upd:hover, .card > a:hover { background: var(--surface-hover); }\n.upd-when { grid-row: span 2; font-size: 13px; font-weight: 600; color: var(--accent); padding-top: 2px; font-variant-numeric: tabular-nums; }\n.upd-title { font-weight: 700; line-height: 1.3; }\n.upd-sub { font-size: 14px; color: var(--muted); line-height: 1.4; margin-top: 2px; }\n.flag { font-style: normal; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--accent-2); color: var(--bg); vertical-align: middle; }\n.all { margin-top: 12px; text-align: center; font-size: 14px; font-weight: 600; }\n.all a { color: var(--accent); text-decoration: none; }\n\n.card > a, .card:not(:has(> a)) { grid-template-columns: 1fr; }\n.card-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }\n.card-name { font-weight: 700; }\n.card-price { font-weight: 600; color: var(--accent); white-space: nowrap; font-size: 15px; }\n.card-sub { font-size: 14px; font-weight: 500; }\n.card-desc { font-size: 14px; color: var(--muted); }\n\n.about { text-align: center; }\n.about p { color: var(--muted); margin-bottom: 10px; }\n\n/* Inner pages. */\n.mini { padding: 22px 0 0; }\n.mini-home { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }\n.mini-home img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }\n.page { padding: 36px 0 56px; }\n.back { font-size: 14px; font-weight: 600; text-decoration: none; color: var(--accent); }\n.page h1 { margin: 14px 0 8px; font-size: clamp(30px, 7vw, 42px); font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; }\n.page .lede { margin: 14px 0 0; max-width: none; font-size: 18px; }\n.meta { font-size: 14px; color: var(--muted); }\n.meta a { text-decoration: none; margin-right: 4px; }\n.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }\n.chips a { padding: 4px 12px; border-radius: 999px; background: var(--surface); font-size: 14px; text-decoration: none; }\n.page .updates { margin-top: 20px; }\n.cover { width: 100%; border-radius: var(--radius); margin: 24px 0; }\n.body { margin-top: 20px; }\n.body p, .body ul, .body ol { margin: 0 0 1em; }\n.body h2 { font-size: 24px; font-weight: 700; margin: 1.4em 0 0.4em; }\n.body h3 { font-size: 19px; font-weight: 700; margin: 1.2em 0 0.4em; }\n.body a { color: var(--accent); }\n.body blockquote { margin: 1.4em 0; padding: 14px 18px; border-radius: 14px; background: var(--surface); font-size: 19px; font-weight: 500; }\n.body blockquote p { margin: 0; }\n.body img { border-radius: 14px; margin: 20px 0; }\n.body pre { overflow-x: auto; padding: 14px; border-radius: 12px; background: var(--surface); font-size: 14px; }\n.stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 0; }\n.stats div { flex: 1 1 6rem; display: flex; flex-direction: column-reverse; padding: 12px 14px; border-radius: 14px; background: var(--surface); }\n.stats dt { font-size: 13px; color: var(--muted); }\n.stats dd { margin: 0; font-size: 28px; font-weight: 800; line-height: 1.1; }\n.event { margin: 22px 0 0; padding: 18px; border-radius: var(--radius); background: var(--surface); display: grid; gap: 8px; }\n.event-when { font-weight: 700; }\n.event .button { margin-top: 6px; }\n.schedule { list-style: none; margin: 6px 0 0; padding: 0; font-size: 15px; }\n.schedule li { padding: 6px 0; border-top: 1px solid var(--line); }\n.schedule span { display: inline-block; min-width: 5.5rem; color: var(--muted); font-variant-numeric: tabular-nums; }\n.lost { text-align: center; padding-top: 18vh; }\n.lost .lede { margin-bottom: 28px; }\n\n/* Footer. */\n.foot {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  padding: 48px 0 36px;\n  font-size: 14px;\n  color: var(--muted);\n  text-align: center;\n}\n.foot-mail { font-weight: 600; color: var(--ink); }\n\n@media (prefers-reduced-motion: reduce) {\n  .button { transition: none; }\n  .button:hover { transform: none; }\n}\n"
   }
  },
+ "listing-page": {
+  "manifest": {
+   "name": "listing-page",
+   "title": "Listing",
+   "licence": "MIT",
+   "version": "1.0.0",
+   "type": "property",
+   "description": "One property, room to look. A wide photograph, the price and key figures, a gallery, video and walk-through tour, then open-house and visit details. Built for a phone first.",
+   "heading_ids": true,
+   "sections": [
+    "entries",
+    "cards",
+    "about"
+   ],
+   "layouts": [
+    "feature",
+    "list"
+   ],
+   "previews": [],
+   "palettes": {
+    "linen": {
+     "title": "Linen & evergreen",
+     "colors": {
+      "bg": "#f8f6f0",
+      "ink": "#20372e",
+      "muted": "#59675f",
+      "accent": "#245343",
+      "accent-2": "#9c6545",
+      "line": "#d9ded5",
+      "on-accent": "#ffffff"
+     }
+    },
+    "stone": {
+     "title": "Stone & ink",
+     "colors": {
+      "bg": "#f5f5f2",
+      "ink": "#252b30",
+      "muted": "#626970",
+      "accent": "#344f63",
+      "accent-2": "#956c42",
+      "line": "#d8dcde",
+      "on-accent": "#ffffff"
+     }
+    }
+   },
+   "slots": {
+    "images": [
+     {
+      "field": "site.hero",
+      "alt": "site.hero_alt",
+      "size": [
+       2400,
+       1350
+      ],
+      "need": "recommended",
+      "purpose": "the wide opening photograph: the actual exterior or best room, with space around the property",
+      "alt_hint": "Describe the real property and viewpoint, without a sales claim.",
+      "prompt": "Use the owner’s actual property photograph. Do not generate or invent a property, room, view or feature."
+     },
+     {
+      "field": "body",
+      "size": [
+       1600,
+       1200
+      ],
+      "need": "recommended",
+      "purpose": "the photo gallery in the listing entry: put each ![description](image) in its own paragraph after the Photos heading",
+      "alt_hint": "Name the room and what is visible, e.g. The kitchen looking toward the garden.",
+      "prompt": "Use actual photographs supplied for this property. Keep the rooms, proportions, finishes and views truthful."
+     },
+     {
+      "field": "site.share_image",
+      "alt": "site.share_image_alt",
+      "size": [
+       1200,
+       630
+      ],
+      "need": "optional",
+      "purpose": "the picture shared in messages; otherwise the hero is used",
+      "alt_hint": "The actual property shown.",
+      "prompt": "Crop the real hero photograph to a wide share image. Do not alter the property."
+     }
+    ],
+    "content": [
+     {
+      "field": "site.title",
+      "need": "required",
+      "purpose": "the property name or address in the top bar"
+     },
+     {
+      "field": "site.tagline",
+      "need": "required",
+      "purpose": "a short, factual headline for the property"
+     },
+     {
+      "field": "site.intro",
+      "need": "recommended",
+      "purpose": "the location and one sentence about the home"
+     },
+     {
+      "field": "site.hero_caption",
+      "need": "recommended",
+      "purpose": "the asking price and availability, exactly as confirmed by the owner"
+     },
+     {
+      "field": "site.streams",
+      "need": "required",
+      "purpose": "one feature stream for the main listing entry; put the stat tiles in entry.stats and the photo gallery, video, 3D tour and open-house details in its body"
+     },
+     {
+      "field": "entry.body",
+      "need": "recommended",
+      "purpose": "Use headings such as Photos, Video tour, Walk through and Open house. Put each picture in its own paragraph. Put !embed[Video tour](https://…) and !embed[3D tour](https://…) on their own lines, in place. Each source needs owner approval. Heading ids make /listing/home/#video-tour work."
+     },
+     {
+      "field": "site.cta_label",
+      "need": "recommended",
+      "purpose": "the primary action with cta_link, e.g. Arrange a visit, linking to an on-site heading or the contact method"
+     },
+     {
+      "field": "site.cta2_label",
+      "need": "optional",
+      "purpose": "a second action with cta2_link, e.g. Video tour to /listing/home/#video-tour"
+     },
+     {
+      "field": "site.links",
+      "need": "recommended",
+      "purpose": "short menu links to on-site headings, e.g. /listing/home/#photos and /listing/home/#video-tour"
+     },
+     {
+      "field": "site.contact",
+      "need": "recommended",
+      "purpose": "the owner-approved visit contact, phone/email and map link; never publish private contact details without approval"
+     },
+     {
+      "field": "site.about",
+      "need": "optional",
+      "purpose": "a short note about arranging a visit, shown with contact information"
+     },
+     {
+      "field": "site.footer_line",
+      "need": "recommended",
+      "purpose": "the agent/owner’s required listing disclaimer or confirmed attribution"
+     }
+    ]
+   },
+   "art": {
+    "ask": "Ask for the actual property photographs: a wide exterior or best-room hero, then a curated set of room, garden and view photos. Ask which details may be public.",
+    "style": "Real property photography in natural light. Preserve the actual rooms, proportions, finishes, views and surroundings. Never invent or materially alter a property. No engravings, animal mascots or generated room photographs.",
+    "prompt_prefix": "Use the owner-supplied photograph of this property; keep it truthful.",
+    "steps": [
+     "Get the real property photos and confirm the asking price, location, room counts and visit details with the owner.",
+     "Choose a wide hero and a small set of useful gallery views. Do not invent a missing room, view or feature.",
+     "Shrink pictures to web size, about 2400 pixels on the long side and usually under 1 MB; originals need the existing plain warning first.",
+     "Write a useful description for each photo. Put gallery pictures in separate Markdown paragraphs in the main listing entry.",
+     "Add the video and 3D-tour URLs as !embed lines under their own headings; request approval for each new source.",
+     "Check the phone layout, menu anchors, contact details, map and media, then run site_check with deep:true before asking for approval."
+    ]
+   }
+  },
+  "pages": {
+   "archive": "{{> head}}<section class=\"inner\"><a class=\"text-link\" href=\"/\">← {{site.title}}</a><h1>{{stream.title}}</h1>{{#stream.intro}}<p class=\"intro\">{{stream.intro}}</p>{{/stream.intro}}<ul class=\"plain\">{{#entries}}{{> row}}{{/entries}}</ul>{{^entries}}<p>{{strings.nothing_yet}}</p>{{/entries}}</section>{{> foot}}\n",
+   "entry": "{{> head}}\n<article class=\"listing\"><div class=\"entry-head\"><a class=\"text-link\" href=\"/\">← {{site.title}}</a><p class=\"eyebrow\">{{page.hero_caption}}</p><h1>{{entry.title}}</h1>{{#entry.summary}}<p class=\"intro\">{{entry.summary}}</p>{{/entry.summary}}</div>\n{{#site.hero_image}}<figure class=\"hero-photo\"><img src=\"{{site.hero_image}}\" alt=\"{{page.hero_alt}}\" width=\"{{site.hero_width}}\" height=\"{{site.hero_height}}\" fetchpriority=\"high\"></figure>{{/site.hero_image}}\n{{#entry}}{{> stats}}{{/entry}}\n<div class=\"listing-body\">{{{entry.body_html}}}</div></article>\n{{> contact}}{{> foot}}\n",
+   "home": "{{> head}}\n<section class=\"hero\"><div class=\"hero-copy\"><div><p class=\"eyebrow\">{{page.hero_caption}}</p><h1>{{site.tagline}}</h1><p class=\"intro\">{{page.lede}}</p></div><div class=\"hero-actions\">{{#page.cta_label}}<a class=\"button\" href=\"{{page.cta_link}}\">{{page.cta_label}} <span aria-hidden=\"true\">↗</span></a>{{/page.cta_label}}{{#site.cta2_label}}<a class=\"text-link\" href=\"{{site.cta2_link}}\">{{site.cta2_label}} <span aria-hidden=\"true\">↓</span></a>{{/site.cta2_label}}</div></div>\n{{#site.hero_image}}<figure class=\"hero-photo\"><img src=\"{{site.hero_image}}\" alt=\"{{page.hero_alt}}\" width=\"{{site.hero_width}}\" height=\"{{site.hero_height}}\" fetchpriority=\"high\"></figure>{{/site.hero_image}}\n</section>\n{{#sections}}{{#is_entries}}{{#stream.is_feature}}{{#latest}}<section class=\"listing\" id=\"{{stream.anchor}}\">{{> stats}}<div class=\"listing-body\">{{{body_html}}}</div></section>{{/latest}}{{/stream.is_feature}}{{#stream.is_list}}{{#show}}<section class=\"updates\" id=\"{{stream.anchor}}\"><h2>{{stream.title}}</h2>{{#items}}<a class=\"update\" href=\"{{url}}\"><span>{{date_short}}</span><span>{{title}}</span><span aria-hidden=\"true\">↗</span></a>{{/items}}</section>{{/show}}{{/stream.is_list}}{{/is_entries}}{{/sections}}\n{{> contact}}\n{{> foot}}\n",
+   "not_found": "{{> head}}<section class=\"inner\"><h1>{{strings.not_found_heading}}</h1><p>{{strings.not_found_text}} <a href=\"/\">{{strings.not_found_link}}</a></p></section>{{> foot}}\n",
+   "tag": "{{> head}}<section class=\"inner\"><a class=\"text-link\" href=\"{{stream.archive_url}}\">← {{stream.title}}</a><h1>#{{tag}}</h1><ul class=\"plain\">{{#entries}}{{> row}}{{/entries}}</ul></section>{{> foot}}\n"
+  },
+  "partials": {
+   "contact": "{{#site.contact.has}}<section class=\"visit\" id=\"about\"><div class=\"visit-copy\"><p class=\"eyebrow\">{{site.title}}</p><h2>{{site.about_title}}</h2>{{#site.about}}<p>{{site.about}}</p>{{/site.about}}</div><div class=\"visit-actions\">\n{{#site.contact.email}}<a class=\"button\" href=\"mailto:{{site.contact.email}}\">{{site.contact.email}}</a>{{/site.contact.email}}\n{{#site.contact.phone}}<a class=\"button secondary\" href=\"{{site.contact.phone_href}}\">{{site.contact.phone}}</a>{{/site.contact.phone}}\n{{#site.contact.address_one_line}}<p>{{site.contact.address_one_line}}</p>{{/site.contact.address_one_line}}\n{{#site.contact.map_link}}<a class=\"text-link\" href=\"{{site.contact.map_link}}\">{{strings.directions}} ↗</a>{{/site.contact.map_link}}\n</div></section>{{/site.contact.has}}\n",
+   "foot": "</main>\n<footer><span>{{site.footer_line}}</span><a href=\"#top\">{{site.title}} ↑</a></footer>\n</div><script src=\"{{kit.beacon_url}}\" defer></script>\n</body></html>\n",
+   "head": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{{meta.title}}</title>\n<meta name=\"description\" content=\"{{meta.description}}\">\n<meta property=\"og:title\" content=\"{{meta.title}}\">\n<meta property=\"og:description\" content=\"{{meta.description}}\">\n<meta property=\"og:type\" content=\"{{meta.og_type}}\">\n<meta property=\"og:url\" content=\"{{meta.url}}\">\n<meta property=\"og:image\" content=\"{{meta.image}}\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">\n<meta name=\"twitter:title\" content=\"{{meta.title}}\">\n<meta name=\"twitter:description\" content=\"{{meta.description}}\">\n<meta name=\"twitter:image\" content=\"{{meta.image}}\">\n{{#meta.image_alt}}<meta name=\"twitter:image:alt\" content=\"{{meta.image_alt}}\">\n{{/meta.image_alt}}{{#site.logo}}<link rel=\"icon\" href=\"{{site.logo}}\">\n<link rel=\"apple-touch-icon\" href=\"{{site.logo}}\">\n{{/site.logo}}\n{{#site.handle}}<meta name=\"twitter:site\" content=\"@{{site.handle}}\">\n{{/site.handle}}{{#feeds}}<link rel=\"alternate\" type=\"application/atom+xml\" title=\"{{title}}\" href=\"{{url}}\">\n{{/feeds}}<link rel=\"canonical\" href=\"{{meta.url}}\">\n<link rel=\"stylesheet\" href=\"{{kit.css_url}}\">\n</head>\n<body data-kind=\"{{meta.kind}}\" data-id=\"{{meta.content_id}}\">\n<div class=\"shell\" id=\"top\">\n<header class=\"topbar\"><a class=\"brand\" href=\"/\">{{site.title}}</a>\n<nav aria-label=\"{{strings.home}}\">{{#site.links}}<a href=\"{{url}}\">{{label}}</a>{{/site.links}}{{^site.links}}{{#nav}}<a href=\"{{href}}\">{{label}}</a>{{/nav}}{{/site.links}}</nav></header>\n<main>\n",
+   "row": "<li><a class=\"update\" href=\"{{url}}\"><span>{{date_short}}</span><span>{{title}}</span><span aria-hidden=\"true\">↗</span></a></li>\n",
+   "stats": "{{#has_stats}}<dl class=\"stats\">{{#stats}}<div><dt>{{label}}</dt><dd>{{value}}</dd></div>{{/stats}}</dl>{{/has_stats}}\n"
+  },
+  "static": {
+   "site.css": ":root{--bg:#f8f6f0;--ink:#20372e;--muted:#59675f;--accent:#245343;--accent-2:#9c6545;--line:#d9ded5;--on-accent:#fff;--serif:Georgia,\"Times New Roman\",serif;--sans:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}\n*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased}a{color:inherit;text-underline-offset:4px}a:hover{text-decoration-thickness:2px}a:focus-visible{outline:3px solid var(--accent-2);outline-offset:5px}img{max-width:100%;height:auto}figure,dl,p,h1,h2,h3{margin:0}h1,h2,h3{font-family:var(--serif);font-weight:400;line-height:1.08;letter-spacing:-.035em}h1{font-size:clamp(42px,5.8vw,82px)}h2{font-size:clamp(31px,3.5vw,48px)}h3{font-size:clamp(24px,2.4vw,32px)}.shell{max-width:1480px;margin:0 auto;padding:0 6vw}.topbar{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:25px 0;border-bottom:1px solid var(--line)}.brand{font-family:var(--serif);font-size:22px;line-height:1.1;text-decoration:none;letter-spacing:-.03em}.topbar nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px 26px;font-size:13px;font-weight:550}.topbar nav a{text-decoration:none;padding:6px 0}.hero{padding-top:clamp(34px,5vw,72px)}.hero-copy{display:flex;justify-content:space-between;align-items:flex-end;gap:44px;margin-bottom:34px}.hero-copy>div:first-child{max-width:780px}.eyebrow{font-size:12px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}.intro{font-size:clamp(17px,1.55vw,21px);color:var(--muted);max-width:650px;margin-top:20px;line-height:1.6}.hero .eyebrow{font-size:15px;letter-spacing:.05em}.hero-actions{display:flex;flex-direction:column;align-items:center;gap:15px;flex-shrink:0;padding-bottom:4px}.button{min-height:50px;display:flex;align-items:center;justify-content:center;gap:28px;padding:12px 23px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:600;text-decoration:none;border:1px solid var(--accent);border-radius:2px}.button:hover{filter:brightness(.93);text-decoration:none}.button.secondary{background:transparent;color:var(--accent)}.text-link{font-size:14px;font-weight:550;display:inline-flex;align-items:center;gap:12px}.hero-photo{width:100%;overflow:hidden;background:var(--line)}.hero-photo img{display:block;width:100%;aspect-ratio:16/8.7;height:auto;object-fit:cover}.listing{padding:0 0 65px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 64px;border-bottom:1px solid var(--line)}.stats>div{display:flex;flex-direction:column-reverse;align-items:center;gap:6px;padding:30px 12px;position:relative}.stats>div+div:before{content:\"\";position:absolute;left:0;top:30%;bottom:30%;width:1px;background:var(--line)}.stats dd{font-family:var(--serif);font-size:clamp(30px,3.3vw,48px);font-weight:400;line-height:1.05;letter-spacing:-.04em;margin:0}.stats dt{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}.listing-body{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px 22px;align-items:start}.listing-body>*{grid-column:1/-1;min-width:0}.listing-body>h2{padding-top:42px;border-top:1px solid var(--line);margin-top:32px}.listing-body>h2:first-child{margin-top:0;padding-top:0;border-top:0}.listing-body>p:not(:has(>img)){max-width:790px;font-size:18px;line-height:1.8;color:var(--muted)}.listing-body>p:has(>img:only-child){grid-column:span 6;margin:0;overflow:hidden;background:var(--line)}.listing-body>p:has(>img:only-child)>img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}.listing-body iframe{width:100%;height:auto;aspect-ratio:16/9;border:0;background:#16211c}.listing-body blockquote{margin:12px 0;padding:12px 0 12px 28px;border-left:2px solid var(--accent-2);font-family:var(--serif);font-size:clamp(24px,3vw,34px);max-width:850px}.listing-body blockquote p{margin:0}.listing-body ul,.listing-body ol{max-width:790px;margin:0;padding-left:24px}.listing-body li+li{margin-top:8px}.listing-body pre{overflow:auto;padding:18px;background:#e9ece4;font-size:13px}.listing-body code{font-size:.9em}.listing-body hr{border:0;border-top:1px solid var(--line);width:100%}.visit{display:grid;grid-template-columns:1.2fr 1fr;gap:60px;padding:55px 0 70px;border-top:1px solid var(--line)}.visit-copy>p:last-child{max-width:540px;color:var(--muted);margin-top:22px;white-space:pre-line}.visit-actions{display:flex;flex-direction:column;gap:13px;align-items:stretch;justify-content:center}.visit-actions p{font-size:14px;color:var(--muted)}.visit-actions .text-link{align-self:flex-start}.entry-head{padding:45px 0 35px;max-width:900px}.entry-head .eyebrow{margin-top:38px}.entry-head h1{font-size:clamp(39px,5vw,68px)}.updates{padding:30px 0 60px}.updates h2{margin-bottom:25px}.update{display:grid;grid-template-columns:90px 1fr auto;gap:16px;padding:22px 0;border-bottom:1px solid var(--line);text-decoration:none}.update>span:first-child{font-size:13px;color:var(--muted)}.update>span:nth-child(2){font-family:var(--serif);font-size:25px;line-height:1.2}.inner{padding:55px 0 100px;min-height:55vh}.inner h1{margin:35px 0 26px}.plain{list-style:none;padding:0;margin:30px 0}footer{border-top:1px solid var(--line);padding:26px 0 40px;display:flex;justify-content:space-between;gap:25px;font-size:12px;color:var(--muted)}footer>a{text-decoration:none;white-space:nowrap}\n@media(max-width:900px){.hero-copy{display:block}.hero-actions{flex-direction:row;justify-content:flex-start;gap:25px;margin-top:27px}.hero-copy>div:first-child{max-width:100%}.hero-photo img{aspect-ratio:4/3}.visit{gap:30px}.topbar nav{gap:8px 18px}}\n@media(max-width:600px){.shell{padding:0 22px}.topbar{display:block;padding:22px 0 13px}.brand{font-size:22px}.topbar nav{justify-content:flex-start;flex-wrap:nowrap;gap:21px;overflow:auto;white-space:nowrap;padding-top:12px;font-size:12px;scrollbar-width:thin}.hero{padding-top:32px}.hero-copy{margin-bottom:25px}.hero-actions{align-items:stretch;gap:20px}.hero-actions .button{gap:16px;padding:12px 17px;font-size:13px}.hero-actions .text-link{font-size:13px}.eyebrow{margin-bottom:15px;font-size:11px;letter-spacing:.09em}.intro{margin-top:17px;font-size:16px}.hero-photo{margin-left:-22px;width:calc(100% + 44px)}.hero-photo img{aspect-ratio:4/3}.stats{margin-bottom:40px}.stats>div{padding:24px 4px;gap:7px}.stats dd{font-size:29px}.stats dt{font-size:9px;letter-spacing:.03em}.listing-body{gap:18px 12px}.listing-body>h2{padding-top:32px;margin-top:21px}.listing-body>p:not(:has(>img)){font-size:16px;line-height:1.8}.listing-body>p:has(>img:only-child){grid-column:1/-1}.listing{padding-bottom:38px}.visit{display:block;padding:35px 0 40px}.visit-actions{margin-top:25px}.visit-copy>p:last-child{margin-top:17px}.entry-head{padding-top:30px}.entry-head .eyebrow{margin-top:30px}footer{display:block;padding-bottom:28px}footer>a{display:block;margin-top:16px}.update{grid-template-columns:1fr auto;gap:5px}.update>span:first-child{grid-column:1/-1}}\n@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}\n"
+  }
+ },
  "local-business": {
   "manifest": {
    "name": "local-business",

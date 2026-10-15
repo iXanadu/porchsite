@@ -10,7 +10,7 @@ from typing import Any
 
 from server.spec import mustache
 from server.spec.blocks import palette_css
-from server.spec.embeds import finish_embeds
+from server.spec.embeds import finish_embeds, heading_bodies
 from server.spec.jsutil import S, short_date, string, trim, u16slice
 from server.spec.site import SiteView
 from server.spec.theme import escape, streams
@@ -29,6 +29,8 @@ _writer = mustache.Writer(escape)
 
 
 def render(t: Theme, page: str, view: dict[str, Any], policy=None) -> str:
+    if (t.get("manifest") or {}).get("heading_ids") is True:
+        view = heading_bodies(view)
     return finish_embeds(
         _writer.render(t["pages"][page], view, t.get("partials") or {}),
         (policy or {}).get("sources"),

@@ -1,0 +1,85 @@
+{
+  "site": {
+    "title": "The Orchard House",
+    "tagline": "Room to put down roots.",
+    "intro": "A light-filled home, a sheltered garden, and a little more space for everyday life. Example property · Sample town.",
+    "hero": "/media/11111111111111111111111111111111.jpg",
+    "hero_alt": "Illustrative house and garden photograph; this is a fictional example listing",
+    "hero_caption": "For sale · $845,000",
+    "cta_label": "Arrange a visit",
+    "cta_link": "/#about",
+    "cta2_label": "Video tour",
+    "cta2_link": "/listing/home/#video-tour",
+    "links": [
+      {
+        "label": "Photos",
+        "url": "/listing/home/#photos"
+      },
+      {
+        "label": "Video & tour",
+        "url": "/listing/home/#video-tour"
+      },
+      {
+        "label": "Visit",
+        "url": "/#about"
+      }
+    ],
+    "streams": [
+      {
+        "id": "listing",
+        "title": "The home",
+        "layout": "feature"
+      }
+    ],
+    "sections": [
+      "listing",
+      "about"
+    ],
+    "about_title": "Come and have a look.",
+    "about": "A photo only tells you so much. Get in touch to ask a question or find a time to visit.",
+    "contact": {
+      "email": "owner@example.com",
+      "phone": "+12025550123",
+      "address": {
+        "line1": "Example property",
+        "city": "Sample town"
+      },
+      "map_link": "https://maps.example/property"
+    },
+    "footer_line": "An example listing. Details and photographs must be confirmed by the owner."
+  },
+  "items": [
+    {
+      "kind": "entry",
+      "slug": "home",
+      "data": {
+        "stream": "listing",
+        "title": "The Orchard House",
+        "summary": "Three bedrooms. A garden to make your own. Space for the next chapter.",
+        "date": "2026-10-15",
+        "tags": [
+          "property"
+        ],
+        "stats": [
+          {
+            "value": "3",
+            "label": "Bedrooms"
+          },
+          {
+            "value": "2",
+            "label": "Bathrooms"
+          },
+          {
+            "value": "2,240",
+            "label": "Sq ft"
+          },
+          {
+            "value": "0.35",
+            "label": "Acres"
+          }
+        ],
+        "body": "## A home with room to breathe\n\nMorning light across the kitchen. French doors open to a sheltered garden. A quiet room upstairs for work, and space around the table when everyone comes home.\n\nThis is a fictional example, with illustrative photographs from different homes. It is not a property for sale. Confirm every fact and use the owner’s actual photographs for a real listing.\n\n## Photos\n\n![Illustrative sitting and dining area](/media/22222222222222222222222222222222.jpg)\n\n![Illustrative kitchen and dining space in natural light](/media/33333333333333333333333333333333.jpg)\n\n![Illustrative bedroom](/media/44444444444444444444444444444444.jpg)\n\n![Illustrative exterior and garden](/media/55555555555555555555555555555555.jpg)\n\n## Video tour\n\nStart with a short look around the home.\n\n!embed[Watch the video tour](https://www.youtube.com/watch?v=Ab_C-123)\n\n## Walk through\n\nExplore the rooms at your own pace.\n\n!embed[Explore the 3D tour](https://my.matterport.com/show/?m=DemoModel123)\n\n## Open house\n\nSaturday, October 24 · 1–3 pm. Visits at other times by appointment. Ask about access or anything you need before you arrive.\n\n## The details\n\n- Three bedrooms, including a quiet room for work or guests\n- Two bathrooms and a separate utility area\n- A sheltered garden with room to sit outside\n- Parking and access details confirmed before a visit\n"
+      }
+    }
+  ]
+}

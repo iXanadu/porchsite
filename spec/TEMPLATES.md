@@ -21,9 +21,17 @@ my-template/
 ├── tag.mustache         # a stream's entries with one tag (required)
 ├── not_found.mustache   # the 404 page (required)
 ├── partials/            # optional *.mustache, used as {{> name}}
+├── sample-media/        # optional example photos for local/catalog previews only
 └── static/              # site.css (required) and the template's scripts,
                          # served at /static/<file>
 ```
+
+`sample-media/` may hold licensed example JPEG/PNG/WebP files named like the
+sample's `/media/<32-hex>.<ext>` paths, with source/license notes. The kit's
+local/catalog preview copies them into its preview folder. They are never
+installed as site media, included in the Worker registry or theme package,
+or published by choosing a look; real sites upload their own photographs.
+Raw parity output retains the ordinary `/media/` paths.
 
 `template.json`:
 
@@ -63,6 +71,26 @@ the site, so an assistant can gather it before switching:
   `recommended` or `optional`; `prompt` is a starting point for making one.
 - `content`: `[{field, need, purpose}]`, the words and settings the
   template reads and what it does with each.
+
+`heading_ids` (optional boolean, default `false`): opt in to stable ids on
+headings in entry Markdown bodies, on home, entry and archive/tag views.
+The same heading has the same id wherever that body is shown. Derive ids
+from the rendered heading's text: lowercase, NFKD normalization, discard
+combining marks, replace runs outside ASCII letters/digits with `-`, and
+trim `-`. Empty results use `section`. Repeats in one body add `-2`, `-3`,
+and so on; collisions with an already used id also advance that suffix.
+Fenced/indented code and inline code keep their ordinary Markdown behavior.
+The flag changes no stored content, and omitted/false keeps all existing
+look output byte-identical. Menus and hero buttons can already use local
+paths with fragments such as `/listing/home/#video-tour`; no new URL form
+is needed. Theme-authored element ids remain the look's responsibility.
+
+The built-in `listing-page` look is for one property. It uses a wide real
+property photo, price/stat figures, entry-body photos as a responsive
+gallery, in-place video/tour embeds, open-house information, contact and a
+map link. Its `art` brief asks for the property's actual photos, never
+invented rooms, engravings or mascot art. `theme_needs` returns that look's
+own manifest art brief and image purposes, including for built-in looks.
 
 `sections`: the home section kinds the template draws. `layouts`: the stream
 layouts it draws (a stream set to a layout the template lacks is drawn as

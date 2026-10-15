@@ -49,6 +49,8 @@ def rules(name: str, t: Theme, scripts: bool) -> list[str]:
     """Problems with a theme's files, or [] when it's sound."""
     problems: list[str] = []
     m = t.get("manifest") or {}
+    if "heading_ids" in m and not isinstance(m["heading_ids"], bool):
+        problems.append("heading_ids must be a boolean")
 
     def need(ok: Any, msg: str) -> None:
         if _falsy(ok):

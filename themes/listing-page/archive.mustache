@@ -1,0 +1,1 @@
+{{> head}}<section class="inner"><a class="text-link" href="/">← {{site.title}}</a><h1>{{stream.title}}</h1>{{#stream.intro}}<p class="intro">{{stream.intro}}</p>{{/stream.intro}}<ul class="plain">{{#entries}}{{> row}}{{/entries}}</ul>{{^entries}}<p>{{strings.nothing_yet}}</p>{{/entries}}</section>{{> foot}}

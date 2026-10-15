@@ -1,6 +1,7 @@
 """HTML helpers (port of cloudflare/src/html.ts: esc and markdown)."""
 
 import re
+import unicodedata
 from bisect import bisect_left
 from typing import Any
 
@@ -137,8 +138,22 @@ def _interrupts(line: str, in_item: bool) -> bool:
     )
 
 
+def _heading_id(inner, used):
+    text = re.sub(r"<[^>]*>", "", inner)
+    text = re.sub(r"&#(\d+);", lambda m: chr(int(m[1])), text)
+    text = unicodedata.normalize("NFKD", text.lower())
+    text = "".join(c for c in text if not unicodedata.category(c).startswith("M"))
+    base = re.sub(r"[^a-z0-9]+", "-", text).strip("-") or "section"
+    identifier, count = base, 2
+    while identifier in used:
+        identifier = f"{base}-{count}"
+        count += 1
+    used.add(identifier)
+    return identifier
+
+
 def _blocks(
-    lines: list[str], depth: int, in_item: bool = False, block=None
+    lines: list[str], depth: int, in_item: bool = False, block=None, ids=None
 ) -> tuple[list[tuple[str, str | None]], bool]:
     """Block Markdown: [(html, paragraph's inline html or None)], and whether
     a blank line separated two of them (a loose list item)."""
@@ -190,7 +205,9 @@ def _blocks(
             continue
         h = _heading(line)
         if h:
-            out.append((f"<h{h[0]}>{_inline(h[1])}</h{h[0]}>", None))
+            inner = _inline(h[1])
+            identifier = f' id="{_heading_id(inner, ids)}"' if ids is not None else ""
+            out.append((f"<h{h[0]}{identifier}>{inner}</h{h[0]}>", None))
             i += 1
             continue
         if _hr(line):
@@ -210,7 +227,7 @@ def _blocks(
                 else:
                     break
                 i += 1
-            quoted = "".join(b[0] for b in _blocks(inner, depth + 1)[0])
+            quoted = "".join(b[0] for b in _blocks(inner, depth + 1, ids=ids)[0])
             out.append((f"<blockquote>{quoted}</blockquote>", None))
             continue
         first = _item(line) if depth < MAX_DEPTH else None
@@ -243,7 +260,7 @@ def _blocks(
                 while content and _is_blank(content[-1]):
                     content.pop()
                     trailing += 1
-                bs, item_gap = _blocks(content, depth + 1, True)
+                bs, item_gap = _blocks(content, depth + 1, True, ids=ids)
                 if item_gap:
                     loose = True
                 items.append(bs)
@@ -278,11 +295,18 @@ def _blocks(
                 if spans is None:
                     rest = []
                     j = i
-                    while j < len(lines) and not _is_blank(lines[j]) and not _interrupts(lines[j], in_item):
+                    while (
+                        j < len(lines)
+                        and not _is_blank(lines[j])
+                        and not _interrupts(lines[j], in_item)
+                    ):
                         rest.append(_strip_left(lines[j]))
                         j += 1
                     probe = _inline("\n".join(para + rest).rstrip(" \t"), True)
-                    spans = [(int(a), int(b)) for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)]
+                    spans = [
+                        (int(a), int(b))
+                        for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)
+                    ]
                 if not any(start <= offset < end for start, end in spans):
                     break
             nxt = _strip_left(lines[i])
@@ -431,7 +455,9 @@ def _inline(s: str, positions=False) -> str:
                 code = s[i + t : found].replace("\n", " ")
                 if len(code) > 2 and code[0] == " " and code[-1] == " " and trim(code) != "":
                     code = code[1:-1]
-                out.append(f'<code{f" data-md-code=\"{i}:{found + t}\"" if positions else ""}>{esc(code)}</code>')
+                out.append(
+                    f"<code{f' data-md-code="{i}:{found + t}"' if positions else ''}>{esc(code)}</code>"
+                )
                 i = found + t
                 continue
             if c == "!" and at(i + 1) == "[" and i + 1 < end:
@@ -536,9 +562,11 @@ def _inline(s: str, positions=False) -> str:
     return done[0] if done else ""
 
 
-def markdown(src: str, block=None) -> str:
+def markdown(src: str, block=None, heading_ids=False) -> str:
     """Markdown, safe and deliberately small (spec/SPEC.md, "Markdown"): a
     line-for-line port of cloudflare/src/html.ts; both must give the same
     bytes (spec/markdown-cases.json)."""
     lines = src.replace("\r\n", "\n").split("\n")
-    return "\n".join(b[0] for b in _blocks(lines, 0, block=block)[0])
+    return "\n".join(
+        b[0] for b in _blocks(lines, 0, block=block, ids=set() if heading_ids else None)[0]
+    )
