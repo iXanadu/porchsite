@@ -1,0 +1,87 @@
+[
+  {
+    "name": "bad base64",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"error\\\":\\\"invalid\\\",\\\"message\\\":\\\"data isn't base64.\\\"}\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}"
+  },
+  {
+    "name": "oversize",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"error\\\":\\\"too_large\\\",\\\"message\\\":\\\"A picture can be at most 8 MB.\\\"}\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}"
+  },
+  {
+    "name": "both",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"error\\\":\\\"invalid\\\",\\\"message\\\":\\\"Give exactly one of data or images.\\\"}\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}"
+  },
+  {
+    "name": "neither",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"error\\\":\\\"invalid\\\",\\\"message\\\":\\\"Give exactly one of data or images.\\\"}\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}"
+  },
+  {
+    "name": "nine files",
+    "status": 200,
+    "headers": {
+      "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "mcp-session-id",
+      "access-control-max-age": "86400",
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "x-accel-buffering": "no",
+      "x-porchsite-release": "dev"
+    },
+    "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Input validation error: Invalid arguments for tool image_add: images: Too big: expected array to have <=8 items\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}"
+  }
+]

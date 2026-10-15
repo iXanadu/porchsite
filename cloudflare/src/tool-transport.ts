@@ -3,6 +3,7 @@ import { originalMcp } from "./mcp-original";
 import { createToolHandlers, INSTRUCTIONS, TOOL_DEFINITIONS } from "./mcp";
 import type { Env } from "./env";
 import { withToolContext } from "./tool-context";
+import { reportUploadPhase } from "./upload-diagnostic";
 import { reportMcpDispatch } from "./mcp-dispatch-diagnostic";
 
 const listedResult = { tools: Object.entries(TOOL_DEFINITIONS).map(([name, definition]) => ({
@@ -27,6 +28,16 @@ const cors = {
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const only = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key));
 
+/** Equivalent to the two optional fields in image_add's immutable schema. */
+function imageArguments(args: Record<string, unknown>) {
+  if (args.data !== undefined && typeof args.data !== "string") return undefined;
+  if (args.images !== undefined && (!Array.isArray(args.images) || args.images.length < 1 || args.images.length > 8 || args.images.some(value => typeof value !== "string"))) return undefined;
+  return { success: true as const, data: {
+    ...(args.data !== undefined ? {data: args.data} : {}),
+    ...(args.images !== undefined ? {images: args.images} : {}),
+  } };
+}
+
 export async function toolTransport(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const fallback = () => { reportMcpDispatch("sdk"); return originalMcp(req, env, ctx); };
   // Header validation and all protocol extensions stay with the original handler.
@@ -49,7 +60,9 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
     } catch { return fallback(); }
   }
   let body: unknown;
+  reportUploadPhase("json", "start");
   try { body = await req.clone().json(); } catch { return fallback(); }
+  finally { reportUploadPhase("json", "end"); }
   if (!record(body) || !only(body, ["jsonrpc", "id", "method", "params"]) || body.jsonrpc !== "2.0" ||
       typeof body.method !== "string" || !(typeof body.id === "string" || typeof body.id === "number") ||
       (typeof body.id === "number" && !Number.isSafeInteger(body.id)) ||
@@ -71,7 +84,8 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
         (params.arguments !== undefined && !record(params.arguments))) return fallback();
     const check = checks.get(params.name);
     if (!check) return fallback();
-    const parsed = check(params.arguments ?? {});
+    const args = params.arguments as Record<string, unknown> | undefined ?? {};
+    const parsed = params.name === "image_add" ? imageArguments(args) ?? check(args) : check(args);
     if (!parsed.success) return fallback();
     const props = (ctx as unknown as {props?: Record<string, unknown>}).props ?? {};
     // A request's owner context lasts only for its callback, across awaited work.
