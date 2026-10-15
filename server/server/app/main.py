@@ -54,6 +54,8 @@ class App:
             app=self.server,
             json_response=True,
             stateless=True,
+            # An 8 MiB base64 image batch plus its MCP JSON envelope.
+            max_request_body_size=16 * 1024 * 1024,
             security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
         self._started = False

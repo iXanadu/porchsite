@@ -222,6 +222,7 @@ async function uploadPage(env: Env, req: Request, token: string): Promise<Respon
     const form = await req.formData().catch(() => null);
     const file = form?.get("photo");
     try {
+      if ((form?.getAll("photo").length ?? 0) !== 1 || [...(form?.values() ?? [])].filter((v) => v instanceof File).length !== 1) throw new ApiError(422, "invalid", "Choose exactly one photo.");
       const done = await uploads.receive(env.DB, token, file instanceof File ? file : null, String(form?.get("alt") ?? ""));
       if (wantsJson) return json(done);
     } catch (e) {

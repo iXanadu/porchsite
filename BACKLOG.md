@@ -25,10 +25,6 @@ the merged main tip. Gate (each exit code read on its own):
 `cd server && pytest -q`; `scripts/parity.sh`;
 `scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
 `scripts/migration-check.py`; `scripts/upgrade-check.sh`.
-- **S2-1** (RA-10) IN-PROGRESS: coder. Batch `image_add` as decided in
-  RA-10 below. Tests: 8 files pass, 9 refused, over the total cap refused, one bad
-  file among good ones stores none. Measure the Cloudflare edition at the
-  cap under local wrangler.
 - **S2-3** (SP-S2) IN-PROGRESS: coder, after S2-1. Cap `site_check`'s
   crawl (pages and links), the same numbers in both editions, with the
   cap reported in the answer when it is hit.
@@ -45,23 +41,20 @@ site's OAuth connector, and pictures held as files. In order:
 - **RA-9** OPEN: The install guide's setup code as a hashed row in the
   site's database (as the installer does), not a Worker secret: no secret
   to delete after the claim, one step fewer, nothing for the audit check.
-- **RA-10** IN-PROGRESS (S2-1): Uploading many photos costs one tool call each (34+ in a
-  reunion build). Decided (2026-10-15): several pictures per image_add
-  call, behind the same owner auth; at most 8 files, 8 MB each, and a
-  8 MB total decoded per call, the same as one picture today (measured
-  Worker peaks: one 8 MB picture 98 MiB; batches of 12, 16 and 32 MB
-  129-189 MiB, over the 128 MiB limit); every file sniffed; stored by hash only (filenames ignored); all or
-  nothing (any bad file stores none). The one-shot photo upload link stays
-  one file. Many phone photos at once would be a signed-in owner page, a
-  separate item if wanted. Check the Worker's memory at the cap first.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
   guide (by app), and Grok Bot's Porchsite template, public and linked.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
   custom GPT, Meta AI's skills), then a run with each.
 
 ## DEGRADING
-_(none)_
-
+- **CF-C1** OPEN: `site_check` on the menu-page sample (21 items) used
+  about 18.9 ms of sampled CPU in local Wrangler (cold isolate, no I/O);
+  the free plan allows 10 ms per request. Not yet seen failing on a hosted
+  site. Measure warm and hosted before acting. Found: stage 2.
+- **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
+  `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
+  that scales (for example, reachability from the archive's own listing
+  without rendering every page). Before the listing-site build.
 - **SP-S2** IN-PROGRESS (S2-3): `site_check`'s crawl has no page or link cap. A
   look with a huge local link fan-out burns CPU inside the owner's own
   check. Owner-authenticated only, not a visitor path. Found: stage 1

@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2023",
-    "lib": ["es2023"],
+    "lib": ["es2023", "esnext.typedarrays"],
     "module": "es2022",
     "moduleResolution": "bundler",
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"],
