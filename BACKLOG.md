@@ -24,10 +24,6 @@ Gate (each command's exit code read on its own, never through a pipe):
 `cd server && pytest -q`; `scripts/parity.sh`;
 `scripts/conformance-server.sh`; `scripts/conformance-mutations.sh`;
 `scripts/migration-check.py`; `scripts/upgrade-check.sh`.
-- **S1-1** (RA-6) IN-PROGRESS: spec + both editions. `site_check` gains
-  `unreachable`: published entries no visitor can reach from the home page
-  as the site's own look renders it, each with its id and why. A test look
-  that drops entries must fail the check in both editions.
 - **S1-2** (SP-S1) IN-PROGRESS: spec + both editions. `site_state` returns
   a summary by default (id, kind, title, state, version per item; release
   and update unchanged). Full data comes back with `full: true`, or with
@@ -44,10 +40,6 @@ site's OAuth connector, and pictures held as files. In order:
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-6** IN-PROGRESS (S1-1): site_check should report entries no visitor can reach
-  from the home page (rendered by the site's own look), not just broken
-  links and empty sections: a look that drops some entries left a thin
-  home page and the check still passed.
 - **RA-9** OPEN: The install guide's setup code as a hashed row in the
   site's database (as the installer does), not a Worker secret: no secret
   to delete after the claim, one step fewer, nothing for the audit check.

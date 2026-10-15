@@ -174,10 +174,22 @@ replacement, so a refresh whose answer was lost can be retried.
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
 | `image_add(data)` | A picture the assistant holds as a file, sent as base64 (JPEG, PNG or WebP, up to 8 MB): stored like any picture (S7), private until a published item uses it; returns its `/media` path and pixel size |
-| `site_check` | The site as it will be once everything staged is published, looked over as a visitor clicks through it: `broken` (links inside the site that lead to no page, no home-page section with anything in it, or no stored picture; each with where it is and why) and `empty_sections` (sections in the layout with nothing in them, which the menu leaves out); `ok` when nothing is broken. Read-only; run before asking for approval |
+| `site_check` | The site as it will be once everything staged is published, looked over as a visitor clicks through it: `broken` (links inside the site that lead to no page, no home-page section with anything in it, or no stored picture; each with where it is and why) and `empty_sections` (sections in the layout with nothing in them, which the menu leaves out); `unreachable` (entries that would be public but have no path of rendered links from the home page, each `{id, why}`); `ok` when both `broken` and `unreachable` are empty. Read-only; run before asking for approval |
 | `site_stats(days?, content_id?, src?, post?, include_test?)` | Visitor numbers (§8), read-only |
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |
+
+Reachability uses the selected look, including an installed or site-made look,
+on the same proposed site as the other checks. Starting at `/`, follow
+rendered HTML anchor links through local entry, archive and tag pages;
+resolve relative addresses, same-site absolute addresses and the site's
+stream redirects. An external entry is reachable when a visited page links
+to its destination or its local redirect. An entry also counts as reachable
+when its full, nonempty body is rendered inline on a visited page (a feature
+section, for example); a title or summary alone is insufficient. Draft entries and staged removals
+are absent from this proposed public view. Metadata, feeds, search indexes
+and unlinked pages do not establish reachability. This is a static HTML link
+check: it does not run scripts, evaluate CSS visibility or fetch any URL.
 
 The server's MCP instructions tell the assistant the rules above in plain
 words, so any assistant can use the site correctly without prior training.

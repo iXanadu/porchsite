@@ -55,7 +55,7 @@ CHECK_DESCRIPTION = (
     " clicks through it: `broken`, links inside the site that lead nowhere (a page, a section of the home"
     " page, a picture), each with where it is and why; and `empty_sections`, sections in the site's layout"
     " with nothing in them (the menu leaves them out; take them out of the site's sections, or fill them,"
-    " if you mean to). `ok` is true when nothing is broken. Run it before you ask for approval and before"
+    " if you mean to). `unreachable` lists entries with no rendered link path from the home page, each with id and why. `ok` is true when broken and unreachable are both empty. Run it before you ask for approval and before"
     " you tell your person the site is done."
 )
 STATES = {
@@ -750,7 +750,7 @@ async def _call(
             changes = [{"id": i["id"], "version": i["version"]} for i in await content.staged(db)]
             v = await site.proposed_view(db, changes)
             names = {r["name"] for r in await db.fetch("SELECT name FROM media")}
-            return check.check_site(v, names)
+            return check.check_site(v, names, await themes.load(db, str(v.site["theme"])), origin)
 
         return await _run(site_check)
 
