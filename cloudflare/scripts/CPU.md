@@ -43,12 +43,13 @@ To yield the shared lock, send the harness process `SIGUSR2`. It finishes
 the current observation, writes an explicitly incomplete table and exits
 75 after shutting down Wrangler. Resume with the same arguments and
 `--resume true`; completed observations are preserved. Resuming refuses a
-different revision, product diff, release label, minification or harness hash.
+different revision, product diff, release label, minification, harness hash
+or requested matrix (looks, cases, repeats and modes).
 
 The measured path is the build's actual `index.ts` HTTP handler, including
 owner-session authentication for review pages and assistant-key lookup plus
 MCP transport for tools. Every tool discovered by `tools/list` must have a
-successful measured case in a full run; an HTTP error, MCP error, or missing
+successful measured case in a full run; an unexpected HTTP status, MCP error, or missing
 tool fails the run. This does not measure OAuth-token authentication.
 
 Wrangler's dry-run build preserves a minified install-style bundle and its
@@ -60,18 +61,28 @@ every sample exercises its cached KV path consistently. Uncached update
 requests and OAuth authentication need separate hosted observations.
 
 Public coverage includes home, entry, archive, tag, missing-page, feed,
-search index, stylesheet, beacon script and robots responses. Review
+search index, stylesheet, beacon script, robots, login, ownerless setup,
+already-claimed setup, adding a passkey, photo upload, OAuth consent and
+published media responses. Passkey/photo links include waiting, used and
+expired states, with their expected 200/410 statuses. Consent uses a locally
+registered client and the owner's fixture session. Registration is unmeasured
+setup in a separate discarded isolate; measured cold requests remain fresh.
+Media uses a published entry's share card and verifies public caching and
+the returned bytes. Other public GETs carry no owner cookie. Review
 coverage includes the inbox, approval detail, home/entry/archive/tag
 previews, writing index/new/editor/preview, import, share-card listing,
 passkeys, assistants, stats, publish history and revert page. These are GET
 page measurements; form submissions and passkey ceremonies are not covered.
-Tools include summary/full/selected `site_state`, and image upload with a
-small PNG, the legacy 8 MiB limit, and eight distinct 1 MiB PNGs when the
+MCP includes initialization, discovery, every tool, summary/full/selected
+`site_state`, and image upload with a small PNG, 0.5/1/2/4 MiB, the legacy
+8 MiB limit, and eight distinct 1 MiB PNGs when the
 build supports batches. Padded PNG fixtures exercise decoded-byte and D1
 storage costs, not pixel decoding.
 
-Fixtures use the selected build's validator on its sample data. Published
-items retain their sample content. One staged tagline edit and its approval,
+Fixtures use the selected build's validator on its sample data and explicitly
+set the selected look even when the sample omits its theme. The seeded live
+renderer is checked against the requested look and recorded in each row.
+Published items retain their sample content. One staged tagline edit and its approval,
 one publish-history record, an owner session, an assistant key, a waiting
 photo link and a private look support successful owner/tool requests. The
 same fixture is restored through the local SQLite database between requests.

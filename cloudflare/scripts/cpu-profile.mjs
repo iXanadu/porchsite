@@ -50,12 +50,16 @@ const wanted = options.cases?.split(',');
 const repeats = Number(options.repeats ?? 3);
 const modes = options.modes?.split(',') ?? ['cold', 'warm'];
 if (!Number.isInteger(repeats) || repeats < 1 || modes.some(m=>!['cold','warm'].includes(m))) throw new Error('Invalid repeats or modes');
-writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,harnessSha256,release,minify,repeats,modes,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:'One unmeasured same-case request, then measured requests; storage reset before each',samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
+const matrix={looks:selected,cases:wanted??null,repeats,modes};
+if(previousResults.length&&JSON.stringify(JSON.parse(readFileSync(join(output,'method.json'))).matrix)!==JSON.stringify(matrix)) throw new Error('Resume requires the identical requested matrix');
+writeFileSync(join(output,'method.json'),JSON.stringify({revision,...sourceState,harnessSha256,release,minify,matrix,startingLoad,node:process.version,cold:'First HTTP request after Wrangler inspector readiness; fresh process per measured cold request; eager startup before attachment excluded',warm:'One unmeasured same-case request, then measured requests; storage reset before each',samplingIntervalUs:100,active:'sum timeDeltas except (idle), includes (program) and GC',outbound:'deterministic local fixtures; no network upstream measurements',authentication:'assistant-key bearer for MCP; hashed owner-session cookie for review',build:repo},null,2));
 const token = `psk_${randomBytes(24).toString('base64url')}`, session = randomBytes(32).toString('base64url');
 const hash = s => createHash('sha256').update(s).digest('hex');
 const sql = v => v === null ? 'NULL' : `'${String(v).replaceAll("'", "''")}'`;
 const stamp = '2026-10-10T12:00:00.000Z';
 const until = '2099-01-01T00:00:00.000Z';
+const passkeyToken='p'.repeat(32), uploadToken='u'.repeat(32);
+let oauthClientId;
 // Use this build's real validator for offline fixture defaults and aliases.
 const esbuild = await import(join(cf, 'node_modules/esbuild/lib/main.js'));
 esbuild.buildSync({ stdin: { contents: 'export { validate } from "./src/content.ts"; export { PREFIX } from "./src/models.ts";', resolveDir: cf }, bundle: true, platform: 'node', format: 'esm', outfile: join(work, 'models.mjs') });
@@ -122,10 +126,11 @@ async function stop() {
   if (!processHandle) return;
   const child = processHandle; processHandle = undefined;
   stoppingPromise=(async()=>{
-    const exited=new Promise(resolve=>child.once('exit',resolve));
-    if(child.exitCode===null) child.kill('SIGINT');
+    const running=()=>child.exitCode===null&&child.signalCode===null;
+    const exited=running()?new Promise(resolve=>child.once('exit',resolve)):Promise.resolve();
+    if(running()) child.kill('SIGINT');
     await Promise.race([exited,delay(3000)]);
-    if(child.exitCode===null) {child.kill('SIGKILL');await exited;}
+    if(running()) {child.kill('SIGKILL');await exited;}
     await delay(100);
   })();
   try {await stoppingPromise;} finally {stoppingPromise=undefined;}
@@ -148,7 +153,7 @@ async function start() {
   child.stdout.on('data', b => log.push(String(b)));
   child.stderr.on('data', b => log.push(String(b)));
   for (let i = 0; i < 150; i++) {
-    if (child.exitCode !== null) throw new Error(log.join(''));
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error(log.join(''));
     if(!log.join('').includes(`Ready on ${origin}`)) {await delay(100);continue;}
     try {
       const targets = await (await fetch(`http://127.0.0.1:${inspector}/json/list`)).json();
@@ -177,9 +182,10 @@ async function connect() {
     ws.send(JSON.stringify({ id:requestId, method, params }));
   }); }, close() { ws.close(); } };
 }
-function seed(look) {
+function seed(look,c={}) {
   const sample = JSON.parse(readFileSync(join(repo, 'themes', look, 'sample.json')));
-  const rows = [{ id: 'site', kind: 'site', slug: null, data: validate('site',sample.site) }, ...sample.items.map((item, i) => ({ id: `${PREFIX[item.kind]}_${i.toString(16).padStart(8, '0')}`, kind: item.kind, slug: item.kind === 'entry' ? item.slug ?? `item-${i}` : null, data: validate(item.kind,item.data) }))];
+  const rows = [{ id: 'site', kind: 'site', slug: null, data: validate('site',{...sample.site,theme:look}) }, ...sample.items.map((item, i) => ({ id: `${PREFIX[item.kind]}_${i.toString(16).padStart(8, '0')}`, kind: item.kind, slug: item.kind === 'entry' ? item.slug ?? `item-${i}` : null, data: validate(item.kind,item.data) }))];
+  if(rows[0].data.theme!==look) throw new Error('Fixture renderer does not match selected look');
   let commands = tables.map(t => `DELETE FROM "${t}";`).join('\n');
   for (const row of rows) {
     const data = JSON.stringify(row.data);
@@ -196,9 +202,21 @@ function seed(look) {
   const approval = [{id:'site',version:2,kind:'site',label:changed.title,change:'changed',status:'pending',note:''}];
   commands += `INSERT INTO approvals VALUES (${['fixture_approval',JSON.stringify(approval),'Fixture review','owner','pending','',stamp,null].map(sql).join(',')});\n`;
   commands += `INSERT INTO publishes(id,actor,approval_id,items,created_at) VALUES (1,'owner',NULL,${sql(JSON.stringify(rows.map(r=>({id:r.id,version:1}))))},${sql(stamp)});\n`;
-  commands += `INSERT INTO uploads(id,token_hash,purpose,requested_by,created_at,expires_at) VALUES ('fixture_upload',${sql(hash('fixture_upload'))},'Local fixture','owner',${sql(stamp)},${sql(until)});\n`;
+  commands += `INSERT INTO uploads(id,token_hash,purpose,requested_by,created_at,expires_at) VALUES ('fixture_upload',${sql(hash(uploadToken))},'Local fixture','owner',${sql(stamp)},${sql(until)});\n`;
+  commands += `INSERT INTO passkey_links(token_hash,created_at,expires_at) VALUES (${sql(createHash('sha256').update(passkeyToken).digest('base64url'))},${sql(stamp)},${sql(until)});\n`;
   commands += `INSERT INTO themes(name,version,package,sha256,installed_at,installed_by,source) VALUES ('fixture-private',${sql(privateLook.manifest.version)},${sql(JSON.stringify(privateLook))},'fixture',${sql(stamp)},'owner','private');\n`;
+  if(c.ownerless) commands+='DELETE FROM owner;\n';
+  if(c.linkState==='used') commands+=`UPDATE uploads SET media='/media/fixture.png',used_at=${sql(stamp)}; UPDATE passkey_links SET used_at=${sql(stamp)};\n`;
+  if(c.linkState==='expired') commands+=`UPDATE uploads SET expires_at=${sql(stamp)}; UPDATE passkey_links SET expires_at=${sql(stamp)};\n`;
+  if(c.name==='public:media') {
+    const name=hash(smallPng).slice(0,32)+'.png';
+    commands+=`INSERT INTO media(name,type,size,chunks,source,created_at,width,height) VALUES (${sql(name)},'image/png',${smallPng.length},1,'fixture',${sql(stamp)},1,1);\n`;
+    commands+=`INSERT INTO media_chunks(name,n,data) VALUES (${sql(name)},0,X'${smallPng.toString('hex')}');\n`;
+    commands+=`INSERT INTO share_cards(item_id,version,name,created_at) VALUES (${sql(rows.find(r=>r.kind==='entry').id)},1,${sql(name)},${sql(stamp)});\n`;
+  }
   db.exec('BEGIN IMMEDIATE;'+commands+'COMMIT;');
+  const actualTheme=db.prepare("SELECT json_extract(data,'$.theme') AS theme FROM live WHERE item_id='site'").get().theme;
+  if(actualTheme!==look) throw new Error(`Published renderer ${actualTheme} does not match ${look}`);
   return { sample, rows };
 }
 function casesFor({ sample, rows }) {
@@ -209,8 +227,12 @@ function casesFor({ sample, rows }) {
   const tool = (name, args = {}, variant = '') => ({ name: `tool:${name}${variant}`, tool: name, args, status: 200 });
   const png = smallPng.toString('base64');
   return [get('public:home','/'),get('public:entry',path,entry.data.external_url?302:200),get('public:archive',`/${stream.path||stream.id}/`),get('public:tag',`/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`),get('public:not_found','/missing-fixture/',404),get('public:feed',`/${stream.path||stream.id}/feed.xml`),get('public:search',`/${stream.path||stream.id}/search.json`),get('public:css','/static/site.css'),get('public:beacon','/static/a.js'),get('public:robots','/robots.txt'),
+    get('public:login','/login'),{...get('public:setup','/setup?code=fixture'),ownerless:true},get('public:setup:claimed','/setup',303),
+    get('public:passkey',`/passkey/${passkeyToken}`),{...get('public:passkey:used',`/passkey/${passkeyToken}`,410),linkState:'used'},{...get('public:passkey:expired',`/passkey/${passkeyToken}`,410),linkState:'expired'},
+    get('public:upload',`/upload/${uploadToken}`),{...get('public:upload:used',`/upload/${uploadToken}`,410),linkState:'used'},{...get('public:upload:expired',`/upload/${uploadToken}`,410),linkState:'expired'},
+    {...get('public:authorize',()=>'/authorize?'+new URLSearchParams({client_id:oauthClientId,redirect_uri:'https://client.example/callback',response_type:'code',scope:'site:draft',code_challenge:'A'.repeat(43),code_challenge_method:'S256',state:'fixture'})),owner:true},get('public:media',`/media/${hash(smallPng).slice(0,32)}.png`),
     ...['','/import','/cards.json','/passkeys','/assistants','/stats','/history','/history/1','/write','/write/new',`/write/${entry.id}`,`/write/${entry.id}/preview`,'/fixture_approval','/fixture_approval/preview/',`/fixture_approval/preview${path}`,`/fixture_approval/preview/${stream.path||stream.id}/`,`/fixture_approval/preview/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`].map(p=>get(`review:${p||'index'}`,`/review${p}`, p===`/fixture_approval/preview${path}`&&entry.data.external_url?302:200)),
-    { name:'mcp:tools/list', method:'tools/list',status:200 },
+    { name:'mcp:initialize',method:'initialize',params:{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'local-cpu-fixture',version:'1.0'}},status:200 },{ name:'mcp:tools/list', method:'tools/list',status:200 },
     tool('site_state'),...(hasStateSelection?[tool('site_state',{full:true},':full'),tool('site_state',{ids:['site']},':ids')]:[]),tool('approval_status'),tool('site_check'),tool('site_stats'),tool('theme_list'),tool('theme_needs'),
     tool('item_create',{kind:'note',data:{text:'Fixture note',date:'2026-10-10'}}),tool('item_update',{id:'site',version:2,data:{tagline:'Profile fixture'}}),tool('item_remove',{id:entry.id,version:1}),tool('item_history',{id:entry.id}),tool('item_rollback',{id:'site',to_version:1,version:2}),tool('photo_upload_link'),tool('image_add',{data:png}),...sizeImages.map(({mib,data})=>tool('image_add',{data},`:${mib}MiB`)),tool('image_add',{data:largeImage},':8MiB'),...(hasBatch?[tool('image_add',{images:batchImages},':batch8MiB')]:[]),tool('approval_request',{ids:['site']}),
     // Status and theme creation/submission/install need per-case preparation.
@@ -218,20 +240,23 @@ function casesFor({ sample, rows }) {
     tool('theme_create', {manifest:privateLook.manifest,sample:JSON.parse(readFileSync(join(repo,'themes/product-page/sample.json'))),pages:privateLook.pages,partials:privateLook.partials,css:privateLook.static['site.css']}),tool('theme_submit',{name:'fixture-private',note:'A local profiling fixture'})];
 }
 async function request(c) {
-  const headers = { cookie:`__Host-sk_owner=${session}`, 'user-agent':'LocalCPUFixture/1.0' };
+  const headers = { ...(c.name.startsWith('review:')||c.owner?{cookie:`__Host-sk_owner=${session}`} : {}), 'user-agent':'LocalCPUFixture/1.0' };
   let init = { headers, redirect:'manual' };
   if (c.tool || c.method) {
-    init = { ...init, method:'POST',headers:{...headers,authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json','mcp-protocol-version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:c.method??'tools/call',...(c.tool?{params:{name:c.tool,arguments:c.args}}:{})}) };
+    init = { ...init, method:'POST',headers:{...headers,authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json','mcp-protocol-version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:c.method??'tools/call',...(c.tool?{params:{name:c.tool,arguments:c.args}}:c.params?{params:c.params}:{})}) };
   }
   const start = performance.now();
-  const r = await fetch(origin+(c.path??'/mcp'),{...init,signal:AbortSignal.timeout(60000)});
-  const body = await r.text();
+  const r = await fetch(origin+(typeof c.path==='function'?c.path():c.path??'/mcp'),{...init,signal:AbortSignal.timeout(60000)});
+  const responseBytes=Buffer.from(await r.arrayBuffer());
+  const body = responseBytes.toString('utf8');
   const wallMs = performance.now()-start;
   if (r.status !== c.status) throw new Error(`${c.name}: HTTP${r.status}, expected${c.status}: ${body.slice(0,400)}`);
+  if(c.name==='public:media'&&!r.headers.get('cache-control')?.startsWith('public,')) throw new Error('Media fixture did not exercise published visitor serving');
+  if(c.name==='public:media'&&!responseBytes.equals(smallPng)) throw new Error('Published media bytes differ from fixture');
   let toolError = false, toolNames;
-  if (c.tool) { const rpc=JSON.parse(body); if(rpc.error) throw new Error(JSON.stringify(rpc.error)); toolError=!!rpc.result?.isError; if(toolError) throw new Error(`${c.name}: ${body.slice(0,1200)}`); }
+  if (c.tool||c.method) { const rpc=JSON.parse(body); if(rpc.error) throw new Error(JSON.stringify(rpc.error)); toolError=!!rpc.result?.isError; if(toolError||!rpc.result) throw new Error(`${c.name}: ${body.slice(0,1200)}`); }
   if(c.method==='tools/list') toolNames=JSON.parse(body).result.tools.map(t=>t.name);
-  return { status:r.status,bytes:Buffer.byteLength(body),wallMs,toolError,...(toolNames?{toolNames}:{}) };
+  return { status:r.status,bytes:responseBytes.length,wallMs,toolError,...(toolNames?{toolNames}:{}) };
 }
 function summarize(profile) {
   const nodes = new Map(profile.nodes.map(n=>[n.id,n]));
@@ -246,6 +271,16 @@ function summarize(profile) {
 const results=[...previousResults];
 const completed=(look,c,mode,n)=>results.some(r=>r.look===look&&r.case===c.name&&r.mode===mode&&r.iteration===n);
 try {
+  // Client registration is fixture setup in a separate, discarded isolate.
+  // Each measured cold request still gets a new process afterward.
+  if(!wanted||wanted.includes('public:authorize')) {
+    seed(selected[0]);await start();
+    const response=await fetch(origin+'/oauth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({client_name:'Local fixture',redirect_uris:['https://client.example/callback'],token_endpoint_auth_method:'none',grant_types:['authorization_code'],response_types:['code']})});
+    const registration=await response.json();
+    if(!response.ok||!registration.client_id) throw new Error('Local OAuth fixture registration failed');
+    oauthClientId=registration.client_id;
+    await stop();
+  }
   measurements: for(const look of selected) {
     const fixture=seed(look);
     const selectedCases=casesFor(fixture).filter(c=>!wanted||wanted.some(w=>c.name===w||c.tool===w));
@@ -254,13 +289,13 @@ try {
       for(const mode of modes) {
         if(pauseRequested) break measurements;
         if(Array.from({length:repeats},(_,n)=>completed(look,c,mode,n)).every(Boolean)) continue;
-        await stop(); seed(look); await start();
+        await stop(); seed(look,c); await start();
         if(mode==='warm') await request(c);
         for(let n=0;n<repeats;n++) {
           if(pauseRequested) break measurements;
           if(completed(look,c,mode,n)) continue;
-          if(mode==='cold'&&n) {await stop();seed(look);await start();}
-          else seed(look);
+          if(mode==='cold'&&n) {await stop();seed(look,c);await start();}
+          else seed(look,c);
           const debuggerSession=await connect();
           try {
             await debuggerSession.call('Profiler.enable');
@@ -270,7 +305,7 @@ try {
             const {profile}=await debuggerSession.call('Profiler.stop');
             const basename=`${look}-${c.name.replaceAll(/[^\w.-]/g,'_')}-${mode}-${n}`;
             writeFileSync(join(output,basename+'.cpuprofile'),JSON.stringify(profile));
-            const result={revision,...sourceState,look,case:c.name,mode,iteration:n,...response,...summarize(profile)};
+            const result={revision,...sourceState,look,renderer:look,case:c.name,mode,iteration:n,...response,...summarize(profile)};
             results.push(result); console.log(JSON.stringify({...result,functionsUs:undefined}));
             writeFileSync(join(output,'results.json'),JSON.stringify(results,null,2));
           } finally {debuggerSession.close();}
