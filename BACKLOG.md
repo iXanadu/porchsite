@@ -77,6 +77,12 @@ site's OAuth connector, and pictures held as files. In order:
   DATABASE ... FORCE, privilege error) and left a `porchsite_test_*`
   database behind on the test cluster. Cause not yet known; seen once.
 
+- **P-2** OPEN: Parity covers rendered pages only. The tools' answers
+  (`site_check`, `site_state`) can differ between editions unnoticed: in
+  stage 1 the server edition alone misjudged equivalent URLs and a
+  base_url link. Run each look's sample site through both editions' tools
+  and diff the answers as part of `scripts/parity.sh`.
+
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
   live, with the audit-log check; left: another run on a fresh Cloudflare
