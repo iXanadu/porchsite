@@ -163,6 +163,11 @@ async def test_mcp_check_notes_use_live_authority(db, http):
     client = await assistant(db, http)
     err, plain, _ = await client.call("site_check")
     assert not err and "embed_notes" not in plain
+    await _make(
+        db, "entry", {"title": "Literal code", "date": "2026-10-15", "body": "``\n" + FORM + "\n``"}
+    )
+    err, literal, _ = await client.call("site_check")
+    assert not err and "embed_notes" not in literal
     s = await _make(db, "site", {"embed_sources": [SOURCE]})
     e = await _make(db, "entry", {"title": "Video", "date": "2026-10-15", "body": FORM})
     err, quick, _ = await client.call("site_check")
@@ -210,3 +215,28 @@ def test_authored_frames_and_dynamic_tag_names_are_not_trusted():
             "personal-homepage", {**t, "pages": {**t["pages"], "home": bad}}, scripts=True
         )
         assert any("tag names" in p or "iframes" in p for p in probs)
+
+
+def test_matched_multiline_inline_code_remains_literal():
+    for ticks in ["`", "``"]:
+        for prefix in ["", "Before **text** "]:
+            src = prefix + ticks + "\n" + FORM + "\n" + ticks
+            assert embeds_of(src) == []
+            assert body_markdown(src) == markdown(src)
+            assert "<iframe" not in finish_embeds(body_markdown(src), [SOURCE], ORIGIN)
+            assert embed_notes([{"id": "e", "body": src}], [], ORIGIN) == []
+    adjacent = "`\n" + FORM + "\n`\n" + FORM
+    assert len(embeds_of(adjacent)) == 1
+    assert finish_embeds(body_markdown(adjacent), [SOURCE], ORIGIN).count("<iframe ") == 1
+    assert len(embeds_of("Unmatched `\n" + FORM)) == 1
+    assert len(embeds_of("Escaped \\`\n" + FORM + "\n`")) == 1
+
+
+def test_noscript_fallback_does_not_spend_frame_budget():
+    marker = body_markdown(FORM)
+    body = "<noscript>" + marker * 12 + "</noscript>" + marker
+    finished = finish_embeds(body, [SOURCE], ORIGIN)
+    assert finished.count("<iframe ") == 1 and finished.count("<a ") == 13
+    assert "<iframe" not in finished.split("</noscript>")[0]
+    for src in ["> `\n" + FORM + "\n`", "- ``\n" + FORM + "\n``"]:
+        assert embeds_of(src) == [] and body_markdown(src) == markdown(src)

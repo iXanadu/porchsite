@@ -120,7 +120,7 @@ def _item(line: str) -> dict | None:
 def _starts_block(line: str) -> bool:
     """A line that ends a lazy continuation (list item or quote)."""
     return _indent(line) < 4 and bool(
-        line.startswith("!embed[") or _fence(line) or _heading(line) or _hr(line) or _QUOTE.match(line) or _item(line)
+        _fence(line) or _heading(line) or _hr(line) or _QUOTE.match(line) or _item(line)
     )
 
 
@@ -269,15 +269,32 @@ def _blocks(
             continue
         para = [_strip_left(line)]
         i += 1
-        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item) and not (depth == 0 and block and lines[i].startswith("!embed[")):
-            para.append(_strip_left(lines[i]))
+        spans = None
+        offset = len(para[0]) + 1
+        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item):
+            if depth == 0 and block and lines[i].startswith("!embed["):
+                if not any("`" in p for p in para):
+                    break
+                if spans is None:
+                    rest = []
+                    j = i
+                    while j < len(lines) and not _is_blank(lines[j]) and not _interrupts(lines[j], in_item):
+                        rest.append(_strip_left(lines[j]))
+                        j += 1
+                    probe = _inline("\n".join(para + rest).rstrip(" \t"), True)
+                    spans = [(int(a), int(b)) for a, b in re.findall(r'<code data-md-code="(\d+):(\d+)">', probe)]
+                if not any(start <= offset < end for start, end in spans):
+                    break
+            nxt = _strip_left(lines[i])
+            para.append(nxt)
+            offset += len(nxt) + 1
             i += 1
         text = _inline("\n".join(para).rstrip(" \t"))
         out.append((f"<p>{text}</p>", text))
     return out, gap
 
 
-def _inline(s: str) -> str:
+def _inline(s: str, positions=False) -> str:
     """Inline Markdown for one paragraph or heading: code, images, links,
     emphasis, breaks, smart punctuation."""
     # Lookup tables keep the scan near-linear however the text is built.
@@ -414,7 +431,7 @@ def _inline(s: str) -> str:
                 code = s[i + t : found].replace("\n", " ")
                 if len(code) > 2 and code[0] == " " and code[-1] == " " and trim(code) != "":
                     code = code[1:-1]
-                out.append(f"<code>{esc(code)}</code>")
+                out.append(f'<code{f" data-md-code=\"{i}:{found + t}\"" if positions else ""}>{esc(code)}</code>')
                 i = found + t
                 continue
             if c == "!" and at(i + 1) == "[" and i + 1 < end:

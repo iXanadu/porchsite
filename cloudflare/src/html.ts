@@ -119,7 +119,7 @@ function mdItem(line: string): MdItem | null {
 
 /** A line that ends a lazy continuation (list item or quote). */
 const mdStartsBlock = (line: string) =>
-  indentOf(line) < 4 && (line.startsWith("!embed[") || !!mdFence(line) || !!mdHeading(line) || mdHr(line) || !!mdQuote(line) || !!mdItem(line));
+  indentOf(line) < 4 && (!!mdFence(line) || !!mdHeading(line) || mdHr(line) || !!mdQuote(line) || !!mdItem(line));
 
 /** A line that ends a paragraph. In a list item any number starts a nested list; elsewhere only 1. does. */
 function mdInterrupts(line: string, inItem: boolean): boolean {
@@ -247,7 +247,23 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
     }
     const para = [stripLeft(line)];
     i++;
-    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem) && !(depth === 0 && block && lines[i].startsWith("!embed["))) para.push(stripLeft(lines[i++]));
+    let spans: [number, number][] | undefined;
+    let offset = para[0].length + 1;
+    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem)) {
+      if (depth === 0 && block && lines[i].startsWith("!embed[")) {
+        if (!para.some(p => p.includes("`"))) break;
+        if (spans === undefined) {
+          // Ask the ordinary inline parser: only spans in its chosen output
+          // count, including multiline spans and escaped/backtracking cases.
+          const rest: string[] = [];
+          for (let j = i; j < lines.length && !isBlank(lines[j]) && !mdInterrupts(lines[j], inItem); j++) rest.push(stripLeft(lines[j]));
+          const probe = mdInline([...para, ...rest].join("\n").replace(/[ \t]+$/, ""), true);
+          spans = [...probe.matchAll(/<code data-md-code="(\d+):(\d+)">/g)].map(m => [Number(m[1]), Number(m[2])]);
+        }
+        if (!spans.some(([start, end]) => start <= offset && offset < end)) break;
+      }
+      const next = stripLeft(lines[i++]); para.push(next); offset += next.length + 1;
+    }
     const text = mdInline(para.join("\n").replace(/[ \t]+$/, ""));
     out.push({ html: `<p>${text}</p>`, para: text });
   }
@@ -255,7 +271,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
 }
 
 /** Inline Markdown for one paragraph or heading: code, images, links, emphasis, breaks, smart punctuation. */
-function mdInline(s: string): string {
+function mdInline(s: string, positions = false): string {
   // Lookup tables keep the scan near-linear however the text is built.
   const n = s.length;
   const runEnd = new Int32Array(n + 1); // end of the run of equal characters at i
@@ -390,7 +406,7 @@ function mdInline(s: string): string {
         }
         let code = s.slice(i + t, found).replace(/\n/g, " ");
         if (code.length > 2 && code[0] === " " && code[code.length - 1] === " " && code.trim() !== "") code = code.slice(1, -1);
-        out += `<code>${esc(code)}</code>`;
+        out += `<code${positions ? ` data-md-code="${i}:${found + t}"` : ""}>${esc(code)}</code>`;
         i = found + t;
         continue;
       }

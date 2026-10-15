@@ -81,6 +81,8 @@ it("adds site_check notes against live authority and leaves no-embed answers unc
    expect(r.isError).not.toBe(true);return JSON.parse(r.content[0].text);
  };
  expect(await check()).not.toHaveProperty('embed_notes');
+ await make('entry',{title:'Literal code',date:'2026-10-15',body:'``\n'+form+'\n``'});
+ expect(await check()).not.toHaveProperty('embed_notes');
  const site=await make('site',{embed_sources:[source]}), e=await make('entry',{title:'Video',date:'2026-10-15',body:form});
  const quick=await check();expect(quick.ok).toBe(true);expect(quick.broken).toEqual([]);expect(quick.embed_notes).toEqual([{id:e.id,url:source+'/embed/Ab_C-123',origin:source,note:'Ask the owner to approve this embed source.'}]);
  expect((await check(true)).embed_notes).toEqual(quick.embed_notes);
@@ -96,5 +98,31 @@ it("does not trust authored frames or dynamic tag names in looks",async()=>{
  const t=THEMES['personal-homepage'];
  for(const bad of ['<{{site.logo_text}} src="{{site.cta_link}}"></{{site.logo_text}}>','<if{{site.logo_text}}rame></if{{site.logo_text}}rame>','<porchsite-embed data-url="x" data-title="y"></porchsite-embed>']) {
   expect(rules('personal-homepage',{...t,pages:{...t.pages,home:bad}},{scripts:true}).some(p=>p.includes('tag names')||p.includes('iframes'))).toBe(true);
+ }
+});
+
+it("keeps matched multiline inline code literal for single and double backticks",()=>{
+ for(const ticks of ['`','``']) for(const prefix of ['', 'Before **text** ']) {
+  const src=prefix+ticks+'\n'+form+'\n'+ticks;
+  expect(embedsOf(src),src).toEqual([]);
+  expect(bodyMarkdown(src),src).toBe(markdown(src).html);
+  expect(finishEmbeds(bodyMarkdown(src),[source],origin),src).not.toContain('<iframe');
+  expect(embedNotes([{id:'e',body:src}],[],origin),src).toEqual([]);
+ }
+ const adjacent='`\n'+form+'\n`\n'+form;
+ expect(embedsOf(adjacent)).toHaveLength(1);
+ expect(finishEmbeds(bodyMarkdown(adjacent),[source],origin).match(/<iframe /g)).toHaveLength(1);
+ expect(embedsOf('Unmatched `\n'+form)).toHaveLength(1);
+ expect(embedsOf('Escaped \\`\n'+form+'\n`')).toHaveLength(1);
+});
+
+it("does not spend frame budget on noscript fallback occurrences",()=>{
+ const marker=bodyMarkdown(form), body='<noscript>'+marker.repeat(12)+'</noscript>'+marker;
+ const finished=finishEmbeds(body,[source],origin);
+ expect(finished.match(/<iframe /g)).toHaveLength(1);
+ expect(finished.match(/<a /g)).toHaveLength(13);
+ expect(finished.slice(0,finished.indexOf('</noscript>'))).not.toContain('<iframe');
+ for(const src of ['> `\n'+form+'\n`','- ``\n'+form+'\n``']) {
+  expect(embedsOf(src)).toEqual([]);expect(bodyMarkdown(src)).toBe(markdown(src).html);
  }
 });

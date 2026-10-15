@@ -41,7 +41,7 @@ export function finishEmbeds(body: string, sources: unknown = [], origin = ""): 
   body = withoutAuthoredFrames(body);
   if (!body.includes("<porchsite-embed ")) return body;
   const allowed = new Set(safeSources(sources, origin));
-  let count = 0, templates = 0, rawText = "";
+  let count = 0, templates = 0, noscript = false, rawText = "";
   return body.replace(TOKENS, token => {
     const tag = /^<\s*(\/?)\s*([a-z0-9-]+)/i.exec(token);
     if (rawText) { if (tag?.[1] && tag[2].toLowerCase() === rawText) rawText = ""; return token; }
@@ -51,12 +51,17 @@ export function finishEmbeds(body: string, sources: unknown = [], origin = ""): 
       let e: Embed;
       try { const u = embedURL(decodeURIComponent(marker[1])); e = {url:u.href,title:decodeURIComponent(marker[2]),origin:u.origin}; } catch { return ""; }
       const link = `<a href="${esc(e.url)}">${esc(e.title)}</a>`;
-      if (templates || !allowed.has(e.origin) || count >= 12) return `<div class="embed">${link}</div>`;
+      if (templates || noscript || !allowed.has(e.origin) || count >= 12) return `<div class="embed">${link}</div>`;
       count++;
       return `<div class="embed"><iframe src="${esc(e.url)}" title="${esc(e.title)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen; xr-spatial-tracking" style="width:100%;aspect-ratio:16/9;border:0"></iframe>${link}</div>`;
     }
+    if (noscript) {
+      if (tag?.[1] && tag[2].toLowerCase() === "noscript") noscript = false;
+      return token;
+    }
     if (tag) {
       const name = tag[2].toLowerCase();
+      if (name === "noscript" && !tag[1]) noscript = true;
       if (name === "template") templates = Math.max(0,templates+(tag[1] ? -1 : 1));
       if (!tag[1] && ["script","style","textarea","title","xmp","iframe","noembed","noframes"].includes(name)) rawText = name;
     }

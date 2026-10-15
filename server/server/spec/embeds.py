@@ -90,10 +90,10 @@ def finish_embeds(body, sources=None, origin=""):
     if "<porchsite-embed " not in body:
         return body
     allowed = set(safe_sources(sources or [], origin))
-    count, templates, raw_text = 0, 0, ""
+    count, templates, noscript, raw_text = 0, 0, False, ""
 
     def replace(match):
-        nonlocal count, templates, raw_text
+        nonlocal count, templates, noscript, raw_text
         token = match[0]
         tag = _TAG.match(token)
         if raw_text:
@@ -110,12 +110,18 @@ def finish_embeds(body, sources=None, origin=""):
             except (ValueError, UnicodeError):
                 return ""
             link = f'<a href="{esc(u.href)}">{esc(title)}</a>'
-            if templates or u.origin not in allowed or count >= 12:
+            if templates or noscript or u.origin not in allowed or count >= 12:
                 return f'<div class="embed">{link}</div>'
             count += 1
             return f'<div class="embed"><iframe src="{esc(u.href)}" title="{esc(title)}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen; xr-spatial-tracking" style="width:100%;aspect-ratio:16/9;border:0"></iframe>{link}</div>'
+        if noscript:
+            if tag and tag[1] and tag[2].lower() == "noscript":
+                noscript = False
+            return token
         if tag:
             name = tag[2].lower()
+            if name == "noscript" and not tag[1]:
+                noscript = True
             if name == "template":
                 templates = max(0, templates + (-1 if tag[1] else 1))
             if not tag[1] and name in (
