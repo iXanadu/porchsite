@@ -353,9 +353,12 @@ async def add_verify(db: Db, req: Request, response: Any) -> str:
         )
 
     async def writes(c):
-        await c.execute(
-            "UPDATE passkey_links SET used_at = $1 WHERE token_hash = $2", at, saved["link"]
-        )
+        if not await c.fetchrow(
+            "UPDATE passkey_links SET used_at = $1 WHERE token_hash = $2 AND used_at IS NULL AND expires_at > $1 RETURNING token_hash",
+            at,
+            saved["link"],
+        ):
+            raise ApiError(403, "not_verified", "This link no longer works. Start again.")
         await c.execute(
             "INSERT INTO passkeys (id, public_key, counter, transports, created_at) VALUES ($1,$2,$3,$4,$5)",
             b64url(cred.credential_id),
@@ -592,7 +595,9 @@ async def revoke_reader(db, id):
 
 
 async def revoke_invite(db, id):
-    await db.execute("DELETE FROM reader_invites WHERE reader_id = $1 AND used_at IS NULL", id)
+    async with transaction(db) as c:
+        await c.fetchrow("SELECT id FROM auth_state WHERE id = 1 FOR UPDATE")
+        await c.execute("DELETE FROM reader_invites WHERE reader_id = $1 AND used_at IS NULL", id)
 
 
 async def invite_options(db, req, token):
@@ -644,9 +649,13 @@ async def invite_verify(db, req, response):
         )
 
     async def writes(c):
-        await c.execute(
-            "UPDATE reader_invites SET used_at = $1 WHERE token_hash = $2", at, saved["invite"]
-        )
+        if not await c.fetchrow(
+            "UPDATE reader_invites SET used_at = $1 WHERE token_hash = $2 AND reader_id = $3 AND used_at IS NULL AND expires_at > $1 RETURNING token_hash",
+            at,
+            saved["invite"],
+            saved["reader"],
+        ):
+            raise ApiError(403, "not_verified", "This invitation no longer works. Start again.")
         await c.execute(
             "INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) VALUES ($1,$2,$3,$4,$5,$6)",
             b64url(cred.credential_id),
@@ -677,6 +686,7 @@ async def issue_recovery_code(db, code, hours=24):
         raise ApiError(400, "bad_code", "Use a fresh recovery code with at least 24 random bytes.")
     expires = _later(hours=hours)
     async with transaction(db) as c:
+        await c.fetchrow("SELECT id FROM auth_state WHERE id = 1 FOR UPDATE")
         await c.execute("DELETE FROM recovery_codes")
         await c.execute(
             "INSERT INTO recovery_codes (code_hash,created_at,expires_at) VALUES ($1,$2,$3)",
@@ -730,7 +740,12 @@ async def recover_verify(db, req, response):
         )
 
     async def writes(c):
-        await c.execute("DELETE FROM recovery_codes WHERE code_hash = $1", saved["code"])
+        if not await c.fetchrow(
+            "DELETE FROM recovery_codes WHERE code_hash = $1 AND expires_at > $2 RETURNING code_hash",
+            saved["code"],
+            at,
+        ):
+            raise ApiError(403, "not_verified", "This recovery code no longer works. Start again.")
         await c.execute("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1")
         for table in (
             "passkeys",

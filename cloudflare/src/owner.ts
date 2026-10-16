@@ -322,7 +322,9 @@ async function issueSession(db: D1Database, role: "owner" | "reader", credential
   else stmts.push(db.prepare("INSERT INTO reader_sessions (token_hash, reader_id, credential_id, epoch, created_at, expires_at) SELECT ?, ?, ?, auth_epoch, ?, ? FROM readers WHERE id = ? AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(th, extra.readerId, credential, at, expires, extra.readerId, op));
   stmts.push(db.prepare("DELETE FROM auth_operations WHERE id = ?").bind(op));
   const results = await db.batch(stmts);
-  if (results[0].meta.changes !== 1) throw new ApiError(403, "not_verified", "This sign-in stopped working. Start again.");
+  // The first write under a new-credential claim consumes its link or code.
+  // D1 executes the guard, consumption and issuance in one serialized batch.
+  if (results[0].meta.changes !== 1 || (extra.newCredential && results[1].meta.changes !== 1)) throw new ApiError(403, "not_verified", "This sign-in stopped working. Start again.");
   return setCookie(role === "owner" ? SESSION_COOKIE : READER_COOKIE, token, SESSION_DAYS * 86400);
 }
 

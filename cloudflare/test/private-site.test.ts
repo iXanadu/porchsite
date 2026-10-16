@@ -1,6 +1,6 @@
 // PV-1/OR-1 acceptance: paired with server/tests/app/test_private_site.py.
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
 import * as owner from "../src/owner";
 import * as content from "../src/content";
@@ -8,6 +8,7 @@ import * as approvals from "../src/approvals";
 import * as importer from "../src/importer";
 import * as media from "../src/media";
 import * as site from "../src/site";
+import * as privacy from "../src/privacy";
 import { BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
 import worker from "../src/index";
@@ -49,9 +50,17 @@ beforeEach(async()=>{
  await db.prepare("INSERT INTO auth_state (id) VALUES (1)").run();
 });
 describe("private sites",()=>{
+ it("refuses a private not-found render even when dispatch deliberately skips its gate",async()=>{
+  await fixture();
+  const gate=vi.spyOn(privacy,"access").mockResolvedValue({isPrivate:true,gated:false,response:null});
+  const render=vi.spyOn(site,"liveView").mockImplementation(async()=>{throw Error("Private view was constructed");});
+  try {await blank(await new Browser().at("/deliberately-unrouted"));expect(render).not.toHaveBeenCalled();}
+  finally {gate.mockRestore();render.mockRestore();}
+ });
+
  it("gates hits, misses, discovery, redirects and owner pages before a live view or media lookup (1–5,11–13)",async()=>{
   const {picture}=await fixture(),visitor=new Browser();
-  for(const path of ["/","/guide/published-guide/","/guide/missing/","/sitemap.xml","/guide/feed.xml","/missing/feed.xml","/guide/search.json",picture,"/media/00000000000000000000000000000000.jpg","/guide/tags/guide/","/review","/review/write","/guide/published-guide","/e/published-guide/"]) {
+  for(const path of ["/","/guide/published-guide/","/guide/missing/","/sitemap.xml","/guide/feed.xml","/missing/feed.xml","/guide/search.json",picture,"/media/00000000000000000000000000000000.jpg","/guide/tags/guide/","/review","/review/write","/guide/published-guide","/e/published-guide/","/loginx","/login/","/.well-known/x","/oauth/x","/upload/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/extra","/passkey/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x","/setup/","/recover/","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","/login/missing","/setup/missing","/recover/missing","/invite/missing","/passkey/missing","/upload/missing","/oauth/missing","/.well-known/missing","/login/options","/setup/verify","/recover/options","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/verify","/passkey/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/options","/invite/cccccccccccccccccccccccccccccccc/extra"]) {
    await blank(await visitor.at(path));const head=await visitor.at(path,{method:"HEAD"});expect(head.status).toBe(404);expect(await head.text()).toBe("");expect(head.headers.get("Cache-Control")).toBe("private, no-store");
   }
   const robots=await visitor.at("/robots.txt");expect(await robots.text()).toBe("User-agent: *\nDisallow: /\n");
@@ -209,4 +218,20 @@ it("does not issue fresh access capabilities from an owner request invalidated b
  const browser=new Browser(),key=await SoftKey.make();await owner.issueRecoveryCode(db,"c".repeat(32));const options=await browser.options("/recover/options",{code:"c".repeat(32)});expect((await browser.post("/recover/verify",await key.create(options,origin))).status).toBe(200);
  await expect(owner.createPasskeyLink(db,req)).rejects.toMatchObject({code:"not_verified"});await expect(owner.createReaderInvite(db,"Reader",req)).rejects.toMatchObject({code:"not_verified"});
  for(const table of ["passkey_links","reader_invites","readers"])expect(await db.prepare(`SELECT count(*) n FROM ${table}`).first("n")).toBe(0);
+});
+
+it.each(["invite","recover","passkey"])("gates private entries in a %s stream",async stream=>{
+ const f=await fixture();await content.updateItem(db,who,"site",f.item.version,{streams:[...(f.item.data.streams as Record<string,unknown>[]),{id:stream,title:"Private material",dated_addresses:false}]});
+ const entry=await content.createItem(db,who,"entry",{stream,slug:"secret",title:"Confidential task",date:"2026-10-16",body:"PRIVATE-ENTRY-SENTINEL"},undefined);
+ await publish(["site",entry.id]);const visitor=new Browser();await blank(await visitor.at(`/${stream}/secret/`));const head=await visitor.at(`/${stream}/secret/`,{method:"HEAD"});expect(head.status).toBe(404);expect(await head.text()).toBe("");
+});
+
+it.each(["cancel-invite","replace-recovery"])("refuses %s committed just before the D1 issuance batch",async operation=>{
+ await fixture();const browser=new Browser(),key=await SoftKey.make();let path:string,options:any,complete:any,readerId="";
+ if(operation === "cancel-invite") {const invite=await owner.createReaderInvite(db,"Pending");readerId=invite.id;path=`/invite/${invite.token}`;options=await browser.options(path+"/options");complete=owner.inviteVerify;}
+ else {await owner.issueRecoveryCode(db,"a".repeat(32));path="/recover";options=await browser.options(path+"/options",{code:"a".repeat(32)});complete=owner.recoverVerify;}
+ const changed=new Proxy(db,{get(target,key){if(key==="batch")return async(statements:D1PreparedStatement[])=>{if(operation === "cancel-invite")await owner.revokeInvite(db,readerId);else await owner.issueRecoveryCode(db,"b".repeat(32));return target.batch(statements);};const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}});
+ const req=new Request(origin+path+"/verify",{method:"POST",headers:{Cookie:[...browser.jar].map(([k,v])=>`${k}=${v}`).join("; ")}});
+ await expect(complete(changed,req,await key.create(options,origin))).rejects.toMatchObject({status:403});
+ expect(await db.prepare("SELECT count(*) n FROM reader_passkeys").first("n")).toBe(0);expect(await db.prepare("SELECT count(*) n FROM reader_sessions").first("n")).toBe(0);expect(await db.prepare("SELECT count(*) n FROM passkeys").first("n")).toBe(1);
 });

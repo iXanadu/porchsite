@@ -348,7 +348,7 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     is_public = path == "/" or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
     if not is_public:
         return None
-    v = await site.live_view(cx.db)
+    v = await content_view(req,cx)
     origin = origin_of(req)
     policy = {"sources": v.site.get("embed_sources"), "origin": origin}
     def page(body):
@@ -388,9 +388,14 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     return None
 
 
+async def content_view(req, cx, discovery=False):
+    await privacy.require_content(cx.db,req)
+    return await site.live_view(cx.db,discovery=discovery)
+
+
 async def not_found_page(req: Request, cx: Context) -> Response:
     """The 404 page, in the site's theme when it has one."""
-    v = await site.live_view(cx.db)
+    v = await content_view(req,cx)
     path = _path(req)
     to = (
         builtin.redirect_for(v, path)
@@ -1168,7 +1173,7 @@ async def write_form(
     page = None
     if is_live:
         page = next(
-            (x["url"] for x in (await site.live_view(cx.db)).entries if x["id"] == item["id"]), None
+            (x["url"] for x in (await content_view(req,cx)).entries if x["id"] == item["id"]), None
         )
     state = ""
     if item:
@@ -1430,7 +1435,8 @@ async def handle(req: Request, cx: Context) -> Response:
         response = privacy.no_store(response)
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
-        response.headers["Cache-Control"]="no-store"
+        if not is_private or not gated:
+            response.headers["Cache-Control"]="no-store"
     if req.method == "HEAD":
         response.body = b""
     return response
@@ -1471,13 +1477,13 @@ async def _route(req: Request, cx: Context) -> Response:
             if themed:
                 return themed
         if path == "/sitemap.xml" and m == "GET":
-            v = await site.live_view(cx.db, discovery=True)
+            v = await content_view(req,cx,discovery=True)
             return Response(
                 sitemap(v, origin_of(req), (themes.is_built_in(str(v.site["theme"])) or bool(await themes.load(cx.db, str(v.site["theme"]))))),
                 headers=SITEMAP_HEADERS,
             )
         if path == "/" and m == "GET":
-            return builtin.home(await site.live_view(cx.db), origin_of(req))
+            return builtin.home(await content_view(req,cx), origin_of(req))
         # Open to every crawler and agent. Pages that mustn't be indexed (the
         # owner's) say so themselves with noindex, which a crawler can only see
         # if it may fetch them.
@@ -1498,7 +1504,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 },
             )
         if _ENTRY.search(path) and m == "GET":
-            page = builtin.entry_page(await site.live_view(cx.db), path, origin_of(req))
+            page = builtin.entry_page(await content_view(req,cx), path, origin_of(req))
             if page:
                 return page
 
@@ -1512,7 +1518,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or builtin.not_found(await site.live_view(cx.db), origin_of(req))
+            return _file(shown) or builtin.not_found(await content_view(req,cx), origin_of(req))
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):
@@ -1660,6 +1666,8 @@ async def _route(req: Request, cx: Context) -> Response:
                 )
 
         return await not_found_page(req, cx)
+    except privacy.PrivateContentDenied:
+        return privacy.blank_response()
     except ApiError as e:
         if "json" in (req.headers.get("content-type") or "") or path.endswith(
             ("/options", "/verify")
@@ -1712,7 +1720,7 @@ async def readers_page(req,cx):
         body += f'<p class="ok">Give this one-time link privately: <a href="{esc(link)}">{esc(link)}</a></p>'
     body += f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>'
     readers = await owner.list_readers(cx.db)
-    zone = ZoneInfo((await site.live_view(cx.db,discovery=True)).site.get("timezone") or "UTC")
+    zone = ZoneInfo((await content_view(req,cx,discovery=True)).site.get("timezone") or "UTC")
     def date(value):
         return long_date(datetime.fromisoformat(value.replace("Z","+00:00")).astimezone(zone).date().isoformat())
     def form(r,invite):

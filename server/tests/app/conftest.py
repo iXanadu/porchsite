@@ -110,7 +110,7 @@ def fresh_tables(test_dsn):
 @pytest_asyncio.fixture
 async def db(fresh_tables):
     """A pool on the test database, per test (asyncpg pools belong to one loop)."""
-    pool = await asyncpg.create_pool(fresh_tables, min_size=1, max_size=4)
+    pool = await asyncpg.create_pool(fresh_tables, min_size=1, max_size=2)
     try:
         yield pool
     finally:

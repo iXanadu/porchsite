@@ -138,6 +138,30 @@ async def test_visitor_matrix_gates_hits_misses_redirects_before_content(
         "/review/write",
         "/guide/published-guide",
         "/e/published-guide/",
+        "/loginx",
+        "/login/",
+        "/.well-known/x",
+        "/oauth/x",
+        "/upload/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/extra",
+        "/passkey/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x",
+        "/setup/",
+        "/recover/",
+        "/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "/login/missing",
+        "/setup/missing",
+        "/recover/missing",
+        "/invite/missing",
+        "/passkey/missing",
+        "/upload/missing",
+        "/oauth/missing",
+        "/.well-known/missing",
+        "/login/options",
+        "/setup/verify",
+        "/recover/options",
+        "/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/verify",
+        "/passkey/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/options",
+        "/invite/cccccccccccccccccccccccccccccccc/extra",
     ]
     for path in paths:
         blank(await visitor.at(path))
@@ -637,3 +661,135 @@ async def test_recovery_invalidates_owner_capability_issuance_already_authorized
     assert error.value.code == "not_verified"
     for table in ("passkey_links", "reader_invites", "readers"):
         assert await db.fetchval(f"SELECT count(*) FROM {table}") == 0
+
+
+async def test_not_found_refuses_view_even_if_dispatch_skips_gate(db, browser_factory, monkeypatch):
+    await fixture(db, browser_factory)
+
+    async def bypass(*args):
+        return True, False, None
+
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("Private view was constructed")
+
+    monkeypatch.setattr(privacy, "access", bypass)
+    monkeypatch.setattr(site, "live_view", forbidden)
+    blank(await browser_factory().at("/deliberately-unrouted"))
+
+
+@pytest.mark.parametrize("stream", ["invite", "recover", "passkey"])
+async def test_private_entries_in_auth_named_streams(db, browser_factory, stream):
+    _, _, current, _, _ = await fixture(db, browser_factory)
+    await content.update_item(
+        db,
+        WHO,
+        "site",
+        current["version"],
+        {
+            "streams": [
+                *current["data"]["streams"],
+                {"id": stream, "title": "Private material", "dated_addresses": False},
+            ]
+        },
+    )
+    entry = await content.create_item(
+        db,
+        WHO,
+        "entry",
+        {
+            "stream": stream,
+            "slug": "secret",
+            "title": "Confidential task",
+            "date": "2026-10-16",
+            "body": "PRIVATE-ENTRY-SENTINEL",
+        },
+        None,
+    )
+    await publish(db, ["site", entry["id"]])
+    visitor = browser_factory()
+    blank(await visitor.at(f"/{stream}/secret/"))
+    head = await visitor.at(f"/{stream}/secret/", method="HEAD")
+    assert head.status_code == 404 and not head.content
+
+
+@pytest.mark.parametrize("operation", ["cancel-invite", "replace-recovery"])
+async def test_token_mutation_serializes_after_guard_inside_transaction(
+    db, browser_factory, monkeypatch, operation
+):
+    await fixture(db, browser_factory)
+    browser, key = browser_factory(), SoftKey()
+    if operation == "cancel-invite":
+        invite = await owner.create_reader_invite(db, "Pending")
+        base = "/invite/" + invite["token"]
+        options = await browser.options(base + "/options")
+    else:
+        await owner.issue_recovery_code(db, "a" * 32)
+        base = "/recover"
+        options = await browser.options(base + "/options", {"code": "a" * 32})
+    original = owner._issue_session
+    mutations = []
+
+    async def intercepted(*args, **kwargs):
+        original_guard = kwargs["guard"]
+
+        async def guard(c):
+            valid = await original_guard(c)
+            assert valid
+            mutation = asyncio.create_task(
+                owner.revoke_invite(db, invite["id"])
+                if operation == "cancel-invite"
+                else owner.issue_recovery_code(db, "b" * 32)
+            )
+            mutations.append(mutation)
+            # Observe the real second connection blocked on this transaction's lock.
+            for _ in range(100):
+                await c.execute("SELECT pg_stat_clear_snapshot()")
+                blocked = await c.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)))"
+                )
+                if blocked:
+                    break
+                await asyncio.sleep(0.01)
+            assert blocked and not mutation.done()
+            return valid
+
+        kwargs["guard"] = guard
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(owner, "_issue_session", intercepted)
+    try:
+        response = await browser.post(base + "/verify", key.create(options, ORIGIN))
+        assert response.status_code == 200  # issue commits before cancellation/replacement
+    finally:
+        if mutations:
+            await asyncio.wait_for(asyncio.gather(*mutations), 5)
+    if operation == "replace-recovery":
+        assert (
+            await db.fetchval(
+                "SELECT count(*) FROM recovery_codes WHERE code_hash=$1", owner.hash_token("a" * 32)
+            )
+            == 0
+        )
+        assert (
+            await db.fetchval(
+                "SELECT count(*) FROM recovery_codes WHERE code_hash=$1", owner.hash_token("b" * 32)
+            )
+            == 1
+        )
+
+
+@pytest.mark.parametrize("operation", ["cancel-invite", "replace-recovery"])
+async def test_cancel_or_replacement_committed_before_issue_refuses(db, browser_factory, operation):
+    await fixture(db, browser_factory)
+    browser, key = browser_factory(), SoftKey()
+    if operation == "cancel-invite":
+        invite = await owner.create_reader_invite(db, "Pending")
+        base = "/invite/" + invite["token"]
+        options = await browser.options(base + "/options")
+        await owner.revoke_invite(db, invite["id"])
+    else:
+        await owner.issue_recovery_code(db, "a" * 32)
+        base = "/recover"
+        options = await browser.options(base + "/options", {"code": "a" * 32})
+        await owner.issue_recovery_code(db, "b" * 32)
+    assert (await browser.post(base + "/verify", key.create(options, ORIGIN))).status_code == 403

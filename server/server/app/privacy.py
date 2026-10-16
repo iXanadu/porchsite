@@ -34,16 +34,35 @@ async def rollback_state(db, release):
     return {"private_floor": floor, "explanation": ROLLBACK_WARNING if floor else ""}
 
 
-def open_path(path):
-    return bool(
-        re.match(r"/(?:login|setup|recover|oauth|\.well-known|upload|passkey|invite)(?:/|$)", path)
-    ) or path in ("/mcp", "/authorize")
+def open_path(path, method):
+    m = "GET" if method == "HEAD" else method
+    if path in (
+        "/mcp",
+        "/authorize",
+        "/oauth/token",
+        "/oauth/register",
+        "/.well-known/oauth-authorization-server",
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/mcp",
+    ):
+        return True
+    if m == "GET" and path in ("/login", "/setup", "/recover", "/.well-known/porchsite-release"):
+        return True
+    if m == "POST" and re.fullmatch(r"/(?:login|setup|recover)/(?:options|verify)", path):
+        return True
+    if re.fullmatch(r"/upload/[A-Za-z0-9_-]{32}", path):
+        return m in ("GET", "POST")
+    if re.fullmatch(r"/(?:passkey|invite)/[A-Za-z0-9_-]{32}", path):
+        return m == "GET"
+    return m == "POST" and bool(
+        re.fullmatch(r"/(?:passkey|invite)/[A-Za-z0-9_-]{32}/(?:options|verify)", path)
+    )
 
 
 async def access(db, req):
     path = req.url.path
     is_private = await live_private(db)
-    gated = not open_path(path)
+    gated = not open_path(path, req.method)
     response = None
     if is_private and path == "/robots.txt":
         response = Response(
@@ -79,3 +98,25 @@ def no_store(response):
 async def with_rollback(db, release, state):
     rollback = await rollback_state(db, release)
     return {**state, "rollback": rollback} if rollback["private_floor"] else state
+
+
+class PrivateContentDenied(Exception):
+    pass
+
+
+def blank_response():
+    return Response(
+        BLANK,
+        status_code=404,
+        headers={**PRIVATE_HEADERS, "X-Robots-Tag": "noindex"},
+        media_type="text/html",
+    )
+
+
+async def require_content(db, req):
+    if (
+        await live_private(db)
+        and not await owner.signed_in(db, req)
+        and not await owner.reader_signed_in(db, req)
+    ):
+        raise PrivateContentDenied()

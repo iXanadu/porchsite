@@ -16,12 +16,19 @@ export async function rollbackState(db: D1Database, release: string) {
   const floor = await privateFloor(db,release);
   return {private_floor:floor, explanation:floor ? ROLLBACK_WARNING : ""};
 }
-export function openPath(path: string) {
-  return /^\/(?:login|setup|recover)(?:\/|$)/.test(path) || /^\/(?:oauth|\.well-known|upload|passkey|invite)(?:\/|$)/.test(path) || path === "/mcp" || path === "/authorize";
+export function openPath(path: string, method: string) {
+  const m = method === "HEAD" ? "GET" : method;
+  if (["/mcp","/authorize","/oauth/token","/oauth/register","/.well-known/oauth-authorization-server","/.well-known/oauth-protected-resource","/.well-known/oauth-protected-resource/mcp"].includes(path)) return true;
+  if (m === "GET" && ["/login","/setup","/recover","/.well-known/porchsite-release"].includes(path)) return true;
+  if (m === "POST" && /^\/(?:login|setup|recover)\/(?:options|verify)$/.test(path)) return true;
+  if (/^\/upload\/[A-Za-z0-9_-]{32}$/.test(path)) return m === "GET" || m === "POST";
+  if (/^\/(?:passkey|invite)\/[A-Za-z0-9_-]{32}$/.test(path)) return m === "GET";
+  return m === "POST" && /^\/(?:passkey|invite)\/[A-Za-z0-9_-]{32}\/(?:options|verify)$/.test(path);
 }
+
 export async function access(db: D1Database, req: Request) {
   const path = new URL(req.url).pathname, isPrivate = await livePrivate(db);
-  const gated = !openPath(path);
+  const gated = !openPath(path,req.method);
   let response: Response | null = null;
   if (isPrivate && path === "/robots.txt") response = new Response("User-agent: *\nDisallow: /\n",{headers:{...PRIVATE_HEADERS,"Content-Type":"text/plain; charset=utf-8"}});
   else if ((isPrivate && gated) || path === "/authorize") {
@@ -41,4 +48,12 @@ export function noStore(response: Response): Response {
 export async function withRollback(db: D1Database, release: string, state: Record<string,unknown>) {
   const rollback = await rollbackState(db,release);
   return rollback.private_floor ? {...state,rollback} : state;
+}
+
+export class PrivateContentDenied extends Error {}
+export function blankResponse() {
+  return new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Type":"text/html; charset=utf-8"}});
+}
+export async function requireContent(db: D1Database, req: Request) {
+  if (await livePrivate(db) && !await owner.signedIn(db,req) && !await owner.readerSignedIn(db,req)) throw new PrivateContentDenied();
 }

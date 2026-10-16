@@ -172,7 +172,7 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
     /^\/(e|static)\//.test(path) ||
     /^\/[a-z][a-z0-9-]{0,29}\/((tags\/[a-z0-9-]{1,30}\/)|search\.json|feed\.xml|[a-z0-9-]{1,80}\/)?$/.test(path);
   if (!isPublic) return null;
-  const v = await site.liveView(env.DB);
+  const v = await contentView(req,env);
   const origin = new URL(req.url).origin;
   const policy = {sources: v.site.embed_sources, origin};
   const page = (body: string) => themedHtml(body, 200, policy.sources, origin);
@@ -204,9 +204,14 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   return null;
 }
 
+async function contentView(req: Request, env: Env, discovery = false) {
+  await privacy.requireContent(env.DB,req);
+  return site.liveView(env.DB,discovery);
+}
+
 /** The 404 page, in the site's theme when it has one. */
 async function notFoundPage(req: Request, env: Env): Promise<Response> {
-  const v = await site.liveView(env.DB);
+  const v = await contentView(req,env);
   const u = new URL(req.url);
   const to =
     req.method === "GET"
@@ -765,7 +770,7 @@ async function writeForm(env: Env, req: Request, item: desk.DeskEntry | null, v:
   const streams = (await content.siteData(env.DB, false)).streams as { id: string; title: string }[];
   const chosen = v.stream || streams[0].id;
   const isLive = item ? item.state === "live" || item.state === "live, edited since" : false;
-  const page = isLive ? (await site.liveView(env.DB)).entries.find((x) => x.id === item!.id)?.url : undefined;
+  const page = isLive ? (await contentView(req,env)).entries.find((x) => x.id === item!.id)?.url : undefined;
   return ownerPage(
     item ? "Edit" : "Write",
     html`<h1>${item ? "Edit" : "Write something new"}</h1>
@@ -934,7 +939,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res = access.response ?? await route(get,env);
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
-  if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");res.headers.set("Cache-Control","no-store");}
+  if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }
@@ -968,10 +973,10 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (themed) return themed;
     }
     if (path === "/sitemap.xml" && m === "GET") {
-      const v = await site.liveView(env.DB, true);
+      const v = await contentView(req,env,true);
       return new Response(sitemap(v, url.origin, themes.isBuiltIn(String(v.site.theme)) || !!(await themes.load(env.DB, String(v.site.theme)))), {headers:SITEMAP_HEADERS});
     }
-    if (path === "/" && m === "GET") return site.home(await site.liveView(env.DB), url.origin);
+    if (path === "/" && m === "GET") return site.home(await contentView(req,env), url.origin);
     // Open to every crawler and agent. Pages that mustn't be indexed (the
     // owner's) say so themselves with noindex, which a crawler can only see
     // if it may fetch them.
@@ -984,7 +989,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       return new Response(robots(url.origin), { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
     }
     if (/^\/[a-z][a-z0-9-]{0,29}\/[a-z0-9-]{1,80}\/$/.test(path) && m === "GET") {
-      const page = site.entryPage(await site.liveView(env.DB), path, url.origin);
+      const page = site.entryPage(await contentView(req,env), path, url.origin);
       if (page) return page;
     }
 
@@ -994,7 +999,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       // sees unpublished ones on the review page.
       const isPublic = await media.published(env.DB, img[1]);
       const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic) : null;
-      return shown ?? site.notFound(await site.liveView(env.DB), url.origin);
+      return shown ?? site.notFound(await contentView(req,env), url.origin);
     }
 
     const up = /^\/upload\/([A-Za-z0-9_-]{32})$/.exec(path);
@@ -1111,6 +1116,7 @@ async function route(req: Request, env: Env): Promise<Response> {
 
     return await notFoundPage(req, env);
   } catch (e) {
+    if (e instanceof privacy.PrivateContentDenied) return privacy.blankResponse();
     if (e instanceof ApiError) {
       if (req.headers.get("content-type")?.includes("json") || path.endsWith("/options") || path.endsWith("/verify")) {
         return json(e.toJSON(), e.status);
@@ -1145,7 +1151,7 @@ async function readersPage(req: Request,env: Env): Promise<Response> {
     else { const invite = await owner.createReaderInvite(env.DB,String(form.get("name") ?? "Reader"),req); link = new URL(`/invite/${invite.token}`,req.url).href; }
   }
   const readers: any[] = await owner.listReaders(env.DB);
-  const timeZone = String((await site.liveView(env.DB,true)).site.timezone || "UTC");
+  const timeZone = String((await contentView(req,env,true)).site.timezone || "UTC");
   const date = (value: string) => dateString(new Date(value),{month:"long",day:"numeric",year:"numeric"},timeZone);
   const form = (r: any, invite: boolean) => html`<form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}">${invite ? html`<button class="second" name="action" value="revoke-invite">Cancel invitation</button>` : html`<button class="warn" name="action" value="revoke">Remove ${r.name}</button>`}</form>`;
   return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form><h2>Readers</h2>${readers.filter(r=>r.used_at).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${r.revoked ? html`<p>Removed</p>` : form(r,false)}</section>`)}<h2>Unused invitations</h2>${readers.filter(r=>!r.used_at && r.expires_at && !r.revoked).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Expires ${date(r.expires_at)}</p>${r.expires_at <= new Date().toISOString() ? html`<p>Expired</p>` : ""}${form(r,true)}</section>`)}`,{signedIn:true,headers:SETUP_HEADERS});

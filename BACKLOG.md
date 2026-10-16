@@ -72,15 +72,16 @@ site's OAuth connector, and pictures held as files. In order:
   what Porchsite builds, which look suits whom and how approval works.
 
 ## OWNER REQUESTS (2026-10-16)
-- **DR-1** OPEN: a per-project diary of sprint reports for people to read,
-  no expiry, pruned now and then; memory stays the source of truth.
-  Propose the shape first, short.
+- **DR-1** OPEN: separate private reports site, one stream per project and
+  sprint entries linking memory key names. No expiry; prune through normal
+  removal/history recovery. Weekly owner approval batches; draft at wrap-up.
+  Install after private mode is live and proved; no new engine code.
 - **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
-  re-stores them without it, plus a changelog note. After LS-1 and S4-9.
+  re-stores them without it, plus a changelog note. First after the passkey release.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing
