@@ -31,7 +31,7 @@ async function hash(token: string): Promise<string> {
 
 function cookie(req: Request, name: string): string | null {
   const m = (req.headers.get("Cookie") ?? "").match(new RegExp(`(?:^|;\\s*)${name.replace(/[-]/g, "\\-")}=([^;]+)`));
-  return m ? decodeURIComponent(m[1]) : null;
+  try { return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
 }
 
 function setCookie(name: string, value: string, maxAge: number): string {

@@ -10,6 +10,7 @@ import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { toolTransport } from "./tool-transport";
 import type { Env } from "./env";
 import { RELEASE } from "./home";
+import { livePrivate } from "./privacy";
 import * as keys from "./keys";
 import { handle } from "./routes";
 
@@ -47,7 +48,7 @@ export default {
     const u = new URL(req.url);
     if (u.hostname.startsWith("www.")) {
       u.hostname = u.hostname.slice(4);
-      return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": "max-age=3600" } });
+      return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": await livePrivate(env.DB) ? "private, no-store" : "max-age=3600" } });
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;

@@ -80,7 +80,7 @@ async def setup_link(dsn: str, origin: str, hours: float) -> tuple[str, str]:
 async def recovery_link(dsn: str,origin: str,hours: float) -> tuple[str,str]:
     pool = await connect(dsn,min_size=1,max_size=2)
     try:
-        code = setup_code()
+        code = owner.b64url(secrets.token_bytes(24))
         expires = await owner.issue_recovery_code(pool,code,hours)
     finally:
         await pool.close()

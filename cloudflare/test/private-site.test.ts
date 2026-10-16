@@ -10,6 +10,7 @@ import * as media from "../src/media";
 import * as site from "../src/site";
 import { BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
+import worker from "../src/index";
 import { SoftKey } from "./softkey";
 const e = env as unknown as Env, db=e.DB, origin="https://site.example", who="assistant:test";
 class Browser {
@@ -172,4 +173,10 @@ it("does not let the prior runtime's blanket field approval approve unseen priva
  await db.prepare("UPDATE live SET version=(SELECT version FROM items WHERE id='site'),data=(SELECT data FROM items WHERE id='site') WHERE item_id='site'").run();
  await db.prepare("UPDATE site_fields SET approved=1 WHERE version=(SELECT version FROM live WHERE item_id='site')").run();
  expect(await livePrivate(db)).toBe(false);expect((await site.liveView(db)).site.private).toBe(false);
+});
+
+it("keeps malformed cookies blank and canonical-host redirects private",async()=>{
+ await fixture();await blank(await handle(new Request(origin+"/",{headers:{Cookie:"__Host-sk_owner=%; __Host-sk_reader=%"}}),e));
+ const response=await worker.fetch(new Request("https://www.site.example/guide/published-guide/"),e,{waitUntil(){},passThroughOnException(){}} as any);
+ expect(response.status).toBe(301);expect(response.headers.get("Location")).toBe(origin+"/guide/published-guide/");expect(response.headers.get("Cache-Control")).toBe("private, no-store");
 });
