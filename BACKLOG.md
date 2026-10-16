@@ -97,6 +97,9 @@ site's OAuth connector, and pictures held as files. In order:
 - **DR-1** OPEN: a per-project diary of sprint reports for people to read,
   no expiry, pruned now and then; memory stays the source of truth.
   Propose the shape first, short.
+- **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
+  renderer, both editions, proven identical. Playbook reference pages use
+  "Term: meaning" lists until then.
 - **DOC-1** OPEN: about ten broken `/docs/...` links in the "For
   developers" and "For assistants" entries on the product site.
 
