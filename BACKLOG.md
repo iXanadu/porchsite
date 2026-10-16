@@ -72,10 +72,14 @@ site's OAuth connector, and pictures held as files. In order:
   what Porchsite builds, which look suits whom and how approval works.
 
 ## OWNER REQUESTS (2026-10-16)
-- **DR-1** OPEN: separate private reports site, one stream per project and
-  sprint entries linking memory key names. No expiry; prune through normal
-  removal/history recovery. Weekly owner approval batches; draft at wrap-up.
-  Install after private mode is live and proved; no new engine code.
+- **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
+  one private playbook), one "<Project> reports" stream per project, no
+  expiry, weekly batch approval; PMs file drafts at wrap-up (admin owns the
+  shared wrap-up step). No new engine code. A separate reports site was
+  tried and removed the same day.
+- **PB-2** OPEN (when needed): playbook look option to show the latest N
+  entries per stream on the contents page, with an "All →" link, so report
+  diaries don't crowd the home page.
 - **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
