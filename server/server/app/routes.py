@@ -1833,7 +1833,7 @@ async def alerts_page(req, cx, path):
         )
 
     rows = "".join(
-        f'<section class="card"><h2>{esc(d["label"])}</h2><p>Added {esc(date(d["created_at"]))}</p><p>{esc("Last used " + date(d["last_used_at"]) if d["last_used_at"] else "Not used yet")}</p><button class="ghost" data-remove-alert="{esc(d["id"])}">Remove {esc(d["label"])}</button></section>'
+        f'<section class="card"><h2>{esc(d["label"])}{" (this device)" if d["id"] == device.get("id") else ""}</h2><p>Added {esc(date(d["created_at"]))}</p><p>{esc("Last used " + date(d["last_used_at"]) if d["last_used_at"] else "Not used yet")}</p><button class="ghost" data-remove-alert="{esc(d["id"])}">Remove {esc(d["label"])}</button></section>'
         for d in devices
     )
     script = (
@@ -1882,7 +1882,7 @@ async def app_asset(req, cx, path):
         json.dumps(
             {
                 "name": title,
-                "short_name": title[:30],
+                "short_name": u16slice(title, 0, 30),
                 "id": "/review",
                 "start_url": "/review",
                 "scope": "/",

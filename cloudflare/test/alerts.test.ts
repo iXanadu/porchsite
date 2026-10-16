@@ -281,9 +281,7 @@ describe("owner approval alerts", () => {
     expect(sent[0].init.headers.Topic).toBeUndefined();
     await alerts.sendApproval(db, (await pending()).id, transport);
     expect(sent).toHaveLength(1);
-    await db
-      .prepare("UPDATE alert_subscriptions SET opened_at=last_claim_at+1")
-      .run();
+    expect((await b.at("/review")).status).toBe(200);
     await alerts.sendApproval(db, (await pending()).id, transport);
     expect(sent).toHaveLength(2);
     await db
@@ -625,4 +623,140 @@ it("does not hold an approval response open for a push that times out", async ()
   await alerts.drain();
   expect(started).toBe(true);
   expect(aborted).toBe(true);
+});
+
+// Shared wire/markup fixtures keep the editions aligned outside look rendering.
+import delta from "../../spec/fixtures/approval-alerts.json";
+for (const row of delta.endpoints)
+  it(`canonicalizes the browser endpoint ${row.input}`, () => {
+    expect(wire.endpoint(row.input)).toBe(row.canonical);
+    expect(wire.endpoint(row.input)).toBe(new URL(row.input).href);
+  });
+
+it("stores canonical endpoints once and fingerprints their serialized target", async () => {
+  const { b } = await setup();
+  const row = delta.endpoints[1];
+  await enroll(b, row.input);
+  await enroll(b, row.canonical);
+  const stored = await db.prepare("SELECT endpoint FROM alert_subscriptions").all<any>();
+  expect(stored.results).toEqual([{ endpoint: row.canonical }]);
+  const expected = wire.b64(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode([row.canonical, vector.p256dh, vector.auth].join("\n")))));
+  expect((await alerts.devices(db))[0].fingerprint).toBe(expected);
+});
+for (const cut of delta.cuts)
+  it(`cuts manifest names and labels by UTF-16 units (${cut.short_name.length})`, async () => {
+    const { b } = await setup();
+    const site = await content.updateItem(db, "assistant:test", "site", 1, { title: cut.title });
+    const request = await approvals.request(db, "assistant:test", [site.id], "");
+    await approvals.decide(db, request.id, { site: { decision: "approve" } }, "");
+    const manifest = await (await b.at("/manifest.webmanifest")).json() as any;
+    expect(manifest.name).toBe(cut.title);
+    expect(manifest.short_name).toBe(cut.short_name);
+    const r = await b.post("/review/alerts/subscribe", { ...subscription, label: cut.label }, await owner.csrf(b.req("/")));
+    expect(r.status).toBe(200);
+    expect((await alerts.devices(db))[0].label).toBe(cut.saved_label);
+  });
+
+it("matches the shared review block markup and marks only the current device", async () => {
+  const { b } = await setup();
+  const block = async (on: boolean) => {
+    const page = await (await b.at("/review")).text();
+    let found = page.match(/<section id="approval-alerts"[^]*?<\/section>/)![0];
+    found = found.replace(await owner.csrf(b.req("/")), "CSRF");
+    if (on) {
+      const [device] = await alerts.devices(db);
+      found = found.replace(device.id, "DEVICE").replace(device.fingerprint, "FINGERPRINT");
+    }
+    expect(found).toBe(on ? delta.controls.on : delta.controls.off);
+  };
+  await block(false);
+  await enroll(b);
+  await block(true);
+  expect(await (await b.at("/review/alerts")).text()).toContain("Example phone (this device)");
+  b.jar.delete(alerts.DEVICE_COOKIE);
+  expect(await (await b.at("/review/alerts")).text()).not.toContain("Example phone (this device)");
+});
+
+it("only an owner opening review on this device resets batching", async () => {
+  const { b } = await setup();
+  const id = await enroll(b), invite = await owner.createReaderInvite(db, "Reader"), reader = new Browser(), key = await SoftKey.make();
+  await reader.post(`/invite/${invite.token}/verify`, await key.create(await reader.options(`/invite/${invite.token}/options`), origin));
+  const assistant = await assistantKeys.create(db, "Example"), visitor = new Browser();
+  for (const browser of [visitor, reader]) browser.jar.set(alerts.DEVICE_COOKIE, id);
+  const transport = vi.fn(async () => new Response(null, { status: 201 })) as unknown as typeof fetch;
+  await alerts.sendApproval(db, (await pending()).id, transport);
+  const before = await db.prepare("SELECT opened_at FROM alert_subscriptions WHERE id=?").bind(id).first();
+  expect((await visitor.at("/review")).status).toBe(404);
+  expect((await visitor.at("/review", { headers: { Authorization: `Bearer ${assistant.token}` } })).status).toBe(404);
+  expect((await reader.at("/review")).status).toBe(303);
+  expect(await db.prepare("SELECT opened_at FROM alert_subscriptions WHERE id=?").bind(id).first()).toEqual(before);
+  await alerts.sendApproval(db, (await pending()).id, transport);
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect((await b.at("/review")).status).toBe(200);
+  await alerts.sendApproval(db, (await pending()).id, transport);
+  expect(transport).toHaveBeenCalledTimes(2);
+});
+for (const elapsed of [299999, 300000, 300001])
+  it(`batches at the ${elapsed}ms boundary`, async () => {
+    const { b } = await setup();
+    await enroll(b);
+    const request = await pending(), at = Date.now();
+    await db.prepare("UPDATE alert_subscriptions SET last_claim_at=?,opened_at=0").bind(at).run();
+    vi.spyOn(Date, "now").mockReturnValue(at + elapsed);
+    const transport = vi.fn(async () => new Response(null, { status: 201 })) as unknown as typeof fetch;
+    await alerts.sendApproval(db, request.id, transport);
+    expect(transport).toHaveBeenCalledTimes(elapsed < 300000 ? 0 : 1);
+  });
+
+it("keeps conditional GET/HEAD asset responses role-safe and never reuses a branded manifest", async () => {
+  const { b } = await setup(), visitor = new Browser();
+  for (const browser of [b, visitor]) for (const path of ["/sw.js", "/manifest.webmanifest", "/app-icon-192.png", "/app-icon-512.png"]) {
+    const baseline = await browser.at(path), bytes = await baseline.arrayBuffer();
+    for (const method of ["GET", "HEAD"]) {
+      const response = await browser.at(path, { method, headers: { "If-None-Match": '"owner-cached"', "If-Modified-Since": "Wed, 01 Jan 2031 00:00:00 GMT" } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe(baseline.headers.get("Content-Type"));
+      expect(response.headers.get("Cache-Control")).toBe(baseline.headers.get("Cache-Control"));
+      const body = new Uint8Array(await response.arrayBuffer());
+      expect(body).toEqual(method === "HEAD" ? new Uint8Array() : new Uint8Array(bytes));
+      if (path === "/manifest.webmanifest" && method === "GET") expect(JSON.parse(new TextDecoder().decode(body)).name).toBe(browser === b ? "Hidden title" : "Porchsite");
+    }
+  }
+});
+
+it("serializes remove versus the send claim without resurrecting a device", async () => {
+  const { b } = await setup();
+  let id = await enroll(b);
+  const transport = vi.fn(async () => new Response(null, { status: 201 })) as unknown as typeof fetch;
+  const wrapper = { prepare: db.prepare.bind(db), batch: async (statements: D1PreparedStatement[]) => {
+    expect((await b.post("/review/alerts/remove", { id }, await owner.csrf(b.req("/")))).status).toBe(200);
+    return db.batch(statements);
+  } } as D1Database;
+  await alerts.sendApproval(wrapper, (await pending()).id, transport);
+  expect(transport).not.toHaveBeenCalled();
+  expect(await alerts.devices(db)).toEqual([]);
+  id = await enroll(b);
+  const request = await pending();
+  await alerts.sendApproval(db, request.id, (async () => {
+    expect((await b.post("/review/alerts/remove", { id }, await owner.csrf(b.req("/")))).status).toBe(200);
+    return new Response(null, { status: 201 });
+  }) as typeof fetch);
+  await alerts.sendApproval(db, request.id, transport);
+  expect(transport).not.toHaveBeenCalled();
+  expect(await alerts.devices(db)).toEqual([]);
+});
+
+it("prunes at most 500 old deliveries and never retries a request past retention", async () => {
+  const { b } = await setup(), id = await enroll(b), request = await pending();
+  await db.prepare("UPDATE approvals SET created_at='2000-01-01T00:00:00.000Z' WHERE id=?").bind(request.id).run();
+  await db.prepare("WITH RECURSIVE n(i) AS (VALUES(0) UNION ALL SELECT i+1 FROM n WHERE i<500) INSERT INTO alert_deliveries(request_id,subscription_id,claim,attempted,created_at) SELECT 'old-'||i,?,'old-'||i,1,0 FROM n").bind(id).run();
+  await db.prepare("INSERT INTO alert_deliveries VALUES('recent',?,'recent',1,?)").bind(id, Date.now()).run();
+  const transport = vi.fn() as unknown as typeof fetch;
+  await alerts.sendApproval(db, request.id, transport);
+  expect(transport).not.toHaveBeenCalled();
+  expect((await db.prepare("SELECT count(*) AS n FROM alert_deliveries").first<any>())!.n).toBe(2);
+  expect(await db.prepare("SELECT 1 FROM alert_deliveries WHERE claim='recent'").first()).not.toBeNull();
+  await alerts.sendApproval(db, request.id, transport);
+  expect((await db.prepare("SELECT count(*) AS n FROM alert_deliveries").first<any>())!.n).toBe(1);
+  expect(transport).not.toHaveBeenCalled();
 });

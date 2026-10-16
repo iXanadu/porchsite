@@ -4,9 +4,12 @@ import asyncio
 import json
 import secrets
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 import httpx
+
+from server.spec.jsutil import trim, u16slice
 
 from . import owner
 from . import push_crypto as wire
@@ -70,8 +73,8 @@ async def subscribe(db, req, value, origin):
         f":{site.port}" if site.port and site.port != 443 else ""
     )
     id, at = secrets.token_hex(16), int(time.time() * 1000)
-    label = value.get("label", "This device")
-    label = label.strip()[:80] if isinstance(label, str) else "This device"
+    label = value.get("label", "Browser")
+    label = u16slice(trim(label), 0, 80) if isinstance(label, str) else "Browser"
     async with transaction(db) as c:
         epoch = await c.fetchval("SELECT owner_epoch FROM auth_state WHERE id=1 FOR UPDATE")
         current = await identity(c, req)
@@ -89,7 +92,7 @@ async def subscribe(db, req, value, origin):
             value["keys"]["p256dh"],
             value["keys"]["auth"],
             origin.rstrip("/"),
-            label or "This device",
+            label or "Browser",
             at,
         )
     return id
@@ -144,6 +147,19 @@ async def deliver_http(url, headers, body):
 
 async def send_approval(db, request_id, transport=None):
     transport = transport or deliver_http
+    cutoff = int(time.time() * 1000) - 30 * 86400000
+    await db.execute(
+        "DELETE FROM alert_deliveries WHERE claim IN (SELECT claim FROM alert_deliveries WHERE created_at<$1 ORDER BY created_at,claim LIMIT 500)",
+        cutoff,
+    )
+    if not await db.fetchval(
+        "SELECT 1 FROM approvals WHERE id=$1 AND created_at>=$2",
+        request_id,
+        datetime.fromtimestamp(cutoff / 1000, UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z"),
+    ):
+        return
     rows = await db.fetch("SELECT id FROM alert_subscriptions")
     if not rows:
         return

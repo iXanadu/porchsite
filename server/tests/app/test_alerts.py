@@ -573,3 +573,168 @@ def test_service_worker_browser_controls_and_generic_icons_match_the_worker():
     for name in ("ALERT_JS", "SW_JS", "ICONS"):
         encoded = re.search(r"^export const " + name + r"=(.*);$", source, re.M)[1]
         assert json.loads(encoded) == getattr(alert_assets, name)
+
+
+DELTA = json.loads((ROOT / "spec/fixtures/approval-alerts.json").read_text())
+
+
+@pytest.mark.parametrize("row", DELTA["endpoints"])
+def test_canonical_browser_endpoints(row):
+    assert wire.endpoint(row["input"]) == row["canonical"]
+
+
+async def test_canonical_storage_uniqueness_and_fingerprint(db, browser_factory):
+    b, *_ = await fixture(db, browser_factory)
+    row = DELTA["endpoints"][1]
+    for endpoint in (row["input"], row["canonical"]):
+        assert (
+            await post(b, "/review/alerts/subscribe", {**SUB, "endpoint": endpoint})
+        ).status_code == 200
+    assert [r["endpoint"] for r in await db.fetch("SELECT endpoint FROM alert_subscriptions")] == [
+        row["canonical"]
+    ]
+    assert (await alerts.devices(db))[0]["fingerprint"] == owner.hash_token(
+        "\n".join((row["canonical"], V["p256dh"], V["auth"]))
+    )
+
+
+@pytest.mark.parametrize("cut", DELTA["cuts"])
+async def test_utf16_manifest_and_label_cuts(db, browser_factory, cut):
+    b, *_ = await fixture(db, browser_factory)
+    item = await content.get_item(db, "site")
+    site = await content.update_item(
+        db, "assistant:test", "site", item["version"], {"title": cut["title"]}
+    )
+    await auth_fixture.publish(db, [site["id"]])
+    manifest = (await b.at("/manifest.webmanifest")).json()
+    assert manifest["name"] == cut["title"]
+    assert manifest["short_name"] == cut["short_name"]
+    assert (
+        await post(b, "/review/alerts/subscribe", {**SUB, "label": cut["label"]})
+    ).status_code == 200
+    assert (await alerts.devices(db))[0]["label"] == cut["saved_label"]
+
+
+async def test_shared_review_controls_and_current_device_marker(db, browser_factory):
+    b, *_ = await fixture(db, browser_factory)
+    for on in (False, True):
+        if on:
+            await enroll(b)
+        page = (await b.at("/review")).text
+        block = re.search(r'<section id="approval-alerts".*?</section>', page, re.S)[0].replace(
+            csrf(b), "CSRF"
+        )
+        if on:
+            device = (await alerts.devices(db))[0]
+            block = block.replace(device["id"], "DEVICE").replace(
+                device["fingerprint"], "FINGERPRINT"
+            )
+        assert block == DELTA["controls"]["on" if on else "off"]
+    assert "Example phone (this device)" in (await b.at("/review/alerts")).text
+    b.http.cookies.delete(alerts.DEVICE_COOKIE)
+    assert "Example phone (this device)" not in (await b.at("/review/alerts")).text
+
+
+async def test_nonowner_review_cannot_reset_batching_even_with_device_marker(db, browser_factory):
+    from server.app import keys
+
+    b, *_ = await fixture(db, browser_factory)
+    id = await enroll(b)
+    r, *_ = await reader(db, browser_factory)
+    visitor = browser_factory()
+    for client in (r, visitor):
+        client.http.cookies.set(alerts.DEVICE_COOKIE, id, domain="site.example", path="/")
+    assistant = await keys.create(db, "Example")
+    sent = []
+
+    async def transport(*args):
+        sent.append(args)
+        return 201
+
+    await alerts.send_approval(db, (await pending(db))["id"], transport)
+    before = await db.fetchval("SELECT opened_at FROM alert_subscriptions WHERE id=$1", id)
+    assert (await visitor.at("/review")).status_code == 404
+    assert (
+        await visitor.at("/review", headers={"Authorization": f"Bearer {assistant['token']}"})
+    ).status_code == 404
+    assert (await r.at("/review")).status_code == 303
+    assert await db.fetchval("SELECT opened_at FROM alert_subscriptions WHERE id=$1", id) == before
+    await alerts.send_approval(db, (await pending(db))["id"], transport)
+    assert len(sent) == 1
+    assert (await b.at("/review")).status_code == 200
+    await alerts.send_approval(db, (await pending(db))["id"], transport)
+    assert len(sent) == 2
+
+
+@pytest.mark.parametrize("elapsed", [299999, 300000, 300001])
+async def test_batch_window_edges(db, browser_factory, monkeypatch, elapsed):
+    b, *_ = await fixture(db, browser_factory)
+    await enroll(b)
+    request = await pending(db)
+    at = int(alerts.time.time() * 1000)
+    await db.execute("UPDATE alert_subscriptions SET last_claim_at=$1,opened_at=0", at)
+    monkeypatch.setattr(alerts.time, "time", lambda: (at + elapsed) / 1000)
+    sent = []
+
+    async def transport(*args):
+        sent.append(args)
+        return 201
+
+    await alerts.send_approval(db, request["id"], transport)
+    assert len(sent) == (0 if elapsed < 300000 else 1)
+
+
+async def test_conditional_get_and_head_assets_keep_role_isolation(db, browser_factory):
+    b, *_ = await fixture(db, browser_factory)
+    visitor = browser_factory()
+    for client in (b, visitor):
+        for path in ("/sw.js", "/manifest.webmanifest", "/app-icon-192.png", "/app-icon-512.png"):
+            baseline = await client.at(path)
+            for method in ("GET", "HEAD"):
+                response = await client.at(
+                    path,
+                    method=method,
+                    headers={
+                        "If-None-Match": '"owner-cached"',
+                        "If-Modified-Since": "Wed, 01 Jan 2031 00:00:00 GMT",
+                    },
+                )
+                assert response.status_code == 200
+                assert response.headers["Content-Type"] == baseline.headers["Content-Type"]
+                assert response.headers["Cache-Control"] == baseline.headers["Cache-Control"]
+                assert response.content == (b"" if method == "HEAD" else baseline.content)
+                if path == "/manifest.webmanifest" and method == "GET":
+                    assert response.json()["name"] == (
+                        "Hidden handbook" if client is b else "Porchsite"
+                    )
+
+
+async def test_bounded_retention_does_not_retry_old_requests(db, browser_factory):
+    b, *_ = await fixture(db, browser_factory)
+    id = await enroll(b)
+    request = await pending(db)
+    await db.execute(
+        "UPDATE approvals SET created_at='2000-01-01T00:00:00.000Z' WHERE id=$1", request["id"]
+    )
+    await db.execute(
+        "INSERT INTO alert_deliveries(request_id,subscription_id,claim,attempted,created_at) SELECT 'old-'||i,$1,'old-'||i,1,0 FROM generate_series(0,500) AS i",
+        id,
+    )
+    await db.execute(
+        "INSERT INTO alert_deliveries VALUES('recent',$1,'recent',1,$2)",
+        id,
+        int(alerts.time.time() * 1000),
+    )
+    sent = []
+
+    async def transport(*args):
+        sent.append(args)
+        return 201
+
+    await alerts.send_approval(db, request["id"], transport)
+    assert not sent
+    assert await db.fetchval("SELECT count(*) FROM alert_deliveries") == 2
+    assert await db.fetchval("SELECT 1 FROM alert_deliveries WHERE claim='recent'") == 1
+    await alerts.send_approval(db, request["id"], transport)
+    assert not sent
+    assert await db.fetchval("SELECT count(*) FROM alert_deliveries") == 1

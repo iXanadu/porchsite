@@ -806,6 +806,10 @@ means alerts are on.
 
 `/review/alerts` lists this owner's subscribed devices, with a plain device
 label, added date, last-used date (or "Not used yet") and a Remove button.
+Derive labels from a small browser user-agent table (for example "iPhone
+Safari", "Mac Chrome", "Android Chrome"), falling back to "Browser"; mark
+the current device "(this device)". Cut labels to 80 UTF-16 units and
+manifest short names to 30 UTF-16 units, dropping a split surrogate pair.
 Use the site's existing date format. Turning off removes the subscription
 on the server and unsubscribes this browser; removing another device stops
 future sends to that subscription. A failed browser unsubscribe does not
@@ -832,7 +836,8 @@ content/history/export JSON. Subscriptions occupy a NEW table containing
 an opaque device id, owner credential association, endpoint, `p256dh` and
 `auth` keys, label, created time and last-used time. Reject malformed keys
 before saving; `p256dh` is a valid uncompressed P-256 point and `auth` is a
-16-byte secret. An endpoint is unique per site. An opaque device marker
+16-byte secret. Normalize endpoints to the browser `new URL(...).href` form before storage,
+fingerprinting or sending. An endpoint is unique per site. An opaque device marker
 only identifies a device; it never authorizes an operation. New delivery
 and batching state also lives only in NEW tables. Previous releases ignore
 these tables; no legacy item, revision, session or live JSON gains keys.
@@ -874,6 +879,9 @@ Use server time. `last-used` records a push service accepting a send,
 not a claim that the owner read it. A 404 or 410 from the push service
 removes that subscription; other errors leave it saved for a later,
 different request. Deleted or already decided requests need no late nudge.
+During a send, opportunistically prune at most 500 delivery records older
+than 30 days. Requests older than 30 days are not sent, so pruning cannot
+allow a repeated attempt for an old request.
 
 The decrypted JSON payload has exactly three fields: `message`, equal to
 "Your site has a change waiting for you"; `title`, the published site title

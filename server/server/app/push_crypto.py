@@ -7,7 +7,7 @@ import json
 import re
 import secrets
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -53,7 +53,26 @@ def endpoint(value):
         for suffix in (".push.apple.com", ".notify.windows.com")
     ):
         raise ValueError("Unsupported push service")
-    return urlunsplit(("https", host, u.path or "/", u.query, ""))
+    # WHATWG special-URL path/query serialization, restricted to the validated
+    # ASCII HTTPS subset above. Preserve empty queries and existing escapes.
+    parts = []
+    segments = (u.path or "/").split("/")[1:]
+    for i, segment in enumerate(segments):
+        dot = re.sub("%2e", ".", segment, flags=re.I)
+        if dot in (".", ".."):
+            if dot == ".." and parts:
+                parts.pop()
+            if i == len(segments) - 1:
+                parts.append("")
+        else:
+            parts.append(segment)
+
+    def encode(text, chars):
+        return "".join(f"%{ord(c):02X}" if c in chars else c for c in text)
+
+    path = encode("/" + "/".join(parts), '"<>^`{}')
+    query = "?" + encode(u.query, "\"<>'") if "?" in value else ""
+    return "https://" + host + path + query
 
 
 def public_key(value):

@@ -1,3 +1,4 @@
+import * as pushWire from "./push-crypto";
 /**
  * Everything that isn't /mcp or the OAuth protocol endpoints: the public
  * site, and the owner's pages (setup, sign-in, review, connecting an
@@ -1189,20 +1190,7 @@ async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:
 }
 
 function alertControls(csrf: string, device: string, fingerprint: string) {
-  return html`<section
-    id="approval-alerts"
-    data-csrf="${csrf}"
-    data-device="${device}"
-    data-fingerprint="${fingerprint}"
-  >
-    <p data-alert-status>Alerts are ${device ? "on" : "off"} for this device</p>
-    <button type="button" data-alert-toggle>
-      Turn alerts ${device ? "off" : "on"}
-    </button>
-    <p data-alert-error class="error" hidden></p>
-    <p class="meta">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p>
-    <p><a href="/review/alerts">Manage alert devices</a></p>
-  </section>`;
+  return html`<section id="approval-alerts" data-csrf="${csrf}" data-device="${device}" data-fingerprint="${fingerprint}"><p data-alert-status>Alerts are ${device ? "on" : "off"} for this device</p><button type="button" data-alert-toggle>Turn alerts ${device ? "off" : "on"}</button><p data-alert-error class="error" hidden></p><p class="meta">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p><p><a href="/review/alerts">Manage alert devices</a></p></section>`;
 }
 const ALERT_HELP =
   "Alerts are a nudge, not a guarantee. Phones and browsers can delay or drop them. Your assistant still sends you the link. On iPhone use iOS 16.4 or later: Share → Add to Home Screen → open from the icon → turn alerts on. A site icon appears on your Home Screen; open that icon instead of a browser tab. The site name and fixed message may appear on your lock screen. A notification already sent cannot be recalled.";
@@ -1283,7 +1271,7 @@ async function alertsPage(
       ${alertControls(csrf, device?.id ?? "", device?.fingerprint ?? "")}<figure><img src="${String(data.logo||"/app-icon-192.png")}" alt="Site icon" width="48" height="48"><figcaption>Open your site from its Home Screen icon, then choose “Turn alerts on”.</figcaption></figure>${devices.map(
         (d) =>
           html`<section class="card">
-            <h2>${d.label}</h2>
+            <h2>${d.label}${d.id === device?.id ? " (this device)" : ""}</h2>
             <p>Added ${date(d.created_at)}</p>
             <p>
               ${d.last_used_at
@@ -1341,7 +1329,7 @@ async function appAsset(
   return new Response(
     JSON.stringify({
       name: String(data.title || "Porchsite"),
-      short_name: String(data.title || "Porchsite").slice(0, 30),
+      short_name: pushWire.u16slice(String(data.title || "Porchsite"), 30),
       id: "/review",
       start_url: "/review",
       scope: "/",

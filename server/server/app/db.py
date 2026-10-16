@@ -286,6 +286,7 @@ CREATE TABLE alert_deliveries (
   claim TEXT NOT NULL UNIQUE, attempted INTEGER NOT NULL, created_at BIGINT NOT NULL,
   PRIMARY KEY (request_id, subscription_id)
 );
+CREATE INDEX alert_deliveries_age ON alert_deliveries(created_at,claim);
 """),
 ]
 

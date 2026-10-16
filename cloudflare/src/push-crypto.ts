@@ -1,5 +1,8 @@
 /** RFC 8291 aes128gcm and RFC 8292 VAPID; platform primitives only. */
 const utf8 = new TextEncoder();
+/** UTF-16 cut matching the server u16slice rule: drop a split pair. */
+export const u16slice = (value: string, end: number) =>
+  value.slice(0, end).replace(/[\uD800-\uDBFF]$/, "");
 export const b64 = (b: Uint8Array) =>
   btoa(String.fromCharCode(...b))
     .replace(/\+/g, "-")

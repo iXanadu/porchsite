@@ -94,8 +94,8 @@ export async function subscribe(
     at = Date.now(),
     label =
       typeof value.label === "string"
-        ? value.label.trim().slice(0, 80)
-        : "This device";
+        ? wire.u16slice(value.label.trim(), 80)
+        : "Browser";
   const results = await db.batch([
     db
       .prepare(
@@ -114,7 +114,7 @@ export async function subscribe(
         value.keys.p256dh,
         value.keys.auth,
         site.origin,
-        label || "This device",
+        label || "Browser",
         at,
         ...authArgs(who),
       ),
@@ -171,6 +171,16 @@ export async function sendApproval(
   requestId: string,
   transport: typeof fetch = fetch,
 ) {
+  const cutoff = Date.now() - 30 * 86400000;
+  await db
+    .prepare("DELETE FROM alert_deliveries WHERE claim IN (SELECT claim FROM alert_deliveries WHERE created_at<? ORDER BY created_at,claim LIMIT 500)")
+    .bind(cutoff)
+    .run();
+  const request = await db
+    .prepare("SELECT 1 FROM approvals WHERE id=? AND created_at>=?")
+    .bind(requestId, new Date(cutoff).toISOString())
+    .first();
+  if (!request) return;
   const subscriptions = await db
     .prepare("SELECT id FROM alert_subscriptions")
     .all<{ id: string }>();
