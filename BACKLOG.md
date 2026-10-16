@@ -72,9 +72,6 @@ site's OAuth connector, and pictures held as files. In order:
   what Porchsite builds, which look suits whom and how approval works.
 
 ## OWNER REQUESTS (2026-10-16)
-- **PB-1** OPEN: a built-in "playbook" look for a private how-to guide:
-  contents list, numbered how-tos, "If X breaks" sections, print-friendly,
-  phone first. Owner request 2026-10-16. Generic look; no content in the repo.
 - **PV-1** IN-PROGRESS (decided 2026-10-16: private mode, any registered
   passkey reads): a `private` site field (site_fields, owner-approved) gates
   every public route, feed, sitemap, media and share card behind a signed-in
