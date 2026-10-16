@@ -1448,7 +1448,7 @@ async def _route(req: Request, cx: Context) -> Response:
     try:
         if path == "/.well-known/porchsite-release" and m == "GET":
             response = json_response({"release":cx.release,"private_floor":await privacy.private_floor(cx.db,cx.release)})
-            response.headers["Cache-Control"]="private, no-store"
+            response.headers["Cache-Control"]="private, no-store, no-transform"
             return response
         if path == "/recover" and m == "GET":
             return await recovery_page(req,cx)

@@ -448,7 +448,14 @@ class Checker:
                         f"short response: Content-Length {declared}, received {size} bytes"
                     )
                 body = b"".join(chunks)
-                if response.status == 404 and body == BLANK:
+                cache_header = response.headers.get("Cache-Control", "")
+                cache = {
+                    directive.strip().lower() for directive in cache_header.split(",")
+                }
+                if response.status == 404 and (
+                    body == BLANK
+                    or (body.startswith(BLANK) and {"private", "no-store"} <= cache)
+                ):
                     return body, "private"
                 if response.status != 200:
                     raise CheckError(f"HTTP {response.status}: {response.reason}")

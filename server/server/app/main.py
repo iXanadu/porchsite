@@ -113,7 +113,7 @@ class App:
         if host.startswith("www."):
             u = req.url.replace(hostname=host[4:])
             resp = Response(
-                None, status_code=301, headers={"Location": str(u), "Cache-Control": "private, no-store" if await privacy.live_private(self.pool) else "max-age=3600"}
+                None, status_code=301, headers={"Location": str(u), "Cache-Control": "private, no-store, no-transform" if await privacy.live_private(self.pool) else "max-age=3600"}
             )
             await resp(scope, receive, send_with_release)
             return

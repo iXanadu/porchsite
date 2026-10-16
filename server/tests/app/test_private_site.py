@@ -112,8 +112,12 @@ async def reader(db, make):
 
 def blank(response):
     assert response.status_code == 404
-    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Cache-Control"] == "private, no-store, no-transform"
     assert response.headers["X-Robots-Tag"] == "noindex"
+    assert (
+        response.headers["Content-Security-Policy"]
+        == "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    )
     assert "Location" not in response.headers
     assert response.text == privacy.BLANK
 
@@ -166,8 +170,13 @@ async def test_visitor_matrix_gates_hits_misses_redirects_before_content(
     for path in paths:
         blank(await visitor.at(path))
         head = await visitor.at(path, method="HEAD")
-        assert head.status_code == 404 and head.content == b""
-        assert head.headers["Cache-Control"] == "private, no-store"
+        assert head.status_code == 404
+        assert (
+            head.headers["Content-Security-Policy"]
+            == "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+            and head.content == b""
+        )
+        assert head.headers["Cache-Control"] == "private, no-store, no-transform"
     assert (await visitor.at("/robots.txt")).text == "User-agent: *\nDisallow: /\n"
 
     async def forbidden(*args, **kwargs):
@@ -196,7 +205,7 @@ async def test_reader_role_boundary_and_same_url_cache_isolation(db, browser_fac
     ]:
         shown = await browser.at(path)
         assert shown.status_code == 200, path
-        assert shown.headers["Cache-Control"] == "private, no-store"
+        assert shown.headers["Cache-Control"] == "private, no-store, no-transform"
         blank(
             await visitor.at(
                 path,
@@ -463,7 +472,7 @@ async def test_release_floor_contains_no_content_and_readers_stay_out_of_legacy_
     state = response.json()
     assert sorted(state) == ["private_floor", "release"]
     assert state["private_floor"] == "unknown"
-    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Cache-Control"] == "private, no-store, no-transform"
     assert await db.fetchval("SELECT count(*) FROM sessions") == 1
     assert await db.fetchval("SELECT count(*) FROM reader_sessions") == 1
     assert (await site.live_view(db)).site["private"] is True
@@ -593,7 +602,7 @@ async def test_malformed_cookies_are_blank_and_canonical_redirect_is_private(db,
     response = await visitor.at("https://www.site.example/guide/published-guide/")
     assert response.status_code == 301
     assert response.headers["Location"] == ORIGIN + "/guide/published-guide/"
-    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Cache-Control"] == "private, no-store, no-transform"
 
 
 async def test_every_recovery_mutation_rolls_back_if_insertion_fails(

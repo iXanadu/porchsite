@@ -48,7 +48,7 @@ export default {
     const u = new URL(req.url);
     if (u.hostname.startsWith("www.")) {
       u.hostname = u.hostname.slice(4);
-      return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": await livePrivate(env.DB) ? "private, no-store" : "max-age=3600" } });
+      return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": await livePrivate(env.DB) ? "private, no-store, no-transform" : "max-age=3600" } });
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;

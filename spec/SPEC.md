@@ -230,15 +230,16 @@ cannot be recalled. Previously authorized in-flight bytes cannot be recalled.
 
 A private site's visitors receive exactly this UTF-8 body (no whitespace):
 `<!doctype html><meta name="robots" content="noindex"><title></title>`.
-Status is 404; headers include `Cache-Control: private, no-store` and
-`X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
+Status is 404; headers include `Cache-Control: private, no-store, no-transform`,
+`Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ancestors 'none'`
+and `X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
 GET and HEAD have matching status/headers (HEAD has no body). Check access
 before constructing a live view, looking up media or resolving redirects.
 This covers pages, misses, entries, tags, feeds, sitemap, search JSON, media,
 share cards, old addresses, missing slashes and `/review` owner routes.
 `/robots.txt` instead returns `User-agent: *\nDisallow: /\n`, without a
 Sitemap line. Every gated response while private, including authorized
-responses, errors and redirects, is `private, no-store`; conditional requests
+responses, errors and redirects, is `private, no-store, no-transform`; conditional requests
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 

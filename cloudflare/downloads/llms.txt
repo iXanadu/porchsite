@@ -121,6 +121,8 @@ pages only. Revoking ends authorizations made after it commits, including
 old sessions; already delivered or authorized in-flight copies remain.
 Search-engine copies and pictures fetched before private mode also remain.
 
+If Cloudflare Web Analytics automatic setup is on for the zone in the hosting account, exclude the private site's hostname.
+
 Private mode hides site content, not sign-in and connection routes. `/login`,
 `/authorize`, `/oauth/token`, `/oauth/register` and OAuth `/.well-known/`
 metadata stay reachable so the owner can sign in and assistants can connect. `/.well-known/porchsite-release` reports only the
