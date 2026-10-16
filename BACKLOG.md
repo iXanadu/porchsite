@@ -81,6 +81,15 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **OA-1** OPEN: connecting an assistant from an iPhone in-app browser
+  sheet fails with "This authorization was not started in this browser":
+  the sheet doesn't send back the OAuth library's consent cookie set on the
+  consent page. A normal browser works. Fix: on that error, explain and
+  offer "open in your browser" with a copy-link; consider binding consent
+  to the owner session instead (security review). Found 2026-10-16.
+- **REL-1** OPEN: the release script refuses a changed look whose version
+  wasn't bumped, but only at release time. Move that check into the
+  regular gates (theme:check). Found 2026-10-16.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,
