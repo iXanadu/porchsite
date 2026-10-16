@@ -70,7 +70,7 @@ p { margin: 0 0 1rem; }
   @page { margin: 15mm; }
   html { scroll-padding: 0; }
   body { font-size: 10pt; line-height: 1.35; }
-  *, *::before, *::after { color: #000 !important; background: #fff !important; border-color: #000 !important; box-shadow: none !important; text-shadow: none !important; }
+  *, *::before, *::after, *::marker { color: #000 !important; background: #fff !important; border-color: #000 !important; box-shadow: none !important; text-shadow: none !important; }
   .masthead, .site-foot, .contents-link, .type-labels, .urgent, script { display: none !important; }
   .wrap { width: 100%; margin: 0; }
   .guide-page, .index-page { max-width: none; margin: 0; }
@@ -84,8 +84,7 @@ p { margin: 0 0 1rem; }
   .guide-body ol > li { margin-block: .6rem; }
   .guide-body pre { white-space: pre-wrap; font-size: 8pt; }
   a { text-decoration: none; }
-  a[href]::after { content: " (" attr(href) ")"; font-size: .85em; overflow-wrap: anywhere; font-weight: 400; }
-  a[href^="#"]::after { content: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; overflow-wrap: anywhere; font-weight: 400; }
   .parts { display: block; list-style: decimal; padding-left: 1.5rem; }
   .part { display: list-item; border: 0; border-radius: 0; padding: 0; margin: 0 0 1rem; }
   .part-head h2 { display: block; font-size: 12pt; margin: 0 0 .5rem; break-before: auto; }
