@@ -100,7 +100,7 @@ the site's `_sitekeeper_migrations` table doesn't list, in order (not just
 `migrations`, which names one release's new files), upload the new bundle
 with the same bindings, delete the `SETUP_CODE` secret if it is still
 there, and check the `X-Porchsite-Release` header (retry for up to 30
-seconds). Roll back by
+seconds). Before rolling back, run `python3 scripts/check-private-downgrade --site https://example.com --target RELEASE`; a warning stops the procedure unless the owner explicitly confirms the exposure. Roll back by
 re-uploading the previous bundle from `v/<release>/` (hashes in
 `v/<release>/files.json`), with no schema step. Step by step: "Updating" in
 the install guide.
@@ -133,3 +133,59 @@ Reconnect the assistant if `reconnect` was true. The full procedure is
   machine). Other ways of running it (a bare Python install, another web
   server, a managed database) can work, but aren't documented or supported.
 - One owner per site; approvals need that owner's passkey.
+
+## Private sites, recovery and rollback
+
+A look does not make a site private. Propose `site.private: true` separately;
+only the owner can approve it. A private site's visitors get a blank page,
+including feeds, search, sitemap and media. Invite readers through
+`/review/readers`; each saves their own passkey. Reader access is published
+pages only. Revoking ends authorizations made after it commits, including
+old sessions; already delivered or authorized in-flight copies remain.
+Search-engine copies and pictures fetched before private mode also remain.
+
+The minimum private-capable release is reported by `site_state.update.rollback`
+and `/.well-known/porchsite-release` as `private_floor`. Before **any rollback
+upload or checkout**, run from the repository:
+
+```sh
+python3 scripts/check-private-downgrade --site https://example.com --target RELEASE
+```
+
+An older target, or missing/unknown state or minimum for any target, stops
+and explains that the site becomes public because old code ignores private
+mode. Choose the reported minimum or newer, or deliberately turn private off
+first. Only after the owner explicitly says yes to this exposure may the
+assistant add `--confirm`; never infer permission. The warning still prints.
+Same-day release ids cannot order commits, so the check warns conservatively
+for a different same-day commit. This check performs no upload or checkout.
+
+**This is a warning procedure, not prevention.** The dashboard rollback
+button, direct upload with the hosting API key, raw checkout, an older
+database restore, or a hostile assistant holding the key can expose a private
+site. The key holder can skip the check or misuse its confirmation flag.
+No additive schema change can make old code enforce private mode.
+
+If the owner loses every passkey, use the hosting account to issue a recovery
+link, good once for 24 hours. This is never an MCP tool. Completing `/recover`
+in one transaction replaces every owner passkey, cancels unused add-passkey
+links and ends all owner and reader sessions. Reader passkeys are kept and
+can sign in again. Setup stays closed after claim. Send recovery links only
+through a private channel and do not record them in chat logs or source.
+
+Cloudflare hosting operator (D1 query permission; environment holds the
+account id and API token):
+
+```sh
+node cloudflare/scripts/recovery-link.mjs --database DATABASE_ID --origin https://example.com
+```
+
+Server hosting operator, with the site's existing `PORCHSITE_DSN` set:
+
+```sh
+python -m server.app.cli recovery-link --origin https://example.com
+```
+
+The code is random and stored only as a hash with an expiry. A new link
+invalidates the previous link. Hosting-account access already grants control
+of the site; recovery does not protect against a compromised hosting account.

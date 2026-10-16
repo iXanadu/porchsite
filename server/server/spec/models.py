@@ -528,6 +528,7 @@ class NoteData(_Model):
 # Keep its existing field order, shared with the Cloudflare field guide.
 SiteInput = create_model(
     "SiteInput",
+    private=(Bool, Field(default=False, description="Require an owner or invited reader passkey to read published pages; only owner approval changes this")),
     broker=(text(_max(160)), Field(default="", description="plain-text brokerage line; Listing footer only; owner approval required")),
     __base__=_Model,
     embed_sources=(list_of(text(_max(2000)), hi=20), Field(default_factory=list)),

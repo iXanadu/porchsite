@@ -56,10 +56,10 @@ it("repairs all legacy snapshots without promoting a staged list or changing app
   const a = await approvals.request(db, "assistant:test", ["site"], "");
   await db.batch([
     db.prepare("DELETE FROM site_embed_sources"),
-    db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify({...two.data, broker: undefined})),
-    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 1").bind(JSON.stringify({...one.data, broker: undefined})),
-    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 2").bind(JSON.stringify({...two.data, broker: undefined})),
-    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined})),
+    db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify({...two.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 1").bind(JSON.stringify({...one.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 2").bind(JSON.stringify({...two.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined, private: undefined})),
   ]);
   // A different content write also repairs the poisoned live snapshot.
   await content.createItem(db, "assistant:test", "note", { text: "A note", date: "2026-10-15" }, undefined);
@@ -82,10 +82,10 @@ it.each(["request", "decide"])("repairs legacy inline lists through approval %s 
   // Reconstruct the previous inline-storage format, including live and pending versions.
   await db.batch([
     db.prepare("DELETE FROM site_embed_sources"),
-    db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify({...two.data, broker: undefined})),
-    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 1").bind(JSON.stringify({...one.data, broker: undefined})),
-    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 2").bind(JSON.stringify({...two.data, broker: undefined})),
-    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined})),
+    db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify({...two.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 1").bind(JSON.stringify({...one.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE revisions SET data = ? WHERE item_id = 'site' AND version = 2").bind(JSON.stringify({...two.data, broker: undefined, private: undefined})),
+    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined, private: undefined})),
   ]);
   // A read does not repair; no content write or direct migration follows this seed.
   await content.siteData(db, true);
@@ -128,7 +128,7 @@ it("refuses conflicting legacy versions without stripping evidence or widening a
   await db.batch([
     db.prepare("DELETE FROM site_embed_sources"),
     db.prepare("UPDATE items SET data = ? WHERE id = 'site'").bind(JSON.stringify({ ...one.data, embed_sources: [B] })),
-    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined})),
+    db.prepare("UPDATE live SET data = ? WHERE item_id = 'site'").bind(JSON.stringify({...one.data, broker: undefined, private: undefined})),
   ]);
   await expect(migrateSources(db)).rejects.toMatchObject({ code: "source_conflict" });
   expect((await content.siteData(db, true)).embed_sources).toEqual([A]);

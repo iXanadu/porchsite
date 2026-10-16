@@ -20,6 +20,7 @@ import asyncpg
 
 from server.app import check, content, mcp, site, themes
 from server.app.db import apply_schema
+from server.app.embed_storage import stored_data
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -62,7 +63,7 @@ async def main(output, names):
         pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2)
         await apply_schema(pool)
         for case in cases:
-            await pool.execute("TRUNCATE items, live, themes")
+            await pool.execute("TRUNCATE items, live, themes, site_embed_sources, site_fields, private_approvals")
             theme = case["theme"]
             if "home" in case:
                 theme = f'parity-{case["name"]}'
@@ -75,9 +76,16 @@ async def main(output, names):
             async with pool.acquire() as conn, conn.transaction():
                 for i, row in enumerate(rows):
                     stamp = (datetime(2026, 10, 10, 12) + timedelta(seconds=i)).isoformat(timespec="milliseconds") + "Z"
-                    raw = json.dumps(row["data"])
+                    raw = json.dumps(stored_data(row["kind"],row["data"]))
                     await conn.execute("INSERT INTO items (id, kind, slug, version, data, deleted, created_at, updated_at) VALUES ($1, $2, $3, 1, $4, FALSE, $5, $5)", row["id"], row["kind"], row["slug"], raw, stamp)
                     await conn.execute("INSERT INTO live (item_id, kind, slug, version, data, published_at) VALUES ($1, $2, $3, 1, $4, $5)", row["id"], row["kind"], row["slug"], raw, stamp)
+            logical=rows[0]["data"]
+            await pool.execute("INSERT INTO site_embed_sources (version,sources,approved) VALUES (1,$1,1)",json.dumps(logical.get("embed_sources",[])))
+            if logical.get("broker"):
+                await pool.execute("INSERT INTO site_fields (version,key,value,approved) VALUES (1,'broker',$1,1)",json.dumps(logical["broker"]))
+            if logical.get("private"):
+                await pool.execute("INSERT INTO site_fields (version,key,value,approved) VALUES (1,'private','true',1)")
+                await pool.execute("INSERT INTO private_approvals (version) VALUES (1)")
             calls = [
                 ("site_check", "site_check", {}), ("site_check_deep", "site_check", {"deep": True}), ("site_state", "site_state", {}),
                 ("site_state_full", "site_state", {"full": True}),

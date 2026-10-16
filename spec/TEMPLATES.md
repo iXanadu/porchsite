@@ -106,6 +106,18 @@ own manifest art brief and image purposes, including for built-in looks.
 layouts it draws (a stream set to a layout the template lacks is drawn as
 `list`).
 
+### Private-site access precedes templates
+
+A look never grants or restricts access. Both editions apply the private-site
+gate (SPEC §3) before constructing a template view, resolving a redirect or
+looking up media. Visitors get the exact blank noindex 404 rather than the
+look's home or not_found page. Readers see published views only and receive
+no owner controls or preview data. Every gated private response, including
+signed-in pages and static/media responses on gated paths, is private,
+no-store; conditional requests still check access. A private site's anonymous
+robots answer disallows all crawling, and its sitemap is the same blank.
+No script, template or theme choice substitutes for the access gate.
+
 ## 2. The rules
 
 - **Mustache only:** variables, sections, inverted sections, partials.

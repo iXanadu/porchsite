@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Check before upload/checkout; no deployment is performed by this command."""
+import argparse
+import json
+import re
+import sys
+from urllib.request import Request, urlopen
+
+WARNING = ("This makes the site public: older releases cannot keep this site private. "
+           "Use the minimum release or a newer one, or turn private off first on purpose. "
+           "Use --confirm only after the owner explicitly agrees to make the site public; never assume approval.")
+RELEASE = re.compile(r"^\d{4}\.\d{2}\.\d{2}-[a-f0-9]+$")
+
+
+def check(state, target):
+    if not isinstance(state, dict) or set(state) != {"release", "private_floor"} or not isinstance(state["release"], str) or not RELEASE.fullmatch(state["release"]):
+        return "We could not tell whether this site is private."
+    floor = state["private_floor"]
+    if floor is None:
+        return ""
+    if not isinstance(floor, str) or not RELEASE.fullmatch(floor) or not RELEASE.fullmatch(target):
+        return "We could not check the version needed to keep this site private, or the version you chose."
+    # Same-day different commits have no chronological ordering in their id.
+    # Warn conservatively rather than guessing that a hash is newer.
+    if target != floor and target[:10] <= floor[:10]:
+        return f"The version you chose may be older than the first version that keeps this site private ({floor})."
+    return ""
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--site", required=True, help="Site origin, for example https://example.com")
+    parser.add_argument("--target", required=True, help="Release about to be uploaded or checked out")
+    parser.add_argument("--confirm", action="store_true", help="Owner explicitly approved the warned exposure")
+    args = parser.parse_args(argv)
+    try:
+        request = Request(args.site.rstrip("/")+"/.well-known/porchsite-release", headers={"Cache-Control":"no-cache"})
+        with urlopen(request, timeout=10) as response:
+            state = json.loads(response.read(16385))
+        reason = check(state, args.target)
+    except Exception:
+        reason = "We could not tell whether this site is private."
+    if reason:
+        print(reason+"\n"+WARNING, file=sys.stderr)
+        return 0 if args.confirm else 1
+    print("The version you chose passes this site's private-site check.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

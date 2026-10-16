@@ -72,28 +72,10 @@ site's OAuth connector, and pictures held as files. In order:
   what Porchsite builds, which look suits whom and how approval works.
 
 ## OWNER REQUESTS (2026-10-16)
-- **PV-1** IN-PROGRESS (decided 2026-10-16: private mode, any registered
-  passkey reads): a `private` site field (site_fields, owner-approved) gates
-  every public route, feed, sitemap, media and share card behind a signed-in
-  passkey; everyone else gets a blank noindex page; sign-in, setup, /mcp and
-  OAuth paths stay open. Readers: owner-issued one-time invites, each reader
-  creates their own passkey; read published pages only; owner lists and
-  revokes. Reader passkeys and sessions in NEW tables (an older release must
-  never see a reader as the owner). Rollback guard: while private, updates
-  refuse releases older than the first one with private mode, through every
-  path (update screen, assistant, connector). Revoking a reader ends their
-  sessions at once (tested). Visitors get a fully blank page, no sign-in
-  link; only the owner invites; invites last 7 days, single use. Security
-  threat model before code.
-- **OR-1** OPEN (needed before a private site holds real content): owner
-  recovery is unspecified. Extra devices work (add-a-passkey link) and
-  synced passkeys survive a lost phone, but an owner who loses every
-  passkey has no way back in short of editing the database. Spec a
-  recovery path from the hosting account (a one-time stored code, like
-  setup) and document it in INSTALL.md.
-- **DR-1** OPEN: a per-project diary of sprint reports for people to read,
-  no expiry, pruned now and then; memory stays the source of truth.
-  Propose the shape first, short.
+- **DR-1** OPEN: separate private reports site, one stream per project and
+  sprint entries linking memory key names. No expiry; prune through normal
+  removal/history recovery. Weekly owner approval batches; draft at wrap-up.
+  Install after private mode is live and proved; no new engine code.
 - **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
@@ -102,9 +84,13 @@ site's OAuth connector, and pictures held as files. In order:
 - **PV-2** OPEN: /review/readers shows "Not signed in yet" for a reader who
   signed in through their invite (first sign-in isn't recorded as last
   sign-in). Found in the PV-1 gate, 2026-10-16.
+- **PV-3** OPEN: owner recovery keeps unused reader invites, so a
+  thief with an owner device could mint one before recovery and use it
+  after. Recovery should also clear unused invites and tell the owner to
+  review their readers. Found in the PV-1 review, 2026-10-16.
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
-  re-stores them without it, plus a changelog note. After LS-1 and S4-9.
+  re-stores them without it, plus a changelog note. First after the passkey release.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing

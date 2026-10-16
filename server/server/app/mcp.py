@@ -22,6 +22,7 @@ from mcp.shared.exceptions import MCPError
 from server.spec.embed_url import EMBED_ADVICE, EMBED_SYNTAX
 from server.spec.embeds import embed_notes
 
+from . import privacy
 from . import (
     analytics,
     approvals,
@@ -576,7 +577,7 @@ async def _call(
                 "fields": field_guide(),
                 "site_defaults": content.validate("site", {}),
                 "release": release,
-                "update": await updates.check(db, release),
+                "update": await privacy.with_rollback(db,release,await updates.check(db, release)),
             }
 
         return await _run(site_state)

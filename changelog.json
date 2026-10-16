@@ -593,5 +593,6 @@
         "The site's mark (favicon) and share picture."
       ]
     }
-  ]
+  ],
+  "private_site_rollback": "Private sites require the minimum release reported by private_floor. The documented rollback check stops and warns for an older target or unknown state, and proceeds only after explicit owner confirmation. Dashboard rollback, direct upload with the hosting API key, old database restore and a hostile assistant holding the key can expose a private site; prevention is not claimed."
 }

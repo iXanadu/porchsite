@@ -268,6 +268,8 @@ async def _write(
                 )
                 if item["kind"] == "site":
                     await c.execute("INSERT INTO site_embed_sources (version,sources) VALUES ($1,$2)", item["version"], dumps(item["data"].get("embed_sources", [])))
+                    if item["data"].get("private"):
+                        await c.execute("INSERT INTO site_fields (version,key,value) VALUES ($1,'private','true')",item["version"])
                     if item["data"].get("broker"):
                         await c.execute("INSERT INTO site_fields (version,key,value) VALUES ($1,'broker',$2)", item["version"], dumps(item["data"]["broker"]))
                 # A changed address is remembered, so the old one can send visitors on.

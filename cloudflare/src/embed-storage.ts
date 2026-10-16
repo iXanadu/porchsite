@@ -1,12 +1,12 @@
 /** Versioned site extension. Legacy item JSON stays readable on rollback. */
-import { brokerData } from "./site-fields";
+import { brokerData, privateData } from "./site-fields";
 import { embedSources } from "./embed-url";
 import { ApiError } from "./errors";
 type Data = Record<string, unknown>;
 
 export function storedData(kind: string, data: Data): Data {
   if (kind !== "site") return data;
-  const { embed_sources, broker, ...legacy } = data;
+  const { embed_sources, broker, private: privateMode, ...legacy } = data;
   return legacy;
 }
 
@@ -16,9 +16,9 @@ export async function sourceData(db: D1Database, id: string, version: number, da
   try { row = await db.prepare("SELECT sources, approved FROM site_embed_sources WHERE version = ?").bind(version).first<{ sources: string; approved: number }>(); }
   catch (error) {
     if (!String(error).includes("no such table: site_embed_sources")) throw error;
-    return { ...data, embed_sources: [], broker: await brokerData(db, version, live) };
+    return { ...data, embed_sources: [], broker: await brokerData(db, version, live), private: await privateData(db, version, live) };
   }
-  return { ...data, broker: await brokerData(db, version, live), embed_sources: row ? (live && !row.approved ? [] : JSON.parse(row.sources)) : data.embed_sources ?? [] };
+  return { ...data, broker: await brokerData(db, version, live), private: await privateData(db, version, live), embed_sources: row ? (live && !row.approved ? [] : JSON.parse(row.sources)) : data.embed_sources ?? [] };
 }
 
 export function sourceWrite(db: D1Database, version: number, data: Data): D1PreparedStatement {

@@ -77,6 +77,16 @@ async def setup_link(dsn: str, origin: str, hours: float) -> tuple[str, str]:
     return f"{origin}/setup?code={code}", expires_at
 
 
+async def recovery_link(dsn: str,origin: str,hours: float) -> tuple[str,str]:
+    pool = await connect(dsn,min_size=1,max_size=2)
+    try:
+        code = owner.b64url(secrets.token_bytes(24))
+        expires = await owner.issue_recovery_code(pool,code,hours)
+    finally:
+        await pool.close()
+    return f"{origin}/recover?code={code}",expires
+
+
 async def check(settings: Settings) -> list[tuple[str, str]]:
     """(level, message) pairs; level is "ok", "warn" or "fail"."""
     out: list[tuple[str, str]] = []
@@ -215,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
     link.add_argument(
         "--origin", default=os.environ.get("PORCHSITE_SITE_URL", ""), help="the site's address"
     )
+    recovery = sub.add_parser("recovery-link",help="issue a hosting-account recovery link; replaces all owner passkeys when used")
+    recovery.add_argument("--hours",type=float,default=24)
+    recovery.add_argument("--origin",default=os.environ.get("PORCHSITE_SITE_URL",""))
     sub.add_parser("setup-code", help="print a fresh, strong setup code")
     tok = sub.add_parser("token", help="mint an assistant's access token")
     tok.add_argument("--name", required=True, help="the assistant's name, shown on its requests")
@@ -240,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     dsn = os.environ.get("PORCHSITE_DSN", "")
     if not dsn:
         ap.error("PORCHSITE_DSN is not set")
-    if args.command == "setup-link":
+    if args.command in ("setup-link","recovery-link"):
         p = urlsplit(args.origin.strip())
         if p.scheme not in ("https", "http") or not p.hostname:
             ap.error("give the site's address with --origin (or set PORCHSITE_SITE_URL)")
@@ -248,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         if not 0 < args.hours <= 24 * 30:
             ap.error("--hours must be more than 0 and at most 720")
         try:
-            url, expires_at = asyncio.run(setup_link(dsn, origin, args.hours))
+            url, expires_at = asyncio.run((setup_link if args.command == "setup-link" else recovery_link)(dsn, origin, args.hours))
         except ApiError as e:
             if e.code != "claimed":
                 raise

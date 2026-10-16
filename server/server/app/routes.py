@@ -8,6 +8,7 @@ import json
 import math
 import re
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -18,9 +19,10 @@ from starlette.responses import Response
 from server.spec import theme as views
 from server.spec.embed_review import embed_review
 from server.spec.embeds import PERMISSIONS, frame_csp
-from server.spec.jsutil import string, u16slice
+from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from . import privacy
 from . import (
     analytics,
     approvals,
@@ -66,8 +68,9 @@ summary{padding:6px 0}
 .tag{font:12px ui-monospace,Menlo,monospace;text-transform:uppercase;background:#efe7dc;padding:4px 8px;border-radius:4px}
 header{flex-wrap:wrap;gap:6px 0}.warn{background:#efe7dc;color:#6b3f12;padding:12px;border-radius:6px}.ok{background:#e3ece7;color:#1f4034;padding:12px;border-radius:6px}
 input[type=date],select{width:100%;font:inherit;padding:12px;border:1px solid var(--rule);border-radius:6px;background:#fff}textarea.body{min-height:50vh;font:16px/1.6 ui-monospace,Menlo,monospace}
-button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.warn{background:#efe7dc;color:#6b3f12;border:1px solid #6b3f12}button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 """
+    + "header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}"
     + changes.CHANGES_CSS
 )
 
@@ -148,7 +151,7 @@ def owner_page(
 ) -> Response:
     n = nonce()
     nav = (
-        '<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a></span>'
+        '<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a><a href="/review/readers">Readers</a></span>'
         if signed_in
         else ""
     )
@@ -177,7 +180,7 @@ def owner_page(
 def signed_in_json(cookie: str) -> Response:
     """A sign-in's answer also marks the browser as not counted by analytics."""
     return json_response(
-        {"ok": True}, headers=[("Set-Cookie", cookie), ("Set-Cookie", analytics.NOTRACK_SET)]
+        {"ok": True, "reader": cookie.startswith(owner.READER_COOKIE + "=")}, headers=[("Set-Cookie", cookie), ("Set-Cookie", analytics.NOTRACK_SET)]
     )
 
 
@@ -202,7 +205,7 @@ form.addEventListener("submit", async (e) => {{
     const cred = {cred};
     const v = await fetch("/{base}/verify", {{ method: "POST", headers: {{ "content-type": "application/json" }}, body: JSON.stringify(cred.toJSON()) }});
     const k = await v.json(); if (!v.ok) return say(k.message);
-    location.href = {json.dumps(next)};
+    if (k.reader) location.href = "/"; else location.href = {json.dumps(next)};
   }} catch (x) {{ say(x && x.name === "NotAllowedError" ? "Cancelled. Try again when you're ready." : String(x)); }}
 }});"""
 
@@ -246,6 +249,8 @@ def encode_uri_component(s: str) -> str:
 async def require_owner(req: Request, cx: Context) -> Response | None:
     if await owner.signed_in(cx.db, req):
         return None
+    if await owner.reader_signed_in(cx.db,req):
+        return redirect("/",303)
     o = origin_of(req)
     if not await owner.has_owner(cx.db):
         return redirect(f"{o}/setup", 303)
@@ -343,7 +348,7 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     is_public = path == "/" or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
     if not is_public:
         return None
-    v = await site.live_view(cx.db)
+    v = await content_view(req,cx)
     origin = origin_of(req)
     policy = {"sources": v.site.get("embed_sources"), "origin": origin}
     def page(body):
@@ -383,9 +388,14 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     return None
 
 
+async def content_view(req, cx, discovery=False):
+    await privacy.require_content(cx.db,req)
+    return await site.live_view(cx.db,discovery=discovery)
+
+
 async def not_found_page(req: Request, cx: Context) -> Response:
     """The 404 page, in the site's theme when it has one."""
-    v = await site.live_view(cx.db)
+    v = await content_view(req,cx)
     path = _path(req)
     to = (
         builtin.redirect_for(v, path)
@@ -639,6 +649,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
     )
     raised = await visibility.raises(cx.db, waiting)
     embed_warn = await _embed_review_for(cx.db, embed_changes, origin_of(req))
+    embed_warn += await _private_review_warning(cx.db, embed_changes)
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
         f"{esc(who)} has {count} change{'' if count == 1 else 's'} for your site"
@@ -1162,7 +1173,7 @@ async def write_form(
     page = None
     if is_live:
         page = next(
-            (x["url"] for x in (await site.live_view(cx.db)).entries if x["id"] == item["id"]), None
+            (x["url"] for x in (await content_view(req,cx)).entries if x["id"] == item["id"]), None
         )
     state = ""
     if item:
@@ -1314,6 +1325,7 @@ async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Re
     p = await history.plan(cx.db, id)
     plan = p["changes"]
     embed_warn = await _embed_review_for(cx.db, plan, origin_of(req))
+    embed_warn += await _private_review_warning(cx.db, plan)
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:
         listed = "".join(
@@ -1415,19 +1427,45 @@ async def _json_body(req: Request) -> Any:
 
 
 async def handle(req: Request, cx: Context) -> Response:
-    """HEAD is GET without the body, on every address: it is routed as a GET
-    and answered with the GET's status and headers. (Routes test for GET alone.)"""
-    if req.method != "HEAD":
-        return await _route(req, cx)
-    resp = await _route(Request({**req.scope, "method": "GET"}, req.receive), cx)
-    resp.body = b""
-    return resp
+    is_private,gated,response = await privacy.access(cx.db,req)
+    get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
+    if response is None:
+        response = await _route(get,cx)
+    if is_private and gated:
+        response = privacy.no_store(response)
+    if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
+        response.headers["Referrer-Policy"]="no-referrer"
+        if not is_private or not gated:
+            response.headers["Cache-Control"]="no-store"
+    if req.method == "HEAD":
+        response.body = b""
+    return response
 
 
 async def _route(req: Request, cx: Context) -> Response:
     path = _path(req)
     m = req.method
     try:
+        if path == "/.well-known/porchsite-release" and m == "GET":
+            response = json_response({"release":cx.release,"private_floor":await privacy.private_floor(cx.db,cx.release)})
+            response.headers["Cache-Control"]="private, no-store"
+            return response
+        if path == "/recover" and m == "GET":
+            return await recovery_page(req,cx)
+        if path == "/recover/options" and m == "POST":
+            body = await _json_body(req)
+            options,cookie = await owner.recover_options(cx.db,req,str(body.get("code") or ""))
+            return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
+        if path == "/recover/verify" and m == "POST":
+            return signed_in_json(await owner.recover_verify(cx.db,req,await _json_body(req)))
+        invite = re.fullmatch(r"/invite/([A-Za-z0-9_-]{32})(/options|/verify)?",path)
+        if invite and not invite.group(2) and m == "GET":
+            return owner_page("Reader invitation",'<h1>Read this site</h1><p>Create your own passkey to read published pages. This does not give you owner access.</p><form><p class="error" hidden></p><button>Create reader passkey</button></form>',headers=[("Referrer-Policy","no-referrer")],script='history.replaceState(null,"","/login");\n'+passkey_js("invite","/",f"invite/{invite.group(1)}"))
+        if invite and invite.group(2) == "/options" and m == "POST":
+            options,cookie = await owner.invite_options(cx.db,req,invite.group(1))
+            return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
+        if invite and invite.group(2) == "/verify" and m == "POST":
+            return signed_in_json(await owner.invite_verify(cx.db,req,await _json_body(req)))
         # The kit's beacon, whatever the site's look.
         if path == "/static/a.js" and m == "GET":
             return Response(BEACON_JS.encode("utf-8"), headers=BEACON_HEADERS)
@@ -1439,13 +1477,13 @@ async def _route(req: Request, cx: Context) -> Response:
             if themed:
                 return themed
         if path == "/sitemap.xml" and m == "GET":
-            v = await site.live_view(cx.db, discovery=True)
+            v = await content_view(req,cx,discovery=True)
             return Response(
                 sitemap(v, origin_of(req), (themes.is_built_in(str(v.site["theme"])) or bool(await themes.load(cx.db, str(v.site["theme"]))))),
                 headers=SITEMAP_HEADERS,
             )
         if path == "/" and m == "GET":
-            return builtin.home(await site.live_view(cx.db), origin_of(req))
+            return builtin.home(await content_view(req,cx), origin_of(req))
         # Open to every crawler and agent. Pages that mustn't be indexed (the
         # owner's) say so themselves with noindex, which a crawler can only see
         # if it may fetch them.
@@ -1466,7 +1504,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 },
             )
         if _ENTRY.search(path) and m == "GET":
-            page = builtin.entry_page(await site.live_view(cx.db), path, origin_of(req))
+            page = builtin.entry_page(await content_view(req,cx), path, origin_of(req))
             if page:
                 return page
 
@@ -1480,7 +1518,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or builtin.not_found(await site.live_view(cx.db), origin_of(req))
+            return _file(shown) or builtin.not_found(await content_view(req,cx), origin_of(req))
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):
@@ -1533,6 +1571,8 @@ async def _route(req: Request, cx: Context) -> Response:
             gate = await require_owner(req, cx)
             if gate:
                 return gate
+            if path == "/review/readers":
+                return await readers_page(req,cx)
             if path == "/review" and m == "GET":
                 return await review_index(req, cx)
             # Share cards: the owner's browser draws them (sharecards.py).
@@ -1576,7 +1616,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if m == "POST":
                     form = await _form(req)
                     if _field(form, "csrf") == owner.csrf(req):
-                        return await passkeys_page(req, cx, await owner.create_passkey_link(cx.db))
+                        return await passkeys_page(req, cx, await owner.create_passkey_link(cx.db,req))
                 return await passkeys_page(req, cx)
             if path == "/review/assistants":
                 if m == "POST":
@@ -1626,6 +1666,8 @@ async def _route(req: Request, cx: Context) -> Response:
                 )
 
         return await not_found_page(req, cx)
+    except privacy.PrivateContentDenied:
+        return privacy.blank_response()
     except ApiError as e:
         if "json" in (req.headers.get("content-type") or "") or path.endswith(
             ("/options", "/verify")
@@ -1647,3 +1689,69 @@ async def _embed_review_for(db, changes, origin):
         else:
             proposed[c["id"]] = c
     return embed_review(live, list(proposed.values()), changes, origin)
+
+
+async def recovery_page(req,cx):
+    headers = [("Referrer-Policy","no-referrer")]
+    if not await owner.has_owner(cx.db):
+        return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
+    code = req.query_params.get("code","")[:200]
+    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
+    return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review"))
+
+
+async def readers_page(req,cx):
+    csrf = owner.csrf(req)
+    link = ""
+    if req.method == "POST":
+        form = await _form(req)
+        if _field(form,"csrf") != csrf:
+            raise ApiError(403,"csrf","This form expired. Try again.")
+        id = _field(form,"id")
+        if _field(form,"action") == "revoke":
+            await owner.revoke_reader(cx.db,id)
+        elif _field(form,"action") == "revoke-invite":
+            await owner.revoke_invite(cx.db,id)
+        else:
+            invite = await owner.create_reader_invite(cx.db,_field(form,"name") or "Reader",req)
+            link = origin_of(req)+"/invite/"+invite["token"]
+    body = '<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>'
+    if link:
+        body += f'<p class="ok">Give this one-time link privately: <a href="{esc(link)}">{esc(link)}</a></p>'
+    body += f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>'
+    readers = await owner.list_readers(cx.db)
+    zone = ZoneInfo((await content_view(req,cx,discovery=True)).site.get("timezone") or "UTC")
+    def date(value):
+        return long_date(datetime.fromisoformat(value.replace("Z","+00:00")).astimezone(zone).date().isoformat())
+    def form(r,invite):
+        button = '<button class="second" name="action" value="revoke-invite">Cancel invitation</button>' if invite else f'<button class="warn" name="action" value="revoke">Remove {esc(r["name"])}</button>'
+        return f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}">{button}</form>'
+    body += '<h2>Readers</h2>'
+    for r in readers:
+        if not r["used_at"]:
+            continue
+        signed_in = "Last signed in " + date(r["last_signed_in"]) if r["last_signed_in"] else "Not signed in yet"
+        action = '<p>Removed</p>' if r["revoked"] else form(r,False)
+        body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Added {esc(date(r["created_at"]))}</p><p>{esc(signed_in)}</p>{action}</section>'
+    body += '<h2>Unused invitations</h2>'
+    for r in readers:
+        if r["used_at"] or not r["expires_at"] or r["revoked"]:
+            continue
+        expired = '<p>Expired</p>' if r["expires_at"] <= owner.now() else ""
+        body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Expires {esc(date(r["expires_at"]))}</p>{expired}{form(r,True)}</section>'
+
+    return owner_page("Readers",body,signed_in=True,headers=[("Referrer-Policy","no-referrer")])
+
+
+async def _private_review_warning(db, proposed):
+    live = await privacy.live_private(db)
+    out = ""
+    for item in proposed:
+        if item["kind"] != "site":
+            continue
+        mode = bool(item.get("data",{}).get("private")) and not item.get("deleted")
+        if live and not mode:
+            out += '<h2 class="warn">This makes the site public.</h2>'
+        elif mode and not live:
+            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
+    return out
