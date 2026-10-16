@@ -81,6 +81,10 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **SV-PV1** OPEN: a server-edition site behind a caching reverse proxy
+  must bypass the cache for the reader cookie (`__Host-sk_reader`) as it
+  does for the owner's, before private mode is turned on. Document it in
+  the server deploy guide and the self-hosting notes. Found 2026-10-16.
 - **REL-1** OPEN: the release script refuses a changed look whose version
   wasn't bumped, but only at release time. Move that check into the
   regular gates (theme:check). Found 2026-10-16.
