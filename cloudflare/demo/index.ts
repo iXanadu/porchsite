@@ -11,7 +11,11 @@ import { sampleView } from "../src/themecheck";
 import * as theme from "../src/theme";
 import { THEMES } from "../src/themes.gen";
 import { creditHtml } from "./credit";
+import { MEDIA } from "./media.gen";
 import { CREDITS, SAMPLES } from "./samples.gen";
+
+const MIME: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
+const mediaBytes = new Map<string, Uint8Array>();
 
 const CSP =
   "default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
@@ -88,6 +92,18 @@ export default {
       return new Response(body, { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": CSP, "X-Robots-Tag": "noindex", "Cache-Control": "no-cache", "X-Porchsite-Release": RELEASE } });
     }
     if (u.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /\n", { headers: { "Content-Type": "text/plain" } });
+    const media = /^\/media\/([0-9a-f]{32}\.(jpg|png|webp))$/.exec(u.pathname);
+    if (media) {
+      const b64 = MEDIA[look]?.[media[1]];
+      if (!b64) return new Response("", { status: 404 });
+      const key = `${look}/${media[1]}`;
+      let bytes = mediaBytes.get(key);
+      if (!bytes) {
+        bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        mediaBytes.set(key, bytes);
+      }
+      return new Response(bytes, { headers: { "Content-Type": MIME[media[2]], "Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex" } });
+    }
     if (u.pathname.startsWith("/static/")) {
       const f = theme.staticFile(t, u.pathname.slice(8), "");
       return f ?? new Response("", { status: 404 });
