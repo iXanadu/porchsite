@@ -100,6 +100,10 @@ describe("private sites",()=>{
   const bad=await f.browser.at("/review/readers",{method:"POST",body:new URLSearchParams({name:"Reader",csrf:"wrong"})});expect(bad.status).toBe(403);
   const made=await f.browser.at("/review/readers",{method:"POST",body:new URLSearchParams({name:"Reader",csrf})});expect(await made.text()).toContain("/invite/");
   const r=await reader();expect(await owner.listReaders(db)).toHaveLength(2);
+  let listing=await (await f.browser.at("/review/readers")).text();
+  for(const text of ["Unused invitations","Expires ","Cancel invitation","Added ","Not signed in yet",'class="warn" name="action" value="revoke">Remove Reader'])expect(listing).toContain(text);
+  await db.prepare("UPDATE reader_passkeys SET last_used_at='2026-10-16T12:00:00Z' WHERE reader_id=?").bind(r.invite.id).run();
+  listing=await (await f.browser.at("/review/readers")).text();expect(listing).toContain("Last signed in October 16, 2026");
   const invitePage=await new Browser().at(`/invite/${r.invite.token}`);expect(invitePage.headers.get("Referrer-Policy")).toBe("no-referrer");expect(await invitePage.text()).toContain('history.replaceState(null,"","/login")');
   expect((await new Browser().post(`/invite/${r.invite.token}/options`)).status).toBe(410);
   const expired=await owner.createReaderInvite(db,"Expired");await db.prepare("UPDATE reader_invites SET expires_at='2000' WHERE reader_id=?").bind(expired.id).run();expect((await new Browser().post(`/invite/${expired.token}/options`)).status).toBe(410);

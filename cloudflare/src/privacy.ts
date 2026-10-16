@@ -2,7 +2,7 @@
 import * as owner from "./owner";
 export const BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>';
 export const PRIVATE_HEADERS = {"Cache-Control":"private, no-store"};
-export const ROLLBACK_WARNING = "This makes the site public. Older releases do not know private mode. Roll back only to the minimum release or newer, or turn private off first on purpose. Proceed only after the owner explicitly approves this exposure.";
+export const ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public.";
 export async function livePrivate(db: D1Database): Promise<boolean> {
   const row = await db.prepare("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'private' AND f.approved = 1 JOIN private_approvals a ON a.version = l.version WHERE l.item_id = 'site'").first<any>();
   return !!row && JSON.parse(row.value) === true;

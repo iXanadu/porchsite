@@ -9,7 +9,7 @@ from . import owner
 
 BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>'
 PRIVATE_HEADERS = {"Cache-Control": "private, no-store"}
-ROLLBACK_WARNING = "This makes the site public. Older releases do not know private mode. Roll back only to the minimum release or newer, or turn private off first on purpose. Proceed only after the owner explicitly approves this exposure."
+ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public."
 
 
 async def live_private(db):

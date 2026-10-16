@@ -289,6 +289,21 @@ async def test_invites_owner_csrf_single_use_expiry_and_cancel(db, browser_facto
     )
     _, _, invite = await reader(db, browser_factory)
     assert len(await owner.list_readers(db)) == 2
+    listing = (await browser.at("/review/readers")).text
+    for text in (
+        "Unused invitations",
+        "Expires ",
+        "Cancel invitation",
+        "Added ",
+        "Not signed in yet",
+        'class="warn" name="action" value="revoke">Remove Reader',
+    ):
+        assert text in listing
+    await db.execute(
+        "UPDATE reader_passkeys SET last_used_at='2026-10-16T12:00:00Z' WHERE reader_id=$1",
+        invite["id"],
+    )
+    assert "Last signed in October 16, 2026" in (await browser.at("/review/readers")).text
     page = await browser_factory().at(f"/invite/{invite['token']}")
     assert page.headers["Referrer-Policy"] == "no-referrer"
     assert 'history.replaceState(null,"","/login")' in page.text

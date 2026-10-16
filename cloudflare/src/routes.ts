@@ -23,6 +23,7 @@ import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
 import * as owner from "./owner";
 import * as privacy from "./privacy";
+import { dateString } from "./date-format";
 import { RELEASE } from "./home";
 import * as requests from "./requests";
 import * as sharecards from "./sharecards";
@@ -50,7 +51,7 @@ summary{padding:6px 0}
 .tag{font:12px ui-monospace,Menlo,monospace;text-transform:uppercase;background:#efe7dc;padding:4px 8px;border-radius:4px}
 header{flex-wrap:wrap;gap:6px 0}.warn{background:#efe7dc;color:#6b3f12;padding:12px;border-radius:6px}.ok{background:#e3ece7;color:#1f4034;padding:12px;border-radius:6px}
 input[type=date],select{width:100%;font:inherit;padding:12px;border:1px solid var(--rule);border-radius:6px;background:#fff}textarea.body{min-height:50vh;font:16px/1.6 ui-monospace,Menlo,monospace}
-button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.warn{background:#efe7dc;color:#6b3f12;border:1px solid #6b3f12}button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}
 ${changes.CHANGES_CSS}`;
 
@@ -1132,7 +1133,7 @@ async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;da
 async function recoveryPage(req: Request,env: Env): Promise<Response> {
   if (!(await owner.hasOwner(env.DB))) return ownerPage("Recovery",html`<h1>This site has no owner yet.</h1>`,{status:409,headers:SETUP_HEADERS});
   const code = (new URL(req.url).searchParams.get("code") ?? "").slice(0,200);
-  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>This replaces every owner passkey, ends all owner and reader sessions, and removes unused owner passkey links. Reader passkeys are kept. Already delivered or authorized in-flight copies cannot be recalled.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Replace owner passkeys</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
+  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
 }
 async function readersPage(req: Request,env: Env): Promise<Response> {
   const csrf = await owner.csrf(req); let link = "";
@@ -1144,7 +1145,10 @@ async function readersPage(req: Request,env: Env): Promise<Response> {
     else { const invite = await owner.createReaderInvite(env.DB,String(form.get("name") ?? "Reader"),req); link = new URL(`/invite/${invite.token}`,req.url).href; }
   }
   const readers: any[] = await owner.listReaders(env.DB);
-  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>${readers.map(r=>html`<section class="card"><h2>${r.name}</h2><p>${r.revoked ? "Revoked" : r.used_at ? "Passkey registered" : !r.expires_at ? "Invitation cancelled" : r.expires_at <= new Date().toISOString() ? "Invitation expired" : "Invitation pending"}</p><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}"><button name="action" value="revoke">Revoke reader</button>${!r.used_at && r.expires_at && !r.revoked ? html`<button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button>` : ""}</form></section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
+  const timeZone = String((await site.liveView(env.DB,true)).site.timezone || "UTC");
+  const date = (value: string) => dateString(new Date(value),{month:"long",day:"numeric",year:"numeric"},timeZone);
+  const form = (r: any, invite: boolean) => html`<form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}">${invite ? html`<button class="second" name="action" value="revoke-invite">Cancel invitation</button>` : html`<button class="warn" name="action" value="revoke">Remove ${r.name}</button>`}</form>`;
+  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form><h2>Readers</h2>${readers.filter(r=>r.used_at).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${r.revoked ? html`<p>Removed</p>` : form(r,false)}</section>`)}<h2>Unused invitations</h2>${readers.filter(r=>!r.used_at && r.expires_at && !r.revoked).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Expires ${date(r.expires_at)}</p>${r.expires_at <= new Date().toISOString() ? html`<p>Expired</p>` : ""}${form(r,true)}</section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
 }
 
 async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:Record<string,any>;deleted?:boolean}[]): Promise<string> {
@@ -1152,7 +1156,7 @@ async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:
   for (const item of proposed) if (item.kind === "site") {
     const mode = !!item.data.private && !item.deleted;
     if (live && !mode) out += '<h2 class="warn">This makes the site public.</h2>';
-    else if (mode && !live) out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>';
+    else if (mode && !live) out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>';
   }
   return out;
 }

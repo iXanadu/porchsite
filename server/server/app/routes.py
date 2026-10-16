@@ -8,6 +8,7 @@ import json
 import math
 import re
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -18,7 +19,7 @@ from starlette.responses import Response
 from server.spec import theme as views
 from server.spec.embed_review import embed_review
 from server.spec.embeds import PERMISSIONS, frame_csp
-from server.spec.jsutil import string, u16slice
+from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from . import privacy
@@ -67,7 +68,7 @@ summary{padding:6px 0}
 .tag{font:12px ui-monospace,Menlo,monospace;text-transform:uppercase;background:#efe7dc;padding:4px 8px;border-radius:4px}
 header{flex-wrap:wrap;gap:6px 0}.warn{background:#efe7dc;color:#6b3f12;padding:12px;border-radius:6px}.ok{background:#e3ece7;color:#1f4034;padding:12px;border-radius:6px}
 input[type=date],select{width:100%;font:inherit;padding:12px;border:1px solid var(--rule);border-radius:6px;background:#fff}textarea.body{min-height:50vh;font:16px/1.6 ui-monospace,Menlo,monospace}
-button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.warn{background:#efe7dc;color:#6b3f12;border:1px solid #6b3f12}button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 """
     + "header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}"
     + changes.CHANGES_CSS
@@ -1687,7 +1688,7 @@ async def recovery_page(req,cx):
     if not await owner.has_owner(cx.db):
         return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
     code = req.query_params.get("code","")[:200]
-    body = '<h1>Recover owner access</h1><p>This replaces every owner passkey, ends all owner and reader sessions, and removes unused owner passkey links. Reader passkeys are kept. Already delivered or authorized in-flight copies cannot be recalled.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Replace owner passkeys</button></form>'
+    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
     return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review"))
 
 
@@ -1706,14 +1707,31 @@ async def readers_page(req,cx):
         else:
             invite = await owner.create_reader_invite(cx.db,_field(form,"name") or "Reader",req)
             link = origin_of(req)+"/invite/"+invite["token"]
-    body = '<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>'
+    body = '<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>'
     if link:
         body += f'<p class="ok">Give this one-time link privately: <a href="{esc(link)}">{esc(link)}</a></p>'
     body += f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>'
-    for r in await owner.list_readers(cx.db):
-        status = "Revoked" if r["revoked"] else "Passkey registered" if r["used_at"] else "Invitation cancelled" if not r["expires_at"] else "Invitation expired" if r["expires_at"] <= owner.now() else "Invitation pending"
-        cancel = '<button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button>' if not r["used_at"] and r["expires_at"] and not r["revoked"] else ""
-        body += f'<section class="card"><h2>{esc(r["name"])}</h2><p>{status}</p><form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}"><button name="action" value="revoke">Revoke reader</button>{cancel}</form></section>'
+    readers = await owner.list_readers(cx.db)
+    zone = ZoneInfo((await site.live_view(cx.db,discovery=True)).site.get("timezone") or "UTC")
+    def date(value):
+        return long_date(datetime.fromisoformat(value.replace("Z","+00:00")).astimezone(zone).date().isoformat())
+    def form(r,invite):
+        button = '<button class="second" name="action" value="revoke-invite">Cancel invitation</button>' if invite else f'<button class="warn" name="action" value="revoke">Remove {esc(r["name"])}</button>'
+        return f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}">{button}</form>'
+    body += '<h2>Readers</h2>'
+    for r in readers:
+        if not r["used_at"]:
+            continue
+        signed_in = "Last signed in " + date(r["last_signed_in"]) if r["last_signed_in"] else "Not signed in yet"
+        action = '<p>Removed</p>' if r["revoked"] else form(r,False)
+        body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Added {esc(date(r["created_at"]))}</p><p>{esc(signed_in)}</p>{action}</section>'
+    body += '<h2>Unused invitations</h2>'
+    for r in readers:
+        if r["used_at"] or not r["expires_at"] or r["revoked"]:
+            continue
+        expired = '<p>Expired</p>' if r["expires_at"] <= owner.now() else ""
+        body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Expires {esc(date(r["expires_at"]))}</p>{expired}{form(r,True)}</section>'
+
     return owner_page("Readers",body,signed_in=True,headers=[("Referrer-Policy","no-referrer")])
 
 
@@ -1727,5 +1745,5 @@ async def _private_review_warning(db, proposed):
         if live and not mode:
             out += '<h2 class="warn">This makes the site public.</h2>'
         elif mode and not live:
-            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>'
+            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
     return out

@@ -576,7 +576,7 @@ async def list_readers(db):
     return [
         dict(r)
         for r in await db.fetch(
-            "SELECT r.id,r.name,r.revoked,r.created_at,i.expires_at,i.used_at FROM readers r LEFT JOIN reader_invites i ON i.reader_id = r.id ORDER BY r.created_at"
+            "SELECT r.id,r.name,r.revoked,r.created_at,i.expires_at,i.used_at,(SELECT MAX(p.last_used_at) FROM reader_passkeys p WHERE p.reader_id = r.id) AS last_signed_in FROM readers r LEFT JOIN reader_invites i ON i.reader_id = r.id ORDER BY r.created_at"
         )
     ]
 
