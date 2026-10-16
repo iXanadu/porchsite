@@ -1,0 +1,95 @@
+{
+  "name": "playbook",
+  "title": "Playbook",
+  "licence": "MIT",
+  "version": "1.0.0",
+  "type": "guide",
+  "description": "A phone-first handbook with a complete contents page, numbered how-tos, troubleshooting sections and clear printed sheets. Choosing this look does not restrict who can read a site.",
+  "heading_ids": true,
+  "body_h1_as_h2": true,
+  "sections": [
+    "entries",
+    "cards",
+    "about"
+  ],
+  "layouts": [
+    "list",
+    "feature"
+  ],
+  "previews": [],
+  "palettes": {
+    "paper": {
+      "title": "Paper & ink",
+      "colors": {
+        "bg": "#faf9f5",
+        "ink": "#242d32",
+        "muted": "#59636a",
+        "accent": "#23584e",
+        "accent-2": "#8a4227",
+        "line": "#d5d8d2",
+        "on-accent": "#ffffff"
+      }
+    }
+  },
+  "slots": {
+    "images": [],
+    "content": [
+      {
+        "field": "site.title",
+        "need": "required",
+        "purpose": "The handbook name in the top bar."
+      },
+      {
+        "field": "site.tagline",
+        "need": "required",
+        "purpose": "The contents page heading."
+      },
+      {
+        "field": "site.intro",
+        "need": "recommended",
+        "purpose": "One sentence explaining how to use the handbook."
+      },
+      {
+        "field": "site.streams",
+        "need": "required",
+        "purpose": "One stream per part, with a title and intro. Sections sets the part order; every entry is listed, newest first within each part."
+      },
+      {
+        "field": "site.cta_label",
+        "need": "recommended",
+        "purpose": "The pinned help link, for example If something is down; set cta_link to the breaks tag page of the troubleshooting stream. Tags are per stream."
+      },
+      {
+        "field": "site.strings",
+        "need": "recommended",
+        "purpose": "Set home to Contents for the sticky link back to the current part on the contents page."
+      },
+      {
+        "field": "entry.body",
+        "need": "required",
+        "purpose": "Use You need, Steps, Done when, If it fails for how-tos; You will see, Check first, Fix, Who to ask, Do not for troubleshooting; Why for guides; Related for links. Use ordered lists for steps. Headings get stable anchors. A final Last verified by paragraph remains ordinary text. Reference material can use lists or a monospaced code block; Markdown tables are not supported."
+      },
+      {
+        "field": "entry.tags",
+        "need": "recommended",
+        "purpose": "Use guide, how-to, breaks or reference as a small type label. Keep troubleshooting entries together in one stream so its breaks tag page lists every symptom."
+      },
+      {
+        "field": "site.footer_line",
+        "need": "optional",
+        "purpose": "The handbook footer."
+      }
+    ]
+  },
+  "art": {
+    "ask": "Ask whether a diagram or screenshot is needed to explain a step. A text-only handbook needs no pictures.",
+    "style": "Clear instructional screenshots or diagrams supplied by the owner; no decorative images.",
+    "prompt_prefix": "A simple instructional diagram with only the necessary labels.",
+    "steps": [
+      "Start with text, grouped into parts and short pages.",
+      "Use neutral sample content to check the look before adding real material.",
+      "If a picture is needed, confirm its accuracy and write useful alt text.",
+      "Check the contents link, numbered steps, troubleshooting sections and print layout on a phone and desktop."
+    ]
+  }
+}
