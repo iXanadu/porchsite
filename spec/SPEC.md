@@ -230,15 +230,16 @@ cannot be recalled. Previously authorized in-flight bytes cannot be recalled.
 
 A private site's visitors receive exactly this UTF-8 body (no whitespace):
 `<!doctype html><meta name="robots" content="noindex"><title></title>`.
-Status is 404; headers include `Cache-Control: private, no-store` and
-`X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
+Status is 404; headers include `Cache-Control: private, no-store, no-transform`,
+`Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ancestors 'none'`
+and `X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
 GET and HEAD have matching status/headers (HEAD has no body). Check access
 before constructing a live view, looking up media or resolving redirects.
 This covers pages, misses, entries, tags, feeds, sitemap, search JSON, media,
 share cards, old addresses, missing slashes and `/review` owner routes.
 `/robots.txt` instead returns `User-agent: *\nDisallow: /\n`, without a
 Sitemap line. Every gated response while private, including authorized
-responses, errors and redirects, is `private, no-store`; conditional requests
+responses, errors and redirects, is `private, no-store, no-transform`; conditional requests
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 
@@ -741,9 +742,11 @@ previous release's tests and archived bundle on the new schema).
 exposes the published site. The compatibility rule stands; no schema trick
 prevents that. The first private-capable release is the minimum for a private
 site, recorded outside legacy JSON. `site_state.update.rollback` reports
-that minimum and explains the exposure. The unauthenticated, no-store JSON
+that minimum and explains the exposure. The unauthenticated JSON
 `GET /.well-known/porchsite-release` contains only `release` and
-`private_floor` (null when public), never site content.
+`private_floor` (null when public), never site content. It and a signed-in
+reader's 303 from `/authorize` send `Cache-Control: private, no-store,
+no-transform` whether or not the site is private.
 
 Before upload or checkout, the documented procedure runs
 `scripts/check-private-downgrade --target <release>`. It stops and warns if

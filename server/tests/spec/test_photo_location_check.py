@@ -151,6 +151,8 @@ def test_bad_gps_pointer_and_bounded_text_inflation():
 def site(
     gps=False,
     private=False,
+    appended=False,
+    private_cache="private, no-store",
     broken_media=False,
     missing_page=False,
     redirect=None,
@@ -179,6 +181,8 @@ def site(
                 return
             if self.path == "/" and private:
                 body, status = CHECK["BLANK"], 404
+                if appended:
+                    body += b'<script src="https://analytics.example/beacon.js"></script>'
             elif self.path == "/":
                 body = f'<link rel="alternate" type="application/rss+xml" href="/feed.xml"><img src="/media/{NAMES[0]}"><source srcset="/media/{NAMES[0]} 1x, /media/{NAMES[1]} 2x"><meta property="og:image" content="{origin}/media/{NAMES[2]}"><a href="/media/{NAMES[0]}?download=1">Photo</a><img src="https://outside.example/media/{NAMES[0]}">'.encode()
             elif self.path == "/sitemap.xml":
@@ -208,6 +212,8 @@ def site(
                 body = b"<p>short"
             self.send_response(status)
             self.send_header("Content-Type", kind)
+            if private and private_cache:
+                self.send_header("Cache-Control", private_cache)
             if short:
                 self.send_header("Content-Length", str(len(body) + 1000))
                 self.close_connection = True
@@ -263,8 +269,9 @@ def test_local_site_discovers_sitemap_feed_srcset_meta_links_and_deduplicates(gp
     assert all(not p.startswith(("/mcp", "/login")) for p in hits)
 
 
-def test_private_site_stops_without_fetching_sitemap_or_photos():
-    with site(private=True) as (origin, hits, _, _):
+@pytest.mark.parametrize("appended", [False, True])
+def test_private_site_stops_without_fetching_sitemap_or_photos(appended):
+    with site(private=True, appended=appended) as (origin, hits, _, _):
         result = run(origin, "--max-pages", "1")
     assert result.returncode == 0
     assert "site is private: nothing public to check" in result.stdout
@@ -482,3 +489,19 @@ def test_actual_bad_http_header_or_url_returns_json_not_traceback(options):
         result = run(origin, "--json")
     assert result.returncode == 1 and "Traceback" not in result.stderr
     assert json.loads(result.stdout)["errors"]
+
+
+@pytest.mark.parametrize("cache", ["", "private", "no-store", "public, no-store"])
+def test_appended_blank_without_both_private_cache_directives_is_an_error(cache):
+    with site(private=True, appended=True, private_cache=cache) as (origin, _, _, _):
+        result = run(origin, "--json")
+    assert result.returncode == 1
+    assert not json.loads(result.stdout)["private"]
+
+
+def test_exact_blank_remains_private_without_cache_headers():
+    with site(private=True, private_cache="") as (origin, hits, _, _):
+        result = run(origin, "--json")
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["private"]
+    assert hits == {"/": 1}

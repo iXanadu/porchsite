@@ -114,7 +114,7 @@ looking up media. Visitors get the exact blank noindex 404 rather than the
 look's home or not_found page. Readers see published views only and receive
 no owner controls or preview data. Every gated private response, including
 signed-in pages and static/media responses on gated paths, is private,
-no-store; conditional requests still check access. A private site's anonymous
+no-store, no-transform; conditional requests still check access. A private site's anonymous
 robots answer disallows all crawling, and its sitemap is the same blank.
 No script, template or theme choice substitutes for the access gate.
 

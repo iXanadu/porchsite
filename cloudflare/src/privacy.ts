@@ -1,7 +1,8 @@
 /** Access is checked before any content view or existence lookup. */
 import * as owner from "./owner";
 export const BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>';
-export const PRIVATE_HEADERS = {"Cache-Control":"private, no-store"};
+export const BLANK_CSP = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+export const PRIVATE_HEADERS = {"Cache-Control":"private, no-store, no-transform"};
 export const ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public.";
 export async function livePrivate(db: D1Database): Promise<boolean> {
   const row = await db.prepare("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'private' AND f.approved = 1 JOIN private_approvals a ON a.version = l.version WHERE l.item_id = 'site'").first<any>();
@@ -35,13 +36,13 @@ export async function access(db: D1Database, req: Request) {
     const isOwner = await owner.signedIn(db,req);
     const reader = !isOwner && await owner.readerSignedIn(db,req);
     if (reader && (path === "/authorize" || path === "/review" || path.startsWith("/review/"))) response = new Response(null,{status:303,headers:{Location:"/",...PRIVATE_HEADERS}});
-    else if (isPrivate && gated && !isOwner && !reader) response = path === "/collect" ? new Response(null,{status:204,headers:PRIVATE_HEADERS}) : new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Type":"text/html; charset=utf-8"}});
+    else if (isPrivate && gated && !isOwner && !reader) response = path === "/collect" ? new Response(null,{status:204,headers:PRIVATE_HEADERS}) : new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Security-Policy":BLANK_CSP,"Content-Type":"text/html; charset=utf-8"}});
   }
   return {isPrivate,gated,response};
 }
 export function noStore(response: Response): Response {
   const out = new Response(response.body,response);
-  out.headers.set("Cache-Control","private, no-store");out.headers.delete("ETag");out.headers.delete("Last-Modified");
+  out.headers.set("Cache-Control","private, no-store, no-transform");out.headers.delete("ETag");out.headers.delete("Last-Modified");
   return out;
 }
 
@@ -52,7 +53,7 @@ export async function withRollback(db: D1Database, release: string, state: Recor
 
 export class PrivateContentDenied extends Error {}
 export function blankResponse() {
-  return new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Type":"text/html; charset=utf-8"}});
+  return new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Security-Policy":BLANK_CSP,"Content-Type":"text/html; charset=utf-8"}});
 }
 export async function requireContent(db: D1Database, req: Request) {
   if (await livePrivate(db) && !await owner.signedIn(db,req) && !await owner.readerSignedIn(db,req)) throw new PrivateContentDenied();

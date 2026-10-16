@@ -8,7 +8,8 @@ from starlette.responses import Response
 from . import owner
 
 BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>'
-PRIVATE_HEADERS = {"Cache-Control": "private, no-store"}
+BLANK_CSP = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+PRIVATE_HEADERS = {"Cache-Control": "private, no-store, no-transform"}
 ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public."
 
 
@@ -80,7 +81,11 @@ async def access(db, req):
                 else Response(
                     BLANK,
                     status_code=404,
-                    headers={**PRIVATE_HEADERS, "X-Robots-Tag": "noindex"},
+                    headers={
+                        **PRIVATE_HEADERS,
+                        "X-Robots-Tag": "noindex",
+                        "Content-Security-Policy": BLANK_CSP,
+                    },
                     media_type="text/html",
                 )
             )
@@ -88,7 +93,7 @@ async def access(db, req):
 
 
 def no_store(response):
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "private, no-store, no-transform"
     for name in ("ETag", "Last-Modified"):
         if name in response.headers:
             del response.headers[name]
@@ -108,7 +113,11 @@ def blank_response():
     return Response(
         BLANK,
         status_code=404,
-        headers={**PRIVATE_HEADERS, "X-Robots-Tag": "noindex"},
+        headers={
+            **PRIVATE_HEADERS,
+            "X-Robots-Tag": "noindex",
+            "Content-Security-Policy": BLANK_CSP,
+        },
         media_type="text/html",
     )
 

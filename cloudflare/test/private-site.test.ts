@@ -43,7 +43,7 @@ async function reader() {
  expect(response.status,await response.clone().text()).toBe(200);expect((await response.json() as any).reader).toBe(true);
  return {browser,key,invite};
 }
-async function blank(r:Response) {expect(r.status).toBe(404);expect(r.headers.get("Cache-Control")).toBe("private, no-store");expect(r.headers.get("X-Robots-Tag")).toBe("noindex");expect(r.headers.has("Location")).toBe(false);expect(await r.text()).toBe(BLANK);}
+async function blank(r:Response) {expect(r.status).toBe(404);expect(r.headers.get("Cache-Control")).toBe("private, no-store, no-transform");expect(r.headers.get("X-Robots-Tag")).toBe("noindex");expect(r.headers.get("Content-Security-Policy")).toBe("default-src 'none'; base-uri 'none'; frame-ancestors 'none'");expect(r.headers.has("Location")).toBe(false);expect(await r.text()).toBe(BLANK);}
 beforeEach(async()=>{
  const rows=await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{name:string}>();
  for(const {name} of rows.results) if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith("sqlite_")&&!name.startsWith("d1_")) await db.prepare(`DELETE FROM ${name}`).run();
@@ -61,7 +61,7 @@ describe("private sites",()=>{
  it("gates hits, misses, discovery, redirects and owner pages before a live view or media lookup (1–5,11–13)",async()=>{
   const {picture}=await fixture(),visitor=new Browser();
   for(const path of ["/","/guide/published-guide/","/guide/missing/","/sitemap.xml","/guide/feed.xml","/missing/feed.xml","/guide/search.json",picture,"/media/00000000000000000000000000000000.jpg","/guide/tags/guide/","/review","/review/write","/guide/published-guide","/e/published-guide/","/loginx","/login/","/.well-known/x","/oauth/x","/upload/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/extra","/passkey/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x","/setup/","/recover/","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","/login/missing","/setup/missing","/recover/missing","/invite/missing","/passkey/missing","/upload/missing","/oauth/missing","/.well-known/missing","/login/options","/setup/verify","/recover/options","/invite/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/verify","/passkey/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/options","/invite/cccccccccccccccccccccccccccccccc/extra"]) {
-   await blank(await visitor.at(path));const head=await visitor.at(path,{method:"HEAD"});expect(head.status).toBe(404);expect(await head.text()).toBe("");expect(head.headers.get("Cache-Control")).toBe("private, no-store");
+   await blank(await visitor.at(path));const head=await visitor.at(path,{method:"HEAD"});expect(head.status).toBe(404);expect(head.headers.get("Content-Security-Policy")).toBe("default-src 'none'; base-uri 'none'; frame-ancestors 'none'");expect(await head.text()).toBe("");expect(head.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
   }
   const robots=await visitor.at("/robots.txt");expect(await robots.text()).toBe("User-agent: *\nDisallow: /\n");
   // A gate without any content/lookup methods: only its minimal state query may run.
@@ -74,7 +74,7 @@ describe("private sites",()=>{
   expect(await db.prepare("SELECT count(*) n FROM passkeys").first("n")).toBe(1);
   expect(await db.prepare("SELECT count(*) n FROM reader_passkeys").first("n")).toBe(1);
   for(const path of ["/","/guide/published-guide/","/sitemap.xml","/guide/feed.xml","/guide/search.json",picture]) {
-   const shown=await r.browser.at(path);expect(shown.status,path).toBe(200);expect(shown.headers.get("Cache-Control")).toBe("private, no-store");
+   const shown=await r.browser.at(path);expect(shown.status,path).toBe(200);expect(shown.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
    await blank(await visitor.at(path,{headers:{"If-None-Match":"\"cached\"","If-Modified-Since":"Wed, 01 Jan 2025 00:00:00 GMT"}}));
   }
   for(const path of ["/review","/review/write","/review/history","/review/stats","/review/assistants","/review/passkeys","/review/import","/review/readers","/review/example/preview","/authorize"]) {
@@ -161,7 +161,7 @@ describe("private sites",()=>{
  });
  it("exposes only the no-store release floor and keeps the legacy reader boundary (19,30)",async()=>{
   await fixture();await reader();const response=await new Browser().at("/.well-known/porchsite-release");const state=await response.json() as any;
-  expect(Object.keys(state).sort()).toEqual(["private_floor","release"]);expect(state.private_floor).toBe("unknown");expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  expect(Object.keys(state).sort()).toEqual(["private_floor","release"]);expect(state.private_floor).toBe("unknown");expect(response.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
   expect(await db.prepare("SELECT count(*) n FROM sessions").first("n")).toBe(1);expect(await db.prepare("SELECT count(*) n FROM reader_sessions").first("n")).toBe(1);
   expect((await site.liveView(db)).site.private).toBe(true);
  });
@@ -198,7 +198,7 @@ it("does not let the prior runtime's blanket field approval approve unseen priva
 it("keeps malformed cookies blank and canonical-host redirects private",async()=>{
  await fixture();await blank(await handle(new Request(origin+"/",{headers:{Cookie:"__Host-sk_owner=%; __Host-sk_reader=%"}}),e));
  const response=await worker.fetch(new Request("https://www.site.example/guide/published-guide/"),e,{waitUntil(){},passThroughOnException(){}} as any);
- expect(response.status).toBe(301);expect(response.headers.get("Location")).toBe(origin+"/guide/published-guide/");expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+ expect(response.status).toBe(301);expect(response.headers.get("Location")).toBe(origin+"/guide/published-guide/");expect(response.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
 });
 
 it("rolls back every recovery mutation on an insertion failure",async()=>{
@@ -228,7 +228,7 @@ it("does not issue fresh access capabilities from an owner request invalidated b
 it.each(["invite","recover","passkey"])("gates private entries in a %s stream",async stream=>{
  const f=await fixture();await content.updateItem(db,who,"site",f.item.version,{streams:[...(f.item.data.streams as Record<string,unknown>[]),{id:stream,title:"Private material",dated_addresses:false}]});
  const entry=await content.createItem(db,who,"entry",{stream,slug:"secret",title:"Confidential task",date:"2026-10-16",body:"PRIVATE-ENTRY-SENTINEL"},undefined);
- await publish(["site",entry.id]);const visitor=new Browser();await blank(await visitor.at(`/${stream}/secret/`));const head=await visitor.at(`/${stream}/secret/`,{method:"HEAD"});expect(head.status).toBe(404);expect(await head.text()).toBe("");
+ await publish(["site",entry.id]);const visitor=new Browser();await blank(await visitor.at(`/${stream}/secret/`));const head=await visitor.at(`/${stream}/secret/`,{method:"HEAD"});expect(head.status).toBe(404);expect(head.headers.get("Content-Security-Policy")).toBe("default-src 'none'; base-uri 'none'; frame-ancestors 'none'");expect(await head.text()).toBe("");
 });
 
 it.each(["cancel-invite","replace-recovery"])("refuses %s committed just before the D1 issuance batch",async operation=>{
