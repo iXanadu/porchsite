@@ -1,0 +1,8 @@
+{{> head}}
+{{> back}}
+<article class="guide-page">
+<header class="entry-head"><p class="part-name">{{stream.title}}</p><h1>{{entry.title}}</h1>{{#entry.has_tags}}<div class="type-labels">{{#entry.tags}}<a href="{{stream.archive_url}}tags/{{name}}/">{{name}}</a>{{/entry.tags}}</div>{{/entry.has_tags}}{{#entry.summary}}<p class="lede">{{entry.summary}}</p>{{/entry.summary}}</header>
+{{#entry.cover_src}}<img class="cover" src="{{entry.cover_src}}" alt="{{entry.cover_alt}}">{{/entry.cover_src}}
+<div class="guide-body">{{{entry.body_html}}}</div>
+</article>
+{{> foot}}
