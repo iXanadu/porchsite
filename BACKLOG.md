@@ -97,10 +97,6 @@ site's OAuth connector, and pictures held as files. In order:
 - **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
-- **DOC-1** OPEN: about ten broken `/docs/...` links in the "For
-  developers" and "For assistants" entries on the product site.
-
-## DEGRADING
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
   re-stores them without it, plus a changelog note. After LS-1 and S4-9.
