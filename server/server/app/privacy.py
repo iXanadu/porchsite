@@ -47,7 +47,7 @@ def open_path(path, method):
         "/.well-known/oauth-protected-resource/mcp",
     ):
         return True
-    if m == "GET" and path in ("/login", "/setup", "/recover", "/.well-known/porchsite-release"):
+    if m == "GET" and path in ("/login", "/setup", "/recover", "/.well-known/porchsite-release", "/sw.js", "/manifest.webmanifest", "/app-icon-192.png", "/app-icon-512.png"):
         return True
     if m == "POST" and re.fullmatch(r"/(?:login|setup|recover)/(?:options|verify)", path):
         return True

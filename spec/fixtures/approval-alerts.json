@@ -1,0 +1,70 @@
+{
+  "endpoints": [
+    {
+      "input": "https://FCM.GOOGLEAPIS.COM:443",
+      "canonical": "https://fcm.googleapis.com/"
+    },
+    {
+      "input": "https://fcm.googleapis.com/a/./b/../c",
+      "canonical": "https://fcm.googleapis.com/a/c"
+    },
+    {
+      "input": "https://web.push.apple.com/a/%2e%2E/c",
+      "canonical": "https://web.push.apple.com/c"
+    },
+    {
+      "input": "https://updates.push.services.mozilla.com/a?",
+      "canonical": "https://updates.push.services.mozilla.com/a?"
+    },
+    {
+      "input": "https://a.b.notify.windows.com/?",
+      "canonical": "https://a.b.notify.windows.com/?"
+    },
+    {
+      "input": "https://fcm.googleapis.com/a\"{}^`<>'?q=\"{}^`<>'",
+      "canonical": "https://fcm.googleapis.com/a%22%7B%7D%5E%60%3C%3E'?q=%22{}^`%3C%3E%27"
+    },
+    {
+      "input": "https://fcm.googleapis.com//a///../b",
+      "canonical": "https://fcm.googleapis.com//a//b"
+    },
+    {
+      "input": "https://fcm.googleapis.com/../a",
+      "canonical": "https://fcm.googleapis.com/a"
+    },
+    {
+      "input": "https://fcm.googleapis.com/a/.",
+      "canonical": "https://fcm.googleapis.com/a/"
+    },
+    {
+      "input": "https://fcm.googleapis.com/a/..",
+      "canonical": "https://fcm.googleapis.com/"
+    },
+    {
+      "input": "https://fcm.googleapis.com/a/.%2e/b/%2e/?x=%22&y=%2e",
+      "canonical": "https://fcm.googleapis.com/b/?x=%22&y=%2e"
+    },
+    {
+      "input": "https://fcm.googleapis.com/%2f/%7b?x=a??b",
+      "canonical": "https://fcm.googleapis.com/%2f/%7b?x=a??b"
+    }
+  ],
+  "cuts": [
+    {
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀 finish",
+      "short_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "label": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb😀 finish",
+      "saved_label": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa😀 finish",
+      "short_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa😀",
+      "label": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb😀 finish",
+      "saved_label": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb😀"
+    }
+  ],
+  "controls": {
+    "on": "<section id=\"approval-alerts\" data-csrf=\"CSRF\" data-device=\"DEVICE\" data-fingerprint=\"FINGERPRINT\"><p data-alert-status>Alerts are on for this device</p><button type=\"button\" data-alert-toggle>Turn alerts off</button><p data-alert-error class=\"error\" hidden></p><p class=\"meta\">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p><p><a href=\"/review/alerts\">Manage alert devices</a></p></section>",
+    "off": "<section id=\"approval-alerts\" data-csrf=\"CSRF\" data-device=\"\" data-fingerprint=\"\"><p data-alert-status>Alerts are off for this device</p><button type=\"button\" data-alert-toggle>Turn alerts on</button><p data-alert-error class=\"error\" hidden></p><p class=\"meta\">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p><p><a href=\"/review/alerts\">Manage alert devices</a></p></section>"
+  }
+}

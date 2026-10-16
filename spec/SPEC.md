@@ -789,6 +789,211 @@ instead. No button: the assistant updates, when the owner says so.
 
 ## 5. Owner surface
 
+### Approval alerts on the owner's devices
+
+Both editions offer Web Push alerts, off by default, as an owner-only device
+setting. This does not change approval or assistant authority. `/review`
+shows exactly one status line, "Alerts are on for this device" or "Alerts
+are off for this device", with a turn-on or turn-off button. Turning on is
+an explicit owner gesture: register the site's service worker, ask the
+browser for notification permission and subscribe using this site's VAPID
+public key, then save the subscription through an owner-authenticated,
+CSRF-protected request. Denial, an unsupported browser or a failed save
+leaves the device off and explains why in plain words. Do not prompt for
+permission on page load. Reconcile the displayed state with both the
+browser subscription and the server's saved subscription; neither alone
+means alerts are on.
+
+`/review/alerts` lists this owner's subscribed devices, with a plain device
+label, added date, last-used date (or "Not used yet") and a Remove button.
+Derive labels from a small browser user-agent table (for example "iPhone
+Safari", "Mac Chrome", "Android Chrome"), falling back to "Browser"; mark
+the current device "(this device)". Cut labels to 80 UTF-16 units and
+manifest short names to 30 UTF-16 units, dropping a split surrogate pair.
+Use the site's existing date format. Turning off removes the subscription
+on the server and unsubscribes this browser; removing another device stops
+future sends to that subscription. A failed browser unsubscribe does not
+restore a server subscription. Device labels are untrusted plain text,
+never HTML. Endpoint URLs and subscription secrets are not displayed.
+
+Only a currently signed-in owner can read alert configuration, obtain the
+site's VAPID public key or change subscriptions. Proposed routes are
+GET `/review/alerts`, GET `/review/alerts/key`, POST
+`/review/alerts/subscribe` and POST `/review/alerts/remove`; all writes use
+the existing owner CSRF and same-origin checks, including JSON requests.
+Readers get the existing owner-route refusal (303 to `/`); anonymous
+visitors get the existing sign-in or private blank response. Assistant
+OAuth tokens and assistant keys confer no authority on these routes.
+No MCP tool subscribes, removes, configures targets, sends a test push or
+exposes keys. The only indirect trigger available to an assistant is a
+normal approval request that has successfully committed.
+
+Store the site's VAPID P-256 key pair once, on the first owner turn-on,
+using a NEW singleton table and an atomic insert-if-absent. Concurrent
+first-use operations must return the same persisted public key. Private
+key material never leaves the server, appears in a tool response or enters
+content/history/export JSON. Subscriptions occupy a NEW table containing
+an opaque device id, owner credential association, endpoint, `p256dh` and
+`auth` keys, label, created time and last-used time. Reject malformed keys
+before saving; `p256dh` is a valid uncompressed P-256 point and `auth` is a
+16-byte secret. Normalize endpoints to the browser `new URL(...).href` form before storage,
+fingerprinting or sending. An endpoint is unique per site. An opaque device marker
+only identifies a device; it never authorizes an operation. New delivery
+and batching state also lives only in NEW tables. Previous releases ignore
+these tables; no legacy item, revision, session or live JSON gains keys.
+
+Subscriptions are bound to the current owner credential and epoch using
+the existing captured-epoch conditional-write rule. Owner passkey removal
+removes its associated subscriptions; owner recovery removes all owner
+subscriptions in the same transaction as the rest of recovery. Readers
+never inherit them. Recheck the subscription, credential and epoch at send
+claim time: a removal or recovery committed before that claim prevents a
+send. A push already handed to a browser's push service cannot be recalled;
+tell the owner this limit rather than promise recall.
+
+**When to send.** Both `approval_request` and an import becoming a request
+schedule the same alert path, only after the approval request transaction
+commits. A rollback, refused request, idempotent replay or direct owner
+publish schedules no new alert. Sending is background work: Cloudflare
+uses the request's `waitUntil`; the server uses tracked background work
+that holds its own database connection only while needed. Never hold the
+approval transaction open during network I/O. Scheduling, encryption,
+network and database failures in this work cannot fail or delay the
+already-committed approval response. Process restarts may lose a nudge;
+there is no durable delivery promise or catch-up burst.
+The committed approval responses (HTTP and MCP) are identical whether an alert was scheduled, sent, skipped by batching, or failed, and contain no alert or delivery fields.
+
+For each request and subscription, claim at most one outbound attempt
+atomically with a unique `(request_id, subscription_id)` delivery record.
+No retry of that pair occurs after a timeout or ambiguous service answer.
+For each device, a new request is suppressed if an outbound push was
+claimed less than 300 seconds ago and that device has not opened the
+owner's `/review` since that claim. Such requests are batched into that
+nudge, not queued for another notification when the timer expires.
+Opening `/review` by a signed-in owner on that device resets its batching
+condition; a reader, assistant or anonymous fetch does not. A fresh request
+after that opening, or at least 300 seconds after the previous claim, may
+send. Serialize the delivery claim and the device's batching decision so
+simultaneous requests cannot both send inside the same unopened window.
+Use server time. `last-used` records a push service accepting a send,
+not a claim that the owner read it. A 404 or 410 from the push service
+removes that subscription; other errors leave it saved for a later,
+different request. Deleted or already decided requests need no late nudge.
+During a send, opportunistically prune at most 500 delivery records older
+than 30 days. Requests older than 30 days are not sent, so pruning cannot
+allow a repeated attempt for an old request.
+
+The decrypted JSON payload has exactly three fields: `message`, equal to
+"Your site has a change waiting for you"; `title`, the published site title
+(or "Porchsite" before one exists); and `url`, the site's canonical HTTPS
+origin plus `/review`. No item title, body, note, count, approval id,
+preview, reader identity or other content is included. Do not derive the
+origin from an untrusted forwarded host or put approval credentials in the
+URL. The owner is told that the site name and fixed message may appear on
+the device's lock screen. The assistant still passes the ordinary review
+link even when alerts are on.
+
+**Push transport.** Encrypt each payload as `aes128gcm` under
+[RFC 8291](https://www.rfc-editor.org/rfc/rfc8291), with a fresh ephemeral
+P-256 key and salt per message, and authenticate with VAPID under
+[RFC 8292](https://www.rfc-editor.org/rfc/rfc8292). The VAPID signing key is
+distinct from the ephemeral encryption key; its audience is the push
+service's exact origin and its short-lived JWT never exceeds the standard's
+24-hour expiry limit. Use platform cryptographic primitives, no handwritten
+curve arithmetic or new heavy push dependency. The Cloudflare implementation
+uses WebCrypto. The Python server uses the `cryptography` package, declared
+as a direct dependency (already present through WebAuthn). Both editions
+must pass the RFC 8291 example vectors and a cross-edition test in which
+each decrypts the other's message. No Node subprocess or push package.
+
+Endpoints must be HTTPS URLs on port 443 (implicit or explicit), without
+userinfo or fragments. Validate at subscribe time and again before each
+send against this fixed push-service hostname allowlist:
+
+- Exactly `fcm.googleapis.com`.
+- Exactly `updates.push.services.mozilla.com`.
+- A nonempty subdomain of `push.apple.com`, ending in `.push.apple.com`
+  (including `web.push.apple.com`), not the bare parent.
+- A nonempty subdomain of `notify.windows.com`, ending in
+  `.notify.windows.com`, not the bare parent.
+
+Compare parsed ASCII hostnames case-insensitively, with literal dot-label
+boundaries. Reject trailing dots, non-ASCII/IDN or punycode labels, escaped
+host characters, backslashes and control characters rather than attempting
+to repair them. IP literals, localhost, private addresses and every other
+host are outside the allowlist. A substring or a suffix without its dot
+boundary never matches (for example, `fcm.googleapis.com.example.net` and
+`notpush.apple.com` are refused). Changing this list is a spec change.
+There is no DNS-based public-IP precheck; the authority boundary is the
+fixed list of trusted push services, not a resolve-then-fetch test that can
+race DNS changes. Cloudflare retains `global_fetch_strictly_public` as
+defence in depth. Never follow redirects (including same-host redirects),
+forward owner cookies/bearer tokens, or fetch a response body. Bound each
+push request to a three-second total timeout and send only the encrypted
+fixed payload, VAPID authorization and required
+push headers. Use a short notification TTL (300 seconds); do not send to
+an endpoint removed before its delivery claim. Do not log endpoint URLs,
+auth secrets, keys or payloads.
+
+**Service worker and installation.** GET/HEAD `/sw.js` is an exact public
+route in either site mode, never an open prefix. It contains only constant
+notification logic, no site data, credential or subscription. It handles
+push and notification clicks only: no fetch interception, offline page
+cache, imported scripts or background content fetch. Validate the incoming
+payload shape, display its fixed message and site title, and constrain click
+navigation to this service worker's origin and exact `/review` path. Focus
+an existing review window or open that URL; never approve, submit a form,
+or mark a request decided. Omit notification grouping/tag fields and push
+Topic/collapse identifiers: none may encode a request id, item, count or
+other content. Notification icons, if used, are bundled generic icons, not
+content-dependent fetches. Revocation does not remove an already displayed
+notification.
+
+GET/HEAD `/manifest.webmanifest` supplies `start_url: "/review"`, same-origin
+scope and standalone display with installable name/icons. On a public site,
+name and icons come from published site settings. On a private site, an
+anonymous response uses only the generic name "Porchsite" and bundled
+generic icons; readers also receive this generic variant. An
+owner-authenticated response uses the published name and owner-accessible
+icons (generic fallbacks when absent) and is private/no-store/no-transform.
+Do not make a private media file public merely to install an app. Neither manifest variant
+contains page lists, entries, titles of changes or credentials. The
+private-site manifest must not disclose the site's name or media
+anonymously. Both new open routes, and constant icon routes if needed,
+retain method checks;
+unmatched paths still get the private blank. They construct no live content
+view for anonymous private visitors. No additional private route opens.
+
+The page and INSTALL, llms.txt and self-hosting guidance say: "Alerts are a
+nudge, not a guarantee. Phones and browsers can delay or drop them. Your
+assistant still sends you the link." On iPhone, explain that this requires
+iOS 16.4 or later and a Home Screen install: "Share → Add to Home Screen →
+open from the icon → turn alerts on." Unsupported contexts show these
+steps without claiming that permission was granted or a subscription saved.
+
+**Acceptance, paired in both editions.** Cover owner subscribe/remove,
+permission/save failure and device-status reconciliation; CSRF, cross-origin,
+reader and assistant refusals; concurrent VAPID first use; invalid keys and
+endpoint allowlist boundaries, mixed case, trailing dots, IDN/punycode,
+ports, userinfo, IP literals and escaped-host bypasses; redirect refusal
+and timeout; exact payload fields and absence of content in grouping tags;
+cross-decryption against RFC vectors; at-most-once claims and concurrent
+five-minute batching, per-device review reset and clock boundary; import
+and ordinary request triggers, rollback/replay suppression and successful
+approval responses despite push failure. In each edition, compare committed
+HTTP and MCP `approval_request` answers with subscriptions absent, present,
+and with the push service failing: after normalizing only differing ids and
+timestamps, their bytes must be identical and include no alert/delivery
+fields. Also cover 404/410 cleanup; passkey removal,
+recovery and send/remove interleavings; service-worker click confinement and
+absence of fetch interception; anonymous GET/HEAD/conditional checks of
+worker, manifest, icons and near-miss routes while private, with no content
+or credentials; signed-in manifest cache isolation. Browser evidence must
+include enable, notification click, disable and device removal. A real
+owner/Hand iPhone Home Screen test is a separate release gate; emulator or
+desktop results must not be labelled as that test. Existing parity and
+private-site contract matrices remain required.
+
 - `/review`: what's waiting, each item previewed as the site will show it,
   Approve / Request changes / Deny per item. A decision that takes a
   moment says so as soon as it's pressed ("Publishing 30 changes… This can

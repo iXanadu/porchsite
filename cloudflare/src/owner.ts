@@ -442,8 +442,13 @@ export async function recoverVerify(db: D1Database, req: Request, response: any)
       db.prepare("DELETE FROM recovery_codes WHERE code_hash = ? AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(saved.code,op),
       db.prepare("DELETE FROM reader_invites WHERE used_at IS NULL AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),
       db.prepare("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1 AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),
-      ...["passkeys","passkey_links","sessions","owner_session_auth","reader_sessions"].map(t=>db.prepare(`DELETE FROM ${t} WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)`).bind(op)),
+      ...["alert_subscriptions","passkeys","passkey_links","sessions","owner_session_auth","reader_sessions"].map(t=>db.prepare(`DELETE FROM ${t} WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)`).bind(op)),
       db.prepare("UPDATE readers SET auth_epoch = auth_epoch + 1 WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),
       db.prepare("INSERT INTO passkeys (id,public_key,counter,transports,created_at) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(c.id,c.publicKey,c.counter,JSON.stringify(c.transports??[]),at,op),
     ]});
+}
+
+/** Shared cleanup for owner credential removal; session validation checks existence. */
+export async function removePasskey(db:D1Database,id:string) {
+ await db.batch([db.prepare("DELETE FROM alert_subscriptions WHERE credential_id=?").bind(id),db.prepare("DELETE FROM passkeys WHERE id=?").bind(id)]);
 }

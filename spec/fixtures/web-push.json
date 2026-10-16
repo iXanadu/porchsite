@@ -1,0 +1,22 @@
+{
+  "source": "https://www.rfc-editor.org/rfc/rfc8291#section-5",
+  "plaintext": "When I grow up, I want to be a watermelon",
+  "auth": "BTBZMqHH6r4Tts7J_aSIgg",
+  "p256dh": "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+  "salt": "DGv6ra1nlYgDCS1FRnbzlw",
+  "sender": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "_jP0qw3qcZFNtVgj9ztUlI9BMG2SBzLbuaWaUyhkgiA",
+    "y": "Dll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8",
+    "d": "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"
+  },
+  "receiver": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "JXGyvs3942BVGq8e0PTNNmwRzr5VX4m8t7GGpTM5FzE",
+    "y": "aOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+    "d": "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94"
+  },
+  "ciphertext": "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN"
+}

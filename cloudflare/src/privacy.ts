@@ -20,7 +20,7 @@ export async function rollbackState(db: D1Database, release: string) {
 export function openPath(path: string, method: string) {
   const m = method === "HEAD" ? "GET" : method;
   if (["/mcp","/authorize","/oauth/token","/oauth/register","/.well-known/oauth-authorization-server","/.well-known/oauth-protected-resource","/.well-known/oauth-protected-resource/mcp"].includes(path)) return true;
-  if (m === "GET" && ["/login","/setup","/recover","/.well-known/porchsite-release"].includes(path)) return true;
+  if (m === "GET" && ["/login","/setup","/recover","/.well-known/porchsite-release","/sw.js","/manifest.webmanifest","/app-icon-192.png","/app-icon-512.png"].includes(path)) return true;
   if (m === "POST" && /^\/(?:login|setup|recover)\/(?:options|verify)$/.test(path)) return true;
   if (/^\/upload\/[A-Za-z0-9_-]{32}$/.test(path)) return m === "GET" || m === "POST";
   if (/^\/(?:passkey|invite)\/[A-Za-z0-9_-]{32}$/.test(path)) return m === "GET";

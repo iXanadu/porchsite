@@ -749,6 +749,7 @@ async def recover_verify(db, req, response):
         await c.execute("DELETE FROM reader_invites WHERE used_at IS NULL")
         await c.execute("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1")
         for table in (
+            "alert_subscriptions",
             "passkeys",
             "passkey_links",
             "sessions",
@@ -775,3 +776,11 @@ async def recover_verify(db, req, response):
         guard=guard,
         writes=writes,
     )
+
+
+async def remove_passkey(db, id):
+    """Shared cleanup for owner credential removal."""
+    async with transaction(db) as c:
+        await c.fetchval("SELECT owner_epoch FROM auth_state WHERE id=1 FOR UPDATE")
+        await c.execute("DELETE FROM alert_subscriptions WHERE credential_id=$1", id)
+        await c.execute("DELETE FROM passkeys WHERE id=$1", id)
