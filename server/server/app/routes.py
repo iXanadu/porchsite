@@ -5,6 +5,7 @@ call, under a nonce. Port of cloudflare/src/routes.ts, page for page.
 """
 
 import json
+import base64
 import math
 import re
 from datetime import UTC, datetime
@@ -22,7 +23,8 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
-from . import privacy
+from . import privacy, alerts
+from .alert_assets import ALERT_JS, SW_JS, ICONS
 from . import (
     analytics,
     approvals,
@@ -157,7 +159,7 @@ def owner_page(
     )
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<meta name="robots" content="noindex"><title>{esc(title)}</title><style>{OWNER_CSS}</style></head><body><div class="wrap">\n'
+        f'<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><meta name="robots" content="noindex"><title>{esc(title)}</title><style>{OWNER_CSS}</style></head><body><div class="wrap">\n'
         f'<header><a href="/" style="margin:0">← Site</a>{nav}</header>\n'
         f"{body}</div>{f'<script nonce="{n}">{script}</script>' if script else ''}</body></html>"
     )
@@ -168,7 +170,7 @@ def owner_page(
         page,
         status=status,
         headers=plain,
-        csp=f"default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{n}'; connect-src 'self'; img-src 'self' https:; form-action 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'none'",
+        csp=f"default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{n}'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; img-src 'self' https:; form-action 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'none'",
     )
     cookies = [(k, v) for k, v in headers or [] if k.lower() == "set-cookie"]
     # Analytics never counts a browser the owner is signed in on.
@@ -505,6 +507,8 @@ _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
 async def review_index(req: Request, cx: Context) -> Response:
+    await alerts.opened(cx.db, req)
+    device = next((d for d in await alerts.devices(cx.db) if d["id"] == alerts.cookie(req)), {})
     every = await approvals.list(cx.db)
     open_ = [a for a in every if any(i["status"] == "pending" for i in a["items"])]
     done = [a for a in every if not any(i["status"] == "pending" for i in a["items"])][:20]
@@ -529,13 +533,13 @@ async def review_index(req: Request, cx: Context) -> Response:
     decided = "".join(row(a) for a in done) if done else '<p class="meta">Nothing yet.</p>'
     return owner_page(
         "Review",
-        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{_unsent_line(await approvals.unsent(cx.db))}{waiting}
+        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="{esc(owner.csrf(req))}"></div>""",
         signed_in=True,
-        script=sharecards.CARD_JS,
+        script=sharecards.CARD_JS + "\n" + ALERT_JS,
     )
 
 
@@ -1446,6 +1450,8 @@ async def _route(req: Request, cx: Context) -> Response:
     path = _path(req)
     m = req.method
     try:
+        if m == "GET" and (path in ("/sw.js", "/manifest.webmanifest") or re.fullmatch(r"/app-icon-(192|512)\.png", path)):
+            return await app_asset(req, cx, path)
         if path == "/.well-known/porchsite-release" and m == "GET":
             response = json_response({"release":cx.release,"private_floor":await privacy.private_floor(cx.db,cx.release)})
             response.headers["Cache-Control"]="private, no-store, no-transform"
@@ -1573,6 +1579,8 @@ async def _route(req: Request, cx: Context) -> Response:
                 return gate
             if path == "/review/readers":
                 return await readers_page(req,cx)
+            if path == "/review/alerts" or path.startswith("/review/alerts/"):
+                return await alerts_page(req, cx, path)
             if path == "/review" and m == "GET":
                 return await review_index(req, cx)
             # Share cards: the owner's browser draws them (sharecards.py).
@@ -1595,6 +1603,7 @@ async def _route(req: Request, cx: Context) -> Response:
                             f"Item {p['item']}: {p['message']}" for p in e.extra.get("problems", [])
                         ]
                         return await import_page(req, e.message, problems)
+                    alerts.schedule(cx.db, done["approval"])
                     return redirect(f"{origin_of(req)}/review/{done['approval']}", 303)
                 return await import_page(req)
             if path == "/review/cards.json" and m == "GET":
@@ -1755,3 +1764,137 @@ async def _private_review_warning(db, proposed):
         elif mode and not live:
             out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
     return out
+
+
+def alert_controls(csrf, device):
+    fingerprint = device.get("fingerprint", "")
+    device = device.get("id", "")
+    state = "on" if device else "off"
+    action = "off" if device else "on"
+    return f'<section id="approval-alerts" data-csrf="{esc(csrf)}" data-device="{esc(device)}" data-fingerprint="{esc(fingerprint)}"><p data-alert-status>Alerts are {state} for this device</p><button type="button" data-alert-toggle>Turn alerts {action}</button><p data-alert-error class="error" hidden></p><p class="meta">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p><p><a href="/review/alerts">Manage alert devices</a></p></section>'
+
+
+ALERT_HELP = "Alerts are a nudge, not a guarantee. Phones and browsers can delay or drop them. Your assistant still sends you the link. On iPhone use iOS 16.4 or later: Share → Add to Home Screen → open from the icon → turn alerts on. A site icon appears on your Home Screen; open that icon instead of a browser tab. The site name and fixed message may appear on your lock screen. A notification already sent cannot be recalled."
+
+
+async def alerts_page(req, cx, path):
+    if req.method == "GET" and path == "/review/alerts/key":
+        await alerts.identity(cx.db, req)
+        return json_response({"public_key": (await alerts.keys(cx.db))["public_key"]})
+    if req.method == "POST" and path in (
+        "/review/alerts/subscribe",
+        "/review/alerts/remove",
+    ):
+        if req.headers.get("Origin") != origin_of(req) or req.headers.get(
+            "X-CSRF"
+        ) != owner.csrf(req):
+            return json_response(
+                {"error": "csrf", "message": "This page expired. Reload it."}, 403
+            )
+        try:
+            raw = await req.body()
+            if len(raw) > 8192:
+                raise ValueError()
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise ValueError()
+        except (ValueError, TypeError):
+            return json_response({"error": "invalid"}, 422)
+        if path.endswith("/subscribe"):
+            id = await alerts.subscribe(
+                cx.db, req, value, cx.site_url or origin_of(req)
+            )
+            response = json_response({"id": id})
+            response.headers["Set-Cookie"] = (
+                f"{alerts.DEVICE_COOKIE}={id}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=31536000"
+            )
+            return response
+        if not isinstance(value.get("id"), str):
+            return json_response({"error": "invalid"}, 422)
+        await alerts.remove(cx.db, req, value["id"])
+        response = json_response({"ok": True})
+        if value["id"] == alerts.cookie(req):
+            response.headers["Set-Cookie"] = (
+                f"{alerts.DEVICE_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0"
+            )
+        return response
+    if req.method != "GET" or path != "/review/alerts":
+        return json_response({"error": "not_found"}, 404)
+    devices = await alerts.devices(cx.db)
+    device = next((d for d in devices if d["id"] == alerts.cookie(req)), {})
+    data = await content.site_data(cx.db, True)
+
+    def date(n):
+        return long_date(
+            datetime.fromtimestamp(n / 1000, UTC)
+            .astimezone(ZoneInfo(data.get("timezone") or "UTC"))
+            .date()
+            .isoformat()
+        )
+
+    rows = "".join(
+        f'<section class="card"><h2>{esc(d["label"])}</h2><p>Added {esc(date(d["created_at"]))}</p><p>{esc("Last used " + date(d["last_used_at"]) if d["last_used_at"] else "Not used yet")}</p><button class="ghost" data-remove-alert="{esc(d["id"])}">Remove {esc(d["label"])}</button></section>'
+        for d in devices
+    )
+    script = (
+        ALERT_JS
+        + """
+document.querySelectorAll('[data-remove-alert]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{const r=await fetch('/review/alerts/remove',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF':document.getElementById('approval-alerts').dataset.csrf},body:JSON.stringify({id:button.dataset.removeAlert})});if(!r.ok)throw Error();location.reload();}catch{button.disabled=false;button.textContent='Could not remove. Try again.';}}));"""
+    )
+    return owner_page(
+        "Alerts",
+        f'''<h1>Alerts</h1><p>{esc(ALERT_HELP)}</p>{alert_controls(owner.csrf(req), device)}<figure><img src="{esc(data.get('logo') or '/app-icon-192.png')}" alt="Site icon" width="48" height="48"><figcaption>Open your site from its Home Screen icon, then choose “Turn alerts on”.</figcaption></figure>{rows}''',
+        signed_in=True,
+        script=script,
+    )
+
+
+async def app_asset(req, cx, path):
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if path == "/sw.js":
+        return Response(
+            SW_JS,
+            headers={
+                **headers,
+                "Content-Type": "text/javascript; charset=utf-8",
+                "Service-Worker-Allowed": "/",
+            },
+        )
+    icon = re.fullmatch(r"/app-icon-(192|512)\.png", path)
+    if icon:
+        return Response(
+            base64.b64decode(ICONS[icon[1]]),
+            headers={**headers, "Content-Type": "image/png"},
+        )
+    hidden = await privacy.live_private(cx.db) and not await owner.signed_in(cx.db, req)
+    data = {} if hidden else await content.site_data(cx.db, True)
+    icons = [
+        {"src": f"/app-icon-{n}.png", "sizes": f"{n}x{n}", "type": "image/png"}
+        for n in (192, 512)
+    ]
+    if data.get("logo"):
+        icons.insert(0, {"src": data["logo"], "sizes": "any", "type": ""})
+    title = data.get("title") or "Porchsite"
+    return Response(
+        json.dumps(
+            {
+                "name": title,
+                "short_name": title[:30],
+                "id": "/review",
+                "start_url": "/review",
+                "scope": "/",
+                "display": "standalone",
+                "icons": icons,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+        headers={
+            "Content-Type": "application/manifest+json",
+            "Cache-Control": "private, no-store, no-transform",
+            "Vary": "Cookie",
+        },
+    )

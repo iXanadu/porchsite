@@ -24,7 +24,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Message, Receive, Scope, Send
 
-from . import keys, mcp, oauth, privacy, routes
+from . import alerts, keys, mcp, oauth, privacy, routes
 from .db import Db, connect
 from .settings import Settings
 
@@ -79,6 +79,7 @@ class App:
                 yield self
         finally:
             self._started = False
+            await alerts.drain()
             if self._own_pool and isinstance(self._pool, asyncpg.Pool):
                 await self._pool.close()
                 self._pool = None

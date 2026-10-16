@@ -14,6 +14,7 @@ import { PHOTO_ADVICE } from "./photo-advice";
 import { imageAdd } from "./image-add";
 import { checkSite, checkSiteDeep } from "./check";
 import * as approvals from "./approvals";
+import * as alerts from "./alerts";
 import * as content from "./content";
 import type { Env } from "./env";
 import { HOME, RELEASE } from "./home";
@@ -479,6 +480,7 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
     async ({ ids, note }) =>
       run(async () => {
         const a = await approvals.request(db, actor(), ids, note);
+        alerts.schedule(db,a.id);
         return {
           ...a,
           review_url: `${origin()}/review/${a.id}`,

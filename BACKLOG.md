@@ -21,10 +21,9 @@ Found building a single-property listing site on the live release.
   about 16 MB of text). A signed-in owner page that takes many photos,
   shrinks each in the browser (S3-6 rules), strips location (S3-7) and
   tells the assistant the stored paths. Security review first.
-- **S4-4** IN-PROGRESS: owner approval alerts by Web Push to subscribed
-  devices, both editions; spec and Security review before code. Off by
-  default, fixed message plus site name/review URL, no approval by push.
-  Email for server/own-domain sites follows after push ships and is tested.
+- **S4-4B** OPEN (only when asked, after browser push ships and is tested):
+  approval alerts by email for the server edition and owners using their
+  own domain. No paid mail-service path for hosted default-domain owners.
 - **S4-7** OPEN: The assistant can't see what it built before the owner
   approves: no preview it can open. Design with security (a short-lived
   read-only preview for the assistant).

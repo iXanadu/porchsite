@@ -22,6 +22,7 @@ from mcp.shared.exceptions import MCPError
 from server.spec.embed_url import EMBED_ADVICE, EMBED_SYNTAX
 from server.spec.embeds import embed_notes
 
+from . import alerts
 from . import privacy
 from . import (
     analytics,
@@ -740,6 +741,7 @@ async def _call(
 
         async def approval_request() -> Any:
             r = await approvals.request(db, actor, a["ids"], a["note"])
+            alerts.schedule(db, r["id"])
             return {
                 **r,
                 "review_url": f"{origin}/review/{r['id']}",

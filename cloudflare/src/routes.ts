@@ -9,6 +9,8 @@ import { embedReview } from "./embed-review";
 import { frameCsp, PERMISSIONS } from "./embeds";
 import { AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
 import * as analytics from "./analytics";
+import * as alerts from "./alerts";
+import { ALERT_JS, SW_JS, ICONS } from "./alert-assets";
 import * as approvals from "./approvals";
 import { BEACON_JS } from "./beacon";
 import * as changes from "./changes";
@@ -59,13 +61,13 @@ function ownerPage(title: string, body: Raw, opts: { signedIn?: boolean; script?
   const n = nonce();
   const r = respond(
     html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>${title}</title><style>${raw(OWNER_CSS)}</style></head><body><div class="wrap">
+<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><meta name="robots" content="noindex"><title>${title}</title><style>${raw(OWNER_CSS)}</style></head><body><div class="wrap">
 <header><a href="/" style="margin:0">← Site</a>${opts.signedIn ? html`<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a><a href="/review/readers">Readers</a></span>` : ""}</header>
 ${body}</div>${opts.script ? raw(`<script nonce="${n}">${opts.script}</script>`) : ""}</body></html>`,
     {
       status: opts.status,
       headers: { "Cache-Control": "no-store", "X-Frame-Options": "DENY", ...Object.fromEntries(new Headers(opts.headers)) },
-      csp: `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${n}'; connect-src 'self'; img-src 'self' https:; form-action 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'none'`,
+      csp: `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${n}'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; img-src 'self' https:; form-action 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'none'`,
     },
   );
   // Analytics never counts a browser the owner is signed in on.
@@ -285,6 +287,8 @@ async function importPage(req: Request, error = "", problems: string[] = []): Pr
 }
 
 async function reviewIndex(env: Env, req: Request): Promise<Response> {
+  await alerts.opened(env.DB,req);
+  const devices=await alerts.devices(env.DB), device=devices.find(d=>d.id===alerts.cookie(req));
   const all = await approvals.list(env.DB);
   const open = all.filter((a) => a.items.some((i) => i.status === "pending"));
   const done = all.filter((a) => !a.items.some((i) => i.status === "pending")).slice(0, 20);
@@ -294,12 +298,12 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     )}<span class="go">${a.items.some((i) => i.status === "pending") ? "Review and decide →" : "See details →"}</span></a>`;
   return ownerPage(
     "Review",
-    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
+    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="${await owner.csrf(req)}"></div>`,
-    { signedIn: true, script: sharecards.CARD_JS },
+    { signedIn: true, script: sharecards.CARD_JS+"\n"+ALERT_JS },
   );
 }
 
@@ -965,6 +969,7 @@ async function route(req: Request, env: Env): Promise<Response> {
   const path = url.pathname;
   const m = req.method;
   try {
+    if ((path === "/sw.js" || path === "/manifest.webmanifest" || /^\/app-icon-(192|512)\.png$/.test(path)) && m === "GET") return await appAsset(env,req,path);
     if (path === "/.well-known/porchsite-release" && m === "GET") return json({release:RELEASE,private_floor:await privacy.privateFloor(env.DB,RELEASE)},200,privacy.PRIVATE_HEADERS);
     if (path === "/recover" && m === "GET") return await recoveryPage(req,env);
     if (path === "/recover/options" && m === "POST") {
@@ -1061,6 +1066,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       const gate = await requireOwner(req, env);
       if (gate) return gate;
       if (path === "/review/readers") return await readersPage(req,env);
+      if (path === "/review/alerts" || path.startsWith("/review/alerts/")) return await alertsPage(env,req,path);
       if (path === "/review" && m === "GET") return await reviewIndex(env, req);
       // Share cards: the owner's browser draws them (sharecards.ts).
       if (path === "/review/import") {
@@ -1072,6 +1078,7 @@ async function route(req: Request, env: Env): Promise<Response> {
           if (f.size > importer.MAX_FILE) return await importPage(req, "That file is over 25 MB.");
           try {
             const done = await importer.importFile(env.DB, await f.text());
+            alerts.schedule(env.DB,done.approval);
             return Response.redirect(new URL(`/review/${done.approval}`, req.url).href, 303);
           } catch (e) {
             if (!(e instanceof ApiError)) throw e;
@@ -1179,4 +1186,174 @@ async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:
     else if (mode && !live) out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>';
   }
   return out;
+}
+
+function alertControls(csrf: string, device: string, fingerprint: string) {
+  return html`<section
+    id="approval-alerts"
+    data-csrf="${csrf}"
+    data-device="${device}"
+    data-fingerprint="${fingerprint}"
+  >
+    <p data-alert-status>Alerts are ${device ? "on" : "off"} for this device</p>
+    <button type="button" data-alert-toggle>
+      Turn alerts ${device ? "off" : "on"}
+    </button>
+    <p data-alert-error class="error" hidden></p>
+    <p class="meta">On iPhone (iOS 16.4 or later): Share → Add to Home Screen → open from the icon → turn alerts on.</p>
+    <p><a href="/review/alerts">Manage alert devices</a></p>
+  </section>`;
+}
+const ALERT_HELP =
+  "Alerts are a nudge, not a guarantee. Phones and browsers can delay or drop them. Your assistant still sends you the link. On iPhone use iOS 16.4 or later: Share → Add to Home Screen → open from the icon → turn alerts on. A site icon appears on your Home Screen; open that icon instead of a browser tab. The site name and fixed message may appear on your lock screen. A notification already sent cannot be recalled.";
+async function alertsPage(
+  env: Env,
+  req: Request,
+  path: string,
+): Promise<Response> {
+  if (req.method === "GET" && path === "/review/alerts/key") {
+    await alerts.identity(env.DB, req);
+    return json({ public_key: (await alerts.keys(env.DB)).public_key });
+  }
+  if (
+    req.method === "POST" &&
+    ["/review/alerts/subscribe", "/review/alerts/remove"].includes(path)
+  ) {
+    if (
+      req.headers.get("Origin") !== new URL(req.url).origin ||
+      req.headers.get("X-CSRF") !== (await owner.csrf(req))
+    )
+      return json(
+        { error: "csrf", message: "This page expired. Reload it." },
+        403,
+      );
+    if (Number(req.headers.get("Content-Length") || 0) > 8192)
+      return json({ error: "invalid" }, 422);
+    let value: any;
+    try {
+      const text = await req.text();
+      if (text.length > 8192) throw new Error();
+      value = JSON.parse(text);
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error();
+    } catch {
+      return json({ error: "invalid" }, 422);
+    }
+    if (path.endsWith("/subscribe")) {
+      const id = await alerts.subscribe(
+        env.DB,
+        req,
+        value,
+        (env as Env & { SITE_URL?: string }).SITE_URL ||
+          new URL(req.url).origin,
+      );
+      return json({ id }, 200, {
+        "Set-Cookie": `${alerts.DEVICE_COOKIE}=${id}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=31536000`,
+      });
+    }
+    if (typeof value.id !== "string") return json({ error: "invalid" }, 422);
+    await alerts.remove(env.DB, req, value.id);
+    return json(
+      { ok: true },
+      200,
+      value.id === alerts.cookie(req)
+        ? {
+            "Set-Cookie": `${alerts.DEVICE_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0`,
+          }
+        : {},
+    );
+  }
+  if (req.method !== "GET" || path !== "/review/alerts")
+    return json({ error: "not_found" }, 404);
+  const devices = await alerts.devices(env.DB),
+    csrf = await owner.csrf(req),
+    device = devices.find((d) => d.id === alerts.cookie(req));
+  const data = await content.siteData(env.DB, true),
+    zone = String(data.timezone || "UTC");
+  const date = (n: number) =>
+    dateString(
+      new Date(n),
+      { year: "numeric", month: "long", day: "numeric" },
+      zone,
+    );
+  return ownerPage(
+    "Alerts",
+    html`<h1>Alerts</h1>
+      <p>${ALERT_HELP}</p>
+      ${alertControls(csrf, device?.id ?? "", device?.fingerprint ?? "")}<figure><img src="${String(data.logo||"/app-icon-192.png")}" alt="Site icon" width="48" height="48"><figcaption>Open your site from its Home Screen icon, then choose “Turn alerts on”.</figcaption></figure>${devices.map(
+        (d) =>
+          html`<section class="card">
+            <h2>${d.label}</h2>
+            <p>Added ${date(d.created_at)}</p>
+            <p>
+              ${d.last_used_at
+                ? `Last used ${date(d.last_used_at)}`
+                : "Not used yet"}
+            </p>
+            <button class="ghost" data-remove-alert="${d.id}">
+              Remove ${d.label}
+            </button>
+          </section>`,
+      )}`,
+    {
+      signedIn: true,
+      script:
+        ALERT_JS +
+        `\ndocument.querySelectorAll('[data-remove-alert]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{const r=await fetch('/review/alerts/remove',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF':document.getElementById('approval-alerts').dataset.csrf},body:JSON.stringify({id:button.dataset.removeAlert})});if(!r.ok)throw Error();location.reload();}catch{button.disabled=false;button.textContent='Could not remove. Try again.';}}));`,
+    },
+  );
+}
+async function appAsset(
+  env: Env,
+  req: Request,
+  path: string,
+): Promise<Response> {
+  const headers = {
+    "Cache-Control": "no-cache, no-transform",
+    "X-Content-Type-Options": "nosniff",
+  };
+  if (path === "/sw.js")
+    return new Response(SW_JS, {
+      headers: {
+        ...headers,
+        "Content-Type": "text/javascript; charset=utf-8",
+        "Service-Worker-Allowed": "/",
+      },
+    });
+  const icon = /^\/app-icon-(192|512)\.png$/.exec(path);
+  if (icon)
+    return new Response(
+      Uint8Array.from(atob(ICONS[icon[1] as keyof typeof ICONS]), (c) =>
+        c.charCodeAt(0),
+      ),
+      { headers: { ...headers, "Content-Type": "image/png" } },
+    );
+  const hidden =
+    (await privacy.livePrivate(env.DB)) && !(await owner.signedIn(env.DB, req));
+  const data = hidden ? {} : await content.siteData(env.DB, true);
+  const icons = [192, 512].map((n) => ({
+    src: `/app-icon-${n}.png`,
+    sizes: `${n}x${n}`,
+    type: "image/png",
+  }));
+  if (typeof data.logo === "string" && data.logo)
+    icons.unshift({ src: data.logo, sizes: "any", type: "" });
+  return new Response(
+    JSON.stringify({
+      name: String(data.title || "Porchsite"),
+      short_name: String(data.title || "Porchsite").slice(0, 30),
+      id: "/review",
+      start_url: "/review",
+      scope: "/",
+      display: "standalone",
+      icons,
+    }),
+    {
+      headers: {
+        "Content-Type": "application/manifest+json",
+        "Cache-Control": "private, no-store, no-transform",
+        Vary: "Cookie",
+      },
+    },
+  );
 }

@@ -550,6 +550,22 @@ checked against the next one's database before it's published.
 
 To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old file stays in the site's history: the owner can still see it, and approving a rollback to an older item version would publish it again. Once no published item uses the old photo, the app stops serving it publicly. Anyone or any search engine that already fetched it keeps their copy; photos were served with a one-year cache lifetime. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; exit codes are 0 for clean or private, 2 for location found, and 1 for any error or incomplete scan. An error outranks a find. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
 
+### Alerts on your devices
+
+On `/review`, the owner can turn alerts on or off for each device and use
+`/review/alerts` to remove saved devices. Alerts are off until the owner
+turns them on and grants the browser permission. Alerts are a nudge, not a
+guarantee: phones and browsers can delay or drop them, so the assistant
+still passes the review link. A notification contains only the site name,
+"Your site has a change waiting for you" and a link to `/review`; the site
+name may appear on the lock screen. Opening the link requires the owner's
+passkey, and a notification never approves a change. The assistant and
+readers cannot choose targets or turn alerts on. On iPhone this requires
+iOS 16.4 or later: Share → Add to Home Screen → open from the icon → turn
+alerts on. Removing a passkey removes its alert subscriptions; recovery
+turns alerts off on every device. A notification already sent cannot be
+recalled. Nothing changes about the owner's approval rule.
+
 ## Private sites, recovery and rollback
 
 A look does not make a site private. Propose `site.private: true` separately;

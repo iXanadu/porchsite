@@ -15,6 +15,7 @@ dependencies = [
     "ada-url==4.0.0",
     "pystache==0.6.8",
     "webauthn>=2.7.0",
+    "cryptography>=44.0.0",
 ]
 
 [project.optional-dependencies]

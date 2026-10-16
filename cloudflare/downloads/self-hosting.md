@@ -136,6 +136,22 @@ To check older published photos for saved location data, run `python3 scripts/ph
   server, a managed database) can work, but aren't documented or supported.
 - One owner per site; approvals need that owner's passkey.
 
+### Alerts on your devices
+
+On `/review`, the owner can turn alerts on or off for each device and use
+`/review/alerts` to remove saved devices. Alerts are off until the owner
+turns them on and grants the browser permission. Alerts are a nudge, not a
+guarantee: phones and browsers can delay or drop them, so the assistant
+still passes the review link. A notification contains only the site name,
+"Your site has a change waiting for you" and a link to `/review`; the site
+name may appear on the lock screen. Opening the link requires the owner's
+passkey, and a notification never approves a change. The assistant and
+readers cannot choose targets or turn alerts on. On iPhone this requires
+iOS 16.4 or later: Share → Add to Home Screen → open from the icon → turn
+alerts on. Removing a passkey removes its alert subscriptions; recovery
+turns alerts off on every device. A notification already sent cannot be
+recalled. Nothing changes about the owner's approval rule.
+
 ## Private sites, recovery and rollback
 
 A look does not make a site private. Propose `site.private: true` separately;
