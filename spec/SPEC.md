@@ -216,6 +216,84 @@ the stat rail and precedes the listing body; phone layouts use one column.
 Its hero-image advisory is 1600 pixels wide (about 1600 by 900 for the crop),
 not an upload requirement. Existing photo shrinking and size limits remain.
 
+### Private sites and reader access
+
+Both editions accept optional boolean `site.private` (default false) as an
+allowlisted exact-version `site_fields` key. It never enters legacy item,
+revision or live JSON. Only owner approval publishes the field; absent or
+false at that live version is public, with no inheritance from older versions.
+Import refuses a site `private` key before saving anything. Review, site-item
+rollback and whole-site revert prominently say **This makes the site public.**
+when the proposed version would turn private off. When turning private on,
+tell the owner that earlier search-engine copies and pictures already fetched
+cannot be recalled. Previously authorized in-flight bytes cannot be recalled.
+
+A private site's visitors receive exactly this UTF-8 body (no whitespace):
+`<!doctype html><meta name="robots" content="noindex"><title></title>`.
+Status is 404; headers include `Cache-Control: private, no-store` and
+`X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
+GET and HEAD have matching status/headers (HEAD has no body). Check access
+before constructing a live view, looking up media or resolving redirects.
+This covers pages, misses, entries, tags, feeds, sitemap, search JSON, media,
+share cards, old addresses, missing slashes and `/review` owner routes.
+`/robots.txt` instead returns `User-agent: *\nDisallow: /\n`, without a
+Sitemap line. Every gated response while private, including authorized
+responses, errors and redirects, is `private, no-store`; conditional requests
+never bypass authentication or reuse another actor's cached body.
+Anonymous `/collect` requests make no analytics writes while private.
+
+Open paths remain `/login`, `/setup`, `/recover`, `/mcp`, `/authorize`,
+`/oauth/*` and `/.well-known/*`; uploads and owner add-passkey links retain
+their capability authorization without site-content decoration. Anonymous
+`/authorize` retains its owner login redirect. Readers on `/review` or
+`/authorize` receive 303 to `/`; their login destination is always `/`.
+Readers cannot approve, import, revert, invite, create owner passkeys, use
+MCP or see drafts, history, stats or owner previews. Owners retain their
+existing authority. A revoked reader is an anonymous visitor.
+
+The owner creates, lists and revokes reader invites and readers at
+`/review/readers`, with owner CSRF on every write and no MCP invite tool.
+Invites are hashed at rest, seven days, single use, spent only on successful
+registration. Their pages use no-referrer/no-store headers and remove the
+token from the address bar. Each reader registers a distinct discoverable
+passkey through the same origin; `/login` sends no allowCredentials list.
+Reader credentials and sessions live in NEW tables; they never enter owner
+`passkeys` or `sessions`, even for compatibility with older releases. Reader
+cookies are `__Host-sk_reader`; owner cookies remain `__Host-sk_owner`, both
+HttpOnly, Secure, SameSite=Lax, Path=/. Unknown credentials have one generic
+error. Reader CSRF never authorizes owner operations.
+
+Auth state and epoch metadata also live in NEW tables. Every authorization
+checks that the credential is still active and its session epoch is current.
+Capture the expected epoch at challenge or verification time; conditional
+issuance compares that captured value with the current epoch. Reading the
+latest epoch at INSERT and stamping it is not fencing. Login, owner add-link,
+invite completion and recovery conditionally issue credentials/sessions in
+one atomic operation; stale operations fail after revoke/recovery commits.
+Revoking a reader atomically bumps its epoch and deletes its sessions. Fresh
+legitimate owner additions after recovery still work; setup is unchanged.
+Every authorization after commit fails for revoked credentials; responses
+already authorized before commit may finish. Both editions test controlled
+login/revoke, add/recovery, invite/revoke and recovery/recovery interleavings.
+
+### Recovering an owner
+
+`/recover` is separate from setup, reachable while private, and refused on
+an unclaimed site. A hosting-account operator issues a one-time stored code,
+with at least 24 random bytes, hashed at rest, replacement invalidating prior
+codes, and a default expiry of 24 hours. This is never an MCP tool. Recovery
+uses setup-class no-referrer/no-store headers, address-bar stripping and
+bad_code/code_expired errors. `/setup` remains closed after claim.
+
+Recovery is ONE all-or-nothing transaction: spend the valid code; bump the
+owner epoch; delete all owner passkeys, unused add-passkey links, owner
+sessions and reader sessions; invalidate in-flight issuance by captured
+epoch comparison; insert the newly verified owner passkey and fresh owner
+session. Keep reader passkeys; their next legitimate login works at the new
+reader epoch. Concurrent completion of one recovery code has one winner.
+Hosting-account control already grants owner-equivalent authority; recovery
+does not protect against a hosting-account compromise.
+
 ### Owner-approved embeds
 
 This applies identically to both editions. S7 continues to require
@@ -631,6 +709,30 @@ previous release (Cloudflare) or checking it out (server) with no schema
 step. Released migrations never change (append only). Enforced at release
 time: `scripts/migration-check.py` and `scripts/upgrade-check.sh` (the
 previous release's tests and archived bundle on the new schema).
+
+**Private-site rollback warning.** Older code ignores `site.private` and
+exposes the published site. The compatibility rule stands; no schema trick
+prevents that. The first private-capable release is the minimum for a private
+site, recorded outside legacy JSON. `site_state.update.rollback` reports
+that minimum and explains the exposure. The unauthenticated, no-store JSON
+`GET /.well-known/porchsite-release` contains only `release` and
+`private_floor` (null when public), never site content.
+
+Before upload or checkout, the documented procedure runs
+`scripts/check-private-downgrade --target <release>`. It stops and warns if
+private is on and the target is below the floor, OR if state/floor is missing
+or unknown regardless of target. Explain that the site becomes public,
+that older code does not know private mode, and to choose the minimum or a
+newer release, or deliberately turn private off first. Only `--confirm`
+after the owner's explicit approval may proceed; assistants must never infer
+that approval. The warning still prints with confirmation. Tests prove the
+default stops and explicit confirmation may proceed.
+
+The dashboard rollback button, direct upload with the hosting API key, raw
+checkout, restoring an older database and a hostile assistant holding the
+hosting key can bypass the documented check and expose private content.
+This accepted residual must be stated in INSTALL, self-hosting, llms.txt and
+the changelog. Never claim prevention. Existing cached copies also remain.
 
 **The daily check.** A site running a published release reads
 `<HOME>/latest.json` at most once a day: a short timeout (3 s), the answer
