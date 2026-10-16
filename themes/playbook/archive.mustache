@@ -1,0 +1,4 @@
+{{> head}}
+{{> back}}
+<article class="index-page"><h1>{{stream.title}}</h1>{{#stream.intro}}<p class="lede">{{stream.intro}}</p>{{/stream.intro}}<ol class="guide-list">{{#entries}}{{> row}}{{/entries}}</ol>{{^entries}}<p>{{strings.nothing_yet}}</p>{{/entries}}{{#has_tags}}<nav class="type-labels">{{#tags}}<a href="{{stream.archive_url}}tags/{{name}}/">{{name}}</a>{{/tags}}</nav>{{/has_tags}}</article>
+{{> foot}}

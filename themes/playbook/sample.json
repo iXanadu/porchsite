@@ -1,0 +1,103 @@
+{
+  "site": {
+    "title": "The everyday handbook",
+    "logo_text": "Everyday / Handbook",
+    "tagline": "Contents",
+    "intro": "Find a task, follow its steps, and check the result. Start with a symptom when something stops working.",
+    "description": "Short guides for keeping a small website in order.",
+    "theme": "playbook",
+    "timezone": "America/Chicago",
+    "strings": {
+      "home": "Contents"
+    },
+    "cta_label": "If something is down",
+    "cta_link": "/backups/tags/breaks/",
+    "streams": [
+      {
+        "id": "start",
+        "title": "Start here",
+        "intro": "Read this first.",
+        "layout": "list",
+        "dated_addresses": false
+      },
+      {
+        "id": "backups",
+        "title": "Backups",
+        "intro": "Keep a copy. Know how to bring it back.",
+        "layout": "list",
+        "dated_addresses": false
+      },
+      {
+        "id": "reference",
+        "title": "Reference",
+        "intro": "Quick checks and useful terms.",
+        "layout": "list",
+        "dated_addresses": false
+      }
+    ],
+    "sections": [
+      "start",
+      "backups",
+      "reference"
+    ],
+    "footer_line": "One task per page. Check the result before moving on."
+  },
+  "items": [
+    {
+      "kind": "entry",
+      "slug": "read-this-guide",
+      "data": {
+        "stream": "start",
+        "title": "How to read this guide",
+        "date": "2026-10-10",
+        "summary": "Choose the page that matches what you need to do.",
+        "tags": [
+          "guide"
+        ],
+        "body": "# Why\n\nA short guide helps you finish one task and check the result.\n\n## Find a task\n\nUse the [contents](/) to find a part. Each page has one purpose.\n\n## Related\n\n- [Restore a file](/backups/restore-a-file/)\n- [If the backup server is down](/backups/backup-server-down/)\n\nLast verified by the guide editor on October 10, 2026."
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "restore-a-file",
+      "data": {
+        "stream": "backups",
+        "title": "Restore a file from backup",
+        "date": "2026-10-10",
+        "summary": "Recover one missing file without replacing the working copy.",
+        "tags": [
+          "how-to"
+        ],
+        "body": "# Why\n\nA separate restored copy lets you check the file before replacing anything.\n\n## You need\n\n- Access to an approved backup\n- A separate folder for the restored copy\n\n## Steps\n\n1. Open the backup tool and find the missing file.\n2. Choose a copy made before the file went missing.\n3. Restore it to a separate folder.\n4. Open the restored file and check its contents.\n\n## Done when\n\nThe restored file opens and contains the version you need.\n\n## If it fails\n\nRead [If the backup server is down](/backups/backup-server-down/).\n\n## Related\n\n- [Backup terms](/reference/backup-terms/)\n- [Read the guide](/start/read-this-guide/)\n\nLast verified by the guide editor on October 10, 2026."
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "backup-server-down",
+      "data": {
+        "stream": "backups",
+        "title": "If the backup server is down",
+        "date": "2026-10-09",
+        "summary": "The backup tool cannot reach the place where copies are kept.",
+        "tags": [
+          "breaks"
+        ],
+        "body": "# You will see\n\nThe backup tool says it cannot connect.\n\n## Check first\n\n1. Check that your connection works.\n2. Read the backup tool’s status message.\n\n## Fix\n\n1. Wait briefly, then try once more.\n2. Ask the backup maintainer if the same message returns.\n\n## Who to ask\n\nAsk the person responsible for the backup service.\n\n## Do not\n\nDo not delete the working file or reset the backup while checking a connection problem.\n\n## Related\n\n- [Restore a file](/backups/restore-a-file/)\n\nLast verified by the guide editor on October 10, 2026."
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "backup-terms",
+      "data": {
+        "stream": "reference",
+        "title": "Backup terms",
+        "date": "2026-10-10",
+        "summary": "A small reference for reading the backup guides.",
+        "tags": [
+          "reference"
+        ],
+        "body": "# Why\n\nUse the same words when asking for help.\n\n```text\nTerm       Meaning\nBackup     A separate copy kept for recovery\nRestore    Bring a saved copy back\nVerify     Check that the saved copy opens\n```\n\n## Related\n\n- [Restore a file](/backups/restore-a-file/)\n\nLast verified by the guide editor on October 10, 2026."
+      }
+    }
+  ]
+}

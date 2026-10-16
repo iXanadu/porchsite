@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{meta.title}}</title>
+<meta name="description" content="{{meta.description}}">
+<meta property="og:title" content="{{meta.title}}">
+<meta property="og:description" content="{{meta.description}}">
+<meta property="og:type" content="{{meta.og_type}}">
+<meta property="og:url" content="{{meta.url}}">
+{{#meta.image}}<meta property="og:image" content="{{meta.image}}">
+<meta name="twitter:card" content="summary_large_image">
+{{/meta.image}}{{#meta.image_alt}}<meta property="og:image:alt" content="{{meta.image_alt}}">
+{{/meta.image_alt}}{{#site.logo}}<link rel="icon" href="{{site.logo}}">
+{{/site.logo}}<link rel="canonical" href="{{meta.url}}">
+<link rel="stylesheet" href="{{kit.css_url}}">
+{{#feeds}}<link rel="alternate" type="application/atom+xml" title="{{title}}" href="{{url}}">
+{{/feeds}}</head>
+<body data-kind="{{meta.kind}}" data-id="{{meta.content_id}}">
+<header class="masthead" id="top"><a class="brand" href="/">{{site.logo_text}}</a>{{#site.description}}<p>{{site.description}}</p>{{/site.description}}</header>
+<main class="wrap">

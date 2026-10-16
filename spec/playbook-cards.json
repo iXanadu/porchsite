@@ -1,0 +1,47 @@
+{
+  "site": {
+    "title": "Handbook",
+    "theme": "playbook",
+    "sections": [
+      "cards"
+    ],
+    "cards_aside": "Reference links"
+  },
+  "items": [
+    {
+      "id": "aside",
+      "kind": "card",
+      "slug": null,
+      "data": {
+        "name": "Important reference",
+        "description": "A reference link.",
+        "group": "Reference links",
+        "link": "https://example.com/reference"
+      }
+    },
+    {
+      "id": "mention",
+      "kind": "card",
+      "slug": null,
+      "data": {
+        "name": "Mentioned reference",
+        "description": "Name only.",
+        "group": "Reference links",
+        "link": "https://example.com/hidden-mention",
+        "visibility": "mention"
+      }
+    },
+    {
+      "id": "private",
+      "kind": "card",
+      "slug": null,
+      "data": {
+        "name": "Private reference",
+        "description": "Never public.",
+        "group": "Reference links",
+        "link": "https://example.com/hidden-private",
+        "visibility": "private"
+      }
+    }
+  ]
+}

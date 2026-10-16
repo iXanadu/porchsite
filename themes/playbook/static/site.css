@@ -1,0 +1,98 @@
+/* A quiet handbook: the contents is the map; each page is one task. */
+:root { --bg: #faf9f5; --ink: #242d32; --muted: #59636a; --accent: #23584e; --accent-2: #8a4227; --line: #d5d8d2; --on-accent: #fff; }
+* { box-sizing: border-box; }
+html { scroll-padding-top: 5rem; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 17px; line-height: 1.65; overflow-wrap: anywhere; }
+a { color: var(--accent); text-underline-offset: .2em; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.2; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.035em; margin: 0 0 1rem; }
+h2 { font-size: 1.45rem; margin: 2.2rem 0 .8rem; }
+h3 { font-size: 1.2rem; }
+p { margin: 0 0 1rem; }
+.masthead, .wrap, .site-foot { width: min(100% - 2.5rem, 70rem); margin-inline: auto; }
+.masthead { padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
+.brand { font-weight: 750; text-decoration: none; letter-spacing: -.02em; }
+.masthead p { font-size: .875rem; color: var(--muted); margin: .4rem 0 0; }
+.intro { padding: 2.5rem 0 1rem; max-width: 45rem; }
+.intro p, .lede { color: var(--muted); font-size: 1.1rem; }
+.urgent { margin: 0 0 2rem; border-left: 4px solid var(--accent-2); background: var(--bg); }
+.urgent a { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 60px; padding: 1rem 1.25rem; border: 1px solid var(--line); border-left: 0; font-weight: 750; text-decoration: none; }
+.parts { list-style: none; padding: 0; margin: 0; counter-reset: part; }
+.part { counter-increment: part; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--line); border-radius: .35rem; scroll-margin-top: 1rem; min-width: 0; }
+.part-head h2 { margin: 0 0 .65rem; display: flex; align-items: baseline; gap: .8rem; }
+.part-head h2::before { content: counter(part, decimal-leading-zero); font-size: .9rem; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.part-head p { color: var(--muted); font-size: .95rem; }
+.guide-list { padding: 0; margin: 0; list-style: none; }
+.guide-list > li { border-top: 1px solid var(--line); padding-block: .4rem .8rem; }
+.guide-link { display: flex; flex-direction: column; gap: .25rem; padding-block: .6rem; min-height: 44px; text-decoration: none; }
+.guide-title { font-weight: 700; line-height: 1.35; }
+.guide-summary { font-size: .94rem; color: var(--muted); }
+.type-labels { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 .5rem; }
+.type-labels > * { color: var(--muted); font-size: .75rem; line-height: 1.5; border: 1px solid var(--line); border-radius: .25rem; padding: .2rem .5rem; }
+.type-labels > a { display: inline-flex; align-items: center; min-height: 44px; }
+.contents-link { position: sticky; top: 0; z-index: 2; padding-block: .5rem; background: var(--bg); border-bottom: 1px solid var(--line); }
+.contents-link a { display: flex; align-items: center; flex-wrap: wrap; min-height: 44px; gap: .25rem; text-decoration: none; font-weight: 650; font-size: .95rem; }
+.contents-link span { font-weight: 400; color: var(--muted); }
+.guide-page, .index-page { max-width: 45rem; margin: 2rem auto 3rem; }
+.part-name { color: var(--muted); font-size: .85rem; margin-bottom: .75rem; }
+.entry-head { border-bottom: 1px solid var(--line); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+.cover, .guide-body img { max-width: 100%; height: auto; border-radius: .25rem; }
+.guide-body > :first-child { margin-top: 0; }
+.guide-body h2, .guide-body h3, .guide-body h4, .guide-body h5, .guide-body h6 { scroll-margin-top: 5rem; }
+.guide-body ol { padding-left: 2.2rem; }
+.guide-body ol > li { padding-left: .5rem; margin-block: 1rem; }
+.guide-body ol > li::marker { font-size: 1.3em; font-weight: 750; color: var(--accent); }
+.guide-body li > ol > li::marker { font-size: 1em; }
+.guide-body ul { padding-left: 1.5rem; }
+.guide-body blockquote { margin: 1.5rem 0; padding: .5rem 1rem; border-left: 3px solid var(--accent); color: var(--muted); }
+.guide-body pre { overflow-x: auto; white-space: pre; max-width: 100%; padding: 1rem; border: 1px solid var(--line); border-radius: .25rem; font-size: .85rem; }
+.guide-body code { font-family: ui-monospace, monospace; font-size: .9em; }
+.guide-body hr { border: 0; border-top: 1px solid var(--line); margin-block: 2rem; }
+/* Heading ids are engine-provided. No scripts inspect or rewrite the body. */
+.guide-body :is(h2, h3, h4, h5, h6)[id^="if-"] { border: 1px solid var(--line); border-left: 4px solid var(--accent-2); padding: 1rem; border-radius: .25rem; }
+.guide-body :is(#you-need, #check-first, #fix, #done-when, #steps, #who-to-ask, #why, #related) { border-top: 1px solid var(--line); padding-top: 1rem; }
+.guide-body #you-will-see + :is(p, ul, ol) { font-weight: 650; padding: 1rem; border-left: 4px solid var(--accent); }
+.guide-body #do-not, .guide-body #do-not + :is(p, ul, ol) { border-left: 4px solid var(--accent-2); padding-left: 1rem; }
+.guide-body #do-not { color: var(--accent-2); margin-bottom: 0; padding-top: 1rem; }
+.guide-body #do-not + :is(p, ul, ol) { padding-top: .75rem; padding-bottom: 1rem; }
+.site-foot { padding-block: 1.5rem 3rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+.site-foot a { display: inline-flex; align-items: center; min-height: 44px; }
+@media (min-width: 800px) {
+  .masthead { padding-block: 2rem; }
+  .intro { padding-block: 3.5rem 1.5rem; }
+  .parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+  .part { margin: 0; padding: 2rem; }
+  .site-foot { margin-top: 3rem; }
+}
+@media print {
+  @page { margin: 15mm; }
+  html { scroll-padding: 0; }
+  body { font-size: 10pt; line-height: 1.35; }
+  *, *::before, *::after, *::marker { color: #000 !important; background: #fff !important; border-color: #000 !important; box-shadow: none !important; text-shadow: none !important; }
+  .masthead, .site-foot, .contents-link, .type-labels, .urgent, script { display: none !important; }
+  .wrap { width: 100%; margin: 0; }
+  .guide-page, .index-page { max-width: none; margin: 0; }
+  h1 { font-size: 20pt; }
+  h2 { font-size: 13pt; break-before: page; }
+  h2, h3, h4, h5, h6 { break-after: avoid; }
+  .entry-head { margin-bottom: 1rem; padding-bottom: .5rem; }
+  .guide-body h2 { margin-top: 1.2rem; }
+  .guide-body > :first-child { break-before: auto; }
+  .guide-body ol > li, .guide-body ul > li { break-inside: avoid; }
+  .guide-body ol > li { margin-block: .6rem; }
+  .guide-body pre { white-space: pre-wrap; font-size: 8pt; }
+  a { text-decoration: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; overflow-wrap: anywhere; font-weight: 400; }
+  .parts { display: block; list-style: decimal; padding-left: 1.5rem; }
+  .part { display: list-item; border: 0; border-radius: 0; padding: 0; margin: 0 0 1rem; }
+  .part-head h2 { display: block; font-size: 12pt; margin: 0 0 .5rem; break-before: auto; }
+  .part-head h2::before, .part-head p, .guide-summary { display: none; }
+  .guide-list { list-style: decimal; padding-left: 1.25rem; }
+  .guide-list > li { border: 0; padding: 0; }
+  .guide-link { display: block; min-height: 0; padding-block: .2rem; }
+  .guide-title { font-weight: 400; }
+  /* A task or symptom is one printable sheet when its authored content fits. */
+  body[data-kind="entry"] h2 { break-before: auto; }
+}
