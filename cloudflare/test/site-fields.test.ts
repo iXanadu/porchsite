@@ -39,3 +39,16 @@ it('returns broker through real site_state and its field guide',async()=>{
  const response=await worker.fetch(new Request(origin+'/mcp',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'site_state',arguments:{ids:['site']}}})}),env as unknown as Env,{waitUntil(){},passThroughOnException(){},props:{}} as unknown as ExecutionContext);
  expect(response.status).toBe(200);const rpc:any=await response.json();expect(rpc.result.isError).toBeFalsy();const state=JSON.parse(rpc.result.content[0].text);expect(state.items[0].data.broker).toBe('Example Brokerage');expect(JSON.stringify(state.fields)).toContain('broker');
 });
+
+it('limits Listing highlights to home and feature-stream entries, including custom stream paths',()=>{
+ const input:any=structuredClone(sample);
+ input.site.streams[0].path='property';
+ input.site.streams.push({id:'more',title:'More',layout:'list'});
+ input.site.sections.push('more');
+ for(const slug of ['visit','photos'])input.items.push({kind:'entry',slug,data:{stream:'more',title:slug,date:'2026-10-16',tags:['details'],body:'Supporting page'}});
+ const pages=renderSample(THEMES['listing-page'] as any,input);
+ for(const key of ['index.html','property/home/index.html'])expect(pages[key]).toContain('class="highlights"');
+ for(const key of ['more/visit/index.html','more/photos/index.html','more/index.html','more/tags/details/index.html','property/index.html','property/tags/property/index.html','404.html']){
+  expect(pages[key],key).toBeDefined();expect(pages[key],key).not.toContain('class="highlights"');expect(pages[key],key).not.toContain('Room to gather');
+ }
+});

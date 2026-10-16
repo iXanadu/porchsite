@@ -164,8 +164,10 @@ Every page gets:
 | `meta` | `title`, `description`, `og_type`, `url`, `image`, `image_alt`, `kind`, `content_id`. `image` is the page's share picture: an entry's share card (SPEC §5), else its cover; on an archive or tag page, the cover of its newest entry that has one; otherwise the site's share image, else its hero |
 
 Listing uses the shared view's `highlights` (visible cards with the same
-formatted fields as cards sections) and `has_highlights` on home and entry
-pages, independently of section-menu selection. It renders the optional
+formatted fields as cards sections) and `has_highlights` on home and on entries
+in feature-layout streams (the listing), independently of section-menu selection.
+Supporting entries in list-layout streams, archives, tags and the 404 do not
+show Highlights. It renders the optional
 logical `site.broker` as escaped footer text after the contact information.
 Other looks do not render this field.
 
