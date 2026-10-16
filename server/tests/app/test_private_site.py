@@ -314,12 +314,15 @@ async def test_invites_owner_csrf_single_use_expiry_and_cancel(db, browser_facto
     _, _, invite = await reader(db, browser_factory)
     assert len(await owner.list_readers(db)) == 2
     listing = (await browser.at("/review/readers")).text
+    assert next(r for r in await owner.list_readers(db) if r["id"] == invite["id"])[
+        "last_signed_in"
+    ]
+    assert "Last signed in " in listing and "Not signed in yet" not in listing
     for text in (
         "Unused invitations",
         "Expires ",
         "Cancel invitation",
         "Added ",
-        "Not signed in yet",
         'class="warn" name="action" value="revoke">Remove Reader',
     ):
         assert text in listing
@@ -382,6 +385,9 @@ async def test_atomic_recovery_fences_old_login_and_add_and_keeps_reader_keys(db
     link = await owner.create_passkey_link(db)
     adding, added = browser_factory(), SoftKey()
     add_options = await adding.options(f"/passkey/{link['token']}/options")
+    pending = await owner.create_reader_invite(db, "Pending")
+    pending_browser, pending_key = browser_factory(), SoftKey()
+    pending_options = await pending_browser.options(f"/invite/{pending['token']}/options")
     recovery, fresh = browser_factory(), SoftKey()
     await owner.issue_recovery_code(db, "a" * 32)
     options = await recovery.options("/recover/options", {"code": "a" * 32})
@@ -389,6 +395,12 @@ async def test_atomic_recovery_fences_old_login_and_add_and_keeps_reader_keys(db
     assert (
         await recovery.post("/recover/verify", fresh.create(options, ORIGIN))
     ).status_code == 200
+    assert (await browser_factory().post(f"/invite/{pending['token']}/options")).status_code == 410
+    assert (
+        await pending_browser.post(
+            f"/invite/{pending['token']}/verify", pending_key.create(pending_options, ORIGIN)
+        )
+    ).status_code == 403
     old = browser_factory()
     old.http.cookies.set(owner.SESSION_COOKIE, cookie)
     blank(await old.at("/"))
@@ -422,7 +434,9 @@ async def test_recovery_single_winner_replaced_expired_codes_setup_stays_closed(
     await fixture(db, browser_factory)
     await owner.issue_recovery_code(db, "b" * 32)
     await owner.issue_recovery_code(db, "c" * 32)
-    assert (await browser_factory().post("/recover/options", {"code": "b" * 32})).status_code == 403
+    wrong = await browser_factory().post("/recover/options", {"code": "b" * 32})
+    assert wrong.status_code == 403
+    assert wrong.json()["message"] == "That recovery code isn't valid or has expired."
     a, b, ka, kb = browser_factory(), browser_factory(), SoftKey(), SoftKey()
     oa = await a.options("/recover/options", {"code": "c" * 32})
     ob = await b.options("/recover/options", {"code": "c" * 32})
@@ -435,9 +449,9 @@ async def test_recovery_single_winner_replaced_expired_codes_setup_stays_closed(
     assert await db.fetchval("SELECT count(*) FROM sessions") == 1
     assert (await a.at("/setup")).status_code == 303
     await owner.issue_recovery_code(db, "d" * 32, -1)
-    assert (await browser_factory().post("/recover/options", {"code": "d" * 32})).json()[
-        "error"
-    ] == "code_expired"
+    expired = await browser_factory().post("/recover/options", {"code": "d" * 32})
+    assert expired.json()["error"] == "code_expired"
+    assert expired.json()["message"] == "That recovery code isn't valid or has expired."
 
 
 async def test_release_floor_contains_no_content_and_readers_stay_out_of_legacy_tables(

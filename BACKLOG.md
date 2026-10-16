@@ -81,13 +81,6 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **PV-2** OPEN: /review/readers shows "Not signed in yet" for a reader who
-  signed in through their invite (first sign-in isn't recorded as last
-  sign-in). Found in the PV-1 gate, 2026-10-16.
-- **PV-3** OPEN: owner recovery keeps unused reader invites, so a
-  thief with an owner device could mint one before recovery and use it
-  after. Recovery should also clear unused invites and tell the owner to
-  review their readers. Found in the PV-1 review, 2026-10-16.
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
   re-stores them without it, plus a changelog note. First after the passkey release.

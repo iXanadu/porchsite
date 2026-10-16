@@ -657,7 +657,7 @@ async def invite_verify(db, req, response):
         ):
             raise ApiError(403, "not_verified", "This invitation no longer works. Start again.")
         await c.execute(
-            "INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+            "INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at,last_used_at) VALUES ($1,$2,$3,$4,$5,$6,$6)",
             b64url(cred.credential_id),
             saved["reader"],
             cred.credential_public_key,
@@ -703,9 +703,9 @@ async def recover_options(db, req, code):
     h = hash_token(code.strip())
     row = await db.fetchrow("SELECT expires_at FROM recovery_codes WHERE code_hash = $1", h)
     if not row:
-        raise ApiError(403, "bad_code", "That setup code isn't right.")
+        raise ApiError(403, "bad_code", "That recovery code isn't valid or has expired.")
     if row["expires_at"] <= now():
-        raise ApiError(403, "code_expired", CODE_EXPIRED)
+        raise ApiError(403, "code_expired", "That recovery code isn't valid or has expired.")
     epoch = await owner_epoch(db)
     o = await db.fetchrow("SELECT name,user_handle FROM owner WHERE id = 1")
     options = _options(
@@ -746,6 +746,7 @@ async def recover_verify(db, req, response):
             at,
         ):
             raise ApiError(403, "not_verified", "This recovery code no longer works. Start again.")
+        await c.execute("DELETE FROM reader_invites WHERE used_at IS NULL")
         await c.execute("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1")
         for table in (
             "passkeys",

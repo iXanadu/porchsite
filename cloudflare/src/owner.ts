@@ -405,7 +405,7 @@ export async function inviteVerify(db: D1Database, req: Request, response: any) 
     guard:"EXISTS (SELECT 1 FROM reader_invites WHERE token_hash = ? AND reader_id = ? AND used_at IS NULL AND expires_at > ?)", args:[saved.invite,saved.reader,at],
     writes:op=>[
       db.prepare("UPDATE reader_invites SET used_at = ? WHERE token_hash = ? AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(at,saved.invite,op),
-      db.prepare("INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(c.id,saved.reader,c.publicKey,c.counter,JSON.stringify(c.transports ?? []),at,op),
+      db.prepare("INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at,last_used_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(c.id,saved.reader,c.publicKey,c.counter,JSON.stringify(c.transports ?? []),at,at,op),
     ]});
 }
 
@@ -421,8 +421,8 @@ async function recoveryCode(db: D1Database, code: string) {
   if (!(await hasOwner(db))) throw new ApiError(409,"unclaimed","This site has no owner yet.");
   const h = await hash(code.trim());
   const row = await db.prepare("SELECT expires_at FROM recovery_codes WHERE code_hash = ?").bind(h).first<any>();
-  if (!row) throw new ApiError(403,"bad_code","That setup code isn't right.");
-  if (row.expires_at <= iso(now())) throw new ApiError(403,"code_expired",CODE_EXPIRED);
+  if (!row) throw new ApiError(403,"bad_code","That recovery code isn't valid or has expired.");
+  if (row.expires_at <= iso(now())) throw new ApiError(403,"code_expired","That recovery code isn't valid or has expired.");
   return h;
 }
 export async function recoverOptions(db: D1Database, req: Request, code: string) {
@@ -440,6 +440,7 @@ export async function recoverVerify(db: D1Database, req: Request, response: any)
     guard:"EXISTS (SELECT 1 FROM recovery_codes WHERE code_hash = ? AND expires_at > ?)",args:[saved.code,at],
     writes:op=>[
       db.prepare("DELETE FROM recovery_codes WHERE code_hash = ? AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(saved.code,op),
+      db.prepare("DELETE FROM reader_invites WHERE used_at IS NULL AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),
       db.prepare("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1 AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),
       ...["passkeys","passkey_links","sessions","owner_session_auth","reader_sessions"].map(t=>db.prepare(`DELETE FROM ${t} WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)`).bind(op)),
       db.prepare("UPDATE readers SET auth_epoch = auth_epoch + 1 WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(op),

@@ -5,6 +5,7 @@ import json
 import re
 import sys
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 WARNING = ("This makes the site public: older releases cannot keep this site private. "
            "Use the minimum release or a newer one, or turn private off first on purpose. "
@@ -34,12 +35,16 @@ def main(argv=None):
     parser.add_argument("--confirm", action="store_true", help="Owner explicitly approved the warned exposure")
     args = parser.parse_args(argv)
     try:
-        request = Request(args.site.rstrip("/")+"/.well-known/porchsite-release", headers={"Cache-Control":"no-cache"})
+        request = Request(args.site.rstrip("/")+"/.well-known/porchsite-release", headers={"Cache-Control":"no-cache", "User-Agent":"porchsite-check-private-downgrade/"+args.target})
         with urlopen(request, timeout=10) as response:
             state = json.loads(response.read(16385))
         reason = check(state, args.target)
-    except Exception:
-        reason = "We could not tell whether this site is private."
+    except HTTPError as error:
+        reason = f"We could not tell whether this site is private. HTTP {error.code}: {error.reason}."
+    except URLError as error:
+        reason = f"We could not tell whether this site is private. Network error: {error.reason}."
+    except Exception as error:
+        reason = f"We could not tell whether this site is private. {type(error).__name__}: {error}."
     if reason:
         print(reason+"\n"+WARNING, file=sys.stderr)
         return 0 if args.confirm else 1

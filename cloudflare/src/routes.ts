@@ -1139,7 +1139,7 @@ async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;da
 async function recoveryPage(req: Request,env: Env): Promise<Response> {
   if (!(await owner.hasOwner(env.DB))) return ownerPage("Recovery",html`<h1>This site has no owner yet.</h1>`,{status:409,headers:SETUP_HEADERS});
   const code = (new URL(req.url).searchParams.get("code") ?? "").slice(0,200);
-  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
+  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
 }
 async function readersPage(req: Request,env: Env): Promise<Response> {
   const csrf = await owner.csrf(req); let link = "";

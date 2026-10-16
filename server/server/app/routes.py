@@ -1696,7 +1696,7 @@ async def recovery_page(req,cx):
     if not await owner.has_owner(cx.db):
         return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
     code = req.query_params.get("code","")[:200]
-    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
+    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
     return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review"))
 
 

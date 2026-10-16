@@ -110,7 +110,9 @@ describe("private sites",()=>{
   const made=await f.browser.at("/review/readers",{method:"POST",body:new URLSearchParams({name:"Reader",csrf})});expect(await made.text()).toContain("/invite/");
   const r=await reader();expect(await owner.listReaders(db)).toHaveLength(2);
   let listing=await (await f.browser.at("/review/readers")).text();
-  for(const text of ["Unused invitations","Expires ","Cancel invitation","Added ","Not signed in yet",'class="warn" name="action" value="revoke">Remove Reader'])expect(listing).toContain(text);
+  expect((await owner.listReaders(db) as any[]).find(x=>x.id===r.invite.id).last_signed_in).toBeTruthy();
+  expect(listing).toContain("Last signed in ");expect(listing).not.toContain("Not signed in yet");
+  for(const text of ["Unused invitations","Expires ","Cancel invitation","Added ",'class="warn" name="action" value="revoke">Remove Reader'])expect(listing).toContain(text);
   await db.prepare("UPDATE reader_passkeys SET last_used_at='2026-10-16T12:00:00Z' WHERE reader_id=?").bind(r.invite.id).run();
   listing=await (await f.browser.at("/review/readers")).text();expect(listing).toContain("Last signed in October 16, 2026");
   const invitePage=await new Browser().at(`/invite/${r.invite.token}`);expect(invitePage.headers.get("Referrer-Policy")).toBe("no-referrer");expect(await invitePage.text()).toContain('history.replaceState(null,"","/login")');
@@ -129,11 +131,14 @@ describe("private sites",()=>{
   const f=await fixture(),r=await reader();const ownerCookie=f.browser.jar.get(owner.SESSION_COOKIE)!;
   const staleLogin=new Browser(),login=await staleLogin.options("/login/options");const loginResponse=await f.key.get(login,origin);
   const link=await owner.createPasskeyLink(db),adding=new Browser(),added=await SoftKey.make(),addOptions=await adding.options(`/passkey/${link.token}/options`);
+  const pending=await owner.createReaderInvite(db,"Pending"),pendingBrowser=new Browser(),pendingKey=await SoftKey.make(),pendingOptions=await pendingBrowser.options(`/invite/${pending.token}/options`);
   const recovery=new Browser(),fresh=await SoftKey.make(),code="a".repeat(32);await owner.issueRecoveryCode(db,code);
   const options=await recovery.options("/recover/options",{code});
   // Recovery works even if every old passkey was lost.
   await db.prepare("DELETE FROM passkeys").run();
   expect((await recovery.post("/recover/verify",await fresh.create(options,origin))).status).toBe(200);
+  expect((await new Browser().post(`/invite/${pending.token}/options`)).status).toBe(410);
+  expect((await pendingBrowser.post(`/invite/${pending.token}/verify`,await pendingKey.create(pendingOptions,origin))).status).toBe(403);
   const old=new Browser();old.jar.set(owner.SESSION_COOKIE,ownerCookie);await blank(await old.at("/"));await blank(await r.browser.at("/"));
   expect((await staleLogin.post("/login/verify",loginResponse)).status).toBe(403);
   expect((await adding.post(`/passkey/${link.token}/verify`,await added.create(addOptions,origin))).status).toBe(403);
@@ -147,12 +152,12 @@ describe("private sites",()=>{
  it("gives one recovery winner, invalidates replaced/expired codes, and keeps setup closed (7,35–38)",async()=>{
   const empty=await new Browser().at("/recover");expect(empty.status).toBe(409);await fixture();
   await owner.issueRecoveryCode(db,"b".repeat(32));await owner.issueRecoveryCode(db,"c".repeat(32));
-  expect((await new Browser().post("/recover/options",{code:"b".repeat(32)})).status).toBe(403);
+  const wrong=await new Browser().post("/recover/options",{code:"b".repeat(32)});expect(wrong.status).toBe(403);expect((await wrong.json() as any).message).toBe("That recovery code isn't valid or has expired.");
   const a=new Browser(),b=new Browser(),ka=await SoftKey.make(),kb=await SoftKey.make();const oa=await a.options("/recover/options",{code:"c".repeat(32)}),ob=await b.options("/recover/options",{code:"c".repeat(32)});
   const responses=await Promise.all([a.post("/recover/verify",await ka.create(oa,origin)),b.post("/recover/verify",await kb.create(ob,origin))]);expect(responses.map(r=>r.status).sort()).toEqual([200,403]);
   expect(await db.prepare("SELECT count(*) n FROM passkeys").first("n")).toBe(1);expect(await db.prepare("SELECT count(*) n FROM sessions").first("n")).toBe(1);
   expect((await a.at("/setup")).status).toBe(303);
-  await owner.issueRecoveryCode(db,"d".repeat(32),-1);const expired=await new Browser().post("/recover/options",{code:"d".repeat(32)});expect((await expired.json() as any).error).toBe("code_expired");
+  await owner.issueRecoveryCode(db,"d".repeat(32),-1);const expired=await new Browser().post("/recover/options",{code:"d".repeat(32)});const error=await expired.json() as any;expect(error.error).toBe("code_expired");expect(error.message).toBe("That recovery code isn't valid or has expired.");
  });
  it("exposes only the no-store release floor and keeps the legacy reader boundary (19,30)",async()=>{
   await fixture();await reader();const response=await new Browser().at("/.well-known/porchsite-release");const state=await response.json() as any;
