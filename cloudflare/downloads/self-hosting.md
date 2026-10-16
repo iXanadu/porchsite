@@ -144,6 +144,14 @@ pages only. Revoking ends authorizations made after it commits, including
 old sessions; already delivered or authorized in-flight copies remain.
 Search-engine copies and pictures fetched before private mode also remain.
 
+Private mode hides site content, not sign-in and connection routes. `/login`,
+`/authorize`, `/oauth/token`, `/oauth/register` and OAuth `/.well-known/`
+metadata stay reachable so the owner can sign in and assistants can connect. `/.well-known/porchsite-release` reports only the
+release and private-mode minimum, without site content. `/mcp` still needs
+an assistant token. Setup, recovery and invitation/upload/passkey links
+keep their own checks so their links work; setup redirects after the site is
+claimed. None of these routes shows the site's pages.
+
 The minimum private-capable release is reported by `site_state.update.rollback`
 and `/.well-known/porchsite-release` as `private_floor`. Before **any rollback
 upload or checkout**, run from the repository:

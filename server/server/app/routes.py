@@ -1753,5 +1753,5 @@ async def _private_review_warning(db, proposed):
         if live and not mode:
             out += '<h2 class="warn">This makes the site public.</h2>'
         elif mode and not live:
-            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
+            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
     return out

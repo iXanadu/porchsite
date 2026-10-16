@@ -242,6 +242,12 @@ responses, errors and redirects, is `private, no-store`; conditional requests
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 
+Private mode hides published site content, not the routes needed to sign in,
+claim or recover the site, connect an assistant, or check releases. Setup
+redirects after claim. The release endpoint reveals only release id and the
+private-mode minimum; OAuth metadata describes the connection protocol.
+These routes never show site content.
+
 Open paths are an exact route-and-method allowlist, never whole prefixes:
 GET/HEAD `/login`, `/setup`, `/recover`, `/.well-known/porchsite-release`;
 POST `/login/options`, `/login/verify`, `/setup/options`, `/setup/verify`,
@@ -570,6 +576,8 @@ existing looks and stored item data are unchanged. On-site menu and button
 links may include a fragment (for example `/listing/home/#video-tour`).
 
 ## 4. Assistant interface (MCP)
+
+On a new site, if site_state lists no site item, call item_create with kind: "site" and the site fields (including theme); use item_update only after that item exists.
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID
 Metadata Documents, and Dynamic Client Registration for older clients).

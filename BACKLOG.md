@@ -81,12 +81,6 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **DOC-2** OPEN: (a) tool text: on a brand-new site there is no site item
-  yet; the assistant creates it (`item_create` kind `site`), not
-  `item_update`. (b) Private-mode docs (INSTALL, llms.txt, self-hosting,
-  owner copy): say plainly what stays reachable on a private site: sign-in,
-  setup, recovery, the release endpoint and the OAuth/MCP metadata, with no
-  site content. Ship with the next release. Found 2026-10-16.
 - **SV-PV1** OPEN: a server-edition site behind a caching reverse proxy
   must bypass the cache for the reader cookie (`__Host-sk_reader`) as it
   does for the owner's, before private mode is turned on. Document it in

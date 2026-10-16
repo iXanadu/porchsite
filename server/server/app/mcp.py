@@ -43,6 +43,8 @@ from .photo_advice import PHOTO_ADVICE
 
 log = logging.getLogger(__name__)
 
+NEW_SITE_ADVICE = 'A brand-new site has no site item: create it with item_create kind "site", then use item_update for later changes.'
+
 INSTRUCTIONS = """You keep this person's website up to date. The site is theirs:
 nothing you write is public until they approve it, and the site enforces that.
 Workflow: site_state (see what exists, each item's version and field guide) ->
@@ -51,6 +53,7 @@ photo_upload_link for a photo your person sent you) -> approval_request (only th
 changed for this request; site_check first) -> give the owner the review_url -> approval_status.
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
+On a new site, if site_state lists no site item, call item_create with kind: "site" and the site fields (including theme); use item_update only after that item exists.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
 The look: theme_list (built-in looks are ready to use; the catalog has previews) ->
 set the site item's theme -> theme_needs (the art and words that theme wants, and which
@@ -108,7 +111,7 @@ def _tools() -> list[dict[str, Any]]:
             "name": "item_create",
             "description": "Create an item; nothing is public until the owner approves. Kinds: "
             + ". ".join(f"{k}: {v}" for k, v in kinds.items())
-            + ". data holds that kind's fields (see `fields` in site_state). " + EMBED_ADVICE + " " + EMBED_SYNTAX,
+            + ". data holds that kind's fields (see `fields` in site_state). " + NEW_SITE_ADVICE + " " + EMBED_ADVICE + " " + EMBED_SYNTAX,
             "inputSchema": _obj(
                 {
                     "kind": {"type": "string", "enum": list(kinds)},
@@ -124,7 +127,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "item_update",
-            "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo." + " " + EMBED_ADVICE + " " + EMBED_SYNTAX,
+            "description": "Change some fields of an item; send only the fields that change. version: the item's current version (from site_state or your last write); on version_conflict, re-read and redo." + " " + NEW_SITE_ADVICE + " " + EMBED_ADVICE + " " + EMBED_SYNTAX,
             "inputSchema": _obj(
                 {
                     "id": {"type": "string"},
@@ -683,7 +686,7 @@ async def _call(
         async def theme_install() -> Any:
             return {
                 **(await themes.install(db, a["name"], actor)),
-                "next": "Set the site item's theme to this name (item_update), call theme_needs to see what it wants, fill that in, then approval_request.",
+                "next": "If site_state lists no site item, use item_create with kind site and theme set to this name; otherwise use item_update to set its theme. Then call theme_needs to see what it wants, fill that in, then approval_request.",
             }
 
         return await _run(theme_install)
@@ -694,7 +697,7 @@ async def _call(
             return {
                 **(await themes.create(db, a, actor)),
                 "source": "private",
-                "next": "Set the site item's theme to this name (item_update), call theme_needs, fill what it lists, then approval_request; your person checks the preview before approving.",
+                "next": "If site_state lists no site item, use item_create with kind site and theme set to this name; otherwise use item_update to set its theme. Then call theme_needs, fill what it lists, then approval_request; your person checks the preview before approving.",
             }
 
         return await _run(theme_create)
