@@ -73,5 +73,29 @@
       ]
     },
     "home": "<a href=\"/journal/tour/\">Tour</a>{{#latest}}{{{body_html}}}{{/latest}}"
+  },
+  {
+    "name": "private-site-state",
+    "theme": "playbook",
+    "sample": {
+      "site": {
+        "title": "Handbook",
+        "private": true,
+        "sections": [
+          "entries"
+        ]
+      },
+      "items": [
+        {
+          "kind": "entry",
+          "slug": "guide",
+          "data": {
+            "title": "Example guide",
+            "date": "2026-10-16",
+            "body": "One published task."
+          }
+        }
+      ]
+    }
   }
 ]

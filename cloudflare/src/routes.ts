@@ -51,6 +51,7 @@ summary{padding:6px 0}
 header{flex-wrap:wrap;gap:6px 0}.warn{background:#efe7dc;color:#6b3f12;padding:12px;border-radius:6px}.ok{background:#e3ece7;color:#1f4034;padding:12px;border-radius:6px}
 input[type=date],select{width:100%;font:inherit;padding:12px;border:1px solid var(--rule);border-radius:6px;background:#fff}textarea.body{min-height:50vh;font:16px/1.6 ui-monospace,Menlo,monospace}
 button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}
 ${changes.CHANGES_CSS}`;
 
 function ownerPage(title: string, body: Raw, opts: { signedIn?: boolean; script?: string; status?: number; headers?: HeadersInit } = {}): Response {
@@ -1071,7 +1072,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (path === "/review/passkeys") {
         if (m === "POST") {
           const form = await req.formData();
-          if (form.get("csrf") === (await owner.csrf(req))) return await passkeysPage(env, req, await owner.createPasskeyLink(env.DB));
+          if (form.get("csrf") === (await owner.csrf(req))) return await passkeysPage(env, req, await owner.createPasskeyLink(env.DB,req));
         }
         return await passkeysPage(env, req);
       }
@@ -1140,10 +1141,10 @@ async function readersPage(req: Request,env: Env): Promise<Response> {
     const id = String(form.get("id") ?? "");
     if (form.get("action") === "revoke") await owner.revokeReader(env.DB,id);
     else if (form.get("action") === "revoke-invite") await owner.revokeInvite(env.DB,id);
-    else { const invite = await owner.createReaderInvite(env.DB,String(form.get("name") ?? "Reader")); link = new URL(`/invite/${invite.token}`,req.url).href; }
+    else { const invite = await owner.createReaderInvite(env.DB,String(form.get("name") ?? "Reader"),req); link = new URL(`/invite/${invite.token}`,req.url).href; }
   }
   const readers: any[] = await owner.listReaders(env.DB);
-  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>${readers.map(r=>html`<section class="card"><h2>${r.name}</h2><p>${r.revoked ? "Revoked" : r.used_at ? "Passkey registered" : "Invitation pending"}</p><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}"><button name="action" value="revoke">Revoke reader</button><button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button></form></section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
+  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>${readers.map(r=>html`<section class="card"><h2>${r.name}</h2><p>${r.revoked ? "Revoked" : r.used_at ? "Passkey registered" : !r.expires_at ? "Invitation cancelled" : r.expires_at <= new Date().toISOString() ? "Invitation expired" : "Invitation pending"}</p><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}"><button name="action" value="revoke">Revoke reader</button>${!r.used_at && r.expires_at && !r.revoked ? html`<button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button>` : ""}</form></section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
 }
 
 async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:Record<string,any>;deleted?:boolean}[]): Promise<string> {
@@ -1151,7 +1152,7 @@ async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:
   for (const item of proposed) if (item.kind === "site") {
     const mode = !!item.data.private && !item.deleted;
     if (live && !mode) out += '<h2 class="warn">This makes the site public.</h2>';
-    else if (mode && !live) out += '<p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>';
+    else if (mode && !live) out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>';
   }
   return out;
 }

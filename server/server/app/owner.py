@@ -274,16 +274,20 @@ async def setup_verify(db: Db, req: Request, setup_code: str | None, response: A
 # --- another passkey: a new device, or the site at a new address ---------------------
 
 
-async def create_passkey_link(db: Db) -> dict[str, str]:
+async def create_passkey_link(db: Db, req: Request | None = None) -> dict[str, str]:
     """A one-time link to add a passkey; only a signed-in owner can make one."""
     token = b64url(secrets.token_bytes(24))
     expires_at = _later(minutes=LINK_MINUTES)
-    await db.execute(
-        "INSERT INTO passkey_links (token_hash, created_at, expires_at) VALUES ($1, $2, $3)",
-        hash_token(token),
-        now(),
-        expires_at,
-    )
+    async with transaction(db) as c:
+        await c.fetchrow("SELECT id FROM auth_state WHERE id = 1 FOR UPDATE")
+        if req is not None and not await signed_in(c, req):
+            raise ApiError(403, "not_verified", "This sign-in stopped working. Start again.")
+        await c.execute(
+            "INSERT INTO passkey_links (token_hash, created_at, expires_at) VALUES ($1, $2, $3)",
+            hash_token(token),
+            now(),
+            expires_at,
+        )
     return {"token": token, "expires_at": expires_at}
 
 
@@ -548,10 +552,13 @@ def csrf(req: Request) -> str:
 
 
 # --- reader invitations -------------------------------------------------------
-async def create_reader_invite(db, name):
+async def create_reader_invite(db, name, req=None):
     token, id = b64url(secrets.token_bytes(24)), b64url(secrets.token_bytes(18))
     at, expires = now(), _later(days=7)
     async with transaction(db) as c:
+        await c.fetchrow("SELECT id FROM auth_state WHERE id = 1 FOR UPDATE")
+        if req is not None and not await signed_in(c, req):
+            raise ApiError(403, "not_verified", "This sign-in stopped working. Start again.")
         await c.execute(
             "INSERT INTO readers (id,name,created_at) VALUES ($1,$2,$3)", id, name[:80], at
         )

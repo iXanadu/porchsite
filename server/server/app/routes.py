@@ -69,6 +69,7 @@ header{flex-wrap:wrap;gap:6px 0}.warn{background:#efe7dc;color:#6b3f12;padding:1
 input[type=date],select{width:100%;font:inherit;padding:12px;border:1px solid var(--rule);border-radius:6px;background:#fff}textarea.body{min-height:50vh;font:16px/1.6 ui-monospace,Menlo,monospace}
 button.second{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 """
+    + "header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}"
     + changes.CHANGES_CSS
 )
 
@@ -1608,7 +1609,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if m == "POST":
                     form = await _form(req)
                     if _field(form, "csrf") == owner.csrf(req):
-                        return await passkeys_page(req, cx, await owner.create_passkey_link(cx.db))
+                        return await passkeys_page(req, cx, await owner.create_passkey_link(cx.db,req))
                 return await passkeys_page(req, cx)
             if path == "/review/assistants":
                 if m == "POST":
@@ -1703,15 +1704,16 @@ async def readers_page(req,cx):
         elif _field(form,"action") == "revoke-invite":
             await owner.revoke_invite(cx.db,id)
         else:
-            invite = await owner.create_reader_invite(cx.db,_field(form,"name") or "Reader")
+            invite = await owner.create_reader_invite(cx.db,_field(form,"name") or "Reader",req)
             link = origin_of(req)+"/invite/"+invite["token"]
     body = '<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>'
     if link:
         body += f'<p class="ok">Give this one-time link privately: <a href="{esc(link)}">{esc(link)}</a></p>'
     body += f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>'
     for r in await owner.list_readers(cx.db):
-        status = "Revoked" if r["revoked"] else "Passkey registered" if r["used_at"] else "Invitation pending"
-        body += f'<section class="card"><h2>{esc(r["name"])}</h2><p>{status}</p><form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}"><button name="action" value="revoke">Revoke reader</button><button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button></form></section>'
+        status = "Revoked" if r["revoked"] else "Passkey registered" if r["used_at"] else "Invitation cancelled" if not r["expires_at"] else "Invitation expired" if r["expires_at"] <= owner.now() else "Invitation pending"
+        cancel = '<button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button>' if not r["used_at"] and r["expires_at"] and not r["revoked"] else ""
+        body += f'<section class="card"><h2>{esc(r["name"])}</h2><p>{status}</p><form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}"><button name="action" value="revoke">Revoke reader</button>{cancel}</form></section>'
     return owner_page("Readers",body,signed_in=True,headers=[("Referrer-Policy","no-referrer")])
 
 
@@ -1725,5 +1727,5 @@ async def _private_review_warning(db, proposed):
         if live and not mode:
             out += '<h2 class="warn">This makes the site public.</h2>'
         elif mode and not live:
-            out += '<p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>'
+            out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>'
     return out

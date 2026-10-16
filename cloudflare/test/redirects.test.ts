@@ -1,5 +1,6 @@
 // Missing pages that moved: trailing slash and old stream addresses.
 import { describe, expect, it } from "vitest";
+import { env } from "cloudflare:workers";
 import * as site from "../src/site";
 
 const v = site.view(
@@ -37,7 +38,7 @@ describe("redirectFor", () => {
 describe("www", () => {
   it("sends www.<domain> to <domain>", async () => {
     const worker = (await import("../src/index")).default;
-    const r = await worker.fetch(new Request("https://www.example.com/pages/x/?a=1"), {} as never, {} as never);
+    const r = await worker.fetch(new Request("https://www.example.com/pages/x/?a=1"), env as never, {} as never);
     expect(r.status).toBe(301);
     expect(r.headers.get("location")).toBe("https://example.com/pages/x/?a=1");
   });

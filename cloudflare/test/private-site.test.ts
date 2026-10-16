@@ -73,12 +73,14 @@ describe("private sites",()=>{
   }
   const login=await r.browser.options("/login/options");expect(login.allowCredentials??[]).toEqual([]);
   const response=await r.browser.post("/login/verify",await r.key.get(login,origin));expect((await response.json() as any).reader).toBe(true);
+  await owner.revokeReader(db,r.invite.id);
+  for(const path of ["/","/guide/published-guide/","/sitemap.xml","/guide/feed.xml","/guide/search.json",picture]) await blank(await r.browser.at(path,{headers:{"If-None-Match":"\"cached\"","If-Modified-Since":"Wed, 01 Jan 2025 00:00:00 GMT"}}));
  });
  it("uses approved exact-version fields and restores public output after an approved off change (14–18)",async()=>{
   const f=await fixture(false),visitor=new Browser();
   const draft=await content.updateItem(db,who,"site",f.item.version,{private:true},undefined);
   expect(await livePrivate(db)).toBe(false);expect((await visitor.at("/")).status).toBe(200);
-  await publish([draft.id]);expect(await livePrivate(db)).toBe(true);await blank(await visitor.at("/"));
+  const enabling=await approvals.request(db,who,[draft.id],"");expect(await (await f.browser.at("/review/"+enabling.id)).text()).toContain("Passkeys will be required to read this site.");await approvals.decide(db,enabling.id,{site:{decision:"approve"}},"");expect(await livePrivate(db)).toBe(true);await blank(await visitor.at("/"));
   for(const table of ["items","revisions","live"]) {
    const sql=table==="items"?"SELECT data FROM items WHERE id='site'":`SELECT data FROM ${table} WHERE item_id='site'`;
    for(const row of (await db.prepare(sql).all<{data:string}>()).results) expect(Object.hasOwn(JSON.parse(row.data),"private")).toBe(false);
@@ -179,4 +181,28 @@ it("keeps malformed cookies blank and canonical-host redirects private",async()=
  await fixture();await blank(await handle(new Request(origin+"/",{headers:{Cookie:"__Host-sk_owner=%; __Host-sk_reader=%"}}),e));
  const response=await worker.fetch(new Request("https://www.site.example/guide/published-guide/"),e,{waitUntil(){},passThroughOnException(){}} as any);
  expect(response.status).toBe(301);expect(response.headers.get("Location")).toBe(origin+"/guide/published-guide/");expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+});
+
+it("rolls back every recovery mutation on an insertion failure",async()=>{
+ const f=await fixture();await reader();const recovery=new Browser(),key=await SoftKey.make();await owner.issueRecoveryCode(db,"z".repeat(32));const options=await recovery.options("/recover/options",{code:"z".repeat(32)});
+ const req=new Request(origin+"/recover/verify",{method:"POST",headers:{Cookie:[...recovery.jar].map(([k,v])=>`${k}=${v}`).join("; ")}});
+ const broken=new Proxy(db,{get(target,key){if(key==="batch")return (statements:D1PreparedStatement[])=>target.batch([...statements.slice(0,3),target.prepare("INSERT INTO auth_state (id) VALUES (1)"),...statements.slice(3)]);const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}});
+ await expect(owner.recoverVerify(broken,req,await key.create(options,origin))).rejects.toThrow();
+ expect(await owner.ownerEpoch(db)).toBe(0);
+ for(const table of ["passkeys","sessions","reader_passkeys","reader_sessions","recovery_codes"])expect(await db.prepare(`SELECT count(*) n FROM ${table}`).first("n"),table).toBe(1);
+ expect((await f.browser.at("/")).status).toBe(200);
+ expect((await new Browser().post("/recover/options",{code:"z".repeat(32)})).status).toBe(200);
+});
+
+it("does not accept a reader cookie as MCP authorization",async()=>{
+ await fixture();const r=await reader();
+ const req=new Request(origin+"/mcp",{method:"POST",headers:{"Content-Type":"application/json",Cookie:[...r.browser.jar].map(([k,v])=>`${k}=${v}`).join("; ")},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:"site_state",arguments:{}}})});
+ const response=await worker.fetch(req,e,{waitUntil(){},passThroughOnException(){}} as any);expect(response.status).toBe(401);expect(await response.text()).not.toContain("Hidden handbook");
+});
+
+it("does not issue fresh access capabilities from an owner request invalidated by recovery",async()=>{
+ const f=await fixture();const req=new Request(origin+"/review/passkeys",{headers:{Cookie:[...f.browser.jar].map(([k,v])=>`${k}=${v}`).join("; ")}});expect(await owner.signedIn(db,req)).toBe(true);
+ const browser=new Browser(),key=await SoftKey.make();await owner.issueRecoveryCode(db,"c".repeat(32));const options=await browser.options("/recover/options",{code:"c".repeat(32)});expect((await browser.post("/recover/verify",await key.create(options,origin))).status).toBe(200);
+ await expect(owner.createPasskeyLink(db,req)).rejects.toMatchObject({code:"not_verified"});await expect(owner.createReaderInvite(db,"Reader",req)).rejects.toMatchObject({code:"not_verified"});
+ for(const table of ["passkey_links","reader_invites","readers"])expect(await db.prepare(`SELECT count(*) n FROM ${table}`).first("n")).toBe(0);
 });

@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
 import { it, expect, vi } from "vitest";
 import { validate } from "../src/content";
+import { storedData } from "../src/embed-storage";
 import { createServer } from "../src/mcp";
 import { THEMES } from "../src/themes.gen";
 import BASELINES from "../../spec/site-check-baselines.json";
@@ -23,7 +24,7 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
   vi.setSystemTime(new Date(e.PARITY_NOW));
   try {
     for (const c of cases) {
-      await e.DB.batch(["items", "live", "themes"].map(table => e.DB.prepare(`DELETE FROM ${table}`)));
+      await e.DB.batch(["items", "live", "themes", "site_embed_sources", "site_fields", "private_approvals"].map(table => e.DB.prepare(`DELETE FROM ${table}`)));
       let theme = c.theme;
       if (c.home !== undefined) {
         theme = `parity-${c.name}`;
@@ -34,9 +35,13 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
       const rows = [{ id: "site", kind: "site", slug: null as string | null, data: validate("site", { ...c.sample.site, theme }) },
         ...c.sample.items.map((item, i) => ({ id: `i${i}`, kind: item.kind, slug: item.kind === "entry" ? item.slug ?? `item-${i}` : null, data: validate(item.kind, item.data) }))];
       await e.DB.batch(rows.flatMap((row, i) => [
-        e.DB.prepare("INSERT INTO items (id, kind, slug, version, data, deleted, created_at, updated_at) VALUES (?, ?, ?, 1, ?, 0, ?, ?)").bind(row.id, row.kind, row.slug, JSON.stringify(row.data), stamp(i), stamp(i)),
-        e.DB.prepare("INSERT INTO live (item_id, kind, slug, version, data, published_at) VALUES (?, ?, ?, 1, ?, ?)").bind(row.id, row.kind, row.slug, JSON.stringify(row.data), stamp(i)),
+        e.DB.prepare("INSERT INTO items (id, kind, slug, version, data, deleted, created_at, updated_at) VALUES (?, ?, ?, 1, ?, 0, ?, ?)").bind(row.id, row.kind, row.slug, JSON.stringify(storedData(row.kind,row.data)), stamp(i), stamp(i)),
+        e.DB.prepare("INSERT INTO live (item_id, kind, slug, version, data, published_at) VALUES (?, ?, ?, 1, ?, ?)").bind(row.id, row.kind, row.slug, JSON.stringify(storedData(row.kind,row.data)), stamp(i)),
       ]));
+      const logical = rows[0].data as Record<string,unknown>;
+      await e.DB.prepare("INSERT INTO site_embed_sources (version,sources,approved) VALUES (1,?,1)").bind(JSON.stringify(logical.embed_sources ?? [])).run();
+      if (logical.broker) await e.DB.prepare("INSERT INTO site_fields (version,key,value,approved) VALUES (1,'broker',?,1)").bind(JSON.stringify(logical.broker)).run();
+      if (logical.private) await e.DB.batch([e.DB.prepare("INSERT INTO site_fields (version,key,value,approved) VALUES (1,'private','true',1)"),e.DB.prepare("INSERT INTO private_approvals (version) VALUES (1)")]);
       const server = createServer();
       const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       await server.connect(transport);

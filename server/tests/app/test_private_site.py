@@ -156,7 +156,7 @@ async def test_visitor_matrix_gates_hits_misses_redirects_before_content(
 
 async def test_reader_role_boundary_and_same_url_cache_isolation(db, browser_factory):
     _, _, _, _, picture = await fixture(db, browser_factory)
-    browser, key, _ = await reader(db, browser_factory)
+    browser, key, invite = await reader(db, browser_factory)
     visitor = browser_factory()
     assert owner.SESSION_COOKIE not in browser.http.cookies
     assert owner.READER_COOKIE in browser.http.cookies
@@ -202,6 +202,25 @@ async def test_reader_role_boundary_and_same_url_cache_isolation(db, browser_fac
     assert not login.get("allowCredentials")
     assert (await browser.post("/login/verify", key.get(login, ORIGIN))).json()["reader"] is True
 
+    await owner.revoke_reader(db, invite["id"])
+    for path in [
+        "/",
+        "/guide/published-guide/",
+        "/sitemap.xml",
+        "/guide/feed.xml",
+        "/guide/search.json",
+        picture,
+    ]:
+        blank(
+            await browser.at(
+                path,
+                headers={
+                    "If-None-Match": '"cached"',
+                    "If-Modified-Since": "Wed, 01 Jan 2025 00:00:00 GMT",
+                },
+            )
+        )
+
 
 async def test_private_fields_exact_version_approval_import_refusal_and_public_restore(
     db, browser_factory
@@ -211,7 +230,12 @@ async def test_private_fields_exact_version_approval_import_refusal_and_public_r
     draft = await content.update_item(db, WHO, "site", item["version"], {"private": True})
     assert not await privacy.live_private(db)
     assert (await visitor.at("/")).status_code == 200
-    await publish(db, [draft["id"]])
+    enabling = await approvals.request(db, WHO, [draft["id"]], "")
+    assert (
+        "Passkeys will be required to read this site."
+        in (await browser.at("/review/" + enabling["id"])).text
+    )
+    await approvals.decide(db, enabling["id"], {"site": {"decision": "approve"}}, "")
     assert await privacy.live_private(db)
     blank(await visitor.at("/"))
     for table in ("items", "revisions", "live"):
@@ -517,3 +541,84 @@ async def test_malformed_cookies_are_blank_and_canonical_redirect_is_private(db,
     assert response.status_code == 301
     assert response.headers["Location"] == ORIGIN + "/guide/published-guide/"
     assert response.headers["Cache-Control"] == "private, no-store"
+
+
+async def test_every_recovery_mutation_rolls_back_if_insertion_fails(
+    db, browser_factory, monkeypatch
+):
+    browser, _, _, _, _ = await fixture(db, browser_factory)
+    await reader(db, browser_factory)
+    recovery, key = browser_factory(), SoftKey()
+    await owner.issue_recovery_code(db, "z" * 32)
+    options = await recovery.options("/recover/options", {"code": "z" * 32})
+    cookie = "; ".join(f"{key}={value}" for key, value in recovery.http.cookies.items())
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "scheme": "https",
+            "server": ("site.example", 443),
+            "path": "/recover/verify",
+            "query_string": b"",
+            "headers": [(b"cookie", cookie.encode())],
+        }
+    )
+
+    def broken(_response):
+        raise RuntimeError("fixture insertion failure")
+
+    monkeypatch.setattr(owner, "_transports", broken)
+    with pytest.raises(RuntimeError, match="fixture insertion failure"):
+        await owner.recover_verify(db, request, key.create(options, ORIGIN))
+    assert await owner.owner_epoch(db) == 0
+    for table in ("passkeys", "sessions", "reader_passkeys", "reader_sessions", "recovery_codes"):
+        assert await db.fetchval(f"SELECT count(*) FROM {table}") == 1
+    assert (await browser.at("/")).status_code == 200
+    assert (await browser_factory().post("/recover/options", {"code": "z" * 32})).status_code == 200
+
+
+async def test_reader_cookie_never_authorizes_mcp(db, browser_factory):
+    await fixture(db, browser_factory)
+    browser, _, _ = await reader(db, browser_factory)
+    response = await browser.post(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "site_state", "arguments": {}},
+        },
+    )
+    assert response.status_code == 401
+    assert "Hidden handbook" not in response.text
+
+
+async def test_recovery_invalidates_owner_capability_issuance_already_authorized(
+    db, browser_factory
+):
+    browser, _, _, _, _ = await fixture(db, browser_factory)
+    cookie = "; ".join(f"{key}={value}" for key, value in browser.http.cookies.items())
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "scheme": "https",
+            "server": ("site.example", 443),
+            "path": "/review/passkeys",
+            "query_string": b"",
+            "headers": [(b"cookie", cookie.encode())],
+        }
+    )
+    assert await owner.signed_in(db, request)
+    recovered, key = browser_factory(), SoftKey()
+    await owner.issue_recovery_code(db, "c" * 32)
+    options = await recovered.options("/recover/options", {"code": "c" * 32})
+    assert (await recovered.post("/recover/verify", key.create(options, ORIGIN))).status_code == 200
+    with pytest.raises(ApiError) as error:
+        await owner.create_passkey_link(db, request)
+    assert error.value.code == "not_verified"
+    with pytest.raises(ApiError) as error:
+        await owner.create_reader_invite(db, "Reader", request)
+    assert error.value.code == "not_verified"
+    for table in ("passkey_links", "reader_invites", "readers"):
+        assert await db.fetchval(f"SELECT count(*) FROM {table}") == 0

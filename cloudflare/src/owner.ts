@@ -205,14 +205,14 @@ export async function setupVerify(db: D1Database, req: Request, setupCode: strin
 
 const LINK_MINUTES = 15;
 
-/** A one-time link to add a passkey; only a signed-in owner can make one. */
-export async function createPasskeyLink(db: D1Database): Promise<{ token: string; expires_at: string }> {
+/** HTTP callers pass req to fence issuance against recovery; internal callers already hold database authority. */
+export async function createPasskeyLink(db: D1Database, req?: Request): Promise<{ token: string; expires_at: string }> {
   const token = b64url(crypto.getRandomValues(new Uint8Array(24)));
   const expires_at = iso(new Date(Date.now() + LINK_MINUTES * 60_000));
-  await db
-    .prepare("INSERT INTO passkey_links (token_hash, created_at, expires_at) VALUES (?, ?, ?)")
-    .bind(await hash(token), iso(now()), expires_at)
-    .run();
+  const statement = db.prepare(`INSERT INTO passkey_links (token_hash, created_at, expires_at) SELECT ?, ?, ? WHERE ${req ? "EXISTS ("+OWNER_SESSION_QUERY+")" : "1"}`);
+  const result = await statement.bind(await hash(token), iso(now()), expires_at, ...(req ? [await hash(cookie(req,SESSION_COOKIE) ?? ""),iso(now())] : [])).run();
+  if (result.meta.changes !== 1) throw new ApiError(403,"not_verified","This sign-in stopped working. Start again.");
+
   return { token, expires_at };
 }
 
@@ -330,14 +330,16 @@ async function startSession(db: D1Database, credential: string, expected: number
   return issueSession(db, "owner", credential, expected);
 }
 
-export async function signedIn(db: D1Database, req: Request): Promise<boolean> {
-  const token = cookie(req, SESSION_COOKIE);
-  if (!token) return false;
-  return !!await db.prepare(`SELECT 1 FROM sessions s JOIN auth_state a ON a.id = 1
+const OWNER_SESSION_QUERY = `SELECT 1 FROM sessions s JOIN auth_state a ON a.id = 1
     LEFT JOIN owner_session_auth m ON m.token_hash = s.token_hash
     WHERE s.token_hash = ? AND s.expires_at > ? AND
     ((m.token_hash IS NULL AND a.owner_epoch = 0) OR
-     (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))`).bind(await hash(token), iso(now())).first();
+     (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))`;
+
+export async function signedIn(db: D1Database, req: Request): Promise<boolean> {
+  const token = cookie(req, SESSION_COOKIE);
+  if (!token) return false;
+  return !!await db.prepare(OWNER_SESSION_QUERY).bind(await hash(token), iso(now())).first();
 }
 
 export async function readerSignedIn(db: D1Database, req: Request): Promise<boolean> {
@@ -361,15 +363,19 @@ export async function csrf(req: Request): Promise<string> {
 
 
 // --- reader invitations -----------------------------------------------------
-export async function createReaderInvite(db: D1Database, name: string) {
+export async function createReaderInvite(db: D1Database, name: string, req?: Request) {
   const token = b64url(crypto.getRandomValues(new Uint8Array(24))), id = b64url(crypto.getRandomValues(new Uint8Array(18)));
-  const at = iso(now()), expires_at = iso(new Date(Date.now() + 7 * 86400_000));
-  await db.batch([
-    db.prepare("INSERT INTO readers (id,name,created_at) VALUES (?,?,?)").bind(id, name.slice(0,80), at),
-    db.prepare("INSERT INTO reader_invites (token_hash,reader_id,created_at,expires_at) VALUES (?,?,?,?)").bind(await hash(token), id, at, expires_at),
+  const op = b64url(crypto.getRandomValues(new Uint8Array(24))), at = iso(now()), expires_at = iso(new Date(Date.now() + 7 * 86400_000));
+  const result = await db.batch([
+    db.prepare(`INSERT INTO auth_operations (id) SELECT ? WHERE ${req ? "EXISTS ("+OWNER_SESSION_QUERY+")" : "1"}`).bind(op,...(req ? [await hash(cookie(req,SESSION_COOKIE) ?? ""),at] : [])),
+    db.prepare("INSERT INTO readers (id,name,created_at) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(id,name.slice(0,80),at,op),
+    db.prepare("INSERT INTO reader_invites (token_hash,reader_id,created_at,expires_at) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(await hash(token),id,at,expires_at,op),
+    db.prepare("DELETE FROM auth_operations WHERE id = ?").bind(op),
   ]);
-  return {token, id, expires_at};
+  if (result[0].meta.changes !== 1) throw new ApiError(403,"not_verified","This sign-in stopped working. Start again.");
+  return {token,id,expires_at};
 }
+
 export async function listReaders(db: D1Database) {
   return (await db.prepare("SELECT r.id, r.name, r.revoked, r.created_at, i.expires_at, i.used_at FROM readers r LEFT JOIN reader_invites i ON i.reader_id = r.id ORDER BY r.created_at").all()).results;
 }
