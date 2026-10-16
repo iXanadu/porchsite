@@ -83,8 +83,22 @@ site's OAuth connector, and pictures held as files. In order:
   creates their own passkey; read published pages only; owner lists and
   revokes. Reader passkeys and sessions in NEW tables (an older release must
   never see a reader as the owner). Rollback guard: while private, updates
-  refuse releases older than the first one with private mode. Security
+  refuse releases older than the first one with private mode, through every
+  path (update screen, assistant, connector). Revoking a reader ends their
+  sessions at once (tested). Visitors get a fully blank page, no sign-in
+  link; only the owner invites; invites last 7 days, single use. Security
   threat model before code.
+- **OR-1** OPEN (needed before a private site holds real content): owner
+  recovery is unspecified. Extra devices work (add-a-passkey link) and
+  synced passkeys survive a lost phone, but an owner who loses every
+  passkey has no way back in short of editing the database. Spec a
+  recovery path from the hosting account (a one-time stored code, like
+  setup) and document it in INSTALL.md.
+- **DR-1** OPEN: a per-project diary of sprint reports for people to read,
+  no expiry, pruned now and then; memory stays the source of truth.
+  Propose the shape first, short.
+- **DOC-1** OPEN: about ten broken `/docs/...` links in the "For
+  developers" and "For assistants" entries on the product site.
 
 ## DEGRADING
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
