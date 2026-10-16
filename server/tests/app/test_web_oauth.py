@@ -13,9 +13,11 @@ import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+import pytest
+
 from server.app import oauth
 
-from .web import Mcp, claimed, signed_in
+from .web import Mcp, claimed, signed_in, session_hash
 
 REDIRECT = "http://127.0.0.1:33418/callback"
 
@@ -194,13 +196,15 @@ async def test_bad_requests(db, http):
     assert q["error"] == ["invalid_request"] and q["state"] == ["s1"]
     wrong = await http.get(authorize_url(client["client_id"], "x", resource="https://other.example/mcp"), cookies=cookies)  # fmt: skip
     assert parse_qs(urlsplit(wrong.headers["location"]).query)["error"] == ["invalid_target"]
-    # A form without its consent cookie is refused.
+    # A present but incorrect consent cookie is still refused.
     _, challenge = pkce()
     page = await http.get(authorize_url(client["client_id"], challenge), cookies=cookies)
     handle = re.search(r'name="handle" value="([^"]+)"', page.text).group(1)
     http.cookies.clear()
     forged = await http.post(
-        "/authorize", data={"handle": handle, "decision": "approve"}, cookies=cookies
+        "/authorize",
+        data={"handle": handle, "decision": "approve"},
+        cookies={**cookies, "__Host-oauth-consent": "wrong"},
     )
     assert forged.status_code == 400 and "expired" in forged.text
 
@@ -222,3 +226,51 @@ async def test_the_cli_mints_a_token(test_dsn, db, http):
     assert any(
         g["metadata"]["client"] == "Conformance" for g in await oauth.list_user_grants(db, "owner")
     )
+
+
+@pytest.mark.parametrize("decision", ["approve", "deny"])
+async def test_missing_consent_cookie_uses_only_owner_session(db, http, decision):
+    owner = await signed_in(db)
+    client = await register(http)
+    _, challenge = pkce()
+    url = authorize_url(client["client_id"], challenge)
+
+    async def page():
+        response = await http.get(url, cookies=owner)
+        assert response.status_code == 200
+        return re.search(r'name="handle" value="([^"]+)"', response.text)[1], response.cookies.get(
+            "__Host-oauth-consent"
+        )
+
+    async def post(handle, cookies):
+        http.cookies.clear()
+        return await http.post(
+            "/authorize", data={"handle": handle, "decision": decision}, cookies=cookies
+        )
+
+    handle, _ = await page()
+    assert (await post(handle, {})).status_code == 303
+    await db.execute(
+        "INSERT INTO readers (id,name,created_at) VALUES ('consent-reader','Reader','2026-10-16') ON CONFLICT DO NOTHING"
+    )
+    await db.execute(
+        "INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) VALUES ('reader-key','consent-reader',$1,0,'[]','2026-10-16') ON CONFLICT DO NOTHING",
+        b"key",
+    )
+    await db.execute(
+        "INSERT INTO reader_sessions (token_hash,reader_id,credential_id,epoch,created_at,expires_at) VALUES ($1,'consent-reader','reader-key',0,'2026-10-16','2099-01-01') ON CONFLICT DO NOTHING",
+        session_hash("reader-consent-token"),
+    )
+    refused = await post(handle, {"__Host-sk_reader": "reader-consent-token"})
+    assert refused.status_code == 303 and refused.headers["Location"] == "/"
+    assert (await post(handle, {**owner, "__Host-oauth-consent": "wrong"})).status_code == 400
+    done = await post(handle, owner)
+    assert done.status_code == 302
+    assert ("code" if decision == "approve" else "error") in parse_qs(
+        urlsplit(done.headers["Location"]).query
+    )
+    assert (await post(handle, owner)).status_code == 400
+    await page()
+    other, _ = await page()
+    # The owner is allowed to answer a different valid handle they minted.
+    assert (await post(other, owner)).status_code == 302

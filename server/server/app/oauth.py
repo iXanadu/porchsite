@@ -440,15 +440,21 @@ CLEAR_CONSENT = f"{CONSENT_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max
 
 
 async def _take_consent(db: Db, req: Request, handle: str) -> dict[str, Any]:
-    from .owner import cookie
+    from .owner import cookie, signed_in
 
-    binding = cookie(req, CONSENT_COOKIE) or ""
+    binding = cookie(req, CONSENT_COOKIE)
+    # In-app sheets may drop this cookie. A valid owner session still binds
+    # the browser: consent GET/POST require it, and SameSite=Lax excludes
+    # cross-site POSTs. Owners can answer another valid handle they minted,
+    # even if not displayed; missing cookies cannot distinguish those pages.
+    owner_bound = binding is None and await signed_in(db, req)
     row = await db.fetchrow(
-        "DELETE FROM oauth_consents WHERE handle_hash = $1 AND binding_hash = $2 AND expires_at > $3"
+        "DELETE FROM oauth_consents WHERE handle_hash = $1 AND (binding_hash = $2 OR $4) AND expires_at > $3"
         " RETURNING request",
         _hash(handle),
-        _hash(binding),
+        _hash(binding or ""),
         int(time.time()),
+        owner_bound,
     )
     if not row:
         raise AuthorizationError(

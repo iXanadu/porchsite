@@ -501,13 +501,27 @@ async function authorizePost(env: Env, req: Request): Promise<Response> {
   if (gate) return gate;
   try {
     const oauth = env.OAUTH_PROVIDER;
-    const form = await req.formData();
+    const form = await req.clone().formData();
     const handle = String(form.get("handle") ?? "");
+    // Some in-app sheets drop the consent cookie on POST. The owner session
+    // already binds this browser: consent GET and POST both require it, and
+    // SameSite=Lax excludes it from cross-site POSTs. Only the owner can mint
+    // handles; another valid handle they minted need not be the displayed one.
+    // Keep present cookies (even wrong ones) and all library handle/TTL/use checks.
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(handle))),b=>b.toString(16).padStart(2,"0")).join("");
+    const bindingName = `__Host-oauth-consent-${hash.slice(0,16)}`;
+    let consentReq = req;
+    if (cookieValue(req,bindingName) === null) {
+      const headers = new Headers(req.headers);
+      headers.set("Cookie",[headers.get("Cookie"),`${bindingName}=${hash}`].filter(Boolean).join("; "));
+      consentReq = new Request(req,{headers});
+    }
+
     if (form.get("decision") !== "approve") {
-      const denied = await oauth.denyConsent(req, handle);
+      const denied = await oauth.denyConsent(consentReq, handle);
       return new Response(null, { status: 302, headers: denied.headers });
     }
-    const approved = await oauth.approveConsent(req, handle);
+    const approved = await oauth.approveConsent(consentReq, handle);
     const client = await oauth.lookupClient(approved.request.clientId);
     const label = String(form.get("label") ?? "").trim().slice(0, 40);
     const name = (label || client?.clientName || approved.request.clientId).slice(0, 80);

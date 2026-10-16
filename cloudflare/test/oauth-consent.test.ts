@@ -74,3 +74,32 @@ describe("connecting an assistant", () => {
     expect(await ok.text()).toContain('"serverInfo"');
   });
 });
+
+it.each(["approve", "deny"])("uses only the owner session when the %s consent cookie is missing", async decision => {
+  const owner = await signedIn();
+  const reg = await go("/oauth/register", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_name:"Consent app",redirect_uris:[REDIRECT],token_endpoint_auth_method:"none"})});
+  const {client_id} = await reg.json() as {client_id:string};
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("v".repeat(43)))));
+  const q = new URLSearchParams({response_type:"code",client_id,redirect_uri:REDIRECT,state:"fallback",scope:"site:draft",code_challenge:challenge,code_challenge_method:"S256"});
+  const consent = async () => {
+    const page = await go(`/authorize?${q}`,{headers:{Cookie:owner}});
+    expect(page.status).toBe(200);
+    return {handle:/name="handle" value="([^"]+)"/.exec(await page.text())![1],cookie:(page.headers.get("Set-Cookie") ?? "").split(";")[0]};
+  };
+  const post = (handle:string,cookie:string) => go("/authorize",{method:"POST",headers:{Cookie:cookie,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({handle,decision})});
+  const first = await consent();
+  expect((await post(first.handle,"")).status).toBe(303);
+  const token="reader-consent-token", hash=b64url(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token))));
+  await e.DB.prepare("INSERT OR IGNORE INTO readers (id,name,created_at) VALUES ('consent-reader','Reader','2026-10-16')").run();
+  await e.DB.prepare("INSERT OR IGNORE INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) VALUES ('reader-key','consent-reader',?,0,'[]','2026-10-16')").bind(new Uint8Array([1])).run();
+  await e.DB.prepare("INSERT OR IGNORE INTO reader_sessions (token_hash,reader_id,credential_id,epoch,created_at,expires_at) VALUES (?,'consent-reader','reader-key',0,'2026-10-16','2099-01-01')").bind(hash).run();
+  const refused=await post(first.handle,`__Host-sk_reader=${token}`);expect(refused.status).toBe(303);expect(refused.headers.get("Location")).toBe("/");
+  const wrongCookie=first.cookie.split("=")[0]+"=wrong";
+  expect((await post(first.handle,`${owner}; ${wrongCookie}`)).status).toBe(400);
+  const done=await post(first.handle,owner);expect(done.status).toBe(302);
+  const back=new URL(done.headers.get("Location")!);expect(back.searchParams.has(decision==="approve"?"code":"error")).toBe(true);
+  expect((await post(first.handle,owner)).status).toBe(400);
+  // An owner may answer another handle they minted, despite this page's cookie.
+  const displayed=await consent(),other=await consent();
+  expect((await post(other.handle,`${owner}; ${displayed.cookie}`)).status).toBe(302);
+});
