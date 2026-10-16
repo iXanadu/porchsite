@@ -255,6 +255,9 @@ owner add-passkey and reader links match `/passkey/<token>` and
 `/invite/<token>` (GET/HEAD), with only `/options` and `/verify` suffixes
 (POST). Tokens match exactly 32 characters from `[A-Za-z0-9_-]`. These
 links retain capability authorization without site-content decoration.
+Cancellation and replacement of sign-in tokens serialize with issuance.
+Every issuance checks that its conditional token consumption affected one row
+in the same transaction as credential/session creation; zero rows refuses.
 Unknown paths, extra segments, malformed tokens and unmatched methods are
 gated. Independently of the route allowlist, every request-backed live-view
 renderer and themed not-found fallback rechecks private-site access before
