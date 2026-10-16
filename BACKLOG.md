@@ -81,6 +81,10 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **PV-4** OPEN: after owner recovery, tell the owner to review their
+  readers (a reader enrolled from a stolen owner device keeps a working
+  passkey). Recovery already cancels unused invites. Found in review,
+  2026-10-16.
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
   re-stores them without it, plus a changelog note. First after the passkey release.
