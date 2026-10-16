@@ -242,9 +242,24 @@ responses, errors and redirects, is `private, no-store`; conditional requests
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 
-Open paths remain `/login`, `/setup`, `/recover`, `/mcp`, `/authorize`,
-`/oauth/*` and `/.well-known/*`; uploads and owner add-passkey links retain
-their capability authorization without site-content decoration. Anonymous
+Open paths are an exact route-and-method allowlist, never whole prefixes:
+GET/HEAD `/login`, `/setup`, `/recover`, `/.well-known/porchsite-release`;
+POST `/login/options`, `/login/verify`, `/setup/options`, `/setup/verify`,
+`/recover/options`, `/recover/verify`; and the concrete protocol endpoints
+`/mcp`, `/authorize`, `/oauth/token`, `/oauth/register`,
+`/.well-known/oauth-authorization-server`,
+`/.well-known/oauth-protected-resource` and
+`/.well-known/oauth-protected-resource/mcp`. Protocol handlers retain their
+own method checks. Upload links match `/upload/<token>` (GET/HEAD/POST),
+owner add-passkey and reader links match `/passkey/<token>` and
+`/invite/<token>` (GET/HEAD), with only `/options` and `/verify` suffixes
+(POST). Tokens match exactly 32 characters from `[A-Za-z0-9_-]`. These
+links retain capability authorization without site-content decoration.
+Unknown paths, extra segments, malformed tokens and unmatched methods are
+gated. Independently of the route allowlist, every request-backed live-view
+renderer and themed not-found fallback rechecks private-site access before
+constructing any site view; an anonymous private request returns the same
+blank response even if routing wrongly lets it reach that renderer. Anonymous
 `/authorize` retains its owner login redirect. Readers on `/review` or
 `/authorize` receive 303 to `/`; their login destination is always `/`.
 Readers cannot approve, import, revert, invite, create owner passkeys, use
