@@ -35,16 +35,19 @@ Found building a single-property listing site on the live release.
   hits use no CPU), the site's own table if that can't be switched on
   through the API upload. Also takes page views off the free plan's daily
   database-read limit. Owner decides after the plan.
-- **S4-10** OPEN: The assistant connection's newer message format (what
-  real connectors send) still takes the slow library path: 13-64 ms per
-  request hosted. Log which path each connector uses, then give that
-  format the same fast path, proven byte-identical.
-
-## READY FOR ASSISTANTS (a four-assistant install test, 2026-10-12)
-Porchsite works end to end for an assistant built like the one it was
-developed with (own machine, open network, a local file passed into a tool
-call). Consumer assistants broke on network blocks, the 1.6 MB upload, the
-site's OAuth connector, and pictures held as files. In order:
+- **S4-10** OPEN (designed 2026-10-16): most newer-format requests already
+  take the Cloudflare fast path; the SDK still handles the 2026-07-28 format
+  and requests with extras (_meta, initialize capabilities, ping,
+  notifications/initialized). Step 1: log which path each /mcp request takes
+  (path, fallback reason, method, version, app's public name; never the
+  owner's label, tokens or params). Step 2: widen the fast path only for
+  shapes proven byte-identical to the SDK on a shared fixture set. The
+  server edition has no fast path; add one only if its timings call for it.
+  No reconnect.
+- **MCP-1** OPEN: /mcp refuses every request carrying an Origin header,
+  even the site's own (`403 Invalid Origin`), so browser-hosted assistant
+  apps can't connect. Keep DNS-rebinding protection but accept the site's
+  own origin (and decide on others). Both editions. Found 2026-10-16.
 - **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
