@@ -111,7 +111,9 @@ one; the database needs no step back.
 
 A look does not make a site private. Propose `site.private: true` separately;
 only the owner can approve it. A private site's visitors get a blank page,
-including feeds, search, sitemap and media. Invite readers through
+including feeds, search, sitemap and media. The blank response deliberately
+uses HTTP status 404 so search engines and link previews treat it as absent.
+Invite readers through
 `/review/readers`; each saves their own passkey. Reader access is published
 pages only. Revoking ends authorizations made after it commits, including
 old sessions; already delivered or authorized in-flight copies remain.
