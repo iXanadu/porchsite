@@ -8,10 +8,24 @@ export async function brokerData(db: D1Database, version: number, live: boolean)
     throw error;
   }
 }
+export async function privateData(db: D1Database, version: number, live: boolean): Promise<boolean> {
+  const row = await db.prepare("SELECT value,approved FROM site_fields WHERE version = ? AND key = 'private'").bind(version).first<any>();
+  return !!row && JSON.parse(row.value) === true && (!live || (!!row.approved && !!await db.prepare("SELECT 1 FROM private_approvals WHERE version = ?").bind(version).first()));
+}
 export function brokerWrite(db: D1Database, version: number, data: Record<string,unknown>): D1PreparedStatement {
-  return db.prepare("INSERT INTO site_fields (version, key, value) SELECT version, 'broker', ? FROM items WHERE id = 'site' AND version = ? AND changes() = 1 AND ? <> ''")
-    .bind(JSON.stringify(data.broker ?? ""), version, String(data.broker ?? ""));
+  // One statement retains the successful version-write precondition for both fields.
+  return db.prepare(`INSERT INTO site_fields (version,key,value)
+    SELECT i.version,f.key,f.value FROM items i CROSS JOIN
+    (SELECT 'broker' AS key, ? AS value UNION ALL SELECT 'private', ?) f
+    WHERE i.id = 'site' AND i.version = ? AND changes() = 1
+    AND ((f.key = 'broker' AND f.value <> '\"\"') OR (f.key = 'private' AND f.value = 'true'))`)
+    .bind(JSON.stringify(data.broker ?? ""), JSON.stringify(data.private === true), version);
 }
 export function fieldsApproval(db: D1Database, version: number): D1PreparedStatement {
   return db.prepare("UPDATE site_fields SET approved = 1 WHERE version = ? AND EXISTS (SELECT 1 FROM live WHERE item_id = 'site' AND version = ?)").bind(version, version);
+}
+
+/** Previous releases approve every site_fields key; only this receipt proves a new-code approval. */
+export function privateApproval(db: D1Database,version: number): D1PreparedStatement {
+  return db.prepare("INSERT OR IGNORE INTO private_approvals (version) SELECT f.version FROM site_fields f JOIN live l ON l.version = f.version AND l.item_id = 'site' WHERE f.version = ? AND f.key = 'private' AND f.approved = 1").bind(version);
 }

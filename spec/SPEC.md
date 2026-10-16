@@ -195,8 +195,8 @@ looks ignore it. `site_state`, review, history and restore expose the logical
 field at its exact site version.
 
 Store extensible site fields in additive `site_fields` rows keyed by
-`(version, key)`, with a JSON value and an approval mark. Initially the only
-key is `broker`; the table is not an arbitrary input-key escape hatch.
+`(version, key)`, with a JSON value and an approval mark. The allowlisted
+keys are `broker` and `private`; the table is not an arbitrary input-key escape hatch.
 `SiteData` and all persisted items/revisions/live JSON retain the previous
 release's strict key set. A normal site content write stores the logical
 field alongside the same immutable version. Only owner publish marks that
@@ -222,7 +222,7 @@ Both editions accept optional boolean `site.private` (default false) as an
 allowlisted exact-version `site_fields` key. It never enters legacy item,
 revision or live JSON. Only owner approval publishes the field; absent or
 false at that live version is public, with no inheritance from older versions.
-Import refuses a site `private` key before saving anything. Review, site-item
+New-code approval also writes an exact-version receipt in a NEW table; the gate requires it, because prior code marks every site_fields key approved. A prior runtime cannot create that receipt. Import refuses a site `private` key before saving anything. Review, site-item
 rollback and whole-site revert prominently say **This makes the site public.**
 when the proposed version would turn private off. When turning private on,
 tell the owner that earlier search-engine copies and pictures already fetched

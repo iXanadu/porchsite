@@ -22,6 +22,8 @@ import * as keys from "./keys";
 import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
 import * as owner from "./owner";
+import * as privacy from "./privacy";
+import { RELEASE } from "./home";
 import * as requests from "./requests";
 import * as sharecards from "./sharecards";
 import * as site from "./site";
@@ -56,7 +58,7 @@ function ownerPage(title: string, body: Raw, opts: { signedIn?: boolean; script?
   const r = respond(
     html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>${title}</title><style>${raw(OWNER_CSS)}</style></head><body><div class="wrap">
-<header><a href="/" style="margin:0">← Site</a>${opts.signedIn ? html`<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a></span>` : ""}</header>
+<header><a href="/" style="margin:0">← Site</a>${opts.signedIn ? html`<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a><a href="/review/readers">Readers</a></span>` : ""}</header>
 ${body}</div>${opts.script ? raw(`<script nonce="${n}">${opts.script}</script>`) : ""}</body></html>`,
     {
       status: opts.status,
@@ -71,13 +73,13 @@ ${body}</div>${opts.script ? raw(`<script nonce="${n}">${opts.script}</script>`)
 
 /** A sign-in's answer also marks the browser as not counted by analytics. */
 function signedInJson(cookie: string): Response {
-  const r = json({ ok: true }, 200, { "Set-Cookie": cookie });
+  const r = json({ ok: true, reader: cookie.startsWith(owner.READER_COOKIE + "=") }, 200, { "Set-Cookie": cookie });
   r.headers.append("Set-Cookie", analytics.NOTRACK_SET);
   return r;
 }
 
 /** The passkey ceremony: JSON in, JSON out, then go to `next`. */
-const PASSKEY_JS = (kind: "setup" | "login" | "add", next: string, base: string = kind) => `
+const PASSKEY_JS = (kind: "setup" | "login" | "add" | "invite" | "recover", next: string, base: string = kind) => `
 const form = document.querySelector("form"), err = document.querySelector(".error");
 form.addEventListener("submit", async (e) => {
   e.preventDefault(); err.hidden = true;
@@ -92,7 +94,7 @@ form.addEventListener("submit", async (e) => {
       : `await navigator.credentials.get({ publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(j.options) })`};
     const v = await fetch("/${base}/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cred.toJSON()) });
     const k = await v.json(); if (!v.ok) return say(k.message);
-    location.href = ${JSON.stringify(next)};
+    if (k.reader) location.href = "/"; else location.href = ${JSON.stringify(next)};
   } catch (x) { say(x && x.name === "NotAllowedError" ? "Cancelled. Try again when you're ready." : String(x)); }
 });`;
 
@@ -109,6 +111,7 @@ function safeNext(next: string | null): string {
 
 async function requireOwner(req: Request, env: Env): Promise<Response | null> {
   if (await owner.signedIn(env.DB, req)) return null;
+  if (await owner.readerSignedIn(env.DB, req)) return new Response(null,{status:303,headers:{Location:"/"}});
   const u = new URL(req.url);
   if (!(await owner.hasOwner(env.DB))) return Response.redirect(`${u.origin}/setup`, 303);
   return Response.redirect(`${u.origin}/login?next=${encodeURIComponent(u.pathname + u.search)}`, 303);
@@ -365,7 +368,7 @@ ${it.status === "pending"
   return ownerPage(
     "Review changes",
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
-${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}
+${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
 ${raised.map((r) => html`<p class="warn">${raiseLine(r)}</p>`)}
 ${pending ? html`<p>${sentence} Nothing changes until you approve. Look first:</p><p><a class="button" href="/review/${a.id}/preview">See the site as it will look</a></p>` : ""}
 <form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}">
@@ -869,7 +872,7 @@ async function revertPage(env: Env, req: Request, id: number, error = ""): Promi
   return ownerPage(
     "Put the site back",
     html`<h1>Put the site back?</h1><p>Back to how it was after the change on ${when(publish.created_at)}.</p>${error ? html`<p class="error">${error}</p>` : ""}
-${raw(await embedReviewFor(env.DB, plan, new URL(req.url).origin))}
+${raw(await embedReviewFor(env.DB, plan, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,plan))}
 ${plan.length
   ? html`<div class="card">${plan.map(
       (c) =>
@@ -925,9 +928,13 @@ const BEACON_HEADERS = { "Content-Type": "text/javascript; charset=utf-8", "Cach
  * answered with the GET's status and headers. (Routes test for GET alone.)
  */
 export async function handle(req: Request, env: Env): Promise<Response> {
-  if (req.method !== "HEAD") return await route(req, env);
-  const res = await route(new Request(req, { method: "GET" }), env);
-  return new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers });
+  const access = await privacy.access(env.DB,req);
+  const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
+  let res = access.response ?? await route(get,env);
+  if (access.isPrivate && access.gated) res = privacy.noStore(res);
+  if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");res.headers.set("Cache-Control","no-store");}
+  if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
+  return res;
 }
 
 // Every handler is awaited inside the try, so a refusal it throws reaches the
@@ -937,6 +944,19 @@ async function route(req: Request, env: Env): Promise<Response> {
   const path = url.pathname;
   const m = req.method;
   try {
+    if (path === "/.well-known/porchsite-release" && m === "GET") return json({release:RELEASE,private_floor:await privacy.privateFloor(env.DB,RELEASE)},200,privacy.PRIVATE_HEADERS);
+    if (path === "/recover" && m === "GET") return await recoveryPage(req,env);
+    if (path === "/recover/options" && m === "POST") {
+      const body: any = await req.json(); const r = await owner.recoverOptions(env.DB,req,String(body.code ?? ""));
+      return json({options:r.options},200,{"Set-Cookie":r.setCookieHeader,...SETUP_HEADERS});
+    }
+    if (path === "/recover/verify" && m === "POST") return signedInJson(await owner.recoverVerify(env.DB,req,await req.json()));
+    const invite = /^\/invite\/([A-Za-z0-9_-]{32})(\/options|\/verify)?$/.exec(path);
+    if (invite && !invite[2] && m === "GET") return ownerPage("Reader invitation",html`<h1>Read this site</h1><p>Create your own passkey to read published pages. This does not give you owner access.</p><form><p class="error" hidden></p><button>Create reader passkey</button></form>`,{headers:SETUP_HEADERS,script:'history.replaceState(null,"","/login");\n'+PASSKEY_JS("invite","/",`invite/${invite[1]}`)});
+    if (invite && invite[2] === "/options" && m === "POST") {
+      const r = await owner.inviteOptions(env.DB,req,invite[1]); return json({options:r.options},200,{"Set-Cookie":r.setCookieHeader,...SETUP_HEADERS});
+    }
+    if (invite && invite[2] === "/verify" && m === "POST") return signedInJson(await owner.inviteVerify(env.DB,req,await req.json()));
     // The kit's beacon, whatever the site's look.
     if (path === "/static/a.js" && m === "GET") return new Response(BEACON_JS, { headers: BEACON_HEADERS });
     if (path === "/collect" && m === "POST") return await collectBeacon(env, req);
@@ -1019,6 +1039,7 @@ async function route(req: Request, env: Env): Promise<Response> {
     if (path === "/review" || path.startsWith("/review/")) {
       const gate = await requireOwner(req, env);
       if (gate) return gate;
+      if (path === "/review/readers") return await readersPage(req,env);
       if (path === "/review" && m === "GET") return await reviewIndex(env, req);
       // Share cards: the owner's browser draws them (sharecards.ts).
       if (path === "/review/import") {
@@ -1105,4 +1126,32 @@ async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;da
   const live = await approvals.liveWith(db, []), proposed = new Map(live.map(r=>[r.id,r]));
   for(const c of changes) { if(c.deleted) proposed.delete(c.id); else proposed.set(c.id,c); }
   return embedReview(live,[...proposed.values()],changes,origin);
+}
+
+async function recoveryPage(req: Request,env: Env): Promise<Response> {
+  if (!(await owner.hasOwner(env.DB))) return ownerPage("Recovery",html`<h1>This site has no owner yet.</h1>`,{status:409,headers:SETUP_HEADERS});
+  const code = (new URL(req.url).searchParams.get("code") ?? "").slice(0,200);
+  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>This replaces every owner passkey, ends all owner and reader sessions, and removes unused owner passkey links. Reader passkeys are kept. Already delivered or authorized in-flight copies cannot be recalled.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Replace owner passkeys</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
+}
+async function readersPage(req: Request,env: Env): Promise<Response> {
+  const csrf = await owner.csrf(req); let link = "";
+  if (req.method === "POST") {
+    const form = await req.formData(); if (form.get("csrf") !== csrf) throw new ApiError(403,"csrf","This form expired. Try again.");
+    const id = String(form.get("id") ?? "");
+    if (form.get("action") === "revoke") await owner.revokeReader(env.DB,id);
+    else if (form.get("action") === "revoke-invite") await owner.revokeInvite(env.DB,id);
+    else { const invite = await owner.createReaderInvite(env.DB,String(form.get("name") ?? "Reader")); link = new URL(`/invite/${invite.token}`,req.url).href; }
+  }
+  const readers: any[] = await owner.listReaders(env.DB);
+  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>${readers.map(r=>html`<section class="card"><h2>${r.name}</h2><p>${r.revoked ? "Revoked" : r.used_at ? "Passkey registered" : "Invitation pending"}</p><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}"><button name="action" value="revoke">Revoke reader</button><button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button></form></section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
+}
+
+async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:Record<string,any>;deleted?:boolean}[]): Promise<string> {
+  const live = await privacy.livePrivate(db);let out="";
+  for (const item of proposed) if (item.kind === "site") {
+    const mode = !!item.data.private && !item.deleted;
+    if (live && !mode) out += '<h2 class="warn">This makes the site public.</h2>';
+    else if (mode && !live) out += '<p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>';
+  }
+  return out;
 }

@@ -48,6 +48,7 @@ export async function importFile(db: D1Database, text: string): Promise<{ approv
   }
   if (!file || file.porchsite_import !== 1 || !Array.isArray(file.items)) throw new ApiError(422, "invalid", 'That isn\'t a Porchsite import file: it needs "porchsite_import": 1 and "items".');
   if (!file.items.length || file.items.length > MAX_ITEMS) throw new ApiError(422, "invalid", `An import has 1 to ${MAX_ITEMS} items.`);
+  if (file.items.some((it: any) => it?.kind === "site" && it.data && Object.hasOwn(it.data, "private"))) throw new ApiError(422,"invalid","An import file cannot change private mode. Propose this separately for owner approval.");
   const actor = `assistant:${String(file.from ?? "import").trim().slice(0, 40) || "import"}`;
 
   // Pictures first: each is checked and stored like any upload.

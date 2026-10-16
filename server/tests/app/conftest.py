@@ -29,7 +29,7 @@ if not ADMIN_DSN:
     )
 
 TABLES = (
-    "site_fields, site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
+    "private_approvals, owner_session_auth, auth_operations, readers, reader_passkeys, reader_sessions, reader_invites, recovery_codes, site_fields, site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
     "challenges, media, uploads, passkey_links, themes, request_proofs, theme_requests, "
     "theme_submissions, oauth_clients, oauth_grants, oauth_tokens, oauth_consents, analytics_salts, pageviews, slug_history, old_addresses, setup_codes, kv_cache, analytics_daily, share_cards, assistant_keys"
 )
@@ -99,6 +99,7 @@ def fresh_tables(test_dsn):
         c = await asyncpg.connect(test_dsn)
         try:
             await c.execute(f"TRUNCATE {TABLES} RESTART IDENTITY")
+            await c.execute("UPDATE auth_state SET owner_epoch = 0, private_floor = '' WHERE id = 1")
         finally:
             await c.close()
 

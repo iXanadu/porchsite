@@ -7,6 +7,7 @@
   },
   "fields": {
     "site": {
+      "private": "Require an owner or invited reader passkey to read published pages; only owner approval changes this",
       "broker": "plain-text brokerage line; Listing footer only; owner approval required",
       "embed_sources": "approved HTTPS player origins; adding or removing one requires owner approval",
       "title": "site name, shown top left and in the browser tab",

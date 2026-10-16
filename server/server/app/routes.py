@@ -21,6 +21,7 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from . import privacy
 from . import (
     analytics,
     approvals,
@@ -148,7 +149,7 @@ def owner_page(
 ) -> Response:
     n = nonce()
     nav = (
-        '<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a></span>'
+        '<span><a href="/review">Review</a><a href="/review/write">Write</a><a href="/review/stats">Stats</a><a href="/review/history">History</a><a href="/review/assistants">Assistants</a><a href="/review/passkeys">Passkeys</a><a href="/review/readers">Readers</a></span>'
         if signed_in
         else ""
     )
@@ -177,7 +178,7 @@ def owner_page(
 def signed_in_json(cookie: str) -> Response:
     """A sign-in's answer also marks the browser as not counted by analytics."""
     return json_response(
-        {"ok": True}, headers=[("Set-Cookie", cookie), ("Set-Cookie", analytics.NOTRACK_SET)]
+        {"ok": True, "reader": cookie.startswith(owner.READER_COOKIE + "=")}, headers=[("Set-Cookie", cookie), ("Set-Cookie", analytics.NOTRACK_SET)]
     )
 
 
@@ -202,7 +203,7 @@ form.addEventListener("submit", async (e) => {{
     const cred = {cred};
     const v = await fetch("/{base}/verify", {{ method: "POST", headers: {{ "content-type": "application/json" }}, body: JSON.stringify(cred.toJSON()) }});
     const k = await v.json(); if (!v.ok) return say(k.message);
-    location.href = {json.dumps(next)};
+    if (k.reader) location.href = "/"; else location.href = {json.dumps(next)};
   }} catch (x) {{ say(x && x.name === "NotAllowedError" ? "Cancelled. Try again when you're ready." : String(x)); }}
 }});"""
 
@@ -246,6 +247,8 @@ def encode_uri_component(s: str) -> str:
 async def require_owner(req: Request, cx: Context) -> Response | None:
     if await owner.signed_in(cx.db, req):
         return None
+    if await owner.reader_signed_in(cx.db,req):
+        return redirect("/",303)
     o = origin_of(req)
     if not await owner.has_owner(cx.db):
         return redirect(f"{o}/setup", 303)
@@ -639,6 +642,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
     )
     raised = await visibility.raises(cx.db, waiting)
     embed_warn = await _embed_review_for(cx.db, embed_changes, origin_of(req))
+    embed_warn += await _private_review_warning(cx.db, embed_changes)
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
         f"{esc(who)} has {count} change{'' if count == 1 else 's'} for your site"
@@ -1314,6 +1318,7 @@ async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Re
     p = await history.plan(cx.db, id)
     plan = p["changes"]
     embed_warn = await _embed_review_for(cx.db, plan, origin_of(req))
+    embed_warn += await _private_review_warning(cx.db, plan)
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:
         listed = "".join(
@@ -1415,19 +1420,44 @@ async def _json_body(req: Request) -> Any:
 
 
 async def handle(req: Request, cx: Context) -> Response:
-    """HEAD is GET without the body, on every address: it is routed as a GET
-    and answered with the GET's status and headers. (Routes test for GET alone.)"""
-    if req.method != "HEAD":
-        return await _route(req, cx)
-    resp = await _route(Request({**req.scope, "method": "GET"}, req.receive), cx)
-    resp.body = b""
-    return resp
+    is_private,gated,response = await privacy.access(cx.db,req)
+    get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
+    if response is None:
+        response = await _route(get,cx)
+    if is_private and gated:
+        response = privacy.no_store(response)
+    if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
+        response.headers["Referrer-Policy"]="no-referrer"
+        response.headers["Cache-Control"]="no-store"
+    if req.method == "HEAD":
+        response.body = b""
+    return response
 
 
 async def _route(req: Request, cx: Context) -> Response:
     path = _path(req)
     m = req.method
     try:
+        if path == "/.well-known/porchsite-release" and m == "GET":
+            response = json_response({"release":cx.release,"private_floor":await privacy.private_floor(cx.db,cx.release)})
+            response.headers["Cache-Control"]="private, no-store"
+            return response
+        if path == "/recover" and m == "GET":
+            return await recovery_page(req,cx)
+        if path == "/recover/options" and m == "POST":
+            body = await _json_body(req)
+            options,cookie = await owner.recover_options(cx.db,req,str(body.get("code") or ""))
+            return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
+        if path == "/recover/verify" and m == "POST":
+            return signed_in_json(await owner.recover_verify(cx.db,req,await _json_body(req)))
+        invite = re.fullmatch(r"/invite/([A-Za-z0-9_-]{32})(/options|/verify)?",path)
+        if invite and not invite.group(2) and m == "GET":
+            return owner_page("Reader invitation",'<h1>Read this site</h1><p>Create your own passkey to read published pages. This does not give you owner access.</p><form><p class="error" hidden></p><button>Create reader passkey</button></form>',headers=[("Referrer-Policy","no-referrer")],script='history.replaceState(null,"","/login");\n'+passkey_js("invite","/",f"invite/{invite.group(1)}"))
+        if invite and invite.group(2) == "/options" and m == "POST":
+            options,cookie = await owner.invite_options(cx.db,req,invite.group(1))
+            return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
+        if invite and invite.group(2) == "/verify" and m == "POST":
+            return signed_in_json(await owner.invite_verify(cx.db,req,await _json_body(req)))
         # The kit's beacon, whatever the site's look.
         if path == "/static/a.js" and m == "GET":
             return Response(BEACON_JS.encode("utf-8"), headers=BEACON_HEADERS)
@@ -1533,6 +1563,8 @@ async def _route(req: Request, cx: Context) -> Response:
             gate = await require_owner(req, cx)
             if gate:
                 return gate
+            if path == "/review/readers":
+                return await readers_page(req,cx)
             if path == "/review" and m == "GET":
                 return await review_index(req, cx)
             # Share cards: the owner's browser draws them (sharecards.py).
@@ -1647,3 +1679,51 @@ async def _embed_review_for(db, changes, origin):
         else:
             proposed[c["id"]] = c
     return embed_review(live, list(proposed.values()), changes, origin)
+
+
+async def recovery_page(req,cx):
+    headers = [("Referrer-Policy","no-referrer")]
+    if not await owner.has_owner(cx.db):
+        return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
+    code = req.query_params.get("code","")[:200]
+    body = '<h1>Recover owner access</h1><p>This replaces every owner passkey, ends all owner and reader sessions, and removes unused owner passkey links. Reader passkeys are kept. Already delivered or authorized in-flight copies cannot be recalled.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Replace owner passkeys</button></form>'
+    return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review"))
+
+
+async def readers_page(req,cx):
+    csrf = owner.csrf(req)
+    link = ""
+    if req.method == "POST":
+        form = await _form(req)
+        if _field(form,"csrf") != csrf:
+            raise ApiError(403,"csrf","This form expired. Try again.")
+        id = _field(form,"id")
+        if _field(form,"action") == "revoke":
+            await owner.revoke_reader(cx.db,id)
+        elif _field(form,"action") == "revoke-invite":
+            await owner.revoke_invite(cx.db,id)
+        else:
+            invite = await owner.create_reader_invite(cx.db,_field(form,"name") or "Reader")
+            link = origin_of(req)+"/invite/"+invite["token"]
+    body = '<h1>Readers</h1><p>Invite someone to read published pages with their own passkey. Invitations last seven days and work once. Revoking ends new access immediately; copies already delivered or authorized in flight cannot be recalled.</p>'
+    if link:
+        body += f'<p class="ok">Give this one-time link privately: <a href="{esc(link)}">{esc(link)}</a></p>'
+    body += f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form>'
+    for r in await owner.list_readers(cx.db):
+        status = "Revoked" if r["revoked"] else "Passkey registered" if r["used_at"] else "Invitation pending"
+        body += f'<section class="card"><h2>{esc(r["name"])}</h2><p>{status}</p><form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}"><button name="action" value="revoke">Revoke reader</button><button class="ghost" name="action" value="revoke-invite">Cancel unused invitation</button></form></section>'
+    return owner_page("Readers",body,signed_in=True,headers=[("Referrer-Policy","no-referrer")])
+
+
+async def _private_review_warning(db, proposed):
+    live = await privacy.live_private(db)
+    out = ""
+    for item in proposed:
+        if item["kind"] != "site":
+            continue
+        mode = bool(item.get("data",{}).get("private")) and not item.get("deleted")
+        if live and not mode:
+            out += '<h2 class="warn">This makes the site public.</h2>'
+        elif mode and not live:
+            out += '<p class="warn">Earlier search-engine copies and pictures already fetched cannot be recalled. Already authorized in-flight responses may finish.</p>'
+    return out

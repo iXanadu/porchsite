@@ -58,6 +58,8 @@ async def import_file(db: Db, text: str) -> dict[str, Any]:
         raise ApiError(422, "invalid", 'That isn\'t a Porchsite import file: it needs "porchsite_import": 1 and "items".')  # fmt: skip
     if not file["items"] or len(file["items"]) > MAX_ITEMS:
         raise ApiError(422, "invalid", f"An import has 1 to {MAX_ITEMS} items.")
+    if any(isinstance(it,dict) and it.get("kind") == "site" and isinstance(it.get("data"),dict) and "private" in it["data"] for it in file["items"]):
+        raise ApiError(422,"invalid","An import file cannot change private mode. Propose this separately for owner approval.")
     actor = f"assistant:{str(file.get('from') or 'import').strip()[:40] or 'import'}"
 
     # Pictures first: each is checked and stored like any upload.

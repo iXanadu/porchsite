@@ -36,6 +36,7 @@ from .db import Db, iso, now, transaction
 from .errors import ApiError
 
 SESSION_COOKIE = "__Host-sk_owner"
+READER_COOKIE = "__Host-sk_reader"
 CHALLENGE_COOKIE = "__Host-sk_challenge"
 SESSION_DAYS = 30
 LINK_MINUTES = 15
@@ -267,7 +268,7 @@ async def setup_verify(db: Db, req: Request, setup_code: str | None, response: A
         )
         # Claimed: every setup code is done.
         await c.execute("DELETE FROM setup_codes")
-    return await _start_session(db)
+    return await _start_session(db, b64url(cred.credential_id), 0)
 
 
 # --- another passkey: a new device, or the site at a new address ---------------------
@@ -320,7 +321,7 @@ async def add_options(db: Db, req: Request, token: str) -> tuple[dict[str, Any],
     # The stored ids exactly as kept (SimpleWebAuthn passes them through as written).
     out["excludeCredentials"] = [{"id": i, "type": "public-key"} for i in ids]
     set_header = await _save_challenge(
-        db, json.dumps({"challenge": out["challenge"], "link": hash_token(token)}), "add"
+        db, json.dumps({"challenge": out["challenge"], "link": hash_token(token), "epoch": await owner_epoch(db)}), "add"
     )
     return out, set_header
 
@@ -329,24 +330,12 @@ async def add_verify(db: Db, req: Request, response: Any) -> str:
     saved = json.loads(await _take_challenge(db, req, "add"))
     cred = _verify_registration(response, saved["challenge"], req)
     at = now()
-    # Spend the link first: of two racing uses, only one gets a row back.
-    spent = await db.fetchrow(
-        "UPDATE passkey_links SET used_at = $1 WHERE token_hash = $2 AND used_at IS NULL"
-        " AND expires_at > $1 RETURNING token_hash",
-        at,
-        saved["link"],
-    )
-    if not spent:
-        raise ApiError(410, "link_used", LINK_USED)
-    await db.execute(
-        "INSERT INTO passkeys (id, public_key, counter, transports, created_at) VALUES ($1, $2, $3, $4, $5)",
-        b64url(cred.credential_id),
-        cred.credential_public_key,
-        cred.sign_count,
-        _transports(response),
-        at,
-    )
-    return await _start_session(db)
+    async def guard(c):
+        return bool(await c.fetchrow("SELECT 1 FROM passkey_links WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2", saved["link"], at))
+    async def writes(c):
+        await c.execute("UPDATE passkey_links SET used_at = $1 WHERE token_hash = $2", at, saved["link"])
+        await c.execute("INSERT INTO passkeys (id, public_key, counter, transports, created_at) VALUES ($1,$2,$3,$4,$5)", b64url(cred.credential_id), cred.credential_public_key, cred.sign_count, _transports(response), at)
+    return await _issue_session(db, "owner", b64url(cred.credential_id), saved["epoch"], new_credential=True, guard=guard, writes=writes)
 
 
 async def passkey_count(db: Db) -> int:
@@ -363,61 +352,82 @@ async def login_options(db: Db, req: Request) -> tuple[dict[str, Any], str]:
             rp_id=rp_id, user_verification=UserVerificationRequirement.REQUIRED
         )
     )
-    return out, await _save_challenge(db, out["challenge"], "login")
+    return out, await _save_challenge(db, json.dumps({"challenge": out["challenge"], "epoch": await owner_epoch(db)}), "login")
 
 
 async def login_verify(db: Db, req: Request, response: Any) -> str:
-    challenge = await _take_challenge(db, req, "login")
+    saved = json.loads(await _take_challenge(db, req, "login"))
     cred_id = str(response.get("id", "")) if isinstance(response, dict) else ""
-    row = await db.fetchrow(
-        "SELECT id, public_key, counter, transports FROM passkeys WHERE id = $1", cred_id
-    )
+    owner_key = await db.fetchrow("SELECT id,public_key,counter,transports FROM passkeys WHERE id = $1", cred_id)
+    reader_key = await db.fetchrow("SELECT p.*, r.auth_epoch,r.revoked FROM reader_passkeys p JOIN readers r ON r.id = p.reader_id WHERE p.id = $1", cred_id)
+    row = owner_key or (reader_key if reader_key and not reader_key["revoked"] else None)
     if not row:
-        raise ApiError(403, "unknown_passkey", "That passkey isn't this site's owner.")
+        raise ApiError(403, "unknown_passkey", "That passkey isn't registered for this site.")
+    expected = saved["epoch"] if owner_key else reader_key["auth_epoch"]
     rp_id, origin = rp(req)
     try:
-        result = verify_authentication_response(
-            credential=response,
-            expected_challenge=base64url_to_bytes(challenge),
-            expected_origin=origin,
-            expected_rp_id=rp_id,
-            credential_public_key=bytes(row["public_key"]),
-            credential_current_sign_count=row["counter"],
-            require_user_verification=True,
-        )
+        result = verify_authentication_response(credential=response, expected_challenge=base64url_to_bytes(saved["challenge"]), expected_origin=origin, expected_rp_id=rp_id, credential_public_key=bytes(row["public_key"]), credential_current_sign_count=row["counter"], require_user_verification=True)
     except Exception:
-        raise ApiError(403, "not_verified", "The passkey couldn't be verified.") from None
-    await db.execute(
-        "UPDATE passkeys SET counter = $1, last_used_at = $2 WHERE id = $3",
-        result.new_sign_count,
-        now(),
-        row["id"],
-    )
-    return await _start_session(db)
+        raise ApiError(403,"not_verified","The passkey couldn't be verified.") from None
+    async def writes(c):
+        table = "passkeys" if owner_key else "reader_passkeys"
+        await c.execute(f"UPDATE {table} SET counter = $1, last_used_at = $2 WHERE id = $3", result.new_sign_count, now(), cred_id)
+    return await _issue_session(db, "owner" if owner_key else "reader", cred_id, expected, reader_id=reader_key["reader_id"] if reader_key else None, writes=writes)
 
 
-async def _start_session(db: Db) -> str:
+async def owner_epoch(db):
+    return (await db.fetchval("SELECT owner_epoch FROM auth_state WHERE id = 1")) or 0
+
+
+async def _issue_session(db, role, credential, expected, *, reader_id=None, new_credential=False, guard=None, writes=None):
     token = b64url(secrets.token_bytes(32))
-    await db.execute(
-        "INSERT INTO sessions (token_hash, created_at, expires_at) VALUES ($1, $2, $3)",
-        hash_token(token),
-        now(),
-        _later(days=SESSION_DAYS),
-    )
-    return set_cookie(SESSION_COOKIE, token, SESSION_DAYS * 86400)
+    th, at, expires = hash_token(token), now(), _later(days=SESSION_DAYS)
+    async with transaction(db) as c:
+        # All issuers, recovery and revocation lock this row first.
+        epoch = await c.fetchval("SELECT owner_epoch FROM auth_state WHERE id = 1 FOR UPDATE")
+        if role == "owner":
+            valid = epoch == expected and bool(await c.fetchrow("SELECT 1 FROM owner WHERE id = 1"))
+            if not new_credential:
+                valid = valid and bool(await c.fetchrow("SELECT 1 FROM passkeys WHERE id = $1", credential))
+        else:
+            r = await c.fetchrow("SELECT auth_epoch,revoked FROM readers WHERE id = $1 FOR UPDATE", reader_id)
+            valid = bool(r) and not r["revoked"] and r["auth_epoch"] == expected
+            if not new_credential:
+                valid = valid and bool(await c.fetchrow("SELECT 1 FROM reader_passkeys WHERE id = $1 AND reader_id = $2", credential,reader_id))
+        if not valid or (guard is not None and not await guard(c)):
+            raise ApiError(403,"not_verified","This sign-in stopped working. Start again.")
+        if writes is not None:
+            await writes(c)
+        if role == "owner":
+            await c.execute("INSERT INTO sessions (token_hash,created_at,expires_at) VALUES ($1,$2,$3)",th,at,expires)
+            await c.execute("INSERT INTO owner_session_auth (token_hash,credential_id,epoch) SELECT $1,$2,owner_epoch FROM auth_state WHERE id = 1",th,credential)
+        else:
+            await c.execute("INSERT INTO reader_sessions (token_hash,reader_id,credential_id,epoch,created_at,expires_at) SELECT $1,$2,$3,auth_epoch,$4,$5 FROM readers WHERE id = $2",th,reader_id,credential,at,expires)
+    return set_cookie(SESSION_COOKIE if role == "owner" else READER_COOKIE,token,SESSION_DAYS*86400)
+
+
+async def _start_session(db, credential, expected):
+    return await _issue_session(db,"owner",credential,expected)
 
 
 async def signed_in(db: Db, req: Request) -> bool:
-    token = cookie(req, SESSION_COOKIE)
+    token = cookie(req,SESSION_COOKIE)
     if not token:
         return False
-    return bool(
-        await db.fetchrow(
-            "SELECT 1 FROM sessions WHERE token_hash = $1 AND expires_at > $2",
-            hash_token(token),
-            now(),
-        )
-    )
+    return bool(await db.fetchrow("""SELECT 1 FROM sessions s JOIN auth_state a ON a.id = 1
+        LEFT JOIN owner_session_auth m ON m.token_hash = s.token_hash
+        WHERE s.token_hash = $1 AND s.expires_at > $2 AND
+        ((m.token_hash IS NULL AND a.owner_epoch = 0) OR
+         (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))""",hash_token(token),now()))
+
+
+async def reader_signed_in(db,req):
+    token = cookie(req,READER_COOKIE)
+    if not token:
+        return False
+    return bool(await db.fetchrow("""SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
+        JOIN reader_passkeys p ON p.id = s.credential_id AND p.reader_id = r.id
+        WHERE s.token_hash = $1 AND s.expires_at > $2 AND r.revoked = 0 AND r.auth_epoch = s.epoch""",hash_token(token),now()))
 
 
 async def sign_out(db: Db, req: Request) -> str:
@@ -430,3 +440,95 @@ async def sign_out(db: Db, req: Request) -> str:
 def csrf(req: Request) -> str:
     """A per-session form token: forms posted from another site can't know it."""
     return hash_token(f"csrf:{cookie(req, SESSION_COOKIE) or ''}")[:32]
+
+
+# --- reader invitations -------------------------------------------------------
+async def create_reader_invite(db, name):
+    token, id = b64url(secrets.token_bytes(24)), b64url(secrets.token_bytes(18))
+    at, expires = now(), _later(days=7)
+    async with transaction(db) as c:
+        await c.execute("INSERT INTO readers (id,name,created_at) VALUES ($1,$2,$3)",id,name[:80],at)
+        await c.execute("INSERT INTO reader_invites (token_hash,reader_id,created_at,expires_at) VALUES ($1,$2,$3,$4)",hash_token(token),id,at,expires)
+    return {"token":token,"id":id,"expires_at":expires}
+
+
+async def list_readers(db):
+    return [dict(r) for r in await db.fetch("SELECT r.id,r.name,r.revoked,r.created_at,i.expires_at,i.used_at FROM readers r LEFT JOIN reader_invites i ON i.reader_id = r.id ORDER BY r.created_at")]
+
+
+async def revoke_reader(db,id):
+    async with transaction(db) as c:
+        await c.fetchrow("SELECT id FROM auth_state WHERE id = 1 FOR UPDATE")
+        await c.execute("UPDATE readers SET revoked = 1,auth_epoch = auth_epoch + 1 WHERE id = $1",id)
+        await c.execute("DELETE FROM reader_sessions WHERE reader_id = $1",id)
+        await c.execute("DELETE FROM reader_invites WHERE reader_id = $1",id)
+
+
+async def revoke_invite(db,id):
+    await db.execute("DELETE FROM reader_invites WHERE reader_id = $1 AND used_at IS NULL",id)
+
+
+async def invite_options(db,req,token):
+    row = await db.fetchrow("SELECT i.token_hash,r.* FROM reader_invites i JOIN readers r ON r.id = i.reader_id WHERE i.token_hash = $1 AND i.used_at IS NULL AND i.expires_at > $2 AND r.revoked = 0",hash_token(token),now())
+    if not row:
+        raise ApiError(410,"link_used","This invitation has been used or has expired.")
+    options = _options(generate_registration_options(rp_id=rp(req)[0],rp_name="Reader",user_name=row["name"] or "reader",attestation=AttestationConveyancePreference.NONE,authenticator_selection=_SELECTION,supported_pub_key_algs=ALGS))
+    header = await _save_challenge(db,json.dumps({"challenge":options["challenge"],"invite":row["token_hash"],"reader":row["id"],"epoch":row["auth_epoch"]}),"invite")
+    return options,header
+
+
+async def invite_verify(db,req,response):
+    saved = json.loads(await _take_challenge(db,req,"invite"))
+    cred = _verify_registration(response,saved["challenge"],req)
+    at = now()
+    async def guard(c):
+        return bool(await c.fetchrow("SELECT 1 FROM reader_invites WHERE token_hash = $1 AND reader_id = $2 AND used_at IS NULL AND expires_at > $3",saved["invite"],saved["reader"],at))
+    async def writes(c):
+        await c.execute("UPDATE reader_invites SET used_at = $1 WHERE token_hash = $2",at,saved["invite"])
+        await c.execute("INSERT INTO reader_passkeys (id,reader_id,public_key,counter,transports,created_at) VALUES ($1,$2,$3,$4,$5,$6)",b64url(cred.credential_id),saved["reader"],cred.credential_public_key,cred.sign_count,_transports(response),at)
+    return await _issue_session(db,"reader",b64url(cred.credential_id),saved["epoch"],reader_id=saved["reader"],new_credential=True,guard=guard,writes=writes)
+
+
+# --- recovery, issued only by the hosting account ------------------------------
+async def issue_recovery_code(db,code,hours=24):
+    if not await has_owner(db):
+        raise ApiError(409,"unclaimed","This site has no owner yet.")
+    if len(code)<32:
+        raise ApiError(400,"bad_code","Use a fresh recovery code with at least 24 random bytes.")
+    expires = _later(hours=hours)
+    async with transaction(db) as c:
+        await c.execute("DELETE FROM recovery_codes")
+        await c.execute("INSERT INTO recovery_codes (code_hash,created_at,expires_at) VALUES ($1,$2,$3)",hash_token(code),now(),expires)
+    return expires
+
+
+async def recover_options(db,req,code):
+    if not await has_owner(db):
+        raise ApiError(409,"unclaimed","This site has no owner yet.")
+    h = hash_token(code.strip())
+    row = await db.fetchrow("SELECT expires_at FROM recovery_codes WHERE code_hash = $1",h)
+    if not row:
+        raise ApiError(403,"bad_code","That setup code isn't right.")
+    if row["expires_at"]<=now():
+        raise ApiError(403,"code_expired",CODE_EXPIRED)
+    epoch = await owner_epoch(db)
+    o = await db.fetchrow("SELECT name,user_handle FROM owner WHERE id = 1")
+    options = _options(generate_registration_options(rp_id=rp(req)[0],rp_name=o["name"] or "My site",user_name=o["name"] or "owner",user_id=base64url_to_bytes(o["user_handle"]),attestation=AttestationConveyancePreference.NONE,authenticator_selection=_SELECTION,supported_pub_key_algs=ALGS))
+    header = await _save_challenge(db,json.dumps({"challenge":options["challenge"],"code":h,"epoch":epoch}),"recover")
+    return options,header
+
+
+async def recover_verify(db,req,response):
+    saved = json.loads(await _take_challenge(db,req,"recover"))
+    cred = _verify_registration(response,saved["challenge"],req)
+    at = now()
+    async def guard(c):
+        return bool(await c.fetchrow("SELECT 1 FROM recovery_codes WHERE code_hash = $1 AND expires_at > $2",saved["code"],at))
+    async def writes(c):
+        await c.execute("DELETE FROM recovery_codes WHERE code_hash = $1",saved["code"])
+        await c.execute("UPDATE auth_state SET owner_epoch = owner_epoch + 1 WHERE id = 1")
+        for table in ("passkeys","passkey_links","sessions","owner_session_auth","reader_sessions"):
+            await c.execute(f"DELETE FROM {table}")
+        await c.execute("UPDATE readers SET auth_epoch = auth_epoch + 1")
+        await c.execute("INSERT INTO passkeys (id,public_key,counter,transports,created_at) VALUES ($1,$2,$3,$4,$5)",b64url(cred.credential_id),cred.credential_public_key,cred.sign_count,_transports(response),at)
+    return await _issue_session(db,"owner",b64url(cred.credential_id),saved["epoch"],new_credential=True,guard=guard,writes=writes)
