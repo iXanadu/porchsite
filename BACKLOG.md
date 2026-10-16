@@ -71,6 +71,16 @@ site's OAuth connector, and pictures held as files. In order:
   Porchsite stays passive): a short block in the tool descriptions saying
   what Porchsite builds, which look suits whom and how approval works.
 
+## OWNER REQUESTS (2026-10-16)
+- **PB-1** OPEN: a built-in "playbook" look for a private how-to guide:
+  contents list, numbered how-tos, "If X breaks" sections, print-friendly,
+  phone first. Owner request 2026-10-16. Generic look; no content in the repo.
+- **PV-1** NEEDS-DECISION: a Porchsite site cannot be private today (every
+  approved page, feed, sitemap and media file is public). Options: a
+  Cloudflare Access gate in front of the site (no code; bypass /mcp and the
+  OAuth paths), and/or a `private` site mode (site_fields) where every public
+  route needs the owner's session and others get a blank page.
+
 ## DEGRADING
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
