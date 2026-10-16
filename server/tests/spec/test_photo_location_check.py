@@ -386,11 +386,17 @@ def raw_profile(kind, payload):
     )
 
 
-@pytest.mark.parametrize("kind", [b"exif", b"xmp"])
+@pytest.mark.parametrize("kind", [b"exif", b"xmp", b"APP1", b"8bim", b"other"])
+@pytest.mark.parametrize("payload_kind", ["exif", "tiff", "wrapped", "xmp"])
 @pytest.mark.parametrize("gps", [False, True])
 @pytest.mark.parametrize("chunk", ["text", "ztxt", "itxt", "itxt-compressed"])
-def test_imagemagick_raw_profiles(kind, gps, chunk):
-    payload = (b"Exif\0\0" + tiff(gps)) if kind == b"exif" else (GPS_XMP if gps else PLAIN_XMP)
+def test_imagemagick_raw_profiles(kind, payload_kind, gps, chunk):
+    payload = {
+        "exif": b"Exif\0\0" + tiff(gps),
+        "tiff": tiff(gps),
+        "wrapped": b"8BIM\x04\x22\0\0" + struct.pack(">I", len(tiff(gps))) + tiff(gps),
+        "xmp": GPS_XMP if gps else PLAIN_XMP,
+    }[payload_kind]
     profile = raw_profile(kind, payload)
     keyword = b"Raw profile type " + kind + b"\0"
     if chunk == "text":
@@ -415,9 +421,11 @@ def test_imagemagick_raw_profiles(kind, gps, chunk):
 @pytest.mark.parametrize(
     "profile", [b"exif\n2\n00", b"exif\n1\nzz", b"wrong\n1\n00", b"exif\n9999999\n00"]
 )
-def test_invalid_raw_profiles_are_errors(profile):
+@pytest.mark.parametrize("kind", [b"exif", b"APP1", b"8bim", b"other"])
+def test_invalid_raw_profiles_are_errors(profile, kind):
+    profile = profile.replace(b"exif", kind)
     with pytest.raises(CHECK["CheckError"]):
-        CHECK["has_location"](png(b"Raw profile type exif\0" + profile, b"tEXt"))
+        CHECK["has_location"](png(b"Raw profile type " + kind + b"\0" + profile, b"tEXt"))
 
 
 def test_gps_text_scan_is_time_bounded_on_dotted_names():

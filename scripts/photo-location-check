@@ -180,11 +180,23 @@ def png_text(name, data):
             text = inflate(text) if flag else text
     except ValueError as error:
         raise CheckError("damaged PNG text fields") from error
-    if keyword.lower() == b"raw profile type exif":
-        return "exif", raw_profile(text, b"exif")
-    if keyword.lower() == b"raw profile type xmp":
-        return "xmp", raw_profile(text, b"xmp")
+    prefix = b"raw profile type "
+    if keyword.lower().startswith(prefix):
+        return "raw", raw_profile(text, keyword[len(prefix) :].lower())
     return "xmp", text
+
+
+def raw_profile_location(data):
+    # Profile labels vary (including APP1 and 8bim). Inspect both formats;
+    # a resource wrapper may precede the TIFF header inside an EXIF profile.
+    found = xmp_location(data)
+    if data.startswith(b"Exif\0\0"):
+        return exif_location(data) or found
+    for count, match in enumerate(re.finditer(rb"II\*\x00|MM\x00\*", data)):
+        if count >= 64:
+            raise CheckError("too many EXIF headers in PNG raw profile")
+        found = exif_location(data[match.start() :]) or found
+    return found
 
 
 def has_location(data):
@@ -244,7 +256,9 @@ def has_location(data):
             elif name in (b"tEXt", b"iTXt", b"zTXt"):
                 profile, text = png_text(name, packet)
                 found = (
-                    exif_location(text) if profile == "exif" else xmp_location(text)
+                    raw_profile_location(text)
+                    if profile == "raw"
+                    else xmp_location(text)
                 ) or found
             ended = ended or name == b"IEND"
             at = end

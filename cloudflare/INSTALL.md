@@ -546,6 +546,8 @@ checked against the next one's database before it's published.
 5. Tell your person what happened, and report the problem at
    [porchsite.dev/ask](https://porchsite.dev/ask) if they agree.
 
+### Check photos for location data
+
 To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old file stays in the site's history: the owner can still see it, and approving a rollback to an older item version would publish it again. Once no published item uses the old photo, the app stops serving it publicly. Anyone or any search engine that already fetched it keeps their copy; photos were served with a one-year cache lifetime. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; exit codes are 0 for clean or private, 2 for location found, and 1 for any error or incomplete scan. An error outranks a find. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
 
 ## Private sites, recovery and rollback
