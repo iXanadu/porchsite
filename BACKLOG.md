@@ -97,6 +97,11 @@ site's OAuth connector, and pictures held as files. In order:
 - **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
+
+## DEGRADING
+- **PV-2** OPEN: /review/readers shows "Not signed in yet" for a reader who
+  signed in through their invite (first sign-in isn't recorded as last
+  sign-in). Found in the PV-1 gate, 2026-10-16.
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
   re-stores them without it, plus a changelog note. After LS-1 and S4-9.
