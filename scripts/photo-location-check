@@ -1,0 +1,556 @@
+#!/usr/bin/env python3
+"""Read-only scan of published pages for photos carrying location metadata."""
+
+import argparse
+import json
+import math
+import posixpath
+import re
+import struct
+import time
+import zlib
+from collections import deque
+from html.parser import HTMLParser
+from urllib.error import HTTPError, URLError
+from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+from xml.etree import ElementTree as ET
+
+USER_AGENT = "porchsite-photo-location-check/1"
+BLANK = b'<!doctype html><meta name="robots" content="noindex"><title></title>'
+LIMITATION = (
+    "JPEG APP2 is not checked or removed by the current location stripper; "
+    "nonstandard location data there can remain. A no result is limited "
+    "to EXIF GPS and XMP GPS in the supported metadata packets."
+)
+MAX_METADATA = 1024 * 1024
+MEDIA = re.compile(r"^/media/[0-9a-f]{32}\.(?:jpe?g|png|webp)$", re.IGNORECASE)
+GPS_PROPERTY = re.compile(
+    rb"(?<![\w])(?:[A-Za-z_][\w.-]*:)?GPS[A-Za-z0-9_]*\s*=|<\s*(?:[A-Za-z_][\w.-]*:)?GPS[A-Za-z0-9_]*(?=[\s/>])",
+    re.IGNORECASE,
+)
+
+
+class CheckError(ValueError):
+    pass
+
+
+def xmp_location(data):
+    # Like the stripper, do not parse XML or follow external references.
+    # Removing NULs also finds property names in UTF-16/32 XMP packets.
+    return bool(GPS_PROPERTY.search(data.replace(b"\0", b"")))
+
+
+def exif_location(data):
+    data = data[6:] if data.startswith(b"Exif\0\0") else data
+    if len(data) < 8 or data[:2] not in (b"II", b"MM"):
+        raise CheckError("damaged EXIF TIFF header")
+    endian = "<" if data[:2] == b"II" else ">"
+
+    def number(offset, kind):
+        size = struct.calcsize(kind)
+        if offset < 0 or offset + size > len(data):
+            raise CheckError("EXIF pointer outside metadata")
+        return struct.unpack_from(endian + kind, data, offset)[0]
+
+    if number(2, "H") != 42:
+        raise CheckError("unsupported EXIF TIFF header")
+    pending, seen, found = [(number(4, "I"), False)], set(), False
+    while pending:
+        offset, gps = pending.pop()
+        if not offset:
+            continue
+        if offset in seen:
+            raise CheckError("cyclic EXIF pointer")
+        seen.add(offset)
+        if len(seen) > 64 or offset < 8:
+            raise CheckError("EXIF directory limit or invalid offset")
+        count = number(offset, "H")
+        if offset + 2 + count * 12 + 4 > len(data):
+            raise CheckError("truncated EXIF directory")
+        if gps and count:
+            found = True
+        for n in range(count):
+            at = offset + 2 + n * 12
+            tag, kind, amount = (
+                number(at, "H"),
+                number(at + 2, "H"),
+                number(at + 4, "I"),
+            )
+            if tag in (0x8825, 0x8769, 0xA005, 0x014A) and not gps:
+                if kind not in (4, 13) or not 1 <= amount <= 64:
+                    raise CheckError("invalid EXIF directory pointer")
+                start = at + 8 if amount == 1 else number(at + 8, "I")
+                for index in range(amount):
+                    pointer = number(start + 4 * index, "I")
+                    if tag == 0x8825 and pointer == 0:
+                        raise CheckError("invalid EXIF GPS pointer")
+                    pending.append((pointer, tag == 0x8825))
+            if gps:
+                widths = {
+                    1: 1,
+                    2: 1,
+                    3: 2,
+                    4: 4,
+                    5: 8,
+                    6: 1,
+                    7: 1,
+                    8: 2,
+                    9: 4,
+                    10: 8,
+                    11: 4,
+                    12: 8,
+                    13: 4,
+                }
+                if kind not in widths:
+                    raise CheckError("unsupported EXIF GPS field type")
+                size = widths[kind] * amount
+                if size > 4 and number(at + 8, "I") + size > len(data):
+                    raise CheckError("truncated EXIF GPS field")
+        next_offset = number(offset + 2 + count * 12, "I")
+        if next_offset:
+            pending.append((next_offset, gps))
+    return found
+
+
+def inflate(data):
+    try:
+        decoder = zlib.decompressobj()
+        out = decoder.decompress(data, MAX_METADATA + 1)
+        if len(out) > MAX_METADATA or not decoder.eof or decoder.unused_data:
+            raise CheckError("compressed metadata is damaged or exceeds 1 MiB")
+        return out
+    except zlib.error as error:
+        raise CheckError("damaged compressed metadata") from error
+
+
+def png_text(name, data):
+    try:
+        _, rest = data.split(b"\0", 1)
+        if name == b"tEXt":
+            return rest
+        if name == b"zTXt":
+            if not rest or rest[0] != 0:
+                raise CheckError("unsupported PNG text compression")
+            return inflate(rest[1:])
+        if len(rest) < 2 or rest[0] not in (0, 1) or rest[1] != 0:
+            raise CheckError("damaged PNG international text")
+        flag = rest[0]
+        _, _, text = rest[2:].split(b"\0", 2)
+        return inflate(text) if flag else text
+    except ValueError as error:
+        raise CheckError("damaged PNG text fields") from error
+
+
+def has_location(data):
+    """Inspect the same packet families stripLocation/strip_location removes.
+
+    Those implementations discard JPEG APP1/APP13/COM, PNG eXIf/text and WebP
+    EXIF/XMP wholesale (except orientation). This checker looks for GPS within
+    those packets; metadata presence alone is not evidence of location.
+    """
+    found = False
+    if data.startswith(b"\xff\xd8"):
+        at, ended = 2, False
+        while at < len(data):
+            at = data.find(b"\xff", at)
+            if at < 0:
+                break
+            marker = at + 1
+            while marker < len(data) and data[marker] == 255:
+                marker += 1
+            if marker >= len(data):
+                raise CheckError("truncated JPEG marker")
+            code = data[marker]
+            if code in (0, 1) or 0xD0 <= code <= 0xD9:
+                ended = ended or code == 0xD9
+                at = marker + 1
+                continue
+            if marker + 3 > len(data):
+                raise CheckError("truncated JPEG packet")
+            length = int.from_bytes(data[marker + 1 : marker + 3], "big")
+            end = marker + 1 + length
+            if length < 2 or end > len(data):
+                raise CheckError("damaged JPEG packet length")
+            packet = data[marker + 3 : end]
+            if code == 0xE1 and packet.startswith(b"Exif\0\0"):
+                found = exif_location(packet) or found
+            elif code in (0xE1, 0xED, 0xFE):
+                found = xmp_location(packet) or found
+            at = end
+        if not ended:
+            raise CheckError("JPEG end marker missing")
+    elif data.startswith(b"\x89PNG\r\n\x1a\n"):
+        at, ended = 8, False
+        while at < len(data):
+            if at + 12 > len(data):
+                raise CheckError("truncated PNG chunk")
+            length = int.from_bytes(data[at : at + 4], "big")
+            name, end = data[at + 4 : at + 8], at + 12 + length
+            if end > len(data) or not re.fullmatch(b"[A-Za-z]{4}", name):
+                raise CheckError("damaged PNG chunk length or name")
+            packet = data[at + 8 : end - 4]
+            if zlib.crc32(name + packet) & 0xFFFFFFFF != int.from_bytes(
+                data[end - 4 : end], "big"
+            ):
+                raise CheckError("damaged PNG checksum")
+            if name == b"eXIf":
+                found = exif_location(packet) or found
+            elif name in (b"tEXt", b"iTXt", b"zTXt"):
+                found = xmp_location(png_text(name, packet)) or found
+            ended = ended or name == b"IEND"
+            at = end
+        if not ended:
+            raise CheckError("PNG end chunk missing")
+    elif data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        if int.from_bytes(data[4:8], "little") + 8 != len(data):
+            raise CheckError("damaged WebP container length")
+        at = 12
+        while at < len(data):
+            if at + 8 > len(data):
+                raise CheckError("truncated WebP chunk")
+            name, length = (
+                data[at : at + 4],
+                int.from_bytes(data[at + 4 : at + 8], "little"),
+            )
+            end = at + 8 + length + length % 2
+            if end > len(data):
+                raise CheckError("damaged WebP chunk length")
+            packet = data[at + 8 : at + 8 + length]
+            if name == b"EXIF":
+                found = exif_location(packet) or found
+            elif name == b"XMP ":
+                found = xmp_location(packet) or found
+            at = end
+    else:
+        raise CheckError("not a supported JPEG, PNG or WebP file")
+    return found
+
+
+class Page(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.media, self.feeds = [], []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        for key in ("src", "href", "url"):
+            if attrs.get(key):
+                self.media.append(attrs[key])
+        for key in ("srcset", "imagesrcset"):
+            for part in (attrs.get(key) or "").split(","):
+                if part.split():
+                    self.media.append(part.split()[0])
+        if tag == "meta" and (
+            attrs.get("property") or attrs.get("name") or ""
+        ).lower() in ("og:image", "og:image:secure_url"):
+            self.media.append(attrs.get("content") or "")
+        href = attrs.get("href") or ""
+        if href and (
+            attrs.get("type") in ("application/rss+xml", "application/atom+xml")
+            or re.search(r"\.(?:xml|rss|atom)(?:\?|$)", href)
+        ):
+            self.feeds.append(href)
+
+    handle_startendtag = handle_starttag
+
+
+def xml_root(data):
+    if re.search(rb"<!\s*(?:DOCTYPE|ENTITY)\b", data, re.IGNORECASE):
+        raise CheckError("XML declarations with entities are not checked")
+    try:
+        return ET.fromstring(data)
+    except ET.ParseError as error:
+        raise CheckError("damaged sitemap or feed XML") from error
+
+
+def is_mcp(url):
+    path = posixpath.normpath("/" + unquote(urlsplit(url).path).lstrip("/"))
+    return path == "/mcp" or path.startswith("/mcp/")
+
+
+def origin_of(url):
+    parsed = urlsplit(url) if isinstance(url, str) else url
+    return (
+        parsed.scheme.lower(),
+        (parsed.hostname or "").lower(),
+        parsed.port or (443 if parsed.scheme.lower() == "https" else 80),
+    )
+
+
+class SameOrigin(HTTPRedirectHandler):
+    def __init__(self, origin):
+        self.origin = origin
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urlsplit(newurl)
+        if is_mcp(newurl):
+            raise CheckError("refused /mcp: this checker never calls it")
+        if target.username or target.password or origin_of(target) != self.origin:
+            raise CheckError("refused redirect outside the site origin")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class Checker:
+    def __init__(self, site, max_pages=200, max_files=500, timeout=10, delay=0.1):
+        parsed = urlsplit(site)
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise CheckError("use a site origin, for example https://example.com")
+        self.site = urlunsplit((parsed.scheme, parsed.netloc, "/", "", ""))
+        self.origin = origin_of(self.site)
+        self.opener = build_opener(SameOrigin(self.origin))
+        self.max_pages, self.max_files, self.timeout, self.delay = (
+            max_pages,
+            max_files,
+            timeout,
+            delay,
+        )
+        self.last_fetch = None
+        self.report = {
+            "site": self.site,
+            "private": False,
+            "photos": [],
+            "errors": [],
+            "stopped_at_limit": False,
+            "limitation": LIMITATION,
+        }
+
+    def url(self, base, value, media=False):
+        url = urlsplit(urljoin(base, value))
+        if url.username or url.password or origin_of(url) != self.origin:
+            return None
+        if media and not MEDIA.fullmatch(url.path):
+            return None
+        base = urlsplit(self.site)
+        return urlunsplit(
+            (base.scheme, base.netloc, url.path or "/", "" if media else url.query, "")
+        )
+
+    def fetch(self, url, maximum):
+        if is_mcp(url):
+            raise CheckError("refused /mcp: this checker never calls it")
+        if self.last_fetch is not None:
+            time.sleep(max(0, self.delay - (time.monotonic() - self.last_fetch)))
+        self.last_fetch = time.monotonic()
+        request = Request(
+            url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"}
+        )
+        deadline = time.monotonic() + self.timeout
+        try:
+            try:
+                response = self.opener.open(request, timeout=self.timeout)
+            except HTTPError as error:
+                response = error
+            with response:
+                if response.headers.get("Content-Encoding", "identity").lower() not in (
+                    "identity",
+                    "",
+                ):
+                    raise CheckError(
+                        "server sent compressed HTTP content despite Accept-Encoding: identity"
+                    )
+                chunks, size = [], 0
+                read = getattr(response, "read1", response.read)
+                while True:
+                    if time.monotonic() >= deadline:
+                        raise CheckError("request timed out while reading")
+                    chunk = read(min(65536, maximum + 1 - size))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size > maximum:
+                        raise CheckError(f"response exceeds {maximum} bytes")
+                body = b"".join(chunks)
+                if response.status == 404 and body == BLANK:
+                    return body, "private"
+                if response.status != 200:
+                    raise CheckError(f"HTTP {response.status}: {response.reason}")
+                return body, response.headers.get_content_type()
+        except (OSError, URLError) as error:
+            raise CheckError(f"network error: {error}") from error
+
+    def scan(self):
+        pending = deque([self.site, urljoin(self.site, "sitemap.xml")])
+        queued, uses, pages = set(pending), {}, 0
+
+        def add_page(base, value):
+            url = self.url(base, value)
+            if not url or url in queued or MEDIA.fullmatch(urlsplit(url).path):
+                return
+            if len(queued) >= self.max_pages:
+                self.report["stopped_at_limit"] = True
+                return
+            queued.add(url)
+            if is_mcp(url):
+                self.report["errors"].append(
+                    {"url": url, "error": "refused /mcp: this checker never calls it"}
+                )
+                return
+            pending.append(url)
+
+        while pending and pages < self.max_pages:
+            url = pending.popleft()
+            pages += 1
+            try:
+                body, kind = self.fetch(url, 4 * 1024 * 1024)
+                if kind == "private":
+                    if url == self.site:
+                        self.report["private"] = True
+                        self.report["message"] = (
+                            "site is private: nothing public to check"
+                        )
+                        pending.clear()
+                        break
+                    raise CheckError("a page returned the private-site blank response")
+                parser = Page()
+                if (
+                    kind.endswith("xml")
+                    or body.lstrip().startswith(b"<?xml")
+                    or urlsplit(url).path.endswith((".xml", ".rss", ".atom"))
+                ):
+                    root = xml_root(body)
+                    is_sitemap = root.tag.rsplit("}", 1)[-1] in (
+                        "urlset",
+                        "sitemapindex",
+                    )
+                    for node in root.iter():
+                        tag = node.tag.rsplit("}", 1)[-1]
+                        if is_sitemap and tag == "loc" and node.text:
+                            add_page(url, node.text.strip())
+                        elif not is_sitemap and tag == "link":
+                            add_page(url, node.get("href") or (node.text or "").strip())
+                        if not is_sitemap:
+                            if node.text:
+                                parser.feed(node.text)
+                            # Unescaped XHTML in Atom content has real attributes.
+                            parser.handle_starttag(tag, list(node.attrib.items()))
+                else:
+                    parser.feed(body.decode("utf-8", errors="replace"))
+                for value in parser.media:
+                    media = self.url(url, value, media=True)
+                    if media:
+                        if media not in uses and len(uses) >= self.max_files:
+                            self.report["stopped_at_limit"] = True
+                            continue
+                        uses.setdefault(media, set()).add(url)
+                for value in parser.feeds:
+                    add_page(url, value)
+            except (CheckError, ValueError) as error:
+                self.report["errors"].append({"url": url, "error": str(error)})
+        if pending:
+            self.report["stopped_at_limit"] = True
+        if not self.report["private"]:
+            for url, references in sorted(uses.items()):
+                photo = {"url": url, "pages": sorted(references)}
+                try:
+                    body, kind = self.fetch(url, 16 * 1024 * 1024)
+                    if kind == "private":
+                        raise CheckError(
+                            "media returned the private-site blank response"
+                        )
+                    photo["location"] = "yes" if has_location(body) else "no"
+                except (CheckError, ValueError) as error:
+                    photo.update(location="error", error=str(error))
+                self.report["photos"].append(photo)
+        if self.report["stopped_at_limit"]:
+            self.report["errors"].append(
+                {
+                    "error": "stopped at limit: increase --max-pages or --max-files and run again"
+                }
+            )
+        self.report["pages_checked"] = pages
+        self.report["totals"] = {
+            state: sum(p["location"] == state for p in self.report["photos"])
+            for state in ("yes", "no", "error")
+        }
+        return self.report
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--site", required=True)
+    parser.add_argument("--json", action="store_true", help="Print the report as JSON")
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=200,
+        help="Includes sitemap and feed requests (default 200)",
+    )
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=500,
+        help="Maximum distinct photos (default 500)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=10,
+        help="Request timeout in seconds (default 10)",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.1,
+        help="Minimum seconds between requests (default 0.1)",
+    )
+    args = parser.parse_args(argv)
+    try:
+        if (
+            min(args.max_pages, args.max_files, args.timeout) <= 0
+            or args.delay < 0
+            or not all(math.isfinite(value) for value in (args.timeout, args.delay))
+        ):
+            raise CheckError(
+                "limits and timeout must be positive; delay cannot be negative"
+            )
+        report = Checker(
+            args.site, args.max_pages, args.max_files, args.timeout, args.delay
+        ).scan()
+    except (CheckError, ValueError) as error:
+        report = {
+            "site": args.site,
+            "private": False,
+            "photos": [],
+            "totals": {"yes": 0, "no": 0, "error": 0},
+            "errors": [{"error": str(error)}],
+            "limitation": LIMITATION,
+        }
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        if report["private"]:
+            print("site is private: nothing public to check")
+        for photo in report["photos"]:
+            print(f"{photo['location']}: {photo['url']}")
+            for page in photo["pages"]:
+                print(f"  used by {page}")
+            if photo.get("error"):
+                print(f"  {photo['error']}")
+        for error in report["errors"]:
+            print(f"error: {error.get('url', '')} {error['error']}")
+        total = report["totals"]
+        print(
+            f"Totals: {total['yes']} yes, {total['no']} no, {total['error']} photo errors; {len(report['errors'])} scan errors"
+        )
+        print(LIMITATION)
+    return (
+        1
+        if report["errors"] or report["totals"]["error"]
+        else 2
+        if report["totals"]["yes"]
+        else 0
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

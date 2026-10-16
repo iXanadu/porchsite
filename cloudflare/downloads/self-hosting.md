@@ -107,6 +107,8 @@ the install guide.
 
 ## Updating the server edition
 
+To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old copies stay at their old addresses: Porchsite keeps every version. Search engines and anyone who already fetched a photo keep their copy. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; an error or a stopped scan is not a clean result. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
+
 A release id is `<date>-<commit>` and names a commit; latest.json gives the
 full `commit`, and each release is tagged `release/<release id>`. Releases
 made before the repository went public (up to 2026.10.12) were built from

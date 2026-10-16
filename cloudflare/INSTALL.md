@@ -451,6 +451,8 @@ person decides. Every release stays downloadable, and every release is
 checked before it is published so that the one before it runs on its
 database too. That makes an update safe to try and a rollback one upload.
 
+To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old copies stay at their old addresses: Porchsite keeps every version. Search engines and anyone who already fetched a photo keep their copy. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; an error or a stopped scan is not a clean result. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
+
 **Knowing there is one.** `site_state` returns `update`. When
 `update.available` is true it also has `latest` (the newest release),
 `security`, `changes`, `migrations`, `reconnect` and `how` (this section).
