@@ -2,7 +2,7 @@
   "name": "listing-page",
   "title": "Listing",
   "licence": "MIT",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "property",
   "description": "One property, room to look. A wide photograph, the price and key figures, a gallery, video and walk-through tour, then open-house and visit details. Built for a phone first.",
   "heading_ids": true,
