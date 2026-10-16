@@ -74,6 +74,9 @@ site's OAuth connector, and pictures held as files. In order:
   assistants on content). Owner decides which applies.
 
 ## DEGRADING
+- **LS-1** OPEN: the Listing look shows the Highlights row on every page
+  (visit, photos, 404), not only on home and the listing entry. Found in
+  the real-site test of release 2026.10.16-13e52fa.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing
