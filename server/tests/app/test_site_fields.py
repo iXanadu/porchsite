@@ -122,3 +122,24 @@ async def test_real_site_state_contains_broker_and_guide(db, http):
     assert not error
     assert state["items"][0]["data"]["broker"] == "Example Brokerage"
     assert "broker" in json.dumps(state["fields"])
+
+
+def test_listing_highlights_only_on_home_and_feature_stream_entries():
+    sample = deepcopy(SAMPLE)
+    sample["site"]["streams"][0]["path"] = "property"
+    sample["site"]["streams"].append({"id": "more", "title": "More", "layout": "list"})
+    sample["site"]["sections"].append("more")
+    for slug in ["visit", "photos"]:
+        sample["items"].append({
+            "kind": "entry", "slug": slug,
+            "data": {"stream": "more", "title": slug, "date": "2026-10-16",
+                     "tags": ["details"], "body": "Supporting page"},
+        })
+    pages = render_sample("listing-page", sample)
+    for key in ["index.html", "property/home/index.html"]:
+        assert 'class="highlights"' in pages[key], key
+    for key in ["more/visit/index.html", "more/photos/index.html", "more/index.html",
+                "more/tags/details/index.html", "property/index.html",
+                "property/tags/property/index.html", "404.html"]:
+        assert 'class="highlights"' not in pages[key], key
+        assert "Room to gather" not in pages[key], key

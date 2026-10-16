@@ -104,9 +104,6 @@ site's OAuth connector, and pictures held as files. In order:
 - **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
   location metadata. Build an owner-approved, reversible cleanup that
   re-stores them without it, plus a changelog note. After LS-1 and S4-9.
-- **LS-1** OPEN: the Listing look shows the Highlights row on every page
-  (visit, photos, 404), not only on home and the listing entry. Found in
-  the real-site test of release 2026.10.16-13e52fa.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing
