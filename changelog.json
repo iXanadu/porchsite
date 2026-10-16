@@ -2,6 +2,24 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.16-13e52fa",
+      "date": "2026-10-16",
+      "security": true,
+      "reconnect": true,
+      "migrations": [
+        "0016_embed_sources.sql",
+        "0017_site_fields.sql"
+      ],
+      "changes": [
+        "Photos you add no longer keep the location where they were taken, and photos are shrunk before upload unless you choose to keep the original.",
+        "Your site can play videos and tours from sources you approve, right on the page.",
+        "A new Listing look for selling one property: a big photo, price and stats, a gallery, tours, open house, contact and an optional brokerage line.",
+        "Your site now has a sitemap, phone numbers in your pages can be tapped to call, and adding many photos is quicker.",
+        "Going back to the previous release is safe even after you use the new features.",
+        "Reconnect your assistant after updating so it sees the new tools."
+      ]
+    },
+    {
       "release": "2026.10.14-fbdd784",
       "date": "2026-10-14",
       "security": false,
