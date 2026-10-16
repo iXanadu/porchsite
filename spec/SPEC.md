@@ -272,7 +272,7 @@ existing authority. A revoked reader is an anonymous visitor.
 The owner creates, lists and revokes reader invites and readers at
 `/review/readers`, with owner CSRF on every write and no MCP invite tool.
 Invites are hashed at rest, seven days, single use, spent only on successful
-registration. Their pages use no-referrer/no-store headers and remove the
+registration, recording that completion as the reader's last sign-in. Their pages use no-referrer/no-store headers and remove the
 token from the address bar. Each reader registers a distinct discoverable
 passkey through the same origin; `/login` sends no allowCredentials list.
 Reader credentials and sessions live in NEW tables; they never enter owner
@@ -305,7 +305,7 @@ bad_code/code_expired errors. `/setup` remains closed after claim.
 
 Recovery is ONE all-or-nothing transaction: spend the valid code; bump the
 owner epoch; delete all owner passkeys, unused add-passkey links, owner
-sessions and reader sessions; invalidate in-flight issuance by captured
+sessions, reader sessions and all unused reader invites; invalidate in-flight issuance by captured
 epoch comparison; insert the newly verified owner passkey and fresh owner
 session. Keep reader passkeys; their next legitimate login works at the new
 reader epoch. Concurrent completion of one recovery code has one winner.

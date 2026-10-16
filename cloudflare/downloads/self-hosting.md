@@ -169,7 +169,7 @@ No additive schema change can make old code enforce private mode.
 If the owner loses every passkey, use the hosting account to issue a recovery
 link, good once for 24 hours. This is never an MCP tool. Completing `/recover`
 in one transaction replaces every owner passkey, cancels unused add-passkey
-links and ends all owner and reader sessions. Reader passkeys are kept and
+links and unused reader invitations, and ends all owner and reader sessions. Reader passkeys are kept and
 can sign in again. Setup stays closed after claim. Send recovery links only
 through a private channel and do not record them in chat logs or source.
 
