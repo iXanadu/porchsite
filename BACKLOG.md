@@ -93,6 +93,14 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **PV-5** OPEN: a CDN can rewrite the private blank page. On a Cloudflare
+  zone with Web Analytics' automatic setup, the edge sometimes appends its
+  beacon `<script>` to the blank 404 (found on the fleet playbook,
+  2026-10-16): the page is no longer the exact blank, and the beacon reports
+  visited paths to the account's analytics. Fix: private and blank responses
+  send `no-transform` in Cache-Control and the blank page sends
+  `Content-Security-Policy: default-src 'none'`; tell owners to exclude a
+  private site from automatic Web Analytics. Both editions.
 - **SV-PV2** OPEN: a caching reverse proxy in front of a server-edition
   site keeps serving /media files the site no longer publishes: the site
   sends `public, max-age=31536000, immutable`, and a serve-stale proxy keeps
