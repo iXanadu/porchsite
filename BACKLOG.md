@@ -77,6 +77,14 @@ site's OAuth connector, and pictures held as files. In order:
   expiry, weekly batch approval; PMs file drafts at wrap-up (admin owns the
   shared wrap-up step). No new engine code. A separate reports site was
   tried and removed the same day.
+- **ST-1** OPEN (medium): a site allows at most 8 streams (`streams`
+  max 8 in both editions' models). The fleet playbook wanted 9 guide Parts
+  plus a report stream per project and had to merge them. Raising the cap
+  is a compatibility change: the previous release validates the stored site
+  item strictly, so a site saved with more streams may fail on rollback.
+  Needs the additive pattern (extra streams outside the legacy JSON, or a
+  release floor like private mode) and an upgrade-check case. Found
+  2026-10-16.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.
