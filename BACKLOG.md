@@ -67,13 +67,14 @@ site's OAuth connector, and pictures held as files. In order:
   heading order). Facts, never advice.
 - **AI-4** OPEN: per-site `/llms.txt` and a stored Markdown copy of each
   page, built with build-ahead (S4-9).
-- **AI-5** NEEDS-DECISION: a short capability block (what Porchsite builds,
-  which look suits whom, how approval works) in the tool descriptions. The
-  capability facts fit; the behavioural coaching parts (recommend, push
-  back once) conflict with the passive-tool rule (Porchsite does not coach
-  assistants on content). Owner decides which applies.
+- **AI-5** OPEN (decided 2026-10-16: capability facts only, no coaching;
+  Porchsite stays passive): a short block in the tool descriptions saying
+  what Porchsite builds, which look suits whom and how approval works.
 
 ## DEGRADING
+- **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
+  location metadata. Build an owner-approved, reversible cleanup that
+  re-stores them without it, plus a changelog note. After LS-1 and S4-9.
 - **LS-1** OPEN: the Listing look shows the Highlights row on every page
   (visit, photos, 404), not only on home and the listing entry. Found in
   the real-site test of release 2026.10.16-13e52fa.
