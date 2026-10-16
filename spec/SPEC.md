@@ -892,21 +892,36 @@ distinct from the ephemeral encryption key; its audience is the push
 service's exact origin and its short-lived JWT never exceeds the standard's
 24-hour expiry limit. Use platform cryptographic primitives, no handwritten
 curve arithmetic or new heavy push dependency. The Cloudflare implementation
-uses WebCrypto. The Python server's primitive provider requires a PM/Security
-ruling before implementation; both implementations must pass the same
-published encryption vectors and cross-decryption fixtures.
+uses WebCrypto. The Python server uses the `cryptography` package, declared
+as a direct dependency (already present through WebAuthn). Both editions
+must pass the RFC 8291 example vectors and a cross-edition test in which
+each decrypts the other's message. No Node subprocess or push package.
 
-Endpoints must be HTTPS URLs without credentials, fragments, nonstandard
-ports or IP literals. Reject localhost, local-only/reserved names and
-private, loopback, link-local, unspecified, multicast or other non-public
-addresses, including IPv4-mapped IPv6. Validate on subscribe and before each
-send. DNS failure or any non-public answer refuses delivery. DNS validation
-must enforce the actual connected destination, not merely check a name
-before an unrelated second resolution; the edition-specific mechanism
-requires Security acceptance before code. Never follow redirects (including
-same-host redirects), forward owner cookies/bearer tokens, or fetch a
-response body. Bound each push request to a three-second total timeout and
-send only the encrypted fixed payload, VAPID authorization and required
+Endpoints must be HTTPS URLs on port 443 (implicit or explicit), without
+userinfo or fragments. Validate at subscribe time and again before each
+send against this fixed push-service hostname allowlist:
+
+- Exactly `fcm.googleapis.com`.
+- Exactly `updates.push.services.mozilla.com`.
+- A nonempty subdomain of `push.apple.com`, ending in `.push.apple.com`
+  (including `web.push.apple.com`), not the bare parent.
+- A nonempty subdomain of `notify.windows.com`, ending in
+  `.notify.windows.com`, not the bare parent.
+
+Compare parsed ASCII hostnames case-insensitively, with literal dot-label
+boundaries. Reject trailing dots, non-ASCII/IDN or punycode labels, escaped
+host characters, backslashes and control characters rather than attempting
+to repair them. IP literals, localhost, private addresses and every other
+host are outside the allowlist. A substring or a suffix without its dot
+boundary never matches (for example, `fcm.googleapis.com.example.net` and
+`notpush.apple.com` are refused). Changing this list is a spec change.
+There is no DNS-based public-IP precheck; the authority boundary is the
+fixed list of trusted push services, not a resolve-then-fetch test that can
+race DNS changes. Cloudflare retains `global_fetch_strictly_public` as
+defence in depth. Never follow redirects (including same-host redirects),
+forward owner cookies/bearer tokens, or fetch a response body. Bound each
+push request to a three-second total timeout and send only the encrypted
+fixed payload, VAPID authorization and required
 push headers. Use a short notification TTL (300 seconds); do not send to
 an endpoint removed before its delivery claim. Do not log endpoint URLs,
 auth secrets, keys or payloads.
@@ -919,20 +934,24 @@ cache, imported scripts or background content fetch. Validate the incoming
 payload shape, display its fixed message and site title, and constrain click
 navigation to this service worker's origin and exact `/review` path. Focus
 an existing review window or open that URL; never approve, submit a form,
-or mark a request decided. Revocation does not remove an already displayed
+or mark a request decided. Omit notification grouping/tag fields and push
+Topic/collapse identifiers: none may encode a request id, item, count or
+other content. Notification icons, if used, are bundled generic icons, not
+content-dependent fetches. Revocation does not remove an already displayed
 notification.
 
 GET/HEAD `/manifest.webmanifest` supplies `start_url: "/review"`, same-origin
 scope and standalone display with installable name/icons. On a public site,
 name and icons come from published site settings. On a private site, an
-anonymous response uses only the generic Porchsite name and bundled generic
-icons; an owner-authenticated response may use the published name and
-owner-accessible icons and is private/no-store/no-transform. Do not make a
-private media file public merely to install an app. Neither manifest variant
-contains page lists, entries, titles of changes or credentials. This split
-requires PM/Security acceptance before code because the private-site
-manifest must not disclose the site's name or media anonymously. Both new
-open routes, and constant icon routes if needed, retain method checks;
+anonymous response uses only the generic name "Porchsite" and bundled
+generic icons; readers also receive this generic variant. An
+owner-authenticated response uses the published name and owner-accessible
+icons (generic fallbacks when absent) and is private/no-store/no-transform.
+Do not make a private media file public merely to install an app. Neither manifest variant
+contains page lists, entries, titles of changes or credentials. The
+private-site manifest must not disclose the site's name or media
+anonymously. Both new open routes, and constant icon routes if needed,
+retain method checks;
 unmatched paths still get the private blank. They construct no live content
 view for anonymous private visitors. No additional private route opens.
 
@@ -946,8 +965,9 @@ steps without claiming that permission was granted or a subscription saved.
 **Acceptance, paired in both editions.** Cover owner subscribe/remove,
 permission/save failure and device-status reconciliation; CSRF, cross-origin,
 reader and assistant refusals; concurrent VAPID first use; invalid keys and
-endpoint syntax, private/reserved DNS answers and connected-address
-validation; redirect refusal and timeout; exact payload fields and
+endpoint allowlist boundaries, mixed case, trailing dots, IDN/punycode,
+ports, userinfo, IP literals and escaped-host bypasses; redirect refusal
+and timeout; exact payload fields and absence of content in grouping tags;
 cross-decryption against RFC vectors; at-most-once claims and concurrent
 five-minute batching, per-device review reset and clock boundary; import
 and ordinary request triggers, rollback/replay suppression and successful
