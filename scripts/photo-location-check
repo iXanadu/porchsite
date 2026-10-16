@@ -11,6 +11,7 @@ import time
 import zlib
 from collections import deque
 from html.parser import HTMLParser
+from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -25,10 +26,8 @@ LIMITATION = (
 )
 MAX_METADATA = 1024 * 1024
 MEDIA = re.compile(r"^/media/[0-9a-f]{32}\.(?:jpe?g|png|webp)$", re.IGNORECASE)
-GPS_PROPERTY = re.compile(
-    rb"(?<![\w])(?:[A-Za-z_][\w.-]*:)?GPS[A-Za-z0-9_]*\s*=|<\s*(?:[A-Za-z_][\w.-]*:)?GPS[A-Za-z0-9_]*(?=[\s/>])",
-    re.IGNORECASE,
-)
+XML_NAME = re.compile(rb"[A-Za-z_][A-Za-z0-9_.:-]*")
+WHITESPACE = b" \t\r\n"
 
 
 class CheckError(ValueError):
@@ -36,9 +35,28 @@ class CheckError(ValueError):
 
 
 def xmp_location(data):
-    # Like the stripper, do not parse XML or follow external references.
-    # Removing NULs also finds property names in UTF-16/32 XMP packets.
-    return bool(GPS_PROPERTY.search(data.replace(b"\0", b"")))
+    # Tokenize each XML name once: a namespace-prefix regex with backtracking
+    # is quadratic on long dotted names. Never parse XML or follow references.
+    data = data.replace(b"\0", b"").lower()
+    for token in XML_NAME.finditer(data):
+        if not token.group().rsplit(b":", 1)[-1].startswith(b"gps"):
+            continue
+        end = token.end()
+        while end < len(data) and data[end] in WHITESPACE:
+            end += 1
+        if data[end : end + 1] == b"=":
+            return True
+        start = token.start() - 1
+        while start >= 0 and data[start] in WHITESPACE:
+            start -= 1
+        if (
+            start >= 0
+            and data[start] == ord("<")
+            and data[token.end() : token.end() + 1]
+            in (b"/", b">", b" ", b"\t", b"\r", b"\n")
+        ):
+            return True
+    return False
 
 
 def exif_location(data):
@@ -124,22 +142,49 @@ def inflate(data):
         raise CheckError("damaged compressed metadata") from error
 
 
+def raw_profile(data, kind):
+    # ImageMagick text profiles contain a type, decimal byte count and hex dump.
+    lines = data.strip().splitlines()
+    if (
+        len(lines) < 3
+        or lines[0].strip().lower() != kind
+        or not lines[1].strip().isdigit()
+    ):
+        raise CheckError("damaged PNG raw profile header")
+    size = int(lines[1].strip())
+    if size > MAX_METADATA:
+        raise CheckError("PNG raw profile exceeds 1 MiB")
+    encoded = b"".join(b"".join(lines[2:]).split())
+    if len(encoded) != size * 2:
+        raise CheckError("PNG raw profile byte count does not match hex data")
+    try:
+        return bytes.fromhex(encoded.decode("ascii"))
+    except (ValueError, UnicodeError) as error:
+        raise CheckError("damaged PNG raw profile hex data") from error
+
+
 def png_text(name, data):
     try:
-        _, rest = data.split(b"\0", 1)
+        keyword, rest = data.split(b"\0", 1)
         if name == b"tEXt":
-            return rest
-        if name == b"zTXt":
+            text = rest
+        elif name == b"zTXt":
             if not rest or rest[0] != 0:
                 raise CheckError("unsupported PNG text compression")
-            return inflate(rest[1:])
-        if len(rest) < 2 or rest[0] not in (0, 1) or rest[1] != 0:
-            raise CheckError("damaged PNG international text")
-        flag = rest[0]
-        _, _, text = rest[2:].split(b"\0", 2)
-        return inflate(text) if flag else text
+            text = inflate(rest[1:])
+        else:
+            if len(rest) < 2 or rest[0] not in (0, 1) or rest[1] != 0:
+                raise CheckError("damaged PNG international text")
+            flag = rest[0]
+            _, _, text = rest[2:].split(b"\0", 2)
+            text = inflate(text) if flag else text
     except ValueError as error:
         raise CheckError("damaged PNG text fields") from error
+    if keyword.lower() == b"raw profile type exif":
+        return "exif", raw_profile(text, b"exif")
+    if keyword.lower() == b"raw profile type xmp":
+        return "xmp", raw_profile(text, b"xmp")
+    return "xmp", text
 
 
 def has_location(data):
@@ -197,7 +242,10 @@ def has_location(data):
             if name == b"eXIf":
                 found = exif_location(packet) or found
             elif name in (b"tEXt", b"iTXt", b"zTXt"):
-                found = xmp_location(png_text(name, packet)) or found
+                profile, text = png_text(name, packet)
+                found = (
+                    exif_location(text) if profile == "exif" else xmp_location(text)
+                ) or found
             ended = ended or name == b"IEND"
             at = end
         if not ended:
@@ -357,6 +405,18 @@ class Checker:
                     raise CheckError(
                         "server sent compressed HTTP content despite Accept-Encoding: identity"
                     )
+                declared = response.headers.get("Content-Length")
+                if declared is not None:
+                    try:
+                        declared = int(declared)
+                    except ValueError as error:
+                        raise CheckError("invalid Content-Length") from error
+                    if declared < 0:
+                        raise CheckError("negative Content-Length")
+                    if declared > maximum:
+                        raise CheckError(
+                            f"response exceeds {maximum} bytes (Content-Length)"
+                        )
                 chunks, size = [], 0
                 read = getattr(response, "read1", response.read)
                 while True:
@@ -369,13 +429,17 @@ class Checker:
                     size += len(chunk)
                     if size > maximum:
                         raise CheckError(f"response exceeds {maximum} bytes")
+                if declared is not None and size != declared:
+                    raise CheckError(
+                        f"short response: Content-Length {declared}, received {size} bytes"
+                    )
                 body = b"".join(chunks)
                 if response.status == 404 and body == BLANK:
                     return body, "private"
                 if response.status != 200:
                     raise CheckError(f"HTTP {response.status}: {response.reason}")
                 return body, response.headers.get_content_type()
-        except (OSError, URLError) as error:
+        except (OSError, URLError, HTTPException) as error:
             raise CheckError(f"network error: {error}") from error
 
     def scan(self):
@@ -476,7 +540,10 @@ class Checker:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Exit codes: 0 clean or private; 2 location found; 1 any error or incomplete scan. An error outranks a find.",
+    )
     parser.add_argument("--site", required=True)
     parser.add_argument("--json", action="store_true", help="Print the report as JSON")
     parser.add_argument(

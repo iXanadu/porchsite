@@ -92,6 +92,9 @@ site's OAuth connector, and pictures held as files. In order:
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,
   2026-10-16.
+- **PH-1** OPEN: photos stored before release 2026.10.16 still carry their
+  location metadata. Build an owner-approved, reversible cleanup that
+  re-stores them without it, plus a changelog note. First after the passkey release.
 - **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
   `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
   that scales (for example, reachability from the archive's own listing

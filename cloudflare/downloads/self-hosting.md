@@ -107,8 +107,6 @@ the install guide.
 
 ## Updating the server edition
 
-To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old copies stay at their old addresses: Porchsite keeps every version. Search engines and anyone who already fetched a photo keep their copy. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; an error or a stopped scan is not a clean result. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
-
 A release id is `<date>-<commit>` and names a commit; latest.json gives the
 full `commit`, and each release is tagged `release/<release id>`. Releases
 made before the repository went public (up to 2026.10.12) were built from
@@ -125,6 +123,8 @@ adds. Roll back: check out the previous release's tag (or commit), set
 `PORCHSITE_RELEASE` back, `docker compose up -d --build`; no schema step.
 Reconnect the assistant if `reconnect` was true. The full procedure is
 "Update" in `deploy/compose/README.md`.
+
+To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old file stays in the site's history: the owner can still see it, and approving a rollback to an older item version would publish it again. Once no published item uses the old photo, the app stops serving it publicly. Anyone or any search engine that already fetched it keeps their copy; photos were served with a one-year cache lifetime. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; exit codes are 0 for clean or private, 2 for location found, and 1 for any error or incomplete scan. An error outranks a find. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
 
 ## Limits to say out loud
 

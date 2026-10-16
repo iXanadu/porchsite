@@ -10,6 +10,7 @@ import time
 import zlib
 from collections import Counter
 from contextlib import contextmanager
+from http.client import HTTPException, IncompleteRead, InvalidURL, LineTooLong
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -155,6 +156,10 @@ def site(
     redirect=None,
     slow=False,
     forbidden_page=False,
+    short_page=False,
+    short_media=False,
+    long_header=False,
+    space_page=False,
 ):
     hits, agents, cookies = Counter(), [], []
     images = [jpeg(b"Exif\0\0" + tiff(gps)), png(tiff(False)), webp(PLAIN_XMP, b"XMP ")]
@@ -182,6 +187,7 @@ def site(
                     f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{origin}/page/</loc></url>'
                     + (f"<url><loc>{origin}/missing/</loc></url>" if missing_page else "")
                     + (f"<url><loc>{origin}/%6dcp</loc></url>" if forbidden_page else "")
+                    + (f"<url><loc>{origin}/a b/</loc></url>" if space_page else "")
                     + "</urlset>"
                 ).encode()
             elif self.path == "/feed.xml":
@@ -195,10 +201,20 @@ def site(
                 body = b"damaged" if broken_media and index == 0 else images[index]
             else:
                 body, status = b"not found", 404
+            short = (short_page and self.path == "/") or (
+                short_media and self.path == "/media/" + NAMES[0]
+            )
+            if short_page and self.path == "/":
+                body = b"<p>short"
             self.send_response(status)
             self.send_header("Content-Type", kind)
-            self.end_headers()
+            if short:
+                self.send_header("Content-Length", str(len(body) + 1000))
+                self.close_connection = True
+            if long_header:
+                self.send_header("X-Long", "a" * 70000)
             try:
+                self.end_headers()
                 self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError):
                 pass
@@ -355,3 +371,106 @@ def test_never_requests_mcp_even_from_sitemaps_or_redirects(options):
     assert result.returncode == 1
     assert "refused /mcp" in result.stdout
     assert not any(CHECK["is_mcp"](origin + path) for path in hits)
+
+
+def raw_profile(kind, payload):
+    encoded = payload.hex().encode()
+    return (
+        b"\n"
+        + kind
+        + b"\n"
+        + str(len(payload)).encode().rjust(8)
+        + b"\n"
+        + b"\n".join(encoded[n : n + 72] for n in range(0, len(encoded), 72))
+        + b"\n"
+    )
+
+
+@pytest.mark.parametrize("kind", [b"exif", b"xmp"])
+@pytest.mark.parametrize("gps", [False, True])
+@pytest.mark.parametrize("chunk", ["text", "ztxt", "itxt", "itxt-compressed"])
+def test_imagemagick_raw_profiles(kind, gps, chunk):
+    payload = (b"Exif\0\0" + tiff(gps)) if kind == b"exif" else (GPS_XMP if gps else PLAIN_XMP)
+    profile = raw_profile(kind, payload)
+    keyword = b"Raw profile type " + kind + b"\0"
+    if chunk == "text":
+        image = png(keyword + profile, b"tEXt")
+    elif chunk == "ztxt":
+        image = png(keyword + b"\0" + zlib.compress(profile), b"zTXt")
+    else:
+        compressed = chunk.endswith("compressed")
+        image = png(
+            keyword
+            + bytes([compressed, 0])
+            + b"\0\0"
+            + (zlib.compress(profile) if compressed else profile),
+            b"iTXt",
+        )
+    assert CHECK["has_location"](image) is gps
+    from server.app.image_privacy import strip_location
+
+    assert not CHECK["has_location"](strip_location(image, "image/png"))
+
+
+@pytest.mark.parametrize(
+    "profile", [b"exif\n2\n00", b"exif\n1\nzz", b"wrong\n1\n00", b"exif\n9999999\n00"]
+)
+def test_invalid_raw_profiles_are_errors(profile):
+    with pytest.raises(CHECK["CheckError"]):
+        CHECK["has_location"](png(b"Raw profile type exif\0" + profile, b"tEXt"))
+
+
+def test_gps_text_scan_is_time_bounded_on_dotted_names():
+    code = """import runpy,sys,struct
+m=runpy.run_path(sys.argv[1])
+payload=b'a.'*32000
+assert not m['xmp_location'](payload)
+assert m['xmp_location'](payload+b'<exif:GPSLatitude>1</exif:GPSLatitude>')
+assert not m['has_location'](b'\\xff\\xd8\\xff\\xe1'+struct.pack('>H',len(payload)+2)+payload+b'\\xff\\xd9')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(SCRIPT)], capture_output=True, text=True, timeout=2
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("options", [{"short_page": True}, {"short_media": True}])
+def test_short_content_length_is_an_error_not_clean(options):
+    with site(**options) as (origin, _, _, _):
+        result = run(origin, "--json")
+    assert result.returncode == 1 and not result.stderr
+    report = json.loads(result.stdout)
+    if options.get("short_media"):
+        assert report["photos"][0]["location"] == "error"
+        assert "short response" in report["photos"][0]["error"]
+    else:
+        assert "short response" in report["errors"][0]["error"]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        InvalidURL("bad URL"),
+        LineTooLong("header"),
+        HTTPException("bad response"),
+        IncompleteRead(b"partial", 10),
+    ],
+)
+def test_http_client_exceptions_are_reported_per_url(monkeypatch, error):
+    checker = CHECK["Checker"]("https://example.com", delay=0)
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(checker.opener, "open", fail)
+    report = checker.scan()
+    assert len(report["errors"]) == 2
+    assert all("network error:" in item["error"] for item in report["errors"])
+
+
+@pytest.mark.parametrize("options", [{"long_header": True}, {"space_page": True}])
+def test_actual_bad_http_header_or_url_returns_json_not_traceback(options):
+    with site(**options) as (origin, _, _, _):
+        result = run(origin, "--json")
+    assert result.returncode == 1 and "Traceback" not in result.stderr
+    assert json.loads(result.stdout)["errors"]
