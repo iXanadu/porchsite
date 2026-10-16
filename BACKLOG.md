@@ -81,6 +81,13 @@ site's OAuth connector, and pictures held as files. In order:
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **SV-PV2** OPEN: a caching reverse proxy in front of a server-edition
+  site keeps serving /media files the site no longer publishes: the site
+  sends `public, max-age=31536000, immutable`, and a serve-stale proxy keeps
+  the old copy after the origin answers 404. Found when a GPS-tagged photo
+  stayed public after the cleanup (purged by hand, 2026-10-16). Fix in the
+  deploy guidance (do not cache /media longer than pages, never serve
+  stale for 404) and consider a shorter media cache header. With SV-PV1.
 - **SV-PV1** OPEN: a server-edition site behind a caching reverse proxy
   must bypass the cache for the reader cookie (`__Host-sk_reader`) as it
   does for the owner's, before private mode is turned on. Document it in
