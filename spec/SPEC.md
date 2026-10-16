@@ -573,6 +573,7 @@ links may include a fragment (for example `/listing/home/#video-tour`).
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID
 Metadata Documents, and Dynamic Client Registration for older clients).
+If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an
 **assistant key** instead: the owner makes one on `/review/assistants`
 (named for the assistant, shown once, stored only as its SHA-256, working
