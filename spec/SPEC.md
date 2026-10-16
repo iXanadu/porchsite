@@ -856,6 +856,7 @@ approval transaction open during network I/O. Scheduling, encryption,
 network and database failures in this work cannot fail or delay the
 already-committed approval response. Process restarts may lose a nudge;
 there is no durable delivery promise or catch-up burst.
+The committed approval responses (HTTP and MCP) are identical whether an alert was scheduled, sent, skipped by batching, or failed, and contain no alert or delivery fields.
 
 For each request and subscription, claim at most one outbound attempt
 atomically with a unique `(request_id, subscription_id)` delivery record.
@@ -971,7 +972,11 @@ and timeout; exact payload fields and absence of content in grouping tags;
 cross-decryption against RFC vectors; at-most-once claims and concurrent
 five-minute batching, per-device review reset and clock boundary; import
 and ordinary request triggers, rollback/replay suppression and successful
-approval responses despite push failure; 404/410 cleanup; passkey removal,
+approval responses despite push failure. In each edition, compare committed
+HTTP and MCP `approval_request` answers with subscriptions absent, present,
+and with the push service failing: after normalizing only differing ids and
+timestamps, their bytes must be identical and include no alert/delivery
+fields. Also cover 404/410 cleanup; passkey removal,
 recovery and send/remove interleavings; service-worker click confinement and
 absence of fetch interception; anonymous GET/HEAD/conditional checks of
 worker, manifest, icons and near-miss routes while private, with no content
