@@ -25,7 +25,7 @@ Data = dict[str, Any]
 LABELS = {
     "title": "Name", "tagline": "Headline", "intro": "Intro", "description": "Description for search and shared links", "about": "About",
     "hero": "Main picture", "logo": "Mark (and browser icon)", "share_image": "Picture for shared links", "hero_caption": "Line under the masthead",
-    "theme": "Look", "palette": "Colours", "links": "Menu", "buttons": "Buttons", "streams": "Sections", "sections": "Order of the home page",
+    "theme": "Look", "palette": "Colours", "links": "Menu", "buttons": "Buttons", "streams": "Sections", "archive": "All-stream archive", "sections": "Order of the home page",
     "cta_label": "Main button", "cta2_label": "Second button", "footer_line": "Footer", "contact": "Contact details", "hours": "Opening hours",
     "notice": "Banner", "handle": "X handle", "summary": "Summary", "body": "Text", "cover": "Picture", "date": "Date", "name": "Name",
     "price": "Price", "subtitle": "Second line", "period": "Dates", "image": "Picture", "event": "Event details", "stats": "Figures", "tags": "Tags",
@@ -61,6 +61,10 @@ def _dumps(v: Any) -> str:
 
 
 def plain_value(k: str, v: Any) -> str:
+    if k == "streams" and isinstance(v, list):
+        return esc(" · ".join(_entry_name(x) for x in v))
+    if k == "archive" and isinstance(v, dict):
+        return esc(f"{'On' if v.get('enabled') else 'Off'} · {v.get('title', 'All entries')}")
     if isinstance(v, str):
         if not v:
             return '<span class="meta">(empty)</span>'
@@ -190,6 +194,8 @@ def _thumb(v: str) -> str:
 def _entry_name(x: Any) -> str:
     """One entry of a list, or one part of a group of settings, in a few words."""
     if isinstance(x, dict):
+        if x.get("id") and x.get("title") and ("layout" in x or "dated_addresses" in x):
+            return f"{x['title']} ({x['id']}) · {'By title' if x.get('sort') == 'title' else 'Newest first'} · /{x.get('path') or x['id']}/"
         main = None
         for k in ("label", "title", "value", "name", "kind", "day", "from"):
             if x.get(k) is not None:

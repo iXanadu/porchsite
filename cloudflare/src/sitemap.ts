@@ -14,6 +14,7 @@ export function sitemap(v:SiteView,origin:string,archives=true):string {
  const add=(path:string,date:string)=>{if(!urls.has(path))urls.set(path,date);};
  add('/',latest(['site',...v.entries.map(e=>String(e.id)),...v.cards.map(e=>String(e.id)),...v.notes.map(e=>String(e.id))]));
  for(const e of v.entries)if(!e.external_url)add(String(e.page),dates.get(String(e.id))??'');
+ if(v.site.archive?.enabled)add('/archive/',latest(['site',...v.entries.map(e=>String(e.id))]));
  if(archives){
   const groups=new Map<string,typeof v.entries>();
   for(const e of v.entries){const key=String(e.stream);if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(e);}

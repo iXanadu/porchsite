@@ -1,3 +1,4 @@
+import { streamApproval } from "./stream-settings";
 import { fieldsApproval, privateApproval } from "./site-fields";
 import { storedData, sourceData, sourceApproval, migrateSources } from "./embed-storage";
 /**
@@ -189,7 +190,7 @@ export async function decide(
       }
       checkEmbedOrigin(item, origin);
       stmts.push(liveStmt(db, item, at));
-      if (item.kind === "site") stmts.push(sourceApproval(db, item.version), fieldsApproval(db, item.version), privateApproval(db,item.version));
+      if (item.kind === "site") stmts.push(streamApproval(db, item.version), sourceApproval(db, item.version), fieldsApproval(db, item.version), privateApproval(db,item.version));
       going.push(item);
       it.status = "published";
       published.push(item.id);
@@ -254,7 +255,7 @@ export async function publishNow(db: D1Database, items: { id: string; version: n
   if (!going.length) return [];
   await checkPublic(db, await liveWith(db, going));
   const at = now();
-  const stmts = going.flatMap(i => i.kind === "site" ? [liveStmt(db, i, at), sourceApproval(db, i.version), fieldsApproval(db, i.version), privateApproval(db,i.version)] : [liveStmt(db, i, at)]);
+  const stmts = going.flatMap(i => i.kind === "site" ? [liveStmt(db, i, at), streamApproval(db, i.version), sourceApproval(db, i.version), fieldsApproval(db, i.version), privateApproval(db,i.version)] : [liveStmt(db, i, at)]);
   for (const a of await listRaw(db, "pending")) {
     let touched = false;
     for (const it of a.items) {

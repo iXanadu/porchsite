@@ -95,5 +95,22 @@ else
   echo "✓ tool answers: ${#looks[@]} samples and regression fixtures identical (site_check quick/deep; site_state summary/full/ids/empty/unknown)"
 fi
 
+# Expanded stream settings and the common archive must match for every look.
+if (cd "$ROOT/cloudflare" && npx esbuild scripts/stream-parity.ts --bundle --platform=node --format=esm --outfile="$TMP/streams.mjs" --log-level=error) &&
+  node "$TMP/streams.mjs" "$ROOT/spec/stream-cases.json" "$TMP/streams-cf.json" &&
+  PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/stream_parity.py" "$ROOT/spec/stream-cases.json" "$TMP/streams-py.json" &&
+  "$PYTHON" - "$TMP/streams-cf.json" "$TMP/streams-py.json" <<'PY'
+import json, sys
+a, b = [json.load(open(path)) for path in sys.argv[1:]]
+if a != b:
+    for look in sorted(set(a) | set(b)):
+        for page in sorted(set(a.get(look, {})) | set(b.get(look, {}))):
+            if a.get(look, {}).get(page) != b.get(look, {}).get(page):
+                print(f"stream parity differs: {look}/{page}")
+    sys.exit(1)
+print("✓ expanded streams: all looks, archive filters, title order, feeds, search and sitemap identical")
+PY
+then :; else bad=$((bad + 1)); fi
+
 [ "$bad" -eq 0 ] && echo "parity: ${#looks[@]}/${#looks[@]} looks identical" || echo "parity: $bad of ${#looks[@]} looks differ"
 exit $((bad > 0))

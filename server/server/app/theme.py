@@ -13,7 +13,7 @@ from server.spec.blocks import palette_css
 from server.spec.embeds import finish_embeds, heading_bodies
 from server.spec.jsutil import S, short_date, string, trim, u16slice
 from server.spec.site import SiteView
-from server.spec.theme import escape, streams
+from server.spec.theme import escape, stream_items, streams
 
 from .db import dumps
 
@@ -132,8 +132,7 @@ def search_index(v: SiteView, stream_path: str) -> dict[str, Any] | None:
             "x": bool(e.get("external_url")),
             "b": u16slice(trim(_SPACES.sub(" ", _STRIP.sub(" ", string(e.get("body"))))), 0, 4000),
         }
-        for e in v.entries
-        if e["stream"] == stream["id"]
+        for e in stream_items([e for e in v.entries if e["stream"] == stream["id"]], stream)
     ]
     return {
         "body": dumps(rows),

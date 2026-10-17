@@ -19,6 +19,9 @@ from .html import esc, markdown, redirect, respond
 
 Data = dict[str, Any]
 
+from server.spec.archive import archive_main
+from server.spec.theme import stream_items
+
 CSS = """
 :root{--bg:#f6f4ef;--card:#fffdf8;--ink:#1d1f1c;--body:#363a34;--muted:#5b6159;--rule:#ddd8cc;--accent:#2f5d50}
 @media (prefers-color-scheme:dark){:root{--bg:#161816;--card:#1e211e;--ink:#eceae4;--body:#d3d1ca;--muted:#a3a79f;--rule:#343833;--accent:#8cc4b2}}
@@ -48,15 +51,16 @@ FOOTER = "Kept up to date by an assistant, published with the owner's approval."
 
 
 def _page_html(
-    v: SiteView, title: str, description: str, main: str, kind: str, id: str = ""
+    v: SiteView, title: str, description: str, main: str, kind: str, id: str = "", canonical: str = ""
 ) -> str:
     s = v.site
-    links = "".join(f'<a href="{esc(x["url"])}">{esc(x["label"])}</a>' for x in s["links"])
+    links = "".join(f'<a href="{esc(x["url"])}">{esc(x["label"])}</a>' for x in [*s["links"], *([{"url": "/archive/", "label": s["archive"]["title"]}] if s.get("archive", {}).get("enabled") else [])])
+    canonical_html = f'<link rel="canonical" href="{esc(canonical)}">' if canonical else ""
     owner = f"{esc(s['owner_name'])} · " if s.get("owner_name") else ""
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f'<title>{esc(title)}</title><meta name="description" content="{esc(description)}"><meta property="og:title" content="{esc(title)}">\n'
-        f'<meta property="og:description" content="{esc(description)}"><style>{CSS}</style></head>\n'
+        f'<meta property="og:description" content="{esc(description)}"><style>{CSS}</style>{canonical_html}</head>\n'
         f'<body data-kind="{esc(kind)}" data-id="{esc(id)}"><div class="wrap"><header><a class="logo" href="/">{esc(s["title"])}</a><nav>{links}</nav></header><main>{main}</main>\n'
         f"<footer>{owner}{esc(s['footer_line']) if s.get('footer_line') else FOOTER}</footer></div>"
         '<script src="/static/a.js" defer></script></body></html>'
@@ -72,10 +76,11 @@ def page(
     id: str = "",
     origin: str = "",
     provenance=None,
+    canonical="",
 ) -> Response:
     return respond(
         finish_embeds(
-            _page_html(v, title, description, main, kind, id),
+            _page_html(v, title, description, main, kind, id, canonical),
             v.site.get("embed_sources") if origin else [],
             origin,
             provenance,
@@ -84,7 +89,7 @@ def page(
             "Cache-Control": "no-cache",
             **({"Permissions-Policy": PERMISSIONS} if origin else {}),
         },
-        csp=frame_csp(CSP, v.site.get("embed_sources") if origin else [], origin),
+        csp=frame_csp(CSP.replace("form-action 'none'", "form-action 'self'") if kind == "archive-all" else CSP, v.site.get("embed_sources") if origin else [], origin),
     )
 
 
@@ -116,7 +121,7 @@ def _entry_card(e: Data) -> str:
 
 
 def _stream_section(v: SiteView, stream: Data) -> str:
-    items = [e for e in v.entries if e["stream"] == stream["id"]][:10]
+    items = stream_items([e for e in v.entries if e["stream"] == stream["id"]], stream)[:10]
     if not items:
         return ""
     byline = f'<p class="byline">{esc(stream["byline"])}</p>' if stream.get("byline") else ""
@@ -291,4 +296,16 @@ def not_found(v: SiteView, origin: str = "") -> Response:
             **({"Permissions-Policy": PERMISSIONS} if origin else {}),
         },
         csp=frame_csp(CSP, v.site.get("embed_sources") if origin else [], origin),
+    )
+
+
+def all_archive_page(v, selected, origin, stream_archives=True):
+    return page(
+        v,
+        f"{v.site['archive']['title']} · {v.site['title']}",
+        v.site["description"],
+        archive_main(v, selected, stream_archives),
+        "archive-all",
+        origin=origin,
+        canonical=f"{origin}/archive/",
     )

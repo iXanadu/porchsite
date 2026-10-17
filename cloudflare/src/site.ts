@@ -1,3 +1,5 @@
+import { streamItems } from "./theme";
+import { archiveMain, type ArchiveFilter } from "./archive";
 import { sourceData } from "./embed-storage";
 /**
  * The public site, rendered from `live` only: nothing a visitor sees has
@@ -45,7 +47,7 @@ export function view(site: Data, rows: { id: string; kind: string; slug: string 
   const streams = (site.streams as Data[]).map((x) => x.id);
   const pathOf = Object.fromEntries((site.streams as Data[]).map((x) => [x.id, x.path || x.id]));
   // Newest created first, so the date sorts below leave same-day items that way.
-  rows = [...rows].sort((a, b) => ((a.created ?? "") < (b.created ?? "") ? 1 : (a.created ?? "") > (b.created ?? "") ? -1 : 0));
+  rows = [...rows].sort((a, b) => ((a.created ?? "") < (b.created ?? "") ? 1 : (a.created ?? "") > (b.created ?? "") ? -1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const entries = rows
     .filter((r) => r.kind === "entry" && r.data.status !== "draft")
     .map((r): Data => {
@@ -159,17 +161,17 @@ article img,.hero,.cover{max-width:100%;height:auto;border-radius:8px;display:bl
 // The kit's beacon (SPEC §8) is the page's only script, and posts to this site only.
 const BUILTIN_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = "", origin = "", provenance?: unknown): Response {
+function page(v: SiteView, title: string, description: string, main: Raw, kind: string, id = "", origin = "", provenance?: unknown, canonical = ""): Response {
   const s = v.site;
   return respond(
     raw(finishEmbeds(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title><meta name="description" content="${description}"><meta property="og:title" content="${title}">
-<meta property="og:description" content="${description}"><style>${raw(CSS)}</style></head>
-<body data-kind="${kind}" data-id="${id}"><div class="wrap"><header><a class="logo" href="/">${s.title}</a><nav>${s.links.map(
+<meta property="og:description" content="${description}"><style>${raw(CSS)}</style>${canonical ? html`<link rel="canonical" href="${canonical}">` : ""}</head>
+<body data-kind="${kind}" data-id="${id}"><div class="wrap"><header><a class="logo" href="/">${s.title}</a><nav>${[...s.links, ...(s.archive?.enabled ? [{url:"/archive/",label:s.archive.title}] : [])].map(
       (l: Data) => html`<a href="${l.url}">${l.label}</a>`,
     )}</nav></header><main>${main}</main>
 <footer>${s.owner_name ? html`${s.owner_name} · ` : ""}${s.footer_line || raw("Kept up to date by an assistant, published with the owner's approval.")}</footer></div><script src="/static/a.js" defer></script></body></html>`.html, origin ? s.embed_sources : [], origin, provenance)),
-    { headers: { "Cache-Control": "no-cache", ...(origin ? {"Permissions-Policy": PERMISSIONS} : {}) }, csp: frameCsp(BUILTIN_CSP, origin ? s.embed_sources : [], origin) },
+    { headers: { "Cache-Control": "no-cache", ...(origin ? {"Permissions-Policy": PERMISSIONS} : {}) }, csp: frameCsp(kind === "archive-all" ? BUILTIN_CSP.replace("form-action 'none'", "form-action 'self'") : BUILTIN_CSP, origin ? s.embed_sources : [], origin) },
   );
 }
 
@@ -180,7 +182,7 @@ function entryTile(e: Data, stream: Data): Raw {
 }
 
 function streamSection(v: SiteView, stream: Data): Raw | string {
-  const items = v.entries.filter((e) => e.stream === stream.id).slice(0, 10);
+  const items = streamItems(v.entries.filter((e) => e.stream === stream.id), stream).slice(0, 10);
   if (!items.length) return "";
   const head = html`<h2>${stream.title}</h2>${stream.byline ? html`<p class="byline">${stream.byline}</p>` : ""}`;
   return stream.layout === "cards"
@@ -265,3 +267,7 @@ export function notFound(v: SiteView, origin = ""): Response {
 }
 
 export { toItem };
+
+export function allArchivePage(v: SiteView, filter: ArchiveFilter, origin: string, streamArchives = true): Response {
+ return page(v, `${v.site.archive.title} · ${v.site.title}`, v.site.description, archiveMain(v,filter,streamArchives), "archive-all", "", origin, undefined, `${origin}/archive/`);
+}

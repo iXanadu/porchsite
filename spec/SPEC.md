@@ -82,9 +82,82 @@ and the label for links out (entries with `external_url`). Every stream gets
 its own home section, its
 own archive page and its own feed, with no code changes. A new site starts
 with one stream; adding one is an ordinary approved change to the `site`
-item. An entry belongs to exactly one stream. Entries and notes are listed
-newest date first; on the same date, the one created later comes first. A stream's `dated_addresses`
+item. A site has 1 to 64 streams. `sections` allows up to 68 distinct
+entries, retaining `entries` as shorthand for streams not named separately.
+Stream ids must be unique. New writes also require unique effective paths
+(`path`, or `id`); pre-existing ambiguous paths retain their old routing
+until edited rather than making an existing site unreadable.
+An entry belongs to exactly one stream. Notes are listed newest date first;
+on the same date, the one created later comes first. A stream's `dated_addresses`
 (boolean, default `true`) decides how its new entries' addresses are made.
+
+**Stream order.** Each stream has `sort: "date" | "title"` (default
+`"date"`). Date order is newest entry date first, then newest creation time,
+then item id ascending. Title order compares the validated title's Unicode
+scalar values, case-sensitive, ascending, with date order as the tie-breaker;
+there is no locale-dependent comparison or case folding. This controls
+the stream's home `items` and `all`, archive, tag pages and search index.
+The home `latest` and feature layout's full entry remain the newest by
+date, even in a title-sorted stream; `items` remains limited to three.
+Event groups keep their existing upcoming/earlier ordering; non-event
+`others` follows the stream's sort. Feeds remain newest-date-first, limited
+to 20, independent of display order. Slugs, addresses, approval order and
+the meaning of authored dates do not change.
+
+**All-stream archive.** The site setting
+`archive: {enabled: boolean, title: string}` defaults to
+`{enabled: false, title: "All entries"}`. The title is trimmed, non-empty,
+at most 60 characters. Enabling it is an ordinary site-item change requiring
+owner approval. It adds `/archive/`, an archive of every approved, non-draft
+entry across all configured streams, including streams omitted from the
+home sections. External entries have their usual outgoing links. Cards and
+notes are excluded. Each result identifies its stream by its configured
+title and links to that stream's archive. When the selected look is missing
+or uses the built-in fallback without individual stream archives, that link
+is `/archive/?stream=<id>` instead. There are no entry bodies or
+embedded players on this page: titles, dates, summaries, stream labels and
+tags are enough to choose an entry.
+
+The reader chooses a chronological list or grouping by stream (for example,
+by project), and can filter by a tag and/or stream. Controls are an ordinary
+GET form that works without JavaScript: `/archive/?sort=date|stream`,
+`tag=<tag>` and `stream=<stream id>`. Missing or empty controls mean date
+order and no filter. Date order uses the ordering above; stream order groups
+by the site's configured stream order, with date order within each group,
+independent of individual streams' `sort`. Filters intersect. Filter choices
+come only from published entries and configured streams; show counts for
+tags before filtering, deduplicating a repeated tag within an entry. An
+unknown but syntactically valid tag or stream produces an empty result,
+never a fallback to an unfiltered list. Empty results retain the controls
+and say that no entries match. Tags use `[a-z0-9-]{1,30}`; stream ids use
+`[a-z][a-z0-9-]{0,29}`, matching item validation. Compare decoded values
+exactly; never interpret a filter as HTML, SQL, a path or a redirect.
+Reject duplicate controls, unknown parameter names, invalid tag/id syntax,
+and unsupported sort values with `400` before
+rendering; the private-content gate runs before these refusals.
+
+When enabled, append a navigation link labelled with `archive.title` after
+the ordinary section links, and include the canonical `/archive/` in the
+sitemap even when empty. Filtered URLs are not added to the sitemap; all
+archive variants use `/archive/` as their canonical URL. The archive's
+`lastmod` is the newest site/member-entry approval date. `/archive` redirects
+to `/archive/` preserving its query. Enabling is refused with `invalid` if
+any stream id or effective path is `archive`, so an existing stream is never
+silently displaced. Disabled sites retain existing stream routing at that
+name, or the usual 404. New writes with other duplicate stream paths are
+also refused, without changing how untouched legacy content is read.
+
+The archive is an engine-rendered content page, available with every look
+and the built-in fallback. It uses the site's branding and the engine's
+responsive page shell, with a Home link and normal entry links; no new
+template file, installed-look upgrade, remote request or client script is
+required. It obeys the same private-site access, CSP, no-transform and
+cache policies as other content pages. No new permission, public draft
+lookup, assistant tool, approval bypass or private-site access is added.
+Quick `site_check` recognises its URLs only when enabled; deep checking
+can traverse its entry links when the rendered home links to it, within
+the existing crawl budgets. Merely enabling an unlinked page does not
+establish reachability for a look that omits navigation.
 
 **Entry addresses.** An entry's page is `/<stream path>/<slug>/` (the
 stream's `path`, or its id). The `slug` is kept on the item, not in its
@@ -839,6 +912,68 @@ previous release (Cloudflare) or checking it out (server) with no schema
 step. Released migrations never change (append only). Enforced at release
 time: `scripts/migration-check.py` and `scripts/upgrade-check.sh` (the
 previous release's tests and archived bundle on the new schema).
+
+**Stream-settings rollback compatibility.** The public content model has
+up to 64 streams, per-stream sort and the all-stream archive, but the legacy
+site JSON remains readable by the previous release. New writes store the
+complete logical `streams`, `sections` and `archive` in a new dedicated
+`site_stream_settings` table keyed by the exact site-item version, in the
+same transaction/batch as the conditional item and revision write. It has
+an approval flag defaulting to false. It is separate from `site_fields`:
+older releases approve all keys in that table without knowing their meaning.
+The new stream table is never read or approved by old releases. No legacy
+rows are rewritten and there is no migration of existing site JSON.
+
+For each new version, the legacy JSON in `items`, `revisions`, `live` and
+approval snapshots contains the first eight streams, with `sort` removed;
+`archive` is omitted. Its `sections` is the first twelve entries remaining
+after dropping ids outside those eight streams; the `entries` shorthand
+and cards/notes/about keep their positions. The complete configuration is
+reconstructed only from the extension at that same version, never from
+the newest row or another version. No extension means the legacy content
+with default date sorting and archive disabled. Public reads require both
+that exact live site version and its extension's approval flag; draft,
+history and preview reads reconstruct that exact version without publishing
+it. Malformed extension data is refused as invalid, never used unchecked.
+
+Approval shows the complete logical configuration and its changes. Only
+the current implementation may mark its exact version's extension approved,
+atomically with the corresponding site publish. A stale request, refused
+write, idempotent replay or old-runtime approval of a previously unseen
+extension cannot publish it. Rollback, whole-site revert, export and import
+use the full logical configuration, with the existing version, guard and
+owner-approval rules; an imported approval flag is never authority. Extension
+fields are guard-checked on every write and at publish. Trimming the legacy
+projection must never trim the configuration presented for approval.
+
+Rolling back the runtime leaves the legacy site usable, without the combined
+archive or title sorting, and with at most eight configured streams. Entries
+whose stream is no longer configured follow the existing first-stream
+fallback, so their addresses/grouping may temporarily change. This is a
+display degradation, not a new release floor or change to private mode.
+New-only settings and old versions remain stored; a subsequent old-runtime
+edit creates a new version with no inherited stream extension, so returning
+to new code cannot silently restore settings the owner did not approve.
+Explain this degradation in update/rollback documentation and the changelog.
+
+The upgrade check must seed, approve and read a site with at least nine
+streams, a section naming the ninth, title sorting and the combined archive
+through both current editions. Then run the actual previous Cloudflare
+bundle and server on those same databases: home, a retained stream archive,
+feed, local entry and owner sign-in remain usable; legacy site JSON validates
+under the old models. Prove new code reconstructs the full approved version
+on return. Separately have old code approve a new-code draft site version
+and edit a site; on return, neither action may activate an unseen stream
+extension. Cover history, export/import and revert round trips, failed and
+concurrent writes, deletion/re-creation, and approvals of older versions.
+
+Parity adds shared fixtures for more than eight streams, explicit sections,
+both sorts with tied dates/titles/creation times and non-ASCII titles,
+chronological feeds, event groups, and archive date/stream/tag/intersected/
+empty views. Compare full HTML, redirects, headers and errors where routed;
+compare sitemap and tool answers too. Existing sites with default stream
+sort and archive disabled retain their page/feed bytes, except a previously
+ambiguous equal-date/equal-creation-time tie is now resolved by item id.
 
 **Private-site rollback warning.** Older code ignores `site.private` and
 exposes the published site. The compatibility rule stands; no schema trick

@@ -18,6 +18,7 @@ from server.spec.jsutil import u16slice
 from .content import all_items, get_item, staged
 from .db import Db, dumps, now, transaction
 from .embed_storage import migrate_sources, source_approval, source_data, stored_data
+from .stream_settings import stream_approval
 from .errors import ApiError
 from .site_fields import fields_approval
 from .visibility import check_public
@@ -238,6 +239,7 @@ async def _go_live(c: Any, row: Any, at: str) -> None:
         )
 
         if row["kind"] == "site":
+            await stream_approval(c, row["version"])
             await source_approval(c, row["version"])
             await fields_approval(c, row["version"])
 

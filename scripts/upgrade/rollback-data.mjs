@@ -120,12 +120,17 @@ async function seed(base) {
     return JSON.parse(result.content[0].text);
   }
   const tools = (await rpc('tools/list', {})).tools.map(t => t.name);
-  const brokerFeature = Object.hasOwn((await call('site_state', {})).site_defaults, 'broker');
+  const defaults = (await call('site_state', {})).site_defaults;
+  const brokerFeature = Object.hasOwn(defaults, 'broker');
+  const streamFeature = Object.hasOwn(defaults, 'archive');
+  const streamSettings = streamFeature ? {streams:[{id:'journal',title:'Rollback journal',sort:'title'},...Array.from({length:8},(_,i)=>({id:`stream-${i+1}`,title:`Rollback stream ${i+1}`}))], sections:['stream-8','journal'],archive:{enabled:true,title:'Rollback archive'}} : {};
   const picture = await call('image_add', { data: images['gps.jpeg'] });
-  const site = await call('item_create', { kind: 'site', data: { title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], timezone: 'UTC' } });
+  const site = await call('item_create', { kind: 'site', data: { title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], ...streamSettings, timezone: 'UTC' } });
   if (brokerFeature) assert.equal((await call('site_state', {ids:[site.id]})).items[0].data.broker, 'Rollback Brokerage');
   const entry = await call('item_create', { kind: 'entry', data: { title: 'Rollback entry', date: '2026-10-15', tags: ['rollback'], cover: picture.image, cover_alt: 'Synthetic fixture', body: 'Rollback content.\n\n!embed[Demo](https://youtu.be/M7lc1UVf-VE)' } });
-  const approval = await call('approval_request', { ids: [site.id, entry.id], note: 'Rollback fixture' });
+  let ninth;
+  if (streamFeature) ninth = await call('item_create',{kind:'entry',data:{stream:'stream-8',title:'Ninth stream report',date:'2026-10-16',summary:'Extension is live',body:'Ninth stream body'}});
+  const approval = await call('approval_request', { ids: [site.id, entry.id, ...(ninth ? [ninth.id] : [])], note: 'Rollback fixture' });
   const review = await http.request(new URL(approval.review_url).pathname);
   const page = await review.text(), csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1];
   assert(csrf, 'owner review must have a CSRF token');
@@ -169,7 +174,8 @@ async function seed(base) {
     assert.equal((await call('photo_batch_status', { id: link.id })).status, 'done');
     batch = true;
   }
-  return { key, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
+  return { key, token:access.token, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -195,6 +201,21 @@ async function checkPrevious(base, fixture, edition) {
   assert.equal(response.status, 200, 'previous owner must be able to review the new pending item');
   assert.equal(failures.length, 0, `${edition} previous runtime failed after current feature writes: ${failures.join('; ')}`);
   console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
+}
+
+async function loginOwner(base,fixture){
+ const http=client(base);let r=await http.post('/login/options',{});assert.equal(r.status,200);
+ r=await http.post('/login/verify',await fixture.key.get((await r.json()).options,base));assert.equal(r.status,200);return http;
+}
+async function approveAt(http,path){
+ let r=await http.request(path);assert.equal(r.status,200);const body=await r.text();
+ const csrf=/name="csrf" value="([^"]+)"/.exec(body)?.[1];assert(csrf,'old owner review CSRF');
+ r=await http.request(path,{method:'POST',body:new URLSearchParams({csrf,all:'approve'})});
+ assert([200,302,303].includes(r.status),await r.text());
+}
+async function existingCall(base,token,name,args){
+ const r=await fetch(base+'/mcp',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json','mcp-protocol-version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})});
+ assert.equal(r.status,200);const rpc=await r.json();assert(!rpc.error,JSON.stringify(rpc));assert(!rpc.result.isError,JSON.stringify(rpc.result));return JSON.parse(rpc.result.content[0].text);
 }
 
 const failures = [];
@@ -227,6 +248,32 @@ try {
       console.log(`rollback-data: ${edition}: seeded current features ${JSON.stringify(fixture.features)}`);
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
+      if(fixture.streamFeature){
+        await runtime.stop(); runtime=null;
+        runtime=await current();
+        let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
+        assert((await response.text()).includes('Ninth stream report'),'approved ninth stream survives rollback');
+        await runtime.stop();runtime=null;
+        runtime=await old();
+        const http=await loginOwner(base,fixture);
+        await approveAt(http,fixture.pending);
+        await runtime.stop();runtime=null;
+        runtime=await current();
+        response=await fetch(base+'/archive/');assert.equal(response.status,404,'old approval cannot activate unseen stream extension');
+        await runtime.stop();runtime=null;
+        runtime=await old();
+        const edited=await existingCall(base,fixture.token,'item_update',{id:'site',version:fixture.pendingVersion,data:{title:'Rollback old edit'}});
+        assert.equal(edited.version,fixture.pendingVersion+1);
+        const a=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Old edit must not inherit extension'});
+        await approveAt(await loginOwner(base,fixture),new URL(a.review_url).pathname);
+        await runtime.stop();runtime=null;
+        runtime=await current();
+        const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
+        assert.equal(state.items[0].data.streams.length,8,'old edit retains only legacy streams');
+        assert(!state.items[0].data.archive?.enabled,'old edit does not inherit archive');
+        assert.equal((await fetch(base+'/archive/')).status,404);
+        console.log(`rollback-data: ${edition}: 9-stream return restored; old approval and old edit cannot activate extension`);
+      }
     } catch (error) {
       failures.push(`${edition}: ${error.stack || error}`);
     } finally {
