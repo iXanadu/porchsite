@@ -124,7 +124,7 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **AF-C1** OPEN: an older release approving a version written by newer
+- **AF-C1** IN-PROGRESS: an older release approving a version written by newer
   code approves every site_fields key, so it can switch on the AI-training
   choice without showing it (same class as the broker fields). Needs the
   receipt pattern private mode uses. Found in AF Slice1 review, 2026-10-17.
