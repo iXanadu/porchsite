@@ -488,5 +488,65 @@
   "name": "telephone change preserves mail and refused schemes",
   "markdown": "[mail](mailto:owner@example.com) [unsafe](javascript:123) [code](data:123)",
   "html": "<p><a href=\"mailto:owner@example.com\">mail</a> [unsafe](javascript:123) [code](data:123)</p>"
+ },
+ {
+  "name": "md_pipe_tables_basic",
+  "markdown": "Name | Value\n--- | ---\nPine | 12",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">Name</th><th scope=\"col\">Value</th></tr></thead><tbody><tr><td>Pine</td><td>12</td></tr></tbody></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_alignment",
+  "markdown": "| A | B | C |\n| :- | :-: | -: |\n| x | y | z |",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\" align=\"left\">A</th><th scope=\"col\" align=\"center\">B</th><th scope=\"col\" align=\"right\">C</th></tr></thead><tbody><tr><td align=\"left\">x</td><td align=\"center\">y</td><td align=\"right\">z</td></tr></tbody></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_padding_excess",
+  "markdown": "A | B\n- | -\nx\ny | z | ignored",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A</th><th scope=\"col\">B</th></tr></thead><tbody><tr><td>x</td><td></td></tr><tr><td>y</td><td>z</td></tr></tbody></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_empty_header_only",
+  "markdown": "| |\n| - |",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\"></th></tr></thead></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_inline_safe",
+  "markdown": "**A** | `B`\n- | -\n<script> | [bad](javascript:bad)",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\"><strong>A</strong></th><th scope=\"col\"><code>B</code></th></tr></thead><tbody><tr><td>&#60;script&#62;</td><td>[bad](javascript:bad)</td></tr></tbody></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_escaped",
+  "markdown": "A \\| B | `x\\|y`\n- | -\none\\|two | **yes**",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A | B</th><th scope=\"col\"><code>x|y</code></th></tr></thead><tbody><tr><td>one|two</td><td><strong>yes</strong></td></tr></tbody></table></div>"
+ },
+ {
+  "name": "md_pipe_tables_interrupt",
+  "markdown": "Intro\nA | B\n- | -\nx | y\n\nAfter",
+  "html": "<p>Intro</p>\n<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A</th><th scope=\"col\">B</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table></div>\n<p>After</p>"
+ },
+ {
+  "name": "md_pipe_tables_quote",
+  "markdown": "> A | B\n> - | -\n> x | y",
+  "html": "<blockquote><div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A</th><th scope=\"col\">B</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table></div></blockquote>"
+ },
+ {
+  "name": "md_pipe_tables_list",
+  "markdown": "- A | B\n  - | -\n  x | y",
+  "html": "<ul><li><div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A</th><th scope=\"col\">B</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table></div></li></ul>"
+ },
+ {
+  "name": "md_pipe_tables_fence",
+  "markdown": "```\nA | B\n- | -\n```",
+  "html": "<pre><code>A | B\n- | -\n</code></pre>"
+ },
+ {
+  "name": "md_pipe_tables_mismatch",
+  "markdown": "A | B\n- | - | -",
+  "html": "<p>A | B</p>\n<ul><li>| - | -</li></ul>"
+ },
+ {
+  "name": "md_pipe_tables_block_end",
+  "markdown": "A | B\n- | -\n# End",
+  "html": "<div class=\"md-table\" tabindex=\"0\" style=\"max-width:100%;overflow-x:auto\"><table style=\"border-spacing:0.75em 0.35em\"><thead><tr><th scope=\"col\">A</th><th scope=\"col\">B</th></tr></thead></table></div>\n<h1>End</h1>"
  }
 ]

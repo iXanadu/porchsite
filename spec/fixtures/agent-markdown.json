@@ -53,6 +53,30 @@
       "description": "",
       "markdown": "# All reports\n\n<https://example.com/archive/?sort=stream&stream=journal&tag=report>\n\n### First report\n\nFirst summary\n",
       "structuredType": "CollectionPage"
+    },
+    {
+      "name": "af_pipe_table_roundtrip",
+      "html": "<main><h1>Table</h1><table><caption>Numbers</caption><thead><tr><th align=\"left\">Name</th><th align=\"right\">Value</th></tr></thead><tbody><tr><td>one|two</td><td><strong>3</strong></td></tr><tr hidden><td>secret</td><td>hidden</td></tr><tr><td><code>a\\|b`c</code></td><td><a href=\"/a|b\">go|see</a></td></tr></tbody></table></main>",
+      "canonical": "https://example.com/table/",
+      "title": "Table",
+      "description": "",
+      "markdown": "# Table\n\n<https://example.com/table/>\n\nNumbers\n\n| Name | Value |\n| :--- | ---: |\n| one\\|two | **3** |\n| ` a\\ `\\|`` b`c `` | [go\\|see](<https://example.com/a%7Cb>) |\n"
+    },
+    {
+      "name": "af_pipe_table_fallback",
+      "html": "<main><h1>Fallback</h1><table><tr><th colspan=\"2\">Header</th></tr><tr><td>First</td><td>Second</td></tr></table></main>",
+      "canonical": "https://example.com/table/",
+      "title": "Fallback",
+      "description": "",
+      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nHeader |\n\nFirst | Second |\n"
+    },
+    {
+      "name": "af_pipe_table_code_spaces",
+      "html": "<main><h1>Spaces</h1><table><tr><th>Code</th></tr><tr><td><code>  |  </code></td></tr></table></main>",
+      "canonical": "https://example.com/table/",
+      "title": "Spaces",
+      "description": "",
+      "markdown": "# Spaces\n\n<https://example.com/table/>\n\n| Code |\n| --- |\n| `  `\\|`  ` |\n"
     }
   ],
   "accept": [

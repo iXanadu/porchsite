@@ -144,7 +144,33 @@ function mdInterrupts(line: string, inItem: boolean): boolean {
   return !!it && it.first.trim() !== "" && (it.kind === "ul" || it.start === 1 || inItem);
 }
 
-function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null, ids?: HeadingIds, bodyH1AsH2 = false): { blocks: MdBlock[]; gap: boolean } {
+// Table splitting precedes inline parsing, including pipes inside code spans.
+function mdCells(source: string): {cells: string[]; pipe: boolean} {
+  const line = source.replace(/^[ \t]+|[ \t]+$/g, '');
+  const cells: string[] = []; let cell = '', pipe = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\') {
+      let end = i; while (line[end] === '\\') end++;
+      const count = end - i;
+      if (line[end] === '|' && count % 2) { cell += '\\'.repeat(count - 1) + '|'; i = end; continue; }
+      cell += '\\'.repeat(count); i = end - 1; continue;
+    }
+    if (line[i] === '|') { cells.push(cell); cell = ''; pipe = true; }
+    else cell += line[i];
+  }
+  cells.push(cell);
+  if (line.startsWith('|')) cells.shift();
+  if (pipe && cell === '') cells.pop();
+  return {cells: cells.map(c => c.replace(/^[ \t]+|[ \t]+$/g, '')), pipe};
+}
+function mdTableAt(lines: string[], i: number, budget: {remaining: number}): {cells: string[]; align: string[]} | null {
+  if (i + 1 >= lines.length || indentOf(lines[i]) >= 4 || indentOf(lines[i + 1]) >= 4 || mdStartsBlock(lines[i])) return null;
+  const header = mdCells(lines[i]), rule = mdCells(lines[i + 1]);
+  if (!header.pipe || !header.cells.length || header.cells.length > 64 || header.cells.length > budget.remaining || header.cells.length !== rule.cells.length || !rule.cells.every(c => /^:?-+:?$/.test(c))) return null;
+  return {cells: header.cells, align: rule.cells.map(c => c.startsWith(':') ? c.endsWith(':') ? 'center' : 'left' : c.endsWith(':') ? 'right' : '')};
+}
+
+function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line: string) => string | null, ids?: HeadingIds, bodyH1AsH2 = false, budget = {remaining: 4096}): { blocks: MdBlock[]; gap: boolean } {
   const out: MdBlock[] = [];
   let gap = false;
   let blankBefore = false;
@@ -212,7 +238,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
         } else break;
         i++;
       }
-      out.push({ html: `<blockquote>${mdBlocks(inner, depth + 1, false, undefined, ids, bodyH1AsH2).blocks.map((b) => b.html).join("")}</blockquote>` });
+      out.push({ html: `<blockquote>${mdBlocks(inner, depth + 1, false, undefined, ids, bodyH1AsH2, budget).blocks.map((b) => b.html).join("")}</blockquote>` });
       continue;
     }
     const first = depth < MD_MAX_DEPTH ? mdItem(line) : null;
@@ -244,7 +270,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
           content.pop();
           trailing++;
         }
-        const r = mdBlocks(content, depth + 1, true, undefined, ids, bodyH1AsH2);
+        const r = mdBlocks(content, depth + 1, true, undefined, ids, bodyH1AsH2, budget);
         if (r.gap) loose = true;
         items.push(r.blocks);
         const next = i < lines.length ? mdItem(lines[i]) : null;
@@ -263,11 +289,31 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
       out.push({ html: `${open}${lis}</${first.kind}>` });
       continue;
     }
+    const table = mdTableAt(lines, i, budget);
+    if (table) {
+      const cols = table.cells.length;
+      const row = (cells: string[], header = false) => '<tr>' + Array.from({length: cols}, (_, c) => {
+        const tag = header ? 'th' : 'td', scope = header ? ' scope="col"' : '', align = table.align[c] ? ` align="${table.align[c]}"` : '';
+        return `<${tag}${scope}${align}>${mdInline(cells[c] ?? '')}</${tag}>`;
+      }).join('') + '</tr>';
+      budget.remaining -= cols;
+      const head = row(table.cells, true), rows: string[] = [];
+      let special: string | null = null;
+      i += 2;
+      while (i < lines.length && !isBlank(lines[i]) && indentOf(lines[i]) < 4 && !mdStartsBlock(lines[i]) && budget.remaining >= cols) {
+        special = depth === 0 && block ? block(lines[i]) : null;
+        if (special !== null) { i++; break; }
+        rows.push(row(mdCells(lines[i++]).cells)); budget.remaining -= cols;
+      }
+      out.push({html: '<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em"><thead>' + head + '</thead>' + (rows.length ? '<tbody>' + rows.join('') + '</tbody>' : '') + '</table></div>'});
+      if (special !== null) out.push({html: special});
+      continue;
+    }
     const para = [stripLeft(line)];
     i++;
     let spans: [number, number][] | undefined;
     let offset = para[0].length + 1;
-    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem)) {
+    while (i < lines.length && !isBlank(lines[i]) && !mdInterrupts(lines[i], inItem) && !mdTableAt(lines, i, budget)) {
       if (depth === 0 && block && lines[i].startsWith("!embed[")) {
         if (!para.some(p => p.includes("`"))) break;
         if (spans === undefined) {

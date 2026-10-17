@@ -6,6 +6,8 @@ import pytest
 from server.app import approvals,content,site,public_artifacts as artifacts
 from server.app.privacy import BLANK
 from .conftest import TABLES
+from .test_private_site import browser_factory as browser_factory
+from .softkey import SoftKey
 
 ORIGIN, ACTOR = 'https://site.example','assistant:test'
 
@@ -513,3 +515,41 @@ async def test_af_prebuild_visitor_fill(db,http):
         return ['/archive/']
     await artifacts.prepare(db,ORIGIN,'test',render,public_paths)
     assert paths==['/','/index.md','/archive/','/archive/index.md','/llms.txt']
+
+async def test_af_pipe_table_access(db,http,browser_factory):
+    one,entry=await fixture(db)
+    table=await content.update_item(db,ACTOR,entry['id'],entry['version'],{'body':'| Public | Value |\n| :-- | --: |\n| visible\\|cell | **12** |'})
+    await publish(db,table)
+    stream=one['data']['streams'][0]
+    path='/'+(stream.get('path') or stream['id'])+'/'+table['slug']+'/'
+    html=await http.get(path)
+    assert html.status_code==200 and '<th scope="col" align="left">Public</th>' in html.text
+    direct=await http.get(path+'index.md')
+    body,tag=direct.text,direct.headers['etag']
+    assert '| :--- | ---: |' in body and 'visible\\|cell' in body
+    negotiated=await http.get(path,headers={'Accept':'text/markdown'})
+    assert negotiated.text==body and negotiated.headers['etag']==tag
+    for method in ['GET','HEAD']:
+        response=await http.request(method,path+'index.md',headers={'If-None-Match':tag})
+        assert response.status_code==304 and response.content==b''
+    own,key=browser_factory(),SoftKey()
+    options=await own.options('/setup/options',{'code':'test-setup-code','name':'owner'})
+    assert (await own.post('/setup/verify',key.create(options,ORIGIN))).status_code==200
+    owner_copy=await own.at(path+'index.md')
+    assert owner_copy.text==body and 'no-store' in owner_copy.headers['cache-control'] and 'etag' not in owner_copy.headers
+    assert 'Review' not in body
+    pending=await content.update_item(db,ACTOR,table['id'],table['version'],{'body':'| SECRET_PENDING | H |\n| - | - |'})
+    assert (await http.get(path+'index.md')).text==body
+    for headers in [{'Cookie':'__Host-sk_owner=invalid'},{'Cookie':'__Host-sk_reader=invalid'},{'Authorization':'Bearer invalid'}]:
+        response=await http.get(path+'index.md',headers=headers)
+        assert 'no-store' in response.headers['cache-control'] and 'etag' not in response.headers
+        assert 'SECRET_PENDING' not in response.text
+    await content.remove_item(db,ACTOR,table['id'],pending['version'])
+    await publish(db,await content.get_item(db,table['id']))
+    removed=await http.get(path+'index.md',headers={'If-None-Match':tag})
+    assert removed.status_code==404 and 'etag' not in removed.headers
+    hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
+    await publish(db,hidden)
+    for method in ['GET','HEAD']:
+        response=await http.request(method,path+'index.md',headers={'If-None-Match':tag})
+        assert response.status_code==404 and response.content==(BLANK.encode() if method=='GET' else b'')

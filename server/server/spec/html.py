@@ -156,11 +156,54 @@ def _heading_id(inner, used):
     return identifier
 
 
+def _cells(source):
+    line = source.strip(" \t")
+    cells, cell, pipe, i = [], "", False, 0
+    while i < len(line):
+        if line[i] == "\\":
+            end = i
+            while end < len(line) and line[end] == "\\":
+                end += 1
+            count = end - i
+            if end < len(line) and line[end] == "|" and count % 2:
+                cell += "\\" * (count - 1) + "|"
+                i = end + 1
+                continue
+            cell += "\\" * count
+            i = end
+            continue
+        if line[i] == "|":
+            cells.append(cell)
+            cell, pipe = "", True
+        else:
+            cell += line[i]
+        i += 1
+    cells.append(cell)
+    if line.startswith("|"):
+        cells.pop(0)
+    if pipe and cell == "" and cells:
+        cells.pop()
+    return [c.strip(" \t") for c in cells], pipe
+
+
+def _table_at(lines, i, budget):
+    if i + 1 >= len(lines) or _indent(lines[i]) >= 4 or _indent(lines[i+1]) >= 4 or _starts_block(lines[i]):
+        return None
+    header, pipe = _cells(lines[i])
+    rule, _ = _cells(lines[i+1])
+    if not pipe or not header or len(header) > 64 or len(header) > budget[0] or len(header) != len(rule) or not all(re.fullmatch(r":?-+:?", c) for c in rule):
+        return None
+    align = [('center' if c.endswith(':') else 'left') if c.startswith(':') else 'right' if c.endswith(':') else '' for c in rule]
+    return header, align
+
+
 def _blocks(
-    lines: list[str], depth: int, in_item: bool = False, block=None, ids=None, body_h1_as_h2=False
+    lines: list[str], depth: int, in_item: bool = False, block=None, ids=None, body_h1_as_h2=False, budget=None
 ) -> tuple[list[tuple[str, str | None]], bool]:
     """Block Markdown: [(html, paragraph's inline html or None)], and whether
     a blank line separated two of them (a loose list item)."""
+    if budget is None:
+        budget = [4096]
     out: list[tuple[str, str | None]] = []
     gap = blank_before = False
     i = 0
@@ -233,7 +276,7 @@ def _blocks(
                     break
                 i += 1
             quoted = "".join(
-                b[0] for b in _blocks(inner, depth + 1, ids=ids, body_h1_as_h2=body_h1_as_h2)[0]
+                b[0] for b in _blocks(inner, depth + 1, ids=ids, body_h1_as_h2=body_h1_as_h2, budget=budget)[0]
             )
             out.append((f"<blockquote>{quoted}</blockquote>", None))
             continue
@@ -268,7 +311,7 @@ def _blocks(
                     content.pop()
                     trailing += 1
                 bs, item_gap = _blocks(
-                    content, depth + 1, True, ids=ids, body_h1_as_h2=body_h1_as_h2
+                    content, depth + 1, True, ids=ids, body_h1_as_h2=body_h1_as_h2, budget=budget
                 )
                 if item_gap:
                     loose = True
@@ -293,11 +336,34 @@ def _blocks(
                 opening = "<ol>"
             out.append((f"{opening}{lis}</{first['kind']}>", None))
             continue
+        table = _table_at(lines, i, budget)
+        if table:
+            header, align = table
+            cols = len(header)
+            def row(cells, heading=False):
+                tag = 'th' if heading else 'td'
+                scope = ' scope="col"' if heading else ''
+                return '<tr>' + ''.join('<'+tag+scope+(' align="'+align[c]+'"' if align[c] else '')+'>'+_inline(cells[c] if c < len(cells) else '')+'</'+tag+'>' for c in range(cols)) + '</tr>'
+            budget[0] -= cols
+            head, rows, special = row(header, True), [], None
+            i += 2
+            while i < len(lines) and not _is_blank(lines[i]) and _indent(lines[i]) < 4 and not _starts_block(lines[i]) and budget[0] >= cols:
+                special = block(lines[i]) if depth == 0 and block else None
+                if special is not None:
+                    i += 1
+                    break
+                rows.append(row(_cells(lines[i])[0]))
+                budget[0] -= cols
+                i += 1
+            out.append(('<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em"><thead>'+head+'</thead>'+('<tbody>'+''.join(rows)+'</tbody>' if rows else '')+'</table></div>', None))
+            if special is not None:
+                out.append((special, None))
+            continue
         para = [_strip_left(line)]
         i += 1
         spans = None
         offset = len(para[0]) + 1
-        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item):
+        while i < len(lines) and not _is_blank(lines[i]) and not _interrupts(lines[i], in_item) and not _table_at(lines, i, budget):
             if depth == 0 and block and lines[i].startswith("!embed["):
                 if not any("`" in p for p in para):
                     break

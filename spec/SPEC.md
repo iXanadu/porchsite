@@ -1687,7 +1687,7 @@ rectangular visible data rows, no spans or nested tables, and at most the
 renderer limits becomes a GFM pipe table with a delimiter row. Preserve
 header/data order and explicit left/center/right alignment. A caption, if
 present, stays before it. A hidden row or cell contributes no text.
-Non-rectangular, spanned, nested or unsupported authored tables keep the
+Non-rectangular, spanned, nested or block-content authored tables keep the
 existing mechanical text fallback; do not invent a header or discard
 visible cells to force them into a pipe table.
 
