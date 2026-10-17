@@ -108,16 +108,18 @@ def table_inline(n):
 
 def table_rows(n):
     rows = []
+    if sum(c['tag'] == 'caption' and not hidden(c) for c in n['children']) > 1:
+        return None
     for child in n['children']:
         if hidden(child):
             continue
-        if child['tag'] not in ('tr', 'thead', 'tbody', 'tfoot', 'caption') and inline_text(text(child)):
+        if child['tag'] not in ('tr', 'thead', 'tbody', 'tfoot', 'caption') and (child['tag'] or inline_text(text(child))):
             return None
-        if child['tag'] in ('thead', 'tbody', 'tfoot') and any(not hidden(c) and c['tag'] != 'tr' and inline_text(text(c)) for c in child['children']):
+        if child['tag'] in ('thead', 'tbody', 'tfoot') and any(not hidden(c) and c['tag'] != 'tr' and (c['tag'] or inline_text(text(c))) for c in child['children']):
             return None
         candidates = [child] if child['tag'] == 'tr' else [c for c in child['children'] if c['tag'] == 'tr' and not hidden(c)] if child['tag'] in ('thead', 'tbody', 'tfoot') else []
         for row in candidates:
-            if any(not hidden(c) and c['tag'] not in ('th', 'td') and inline_text(text(c)) for c in row['children']):
+            if any(not hidden(c) and c['tag'] not in ('th', 'td') and (c['tag'] or inline_text(text(c))) for c in row['children']):
                 return None
             cells = [c for c in row['children'] if c['tag'] in ('th', 'td') and not hidden(c)]
             if any(c['attrs'].get('colspan', '1') != '1' or c['attrs'].get('rowspan', '1') != '1' or not all(table_inline(x) for x in c['children']) for c in cells):

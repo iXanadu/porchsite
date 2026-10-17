@@ -77,6 +77,14 @@
       "title": "Spaces",
       "description": "",
       "markdown": "# Spaces\n\n<https://example.com/table/>\n\n| Code |\n| --- |\n| `  `\\|`  ` |\n"
+    },
+    {
+      "name": "af_pipe_table_unsupported_visible_children",
+      "html": "<main><h1>Fallback</h1><table><caption>First caption</caption><caption>Second caption</caption><tr><th>Header</th></tr><tr><td>Value</td></tr></table></main>",
+      "canonical": "https://example.com/table/",
+      "title": "Fallback",
+      "description": "",
+      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nFirst caption Second caption\n\nHeader |\n\nValue |\n"
     }
   ],
   "accept": [

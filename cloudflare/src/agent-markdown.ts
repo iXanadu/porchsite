@@ -54,13 +54,14 @@ function tableInline(n:Node):boolean {
 }
 function tableRows(n:Node):Node[][]|null {
   const rows:Node[][]=[];
+  if(n.children.filter(c=>c.tag==='caption'&&!hidden(c)).length>1)return null;
   for(const child of n.children) {
     if(hidden(child))continue;
-    if(!['tr','thead','tbody','tfoot','caption'].includes(child.tag)&&inlineText(text(child)))return null;
-    if(['thead','tbody','tfoot'].includes(child.tag)&&child.children.some(c=>!hidden(c)&&c.tag!=='tr'&&inlineText(text(c))))return null;
+    if(!['tr','thead','tbody','tfoot','caption'].includes(child.tag)&&(child.tag||inlineText(text(child))))return null;
+    if(['thead','tbody','tfoot'].includes(child.tag)&&child.children.some(c=>!hidden(c)&&c.tag!=='tr'&&(c.tag||inlineText(text(c)))))return null;
     const candidates=child.tag==='tr'?[child]:['thead','tbody','tfoot'].includes(child.tag)?child.children.filter(c=>c.tag==='tr'&&!hidden(c)):[];
     for(const row of candidates) {
-      if(row.children.some(c=>!hidden(c)&&!['th','td'].includes(c.tag)&&inlineText(text(c))))return null;
+      if(row.children.some(c=>!hidden(c)&&!['th','td'].includes(c.tag)&&(c.tag||inlineText(text(c)))))return null;
       const cells=row.children.filter(c=>['th','td'].includes(c.tag)&&!hidden(c));
       if(cells.some(c=>(c.attrs.colspan??'1')!=='1'||(c.attrs.rowspan??'1')!=='1'||!c.children.every(tableInline)))return null;
       rows.push(cells);
