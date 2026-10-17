@@ -28,6 +28,7 @@ from .agent_pages import agent_page
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
 from . import privacy, alerts
+from .media_http import conditional_media, media_session
 from .alert_assets import ALERT_JS, SW_JS, ICONS
 from . import (
     analytics,
@@ -1543,11 +1544,15 @@ async def _route(req: Request, cx: Context) -> Response:
             # sees unpublished ones on the review page.
             is_public = await media.published(cx.db, img.group(1))
             shown = (
-                await media.serve(cx.db, img.group(1), is_public)
+                await media.serve(cx.db, img.group(1), is_public and not media_session(req))
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or await owner_site_page(cx.db, req, builtin.not_found(await content_view(req,cx), origin_of(req)))
+            if shown:
+                response = _file(shown)
+                return conditional_media(req, response, origin_of(req) + path) if is_public and not media_session(req) else response
+            missing = await owner_site_page(cx.db, req, builtin.not_found(await content_view(req,cx), origin_of(req)))
+            return privacy.no_store(missing) if media_session(req) else missing
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):

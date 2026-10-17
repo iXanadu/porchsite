@@ -287,7 +287,7 @@ async def test_private_fields_exact_version_approval_import_refusal_and_public_r
     await approvals.decide(db, request["id"], {"site": {"decision": "approve"}}, "")
     assert (await visitor.at("/")).status_code == 200
     assert not await privacy.live_private(db)
-    assert "public" in (await visitor.at(picture)).headers["Cache-Control"]
+    assert (await visitor.at(picture)).headers["Cache-Control"] == "no-cache, no-transform"
     assert "Allow" in (await visitor.at("/robots.txt")).text
     count = await db.fetchval("SELECT count(*) FROM media")
     try:

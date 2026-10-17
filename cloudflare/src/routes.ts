@@ -28,6 +28,7 @@ import * as importer from "./importer";
 import * as keys from "./keys";
 import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
+import { conditionalMedia, mediaSession } from "./media-http";
 import * as owner from "./owner";
 import * as privacy from "./privacy";
 import { dateString } from "./date-format";
@@ -1036,8 +1037,11 @@ async function route(req: Request, env: Env): Promise<Response> {
       // Nothing is public before the owner's yes, images included; the owner
       // sees unpublished ones on the review page.
       const isPublic = await media.published(env.DB, img[1]);
-      const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic) : null;
-      return shown ?? await ownerSitePage(env.DB, req, site.notFound(await contentView(req,env), url.origin));
+      const anonymous = !mediaSession(req);
+      const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic && anonymous) : null;
+      if (shown) return isPublic && anonymous ? conditionalMedia(req, shown, url.origin + path) : shown;
+      const missing = await ownerSitePage(env.DB, req, site.notFound(await contentView(req,env), url.origin));
+      return mediaSession(req) ? privacy.noStore(missing) : missing;
     }
 
     const up = /^\/upload\/([A-Za-z0-9_-]{32})$/.exec(path);

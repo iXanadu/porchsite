@@ -170,16 +170,21 @@ the app's `private, no-store, no-transform`, `Set-Cookie`, status and security
 headers. Do not replace an origin 404 with a cached success, even during an
 upstream failure or a background refresh; disable serve-stale entirely.
 
-Current releases send public photos with
-`public, max-age=31536000, immutable`. Their bytes have stable names, but
-their permission to be public can change. A proxy must not keep `/media/`
-longer than pages. Disable its media cache and override that long browser
-lifetime with `private, no-store, no-transform` at the outermost proxy until
-the engine's media policy changes. This override affects future responses;
-it cannot erase a browser's already-fresh one-year copy. Purge all caches
-you operate after removing a published picture, replacing location-bearing
-photos, or changing privacy. Revoke old cached redirects too. Do not claim
-that a shorter lifetime or an origin 404 recalls earlier downloads.
+Public photos now send `no-cache, no-transform` with an ETag. Every reuse
+must revalidate against the origin; an unchanged published image can answer
+304 without downloading its bytes again. Removing its last published
+reference returns 404 before checking that tag. Signed-in media is
+`private, no-store, no-transform` and has no validator.
+
+Earlier releases send `public, max-age=31536000, immutable`. During an
+upgrade or rollback, keep the example's conservative media override
+`private, no-store, no-transform` at the outermost proxy. Remove it only
+when the new origin policy is running and every intermediary honors
+revalidation and cannot serve stale responses. A proxy must never keep
+`/media/` longer than pages. Purge all caches you operate after removing a
+published picture, replacing location-bearing photos, or changing privacy.
+Revoke cached redirects too. Neither this update nor an origin 404 erases
+a browser's already-fresh old one-year copy or earlier downloads.
 
 For an existing Nginx TLS server, this example disables shared response
 caching, bypasses both session cookies explicitly, and prevents new media
@@ -229,7 +234,7 @@ location or a provider's "cache everything" rule can override this example.
 Do not configure `proxy_ignore_headers` to ignore Cache-Control, Set-Cookie
 or Vary. Reload only after `nginx -t` succeeds. The directive semantics are
 documented in the [Nginx proxy module](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
-When the origin media policy changes, remove the interim media header
+After updating the origin media policy, remove the interim media header
 override only after verifying every intervening cache honors revalidation
 and cannot serve stale responses. Cookie bypass, 404 passthrough and purge
 requirements still apply; an origin header cannot fix a misconfigured cache.

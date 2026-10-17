@@ -97,17 +97,18 @@ does not provide isolation. Preserve private/no-store/no-transform and
 security headers. Never serve stale content, including when the origin
 returns 404, times out or is refreshing a response in the background.
 
-Do not cache `/media/` longer than pages. Current public photos carry a
-one-year immutable header even though removing their last published
-reference makes their origin URL unavailable. Disable proxy media caching
-and override media responses to `private, no-store, no-transform` until the
-engine changes that policy. Purge old copies you operate after unpublishing
-photos or changing privacy. This cannot revoke files already downloaded or
-erase a browser's still-fresh old one-year copy. The deploy guide includes
-an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
-After an origin update, remove the interim media override only when every
-intervening cache honors revalidation and has stale reuse disabled. Keep
-cookie bypass, 404 passthrough and purge requirements in place.
+Do not cache `/media/` longer than pages. Public photos send
+`no-cache, no-transform` with an ETag: every reuse revalidates, unchanged
+published photos can return 304, and removed photos return 404 before any
+validator check. Signed-in media is private/no-store with no validators.
+Earlier releases used a one-year immutable header. Keep the conservative
+proxy override `private, no-store, no-transform` during upgrades and
+rollbacks, and remove it only after verifying the new origin policy and
+every intermediary's revalidation and stale-off behavior. Keep cookie
+bypass, 404 passthrough and purge requirements in place. Purge operated
+caches after unpublishing photos or changing privacy. This cannot revoke
+downloaded files or a browser's still-fresh old one-year copy. The deploy
+guide includes an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
 
 ## Update policy
 

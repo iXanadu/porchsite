@@ -140,13 +140,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   code approves every site_fields key, so it can switch on the AI-training
   choice without showing it (same class as the broker fields). Needs the
   receipt pattern private mode uses. Found in AF Slice1 review, 2026-10-17.
-- **SV-PV2** OPEN: a caching reverse proxy in front of a server-edition
-  site keeps serving /media files the site no longer publishes: the site
-  sends `public, max-age=31536000, immutable`. Deploy guidance now disables
-  proxy media caching and stale responses, bypasses both session cookies
-  and requires purging old copies. Remaining: review and implement a
-  shorter origin media header in both editions, coordinated with AF cache
-  invalidation. Found 2026-10-16.
 - **REL-1** OPEN: the release script refuses a changed look whose version
   wasn't bumped, but only at release time. Move that check into the
   regular gates (theme:check). Found 2026-10-16.

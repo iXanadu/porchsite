@@ -235,8 +235,8 @@ export async function sizeOf(db: D1Database, name: string): Promise<[number, num
 }
 
 /**
- * GET /media/<name>: the stored bytes. A published image is cached for good
- * (the name is the content); one only the owner may see yet is never cached.
+ * GET /media/<name>: stored bytes, after the route checks access/publication.
+ * Public copies must revalidate; owner/reader copies must never be stored.
  */
 export async function serve(db: D1Database, name: string, isPublic: boolean): Promise<Response | null> {
   const row = await db.prepare("SELECT type, chunks FROM media WHERE name = ?").bind(name).first<{ type: string; chunks: number }>();
@@ -246,7 +246,8 @@ export async function serve(db: D1Database, name: string, isPublic: boolean): Pr
   return new Response(body, {
     headers: {
       "Content-Type": TYPE[name.split(".").pop() ?? ""] ?? row.type,
-      "Cache-Control": isPublic ? "public, max-age=31536000, immutable" : "private, no-store",
+      "Content-Length": String(body.size),
+      "Cache-Control": isPublic ? "no-cache, no-transform" : "private, no-store, no-transform",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'",
     },
