@@ -1468,6 +1468,8 @@ async def handle(req: Request, cx: Context) -> Response:
     elif response is None:
         if is_private:
             response = await _route(get,cx)
+        elif req.method not in ('GET','HEAD'):
+            response = await _route(req,cx)
         else:
             response = await public_artifacts.respond(cx.db,req,cx.site_url if cx.public_artifacts else '',cx.release,lambda: render_public(req,cx))
     if is_private and gated:

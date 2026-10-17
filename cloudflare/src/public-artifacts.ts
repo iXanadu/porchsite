@@ -123,12 +123,10 @@ export async function prepare(db:D1Database,configured:string|undefined,release:
  const origin=configuredOrigin(configured);if(!origin)return;
  const {livePrivate}=await import('./privacy');
  if(await livePrivate(db))return;
- const state=await db.prepare('SELECT generation FROM public_artifact_state WHERE id=1').first<string>('generation');
- if(state)return; // Only successful invalidation schedules build-ahead.
  const stamp=await snapshot(db);if(!JSON.parse(stamp)[0].some((r:unknown[])=>r[0]==='site'))return;
  const token=crypto.randomUUID(),started=Date.now();
  await db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)').run();
- const claim=await db.prepare("UPDATE public_artifact_state SET preparing=?,prepare_until=? WHERE id=1 AND generation='' AND (preparing='' OR prepare_until<=?) RETURNING id").bind(token,started+30000,started).first();if(!claim)return;
+ const claim=await db.prepare("UPDATE public_artifact_state SET preparing=?,prepare_until=? WHERE id=1 AND (preparing='' OR prepare_until<=?) RETURNING id").bind(token,started+30000,started).first();if(!claim)return;
  try{
   if(await livePrivate(db)||await snapshot(db)!==stamp)return;
   const pages=[...new Set(['/',...await paths()])].filter(p=>pagePath(p)&&!p.includes('?')).slice(0,50);

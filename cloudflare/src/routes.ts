@@ -980,6 +980,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse();
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
+  else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
   else res=await publicArtifacts.respond(env.DB,req,env.PUBLIC_ARTIFACTS==='1'?env.SITE_URL:undefined,RELEASE,()=>renderPublic(req,env));
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
 

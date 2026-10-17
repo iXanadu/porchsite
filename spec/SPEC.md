@@ -2006,6 +2006,10 @@ Neither is an authorization source or a global invalidation guarantee.
 An optional future accelerator needs the same fresh gate and snapshot checks;
 it is not part of this table implementation or a reason to weaken headers.
 
+Non-GET/HEAD methods go directly to their ordinary handler after the current
+outer access gate. They never enter artifact dispatch or repeat its gate;
+owner approval retains its fixed database-round-trip budget.
+
 Eligible stored results are anonymous successful GET representations of
 home, published local entries, stream archives, tag pages, the enabled
 combined archive, their Markdown copies, and `/llms.txt`. Include only paths
@@ -2079,7 +2083,8 @@ authorization or display-clock cache. Leases coalesce one snapshot job and
 expire after 30 seconds; jobs check a 250 ms wall budget and the current
 minute boundary before starting each next copy. An in-flight render may
 finish after that budget, but cannot admit an expired copy. Later requests
-safely fill unfinished work.
+safely fill unfinished work. A visitor fill recording G is not a completion
+marker: it must not suppress scheduled preparation of home, archive or map.
 The latter stores key, G, normalized origin/address/representation, UTF-8 body,
 Content-Type, AF-2 ETag, approved Content-Signal, a fixed allowlist of public
 response metadata and an exclusive `valid_until` UTC timestamp. No arbitrary
@@ -2131,7 +2136,10 @@ A builder captures G, renders in memory, then atomically rechecks the current
 public state and G before inserting. A concurrent publish/private-on, a time
 boundary or format change discards that build. Use compare-and-insert/transaction
 semantics so a late old builder cannot repopulate rows after invalidation.
-Recheck gate/snapshot eligibility before delivery from stored data. Once a
+After reconstructing and validating a stored response, recheck its exclusive
+expiry and the authoritative snapshot immediately before delivery; otherwise
+delete that key and use the live renderer. This applies to warm 200 and 304
+hits as well as fills. Once a
 privacy or unpublish commit has occurred, a request newly authorized after
 that commit cannot serve an old body or 304. Already delivered or previously
 authorized in-flight public bytes cannot be recalled, as in the existing rule.

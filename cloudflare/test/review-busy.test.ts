@@ -21,7 +21,7 @@ async function signedIn(): Promise<string> {
 }
 
 // Counts the database round trips a request makes.
-function counted(): { env: Env; n: () => number } {
+function counted(flag?:string): { env: Env; n: () => number } {
   let n = 0;
   const wrap = (s: any): any =>
     new Proxy(s, {
@@ -41,33 +41,35 @@ function counted(): { env: Env; n: () => number } {
       return typeof v === "function" ? v.bind(t) : v;
     },
   });
-  return { env: { ...e, DB: db } as Env, n: () => n };
+  return { env: { ...e, SITE_URL: "https://site.example", PUBLIC_ARTIFACTS:flag, DB: db } as Env, n: () => n };
 }
 
 describe("big reviews", () => {
-  it("say they're working, and cost the same few queries for 1 item or 30", async () => {
+  it.each([undefined,"1"])("say they're working, and cost the same few queries for 1 item or 30 (prepared=%s)", async (flag) => {
     const cookie = await signedIn();
-    const costs: number[] = [];
+    const costs: number[] = [], decisions: number[] = [];
     for (const size of [1, 30]) {
       const ids: string[] = [];
       for (let i = 0; i < size; i++) ids.push((await content.createItem(e.DB, who, "card", { name: `C${size}-${i}`, description: "x", visibility: "public" }, undefined)).id);
       const r = await approvals.request(e.DB, who, ids, "");
-      const c = counted();
+      const c = counted(flag);
       const page = await (await handle(new Request(`https://site.example/review/${r.id}`, { headers: { Cookie: cookie } }), c.env)).text();
       costs.push(c.n());
       if (size === 30) {
         expect(page).toContain('data-busy="Publishing 30 changes… This can take a few seconds; keep this page open."');
         expect(page).toContain('data-busy="Saving your choices…"');
         expect(page).toContain("A big decision can take seconds");
-        const csrf = /name="csrf" value="([^"]+)"/.exec(page)![1];
-        const f = new FormData();
-        f.set("csrf", csrf);
-        f.set("all", "approve");
-        const d = counted();
-        expect((await handle(new Request(`https://site.example/review/${r.id}`, { method: "POST", body: f, headers: { Cookie: cookie } }), d.env)).status).toBe(200);
-        expect(d.n()).toBeLessThanOrEqual(12);
       }
+      const csrf = /name="csrf" value="([^"]+)"/.exec(page)![1];
+      const f = new FormData();
+      f.set("csrf", csrf);
+      f.set("all", "approve");
+      const d = counted(flag);
+      expect((await handle(new Request(`https://site.example/review/${r.id}`, { method: "POST", body: f, headers: { Cookie: cookie } }), d.env)).status).toBe(200);
+      expect(d.n()).toBeLessThanOrEqual(12);
+      decisions.push(d.n());
     }
     expect(costs[1]).toBe(costs[0]);
+    expect(decisions[1]).toBe(decisions[0]);
   });
 });

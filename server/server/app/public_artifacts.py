@@ -141,6 +141,8 @@ def delivery(row,req,c,stamp):
     else:
         headers.pop('vary',None)
     match=matches_tag(req.headers.get('if-none-match'),headers['etag'])
+    if req.method=='HEAD' and not match:
+        headers['content-length']=str(len(row['body'].encode()))
     return Response(None if match or req.method=='HEAD' else row['body'],status_code=304 if match else 200,headers=headers)
 
 async def respond(db,req,configured,release,render):
@@ -174,7 +176,7 @@ async def respond(db,req,configured,release,render):
         if row and row['valid_until']>time.time()*1000:
             if await snapshot(db)==stamp:
                 hit=delivery(row,req,c,stamp)
-                if hit:
+                if hit and row['valid_until']>time.time()*1000 and await snapshot(db)==stamp:
                     return hit
             await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
     except Exception:
@@ -221,16 +223,13 @@ async def prepare(db,configured,release,render_path,paths):
     origin=configured_origin(configured)
     if not origin or await live_private(db):
         return
-    state=await db.fetchval('SELECT generation FROM public_artifact_state WHERE id=1')
-    if state:
-        return
     stamp=await snapshot(db)
     if not any(row[0]=='site' for row in json.loads(stamp)[0]):
         return
     token=str(uuid.uuid4())
     started=int(time.time()*1000)
     await db.execute('INSERT INTO public_artifact_state(id) VALUES(1) ON CONFLICT DO NOTHING')
-    claim=await db.fetchval("UPDATE public_artifact_state SET preparing=$1,prepare_until=$2 WHERE id=1 AND generation='' AND (preparing='' OR prepare_until<=$3) RETURNING id",token,started+30000,started)
+    claim=await db.fetchval("UPDATE public_artifact_state SET preparing=$1,prepare_until=$2 WHERE id=1 AND (preparing='' OR prepare_until<=$3) RETURNING id",token,started+30000,started)
     if not claim:
         return
     try:

@@ -13,7 +13,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. SP-S3 (opt-in fixed guide reuse in site_state; needs reconnect).
+1. AF-7 (prepared public copies; independent acceptance).
 2. The AGENT ACCESS TO PRIVATE SITES section last.
 
 ## BLOCKING
@@ -64,7 +64,8 @@ security invariants written before the spec.
 - **AF-7H** OPEN: hosted CPU and database-read/write measurement before
   default enablement of prepared public pages. The D1/PostgreSQL backend is
   operator opt-in and remains off by default. Local process CPU is diagnostic;
-  it does not establish hosted savings or lower database cost.
+  it does not establish hosted savings or lower database cost. Resolve the
+  local large-site entry p95 regression before considering default enablement.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos
   without alt text, embeds without a caption, pages without a description,
   heading order). Facts, never advice.

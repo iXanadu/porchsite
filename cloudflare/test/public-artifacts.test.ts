@@ -24,10 +24,11 @@ const get=(path='/',headers:Record<string,string>={},method='GET')=>handle(new R
 async function count(){return Number(await db.prepare('SELECT count(*) AS n FROM public_artifacts').first('n'));}
 it('af_prebuild_bytes: a warm representation avoids rendering and preserves all body/tag metadata',async()=>{
  await fixture();const first=await get(),body=await first.text(),tag=first.headers.get('ETag');expect(await count()).toBe(1);
+ const liveHead=await handle(new Request(origin+'/',{method:'HEAD'}),{...e,PUBLIC_ARTIFACTS:undefined});expect(await liveHead.text()).toBe('');expect([...liveHead.headers]).toEqual([...first.headers]);
  const render=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('warm hit rendered');});
  const warm=await get();expect(await warm.text()).toBe(body);expect([...warm.headers]).toEqual([...first.headers]);expect(render).not.toHaveBeenCalled();
  const conditional=await get('/',{'If-None-Match':tag!});expect(conditional.status).toBe(304);expect(await conditional.text()).toBe('');
- const head=await get('/',{},'HEAD');expect(head.status).toBe(200);expect(await head.text()).toBe('');
+ const head=await get('/',{},'HEAD');expect(head.status).toBe(200);expect(await head.text()).toBe('');expect([...head.headers]).toEqual([...first.headers]);
 });
 it('af_prebuild_negotiation: copy and negotiated bodies/tags share storage, delivery Vary stays distinct',async()=>{
  await fixture();const direct=await get('/index.md'),body=await direct.text(),tag=direct.headers.get('ETag');expect(await count()).toBe(1);expect(direct.headers.has('Vary')).toBe(false);
@@ -198,4 +199,42 @@ it('af_prebuild_clock: local midnight expires notice and event output without pu
 it('af_prebuild_publication_atomic: a failed post-commit builder cannot undo publication',async()=>{
  const {one}=await fixture();const draft=await content.updateItem(db,actor,'site',one.version,{title:'Committed despite failed build'});await publish(draft);const {preparePublic}=await import('../src/routes');
  const render=vi.spyOn(site,'liveView').mockRejectedValue(Error('build failure'));await expect(preparePublic(e)).rejects.toThrow('build failure');render.mockRestore();expect(await db.prepare("SELECT version FROM live WHERE item_id='site'").first('version')).toBe(draft.version);expect(await(await get()).text()).toContain('Committed despite failed build');
+});
+
+
+it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after the validation snapshot cannot deliver the old row',async(change)=>{
+ const {one,entry}=await fixture(),path='/journal/'+entry.slug+'/';
+ const first=await get(path);expect(first.status).toBe(200);expect(await count()).toBe(1);
+ const rendered=vi.spyOn(site,'liveView');
+ let calls=0;
+ const raced=new Proxy(db,{get(target,key){
+  if(key==='prepare')return(sql:string)=>{
+   const statement=target.prepare(sql);
+   if(sql!==`SELECT ${artifacts.SNAPSHOT} AS stamp`)return statement;
+   return new Proxy(statement,{get(t,k){
+    if(k==='first')return async(...args:any[])=>{
+     const stamp=await (t.first as any)(...args);calls++;
+     if(calls===2){
+      if(change==='private')await publish(await content.updateItem(db,actor,'site',one.version,{private:true}));
+      else if(change==='unpublish')await publish(await content.removeItem(db,actor,entry.id,entry.version));
+      else {const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));vi.spyOn(Date,'now').mockReturnValue(until+1000);}
+     }
+     return stamp;
+    };
+    const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value;
+   }});
+  };
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
+ if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(304);}
+ else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(BLANK);}
+});
+
+
+it('af_prebuild_visitor_fill: a first visitor cannot suppress build-ahead of other representations',async()=>{
+ const {entry}=await fixture();await get('/journal/'+entry.slug+'/');expect(await count()).toBe(1);
+ const paths:string[]=[];
+ await artifacts.prepare(db,origin,'test',async(req)=>{paths.push(new URL(req.url).pathname);return new Response('not stored',{status:404});},async()=>['/archive/']);
+ expect(paths).toEqual(['/','/index.md','/archive/','/archive/index.md','/llms.txt']);
 });

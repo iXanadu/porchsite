@@ -27,10 +27,14 @@ async def fixture(db):
 async def count(db):
     return await db.fetchval('SELECT count(*) FROM public_artifacts')
 
-async def test_af_prebuild_bytes(db,http,monkeypatch):
+async def test_af_prebuild_bytes(db,http,app,monkeypatch):
     await fixture(db)
     first=await http.get('/')
     assert await count(db)==1
+    app.settings=replace(app.settings,public_artifacts=False)
+    live_head=await http.head('/')
+    app.settings=replace(app.settings,public_artifacts=True)
+    assert live_head.content==b'' and dict(live_head.headers)==dict(first.headers)
     async def forbidden(*args,**kwargs):
         raise AssertionError('warm hit rendered')
     monkeypatch.setattr(site,'live_view',forbidden)
@@ -41,6 +45,7 @@ async def test_af_prebuild_bytes(db,http,monkeypatch):
     assert conditional.status_code==304 and conditional.content==b''
     head=await http.head('/')
     assert head.status_code==200 and head.content==b''
+    assert dict(head.headers)==dict(first.headers)
 
 async def test_af_prebuild_negotiation(db,http,monkeypatch):
     await fixture(db)
@@ -450,3 +455,61 @@ async def test_af_prebuild_failed_builder_keeps_publication(db,http,app,monkeypa
             await artifacts.prepare(db,ORIGIN,app.settings.release,lambda r:routes.render_public(r,cx),lambda:routes.public_paths(req,cx))
     assert await db.fetchval("SELECT version FROM live WHERE item_id='site'")==draft['version']
     assert 'Committed despite failed build' in (await http.get('/')).text
+
+
+@pytest.mark.parametrize('change',['private','unpublish','expiry'])
+async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
+    one,entry=await fixture(db)
+    path='/journal/'+entry['slug']+'/'
+    first=await http.get(path)
+    assert first.status_code==200 and await count(db)==1
+    original=artifacts.snapshot
+    live=site.live_view
+    rendered=0
+    async def observed(*args,**kwargs):
+        nonlocal rendered
+        rendered+=1
+        return await live(*args,**kwargs)
+    monkeypatch.setattr(site,'live_view',observed)
+    calls=0
+    async def raced(*args,**kwargs):
+        nonlocal calls
+        stamp=await original(*args,**kwargs)
+        calls+=1
+        if calls==2:
+            # Commit after the hit's validation snapshot was read, before delivery.
+            if change=='private':
+                hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
+                await publish(db,hidden)
+            elif change=='unpublish':
+                gone=await content.remove_item(db,ACTOR,entry['id'],entry['version'])
+                await publish(db,gone)
+            else:
+                expired=await db.fetchval('SELECT max(valid_until) FROM public_artifacts')
+                monkeypatch.setattr(artifacts.time,'time',lambda:expired/1000+1)
+        return stamp
+    monkeypatch.setattr(artifacts,'snapshot',raced)
+    response=await http.get(path,headers={'If-None-Match':first.headers['etag']})
+    if change=='expiry':
+        # Same public content may still validate, but only after ordinary rendering.
+        assert rendered>0 and response.status_code==304
+    else:
+        assert response.status_code==404 and 'etag' not in response.headers
+        assert await count(db)==0
+        if change=='private':
+            assert response.content==BLANK.encode()
+
+
+async def test_af_prebuild_visitor_fill(db,http):
+    from starlette.responses import Response
+    _,entry=await fixture(db)
+    await http.get('/journal/'+entry['slug']+'/')
+    assert await count(db)==1
+    paths=[]
+    async def render(req):
+        paths.append(req.url.path)
+        return Response('not stored',status_code=404)
+    async def public_paths():
+        return ['/archive/']
+    await artifacts.prepare(db,ORIGIN,'test',render,public_paths)
+    assert paths==['/','/index.md','/archive/','/archive/index.md','/llms.txt']
