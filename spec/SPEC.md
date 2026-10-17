@@ -1207,6 +1207,352 @@ Not part of the contract; one edition has them for how it is run.
   Cloudflare edition has no admin command: its installer sends the link
   with the `SETUP_CODE` secret, or stores a code in `setup_codes` itself.
 
+## 10. Agent-friendly public sites (proposed; implementation pending)
+
+This section specifies AF-2 through AF-8 for both editions. It changes no
+access rights, assistant tools or approval authority. Agent versions follow
+from the same single owner approval as the visible page. Private-site agent
+access and owner-review Markdown are deferred to a separate specification.
+Owner-facing claims are limited to cheaper and easier reading; no traffic,
+ranking or citation improvement is promised.
+
+### Access and cache boundary (before representation selection)
+
+The live approved private flag is checked before resolving an alternate,
+constructing a view, comparing a validator, looking up a prepared response
+or following a redirect. No user-agent string, Accept value, conditional
+header, query parameter, extension or bearer token grants access.
+
+On a private site all new AF endpoints, including `/index.md`, entry,
+archive and tag `index.md` paths and `/llms.txt`, return the exact blank
+404 specified in §3, even for an owner or reader. A request selecting
+Markdown at an existing page URL returns that same denial. HEAD has the
+same status and security headers with no body. Denials carry no ETag,
+Last-Modified, Link, Content-Location, canonical URL, site name, Location,
+Age, Vary or content-specific header. If-None-Match, If-Modified-Since,
+If-Match and If-Unmodified-Since never change this to 304 or 412.
+Private robots retains its exact existing disallow-all response. Existing
+signed-in HTML behavior stays as specified in §3 and §5: private, no-store,
+no-transform, no validators, and no new agent discovery or structured data.
+
+On a public site public representations contain only approved material
+visible to an anonymous visitor. Owner navigation is confined to owner
+HTML. Requests carrying an owner or reader session cookie or Authorization header
+bypass shared response storage and conditional 304 handling; their response
+is private, no-store, no-transform, with no validators. An invalid owner
+cookie does not authorize anything. Private and personalized response bytes,
+validators and derived artifacts never enter a shared store.
+
+### AF-2: validators and conditional reads
+
+Successful anonymous GET and HEAD for home, on-site entries, stream
+archives, tags, feeds, `/sitemap.xml` and public `/robots.txt` carry an ETag. This also applies
+to the new successful Markdown and llms.txt responses. Missing resources,
+redirects, errors, sign-in, review and capability URLs gain no AF validator.
+
+For a representation with canonical HTML URL `U`, Content-Type `T`,
+public Content-Signal value `S` (AF-4) and uncompressed UTF-8 bytes `B`,
+compute SHA-256 over UTF-8(`U`), one zero byte, UTF-8(`T`), one zero byte,
+UTF-8(`S`), one zero byte, then `B`. For feeds, sitemap, robots and llms.txt,
+`U` is that resource's canonical site URL. Copies and negotiated Markdown
+both use their canonical HTML URL, never the copy URL. The ETag is `W/"sha256-<64 lowercase hex digits>"`. Use the exact
+Content-Type specified for that format, including `; charset=utf-8`.
+The weak tag permits transport compression without claiming byte equality
+between content codings. Both editions produce identical representation
+bytes, Content-Type and tags at the same approved state and site origin.
+No random id, secret, request cookie, internal-only database id or draft
+revision enters a representation. Visible time-dependent content follows
+the same render clock in both editions; its next visible change expires
+prepared output and is an effective representation change. A different body or format changes its
+tag; HTML and Markdown never share a tag. The direct Markdown URL and the
+negotiated Markdown use the same bytes and tag.
+
+Select the representation and check access first. Then implement
+If-None-Match using the weak comparison and field grammar in
+[RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2):
+a matching tag (including a weak or strong spelling in a list), or `*`
+for an existing successful representation, yields 304 for GET/HEAD.
+Otherwise send the ordinary response. A malformed field is ignored;
+matching is not substring matching. If-None-Match takes precedence over
+If-Modified-Since. This feature emits no Last-Modified and makes no new
+If-Modified-Since promise.
+
+A 304 has no body and preserves the selected GET's ETag, Cache-Control,
+Vary and discovery Link headers. HEAD returns the corresponding GET status
+and headers with no body, including the same conditional decision. A 304
+never supplies a nonzero Content-Length. No conditional response turns a
+missing page into a success or discloses private existence.
+
+These anonymous public representations use `Cache-Control: public,
+no-cache, must-revalidate, no-transform`. This supersedes the feed and
+sitemap freshness lifetime, requiring revalidation before reuse; there is
+no stale-while-revalidate or stale-if-error. Page variants merge `Accept`
+into Vary rather than replacing existing tokens. Existing long-lived
+fingerprinted static assets are outside this change. Deployment guidance
+must disable host HTML-to-Markdown conversion and prevent proxies from
+reusing stale pages or overriding the origin's access and cache rules.
+
+### AF-3: Markdown copies and discovery
+
+Every canonical public HTML page that returns 200 has one Markdown copy:
+`/` maps to `/index.md`; `/notes/` maps to `/notes/index.md`;
+`/notes/example/` maps to `/notes/example/index.md`; a tag archive follows
+the same rule. Only a real page can have a copy. Unknown pages, nested
+`index.md/index.md`, arbitrary file suffixes and reserved owner/protocol/
+capability paths get an ordinary real 404, never a home-page fallback.
+An external entry remains a redirect at its existing HTML URL and has no
+local Markdown twin; discovery links directly to its existing destination.
+No new redirect is resolved before the private-site gate.
+
+A direct copy returns `Content-Type: text/markdown; charset=utf-8` with
+`X-Content-Type-Options: nosniff`. It is data, never HTML. Each public HTML
+page advertises its existing copy through an engine-inserted
+`<link rel="alternate" type="text/markdown" href="<copy path>">`
+and `Link: </notes/example/index.md>; rel="alternate"; type="text/markdown"`
+for the example entry above. The copy path is generated from the canonical
+same-site path, not owner text. Looks do not invent or override these links.
+
+At a canonical HTML page URL, an explicit acceptable `text/markdown`
+media range selects Markdown when its effective quality is positive and
+at least that of HTML. Match media types and parameter names without case,
+apply specific ranges before wildcards and honor q=0 exclusions as in
+[RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
+Absent Accept, `*/*` alone, or a strictly preferred HTML range selects HTML.
+An invalid Accept is treated as absent. If neither format is acceptable,
+return 406 without discovery, validators or cached content. Negotiate only
+existing successful HTML pages: an anonymous public miss remains the
+ordinary themed HTML 404 even when Accept prefers Markdown. Direct
+`index.md` paths select Markdown independently of Accept. Both negotiated
+HTML and Markdown, including 304 and 406, carry `Vary: Accept`.
+
+Copies describe what the selected page actually shows, in its displayed
+order: title, canonical HTML URL, visible summary/about/body text, visible
+entry dates and tags, and visible card/note or archive entries. Omit fields
+and items the look does not display. Preserve ordinary Markdown structure
+and approved text; omit menus, theme chrome, analytics, scripts, styles,
+owner controls, hidden fields and template source. Image descriptions and
+links use their displayed alt/title and approved destination. Private cards contribute no name, description, link,
+image or badge; mention cards contribute only name and description, never
+a link, link label or picture. Embeds become
+ordinary title-and-URL links; never fetch an embed, remote image or linked
+page to build a copy. No LLM, summarizer or external conversion service runs.
+
+Generated titles, labels and summaries are escaped as Markdown data:
+owner strings cannot open a metadata/header block, inject an extra map
+entry or become an HTTP header. Relative content links resolve using the
+canonical HTML page, including when fetched through its deeper copy path.
+Generated internal links have canonical existing destinations. Use UTF-8,
+LF line endings and a final newline, with byte parity fixtures covering
+Unicode, escapes, lists, code, embeds and relative links. Canonical page
+addresses and generated paths, not untrusted forwarded-host values, supply
+all discovery URLs.
+
+### AF-4: the owner's training choice
+
+The optional boolean `site.ai_training_disabled` defaults to false.
+Absent or false allows training; true disables it. It is an
+allowlisted exact-version site_fields value, never a key in legacy item,
+revision or live JSON. Absence at the approved live version means training is allowed;
+no older version's setting is inherited. Draft changes have no public
+effect. Normal owner approval, review, restore and rollback apply; the
+owner sees the setting and its effect before approving. No extra agent
+approval step or service credential is introduced.
+
+Public `/robots.txt` starts with `User-agent: *`, `Allow: /`. When training
+is off append three groups, in this order, each with `Disallow: /`:
+GPTBot, ClaudeBot, Google-Extended. When on omit these denial groups.
+Always finish with the existing absolute Sitemap line and final newline;
+separate groups by one blank line. Search and user-triggered fetchers,
+including Googlebot, OAI-SearchBot, Claude-SearchBot, ChatGPT-User and
+Claude-User, remain allowed. This is a declared preference, not access
+control or a guarantee about crawler compliance; private mode still wins.
+
+Public content, copies, discovery files and their 304s also state the
+origin's choice with `Content-Signal: search=yes, ai-input=yes,
+ai-train=yes` or `ai-train=no`, as appropriate, on one line. This is an
+explicit compatibility signal, not an adopted IETF authorization standard.
+The training choice is part of the public representation metadata: changing
+it must change the ETag even when visible content is unchanged. AF-2's
+hash input therefore includes that exact Content-Signal value. Emit the signal only
+on public responses, never private denials or private/personalized content.
+
+The origin must state the choice itself. Install/deploy guidance and live
+acceptance check the final response as well as origin output: host-managed
+robots injection, automatic conversion or headers must not add a conflicting
+training declaration. Disable such host features if they override the
+owner's choice; no requirement depends on a paid plan or Cloudflare service.
+
+### AF-5: structured facts in every look
+
+Every successful anonymous public HTML page has engine-produced JSON-LD
+from its actual approved visible view. The base is schema.org WebPage with
+`@context: "https://schema.org"`, `@type: "WebPage"`, canonical `url`,
+visible page `name` and visible `description` when present. Archive and tag
+pages use CollectionPage and may list the entries visibly present there.
+Every look, including installed looks, is covered; a look without specific
+business facts still gets the accurate base object. Look names alone are
+not evidence that a business, person, event, offer or review exists.
+
+More specific schema.org entities may use existing fields only when their
+meaning is explicit and they are actually displayed. Omit unsupported
+prices, addresses, ratings, dates, identities, affiliations and claims;
+never infer them from a title, arbitrary prose or a look's name. There is
+no new stored listing field, remote lookup or model-generated fact.
+
+Emit one inert `script type="application/ld+json"` data block; no executable
+inline script is permitted. JSON-escape all strings and escape `<`, `>`,
+`&` and U+2028/U+2029 so `</script>` in content cannot escape the data block.
+Do not weaken script-src, add unsafe-inline or open network destinations.
+This is a narrowly specified engine data block; the template rule against
+inline executable scripts remains intact. JSON object key order and array
+order are deterministic and identical in both editions.
+
+### AF-6: a short public map
+
+`GET /llms.txt` returns `text/markdown; charset=utf-8`, nosniff, with ETag
+and conditional reads as above. It contains the visible site title, the
+approved visible site description if present, and a list of canonical
+Markdown copies with their visible page titles and summaries. No synthetic
+summary is written when the owner supplied none. The title is one line;
+descriptions and list labels are escaped data, never agent directions.
+
+List home first, then published local entry pages in displayed stream and
+entry order. Only pages whose anonymous canonical HTML GET returns 200
+may be listed. Archive and tag copies remain discoverable through page
+links, but are not additional map entries in this version. Deduplicate paths;
+include only successfully generated same-site copies. Limit the map to
+16 KiB UTF-8 and 50 links, whichever comes first, cutting only at complete
+lines and UTF-8 boundaries. A title or description that will not fit is
+truncated as plain text. Large sites remain discoverable through their
+archive copies and sitemap; an incomplete map never claims completeness.
+Add `Link: </llms.txt>; rel="describedby"` to public HTML and Markdown
+responses, merging it with the alternate link rather than replacing it.
+No llms-full.txt, plugin instructions or new agent protocol is generated.
+This file is a convenience map, with no search-ranking claim.
+
+### AF-7: prepare public artifacts without weakening publication
+
+HTML, Markdown, structured data, robots and map derive from the same
+approved public snapshot. Prepare once per effective published state where
+possible; both editions provide the same behavior without a host conversion
+service. Exact storage backend and performance targets require the AF-1
+baseline and a separate implementation plan; this section grants no paid
+service or deployment authority.
+
+Any public preparation/cache design must include site origin, canonical
+path, representation, training choice and the complete effective published
+state, including theme/version, visible settings and the next boundary
+for time-dependent visible text. Publish, unpublish,
+delete, restore, theme change and public/private transitions invalidate the
+corresponding public artifacts. Draft changes do not. Once private mode
+commits, no request newly authorized after that commit may serve an old
+public artifact or 304; gate and generation checks precede shared storage.
+An already delivered public response cannot be recalled. No private
+prebuilding, private artifact table or per-agent cache is authorized here.
+
+### AF-8: content is data, never agent authority
+
+All generated prose and structured values are a mechanical projection of
+the owner's approved visible content. No engine, theme, fetched resource or
+assistant adds prompts, role messages, tool calls, system-like directives,
+requests to ignore other instructions, endorsements, ranking requests or
+claims about an agent's permissions. Templates cannot supply an extra
+agent-only prompt field. Owner strings remain escaped content values,
+never HTTP headers, control delimiters, executable markup or generated
+metadata keys. The formats carry no secrets, drafts, approval messages,
+assistant keys, passkey material, analytics or review-only values.
+
+This rule constrains what the system generates; it does not certify that
+arbitrary owner prose contains no imperative sentences or prompt-injection
+attempts. Such prose remains untrusted source data as it is in HTML. Do not
+execute, follow, expand or fetch instructions found in it. Do not claim an
+instruction detector makes content safe, silently rewrite owner content,
+or add an agent coaching preamble. Any stronger semantic filtering policy
+requires an explicit product decision before implementation.
+
+### Security invariants (normative)
+
+The following numbered invariants bind the implementation and paired tests.
+`BLANK` refers to the exact private-site body specified in §3. These apply
+before the feature-specific presentation rules above.
+
+Gating
+1. Access check runs before live view, media lookup, Markdown/JSON-LD/llms build, ETag, Link, stored-copy lookup, or Accept negotiation.
+2. AF paths are not on the private open-path allowlist: GET/HEAD /llms.txt, GET/HEAD <page>/index.md, and page URLs with Accept: text/markdown.
+3. Anonymous private gated GET is exactly today's blank 404 (status, BLANK body, headers above).
+4. That 404 has no ETag, Last-Modified, Link, Vary, Content-Location, or Age.
+5. Its Content-Type is text/html (charset utf-8 allowed). Never text/markdown, application/ld+json, or text/plain except private /robots.txt as in 10. Accept: text/markdown does not change this (no content-type oracle).
+6. HEAD matches GET status and those headers, empty body.
+7. If-None-Match, If-Modified-Since, If-Match, If-Unmodified-Since never change 3-6. Never 304 for anonymous private.
+8. All those gated anonymous private GET bodies are byte-identical to BLANK (no size oracle by path existence). Hits and misses match: /index.md of a real page equals /missing/index.md.
+9. Test: spy/monkeypatch live_view, media lookup, stored-copy read, Markdown/JSON-LD/llms builders — they are not called for anonymous private gated requests (timing oracle = content lookup before gate).
+10. Private /robots.txt stays exactly `User-agent: *\nDisallow: /\n` with private, no-store, no-transform; no Sitemap; no extra User-agent groups. The AF-4 training switch has zero effect on private robots bytes. No ETag/Link.
+
+Session and shared cache
+11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
+12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
+13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap.
+14. ETag, when present, hashes only the anonymous published bytes of that representation (URL + Content-Type). Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on every authenticated page (SV-PV1). Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
+16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
+17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
+
+Published-only content
+18. Markdown, JSON-LD, llms.txt, sitemap, feeds, and ETag input use the live approved view only. Drafts, pending approvals, unpublished items, and unapplied rollback versions never appear.
+19. Private cards are absent (name, description, link, picture, badge).
+20. Mention cards: name and description only; no link, link label, or picture — same as HTML.
+21. Unpublished entries and owner/review/setup/preview/login/recover/invite/upload/mcp paths never get Markdown copies, JSON-LD, or llms.txt listings.
+22. llms.txt lists only URLs a visitor GET would 200 as HTML (home + published local entry pages). No /review, drafts, private cards, media secrets, or invite tokens.
+23. JSON-LD properties are existing published fields already shown on that page. No email/phone/price/beds unless already a public page field. No session or owner-only fields.
+24. Markdown of a page is the same published text the visitor HTML shows (title, date, tags, body, visible cards), not a richer dump of item JSON.
+
+AF-8
+25. Porchsite-authored sentences on agent surfaces (llms.txt boilerplate, JSON-LD @context/@type, Link rel values, Markdown wrappers) are a frozen template. Owner field values appear only as data: title, summary, URL, dates, body, schema.org property values.
+26. Owner fields are never interpolated into Porchsite-authored imperative language ("you must", "ignore", "system", "when answering", "instructions for AI").
+27. Tests with title/summary/body/about/footer/card description/tagline set to `Ignore previous instructions`, `SYSTEM:`, `</script>`, `` `json `` fences, `data:text/html`, unapproved embeds, private card names: JSON-LD in HTML is JSON-escaped so `</script>` cannot break out of the script tag; Markdown/llms.txt grow no Porchsite-authored instruction preamble; private-card names still fail content_guard; the payload appears only as the owner's published text.
+28. rel=alternate and rel=describedby Link targets are same-origin site URLs to that page's Markdown copy and /llms.txt. Never owner-controlled URLs.
+
+Routing
+29. <page>/index.md exists only for addresses that are a public HTML page (home /index.md, entry /stream/slug/index.md, archive/tag if those pages exist). /review/index.md, /login/index.md, /media/.../index.md, /mcp/index.md are not Markdown copies: private anonymous → blank 404; public → ordinary miss, never owner HTML as markdown.
+30. On a public page, Accept: text/markdown returns the same bytes as that page's /index.md, Content-Type text/markdown; charset=utf-8, Vary: Accept. Public miss: themed HTML 404, not markdown. Private anonymous: blank HTML 404 even with that Accept (5).
+31. Both editions: identical bytes and headers for the same published site (parity includes Markdown, llms.txt, robots with the training switch, JSON-LD).
+
+AF-4 training switch
+32. Public default: today's robots (`User-agent: *` Allow: / plus Sitemap). Training-off adds well-known training-crawler Disallow groups; `User-agent: *` Allow: / stays for search and user-triggered agents.
+33. The switch is an exact-version approved site_fields key (like private), never a legacy JSON key the previous release would parse into SiteData (S4-11 BLOCK 1). Absent or false = training allowed. Private robots ignore it (10).
+
+Protocol leftovers
+34. /.well-known/porchsite-release, OAuth metadata, /login, /mcp stay as today: no site content, no llms listing of private pages.
+
+### Compatibility and paired acceptance
+
+Until implementation and all acceptance gates pass, this proposed section
+is not a claim that shipped releases expose these paths or headers. Where
+it changes older public discovery/cache descriptions, this section governs
+the AF implementation; private-site and approval safety rules always win.
+
+New settings and generated artifacts live only in additive schema
+structures; previous-release tests, rendering and approval continue to run.
+A previous runtime ignores these fields and artifacts and must still start
+and render legacy content. Do not enlarge legacy JSON schemas or require
+an assistant reconnect. Rollback may remove AF features; it must not
+weaken private mode's existing release floor.
+
+Both editions must share golden HTTP fixtures at fixed origin and clock
+for every look and page type. Required cases: representation bytes and
+ETag parity; direct/negotiated copy equality; weak/strong/list/wildcard and
+malformed validators; HEAD/304 bodies and headers; HTML/Markdown q-values,
+case, wildcard and q=0 negotiation; archive/tag/external/missing paths;
+draft versus approval versus restore changes; training default/off/on and
+final-host override checks; Unicode and injected Markdown/HTML/header
+content; JSON-LD data-block escape and visible-fact accuracy; valid map
+links and bounds; no external build calls. Exercise private denials and
+old public ETags before and after a public-to-private transition, with no
+session, owner, reader, expired/revoked cookies and bearer tokens. Probe
+shared stores directly for private/personalized bytes and assert access
+precedes all content/artifact lookups. Prior-release upgrade/rollback and
+the existing parity, conformance and mutation gates remain required.
+
 ## Open questions
 
 - Q1. Answered: yes. An assistant installs the Cloudflare edition into a
