@@ -316,13 +316,11 @@ responses, errors and redirects, is `private, no-store, no-transform`; condition
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 
-### Proposed media and stored-copy cache policy (SV-PV2)
+### Media and stored-copy cache policy (SV-PV2)
 
-This is a proposal for both editions, not a claim about the current media
-headers. Today public `/media/` responses have a one-year immutable
-lifetime. A content hash makes bytes stable; it does not make publication
-or permission permanent. The proposed successful anonymous public media
-header, including generated share pictures, is
+A content hash makes bytes stable; it does not make publication or
+permission permanent. Both editions send successful anonymous public media,
+including generated share pictures, with
 `Cache-Control: no-cache, no-transform`. There is no `public`, `immutable`,
 positive freshness lifetime, `stale-while-revalidate` or `stale-if-error`.
 Every reuse must consult the origin before showing stored bytes. Media
@@ -346,9 +344,10 @@ validator or return 304 from it.
 
 For every media GET or HEAD, private-site access and current publication
 checks run before byte lookup, shared-copy lookup or conditional handling.
-An owner or reader response is `private, no-store, no-transform`, including
-on a public site; the proxy must bypass cache reads and writes for both
-session cookies. A private anonymous request retains the exact blank 404
+Requests carrying either owner or reader session cookie, or Authorization,
+are `private, no-store, no-transform` even on a public site, including
+expired or invalid credentials. They get no validators. The proxy must
+bypass cache reads and writes for both session cookies and Authorization. A private anonymous request retains the exact blank 404
 and private headers already specified. A public media miss or an image no
 longer referenced by published content returns 404 with `no-store`, without
 old bytes, a success redirect or a validator. An already-authorized
@@ -404,9 +403,13 @@ Include a stalled cache build racing the visibility change and prove it
 cannot repopulate the new generation. A disposable local proxy must prove
 both-cookie isolation, origin 404 passthrough, no stale image on upstream
 failure, and cold/warm/conditional behavior. Tests must create no real
-external cache or production data. Runtime implementation and its parity
-checks are a separate change after proposal approval; deployment docs may
-land independently and must continue to describe the current long header.
+external cache or production data. Media is read from storage after current
+access and publication checks on each request; there is no engine-managed
+media response cache to refill.
+The managed HTML/Markdown/llms generation requirements above apply when
+those representations are cached. Rolling back restores the previous
+release's media headers but preserves its publication checks and stored
+bytes; operators must keep the proxy safeguards in place.
 
 Private mode hides published site content, not the routes needed to sign in,
 claim or recover the site, connect an assistant, or check releases. Setup
