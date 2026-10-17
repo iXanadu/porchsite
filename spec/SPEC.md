@@ -2413,6 +2413,16 @@ not a claim that the released engine accepts these credentials or serves
 these copies. Implementation requires paired tests, security and code review,
 then the ordinary release gates. The compatibility rule remains additive.
 
+The first implementation slice provides AG-1/AG-3 credentials, owner
+issuance/revocation and the reduced MCP authority boundary in both editions.
+Only published-only `site_state` and `site_check` are registered in this
+slice; the five-name allowlist reserves `page_get`, `pages_list` and `search`
+for AG-2 and cannot dispatch them to drafting handlers. The restricted
+listing is bounded to 20 rows; its continuation is completed with AG-2.
+AG-4/AG-5 private HTTP grants and AG-6 owner review copies remain pending:
+this slice preserves the existing private HTTP denials. This is an
+implementation checkpoint, not a complete AG release or acceptance claim.
+
 Anything an agent can already reach is made easier to read. Friendliness
 never grants additional authority. There is no separate agent mode and no
 second approval of agent representations. The approved content remains the
@@ -2802,8 +2812,9 @@ AF-8 URL, script-escape and prose/layout oracles continue to apply.
 ### Compatibility, migration and implementation acceptance
 
 Reserve CF `0024_agent_read_keys.sql` and PG migration `0018` after AF-7's
-0023/0017, subject to checking the landed base before implementation. All three
-new tables are additive; migrations start empty with no credential backfill,
+0023/0017 for the credential and audit tables. The session-identity metadata
+table follows in a later additive migration with AG-4/AG-5. All three new
+tables are additive; migrations start empty with no credential backfill,
 no conversion of old rows and no change to old token lookup. Do not modify
 historical migration bytes. Previous runtimes remain runnable on the new
 schema, ignoring these tables. Preserve revocation events/rows across an

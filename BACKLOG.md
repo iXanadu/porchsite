@@ -13,7 +13,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AG-1..AG-6: private agent access, spec and security review first.
+1. AG-2 and AG-4..AG-6: finish published read tools and private light copies.
 2. AF-7H: hosted measurement when authorized, before any default enablement.
 
 ## BLOCKING
@@ -83,13 +83,8 @@ the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-1** IN-PROGRESS (spec §11): owner-minted published-only keys in a
-  new table and prefix that old runtimes reject; named, 90-day, revocable,
-  last-use listing and atomic revocation audit. Existing drafting keys stay.
 - **AG-2** IN-PROGRESS (spec §11): bounded page_get/pages_list/search and
   published-only site_state/site_check; enforce reduced tools in all transports.
-- **AG-3** IN-PROGRESS (folded into AG-1, spec §11): trusted external readers
-  use the same published-only key type, with no draft or owner authority.
 - **AG-4** IN-PROGRESS (spec §11): valid owner/reader sessions or header-only
   Bearer keys read private Markdown; principal-bound ETags, private revalidation,
   no shared storage; invalid/anonymous stays exact blank 404.

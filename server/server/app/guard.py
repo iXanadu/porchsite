@@ -11,6 +11,7 @@ from .errors import ApiError
 
 _F = re.ASCII
 PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("a published-read key", re.compile(r"\bprk_[A-Za-z0-9_-]{32}(?![A-Za-z0-9_-])", _F)),
     ("a private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", _F)),
     ("an AWS access key", re.compile(r"\bAKIA[0-9A-Z]{16}\b", _F)),
     ("an API token", re.compile(r"\b(sk|pk|rk)_(live|test)_[A-Za-z0-9]{16,}\b", _F)),

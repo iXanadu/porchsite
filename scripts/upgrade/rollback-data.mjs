@@ -2,7 +2,7 @@
 // on the SAME database, and check public routes plus a signed passkey login.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import net from 'node:net';
@@ -202,9 +202,23 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, entryId:entry.id, slug, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  let agentReadKeys=null;
+  const assistants=await http.request('/review/assistants'),assistantsHTML=await assistants.text();
+  if(assistantsHTML.includes('name="read_only"')){
+    const csrf=/name="csrf" value="([^"]+)"/.exec(assistantsHTML)[1];
+    const form=fields=>http.request('/review/assistants',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf,...fields})});
+    const activeHTML=await(await form({make_key:'1',key_name:'Published reader active',read_only:'1'})).text();
+    const active=/prk_[A-Za-z0-9_-]{32}/.exec(activeHTML)?.[0];assert(active,'new owner-issued read key');
+    const revokeHTML=await(await form({make_key:'1',key_name:'Published reader revoked',read_only:'1'})).text();
+    const revoked=/prk_[A-Za-z0-9_-]{32}/.exec(revokeHTML)?.[0];assert(revoked);
+    const readId=/<h2>Published reader revoked<\/h2>[\s\S]*?name="revoke_read_key" value="([^"]+)"/.exec(revokeHTML)?.[1];assert(readId);
+    await form({revoke_read_key:readId});agentReadKeys={active,revoked};
+  }
+  return { key, agentReadKeys, entryId:entry.id, slug, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
+  if(fixture.agentReadKeys){for(const token of Object.values(fixture.agentReadKeys))await rejectedReadKey(base,token);}
+
   const http = client(base);
   const failures = [];
   let previousMediaTag;
@@ -255,6 +269,18 @@ async function checkPrevious(base, fixture, edition) {
   console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
 }
 
+async function rejectedReadKey(base,token){
+ for(const [method,params] of [['initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}}],['tools/list',{}],['tools/call',{name:'item_create',arguments:{kind:'note',data:{text:'Forbidden read-key draft',date:'2026-10-17'}}}]]){
+  const r=await fetch(base+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+  assert.equal(r.status,401,'old or revoked read key must fail MCP auth');
+ }
+}
+async function blankReadKey(base,token){
+ for(const route of ['/','/index.md','/llms.txt','/missing/index.md','/review'])for(const method of ['GET','HEAD']){
+  const r=await fetch(base+route,{method,headers:{Authorization:'Bearer '+token,'If-None-Match':'*',Accept:'text/markdown'},redirect:'manual'});
+  assert.equal(r.status,404,'read key has no old private HTTP grant');assert.equal(await r.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title>');assert(!r.headers.has('ETag'));
+ }
+}
 async function checkTraining(base, fixture, disabled) {
   if (!fixture.receiptFeature) return;
   const state = await existingCall(base,fixture.token,'site_state',{ids:['site']});
@@ -290,7 +316,7 @@ try {
       if (edition === 'cloudflare') {
         const dir = path.join(temp, 'worker'); mkdirSync(dir);
         const entry = path.join(dir, 'current.ts');
-        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);if(new URL(req.url).pathname==='/__rollback/artifacts')return env.DB.prepare('SELECT key,generation FROM public_artifacts').all().then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
+        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nimport * as recovery from ${JSON.stringify(path.join(root,'cloudflare/src/owner.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/recovery')return recovery.issueRecoveryCode(env.DB,'rollback-local-recovery-code-at-least-32-bytes').then(()=>Response.json({ok:true}));if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);if(new URL(req.url).pathname==='/__rollback/artifacts')return env.DB.prepare('SELECT key,generation FROM public_artifacts').all().then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
         copyFileSync(bundle, path.join(dir, 'previous.js'));
         const config = main => ({ name: 'rollback-fixture', main, compatibility_date: '2026-08-15', compatibility_flags: ['nodejs_compat'], d1_databases: [{ binding: 'DB', database_name: 'rollback-fixture', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: path.join(root,'cloudflare/migrations') }], kv_namespaces: [{ binding: 'OAUTH_KV', id: 'rollback-fixture' }], vars: { SETUP_CODE: setupCode, SITE_URL: base, PUBLIC_ARTIFACTS: '1' } });
         writeFileSync(path.join(dir,'current.json'),JSON.stringify({...config(entry),define:{RELEASE:JSON.stringify('rollback-current')}}));
@@ -345,7 +371,8 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         if(fixture.artifactFeature){
-          const previousRows=await(await fetch(base+'/__rollback/artifacts')).json();assert((previousRows.results??previousRows).length>0,'old runtime left prepared rows to validate on return');
+          const previousRows=await(await fetch(base+'/__rollback/artifacts')).json();
+          if(!existsSync(path.join(previous,'cloudflare/src/public-artifacts.ts')))assert((previousRows.results??previousRows).length>0,'artifact-unaware old runtime left prepared rows to validate on return');
           const fresh=await fetch(base+'/',{headers:{'If-None-Match':fixture.beforeOldPublishTag}});assert.equal(fresh.status,200,'old publication invalidates a warm prepared validator on return');
           const freshRows=await(await fetch(base+'/__rollback/artifacts')).json();assert.notDeepEqual(freshRows,previousRows,'complete dependency digest replaces rows after actual old publication');
         }
@@ -398,6 +425,7 @@ try {
           const shared=await fetch(base+entryPath),sharedBody=await shared.text();assert.match(sharedBody,/<meta property="og:image" content="http:\/\/localhost:\d+\/media\/[a-f0-9]{32}\.jpg">/,'actual old share card appears after return');
           await fetch(base+'/index.md');await fetch(base+'/llms.txt');
           await runtime.stop();runtime=null;runtime=await old();await oldSite({private:true});
+          if(fixture.agentReadKeys)for(const token of Object.values(fixture.agentReadKeys))await blankReadKey(base,token);
           await runtime.stop();runtime=null;runtime=await current();
           for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
             const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title>');
@@ -415,6 +443,22 @@ try {
           console.log(`rollback-data: ${edition}: actual old theme/share-card/private-on/public-return/unpublish invalidate prepared HTML/Markdown/map; no stale 304 or private artifact`);
         }
         console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
+        if(fixture.agentReadKeys){
+          const state=await existingCall(base,fixture.agentReadKeys.active,'site_state',{});assert.equal(state.scope,'published_read');
+          await rejectedReadKey(base,fixture.agentReadKeys.revoked);
+          const currentSite=await existingCall(base,fixture.token,'site_state',{ids:['site']});
+          await existingCall(base,fixture.token,'item_update',{id:'site',version:currentSite.items[0].version,data:{private:true}});
+          const pending=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Read-key recovery boundary'});await approveAt(await loginOwner(base,fixture),new URL(pending.review_url).pathname);
+          const prepared=await fetch(base+'/__rollback/recovery');assert.equal(prepared.status,200);
+          await runtime.stop();runtime=null;runtime=await old();
+          const recovery=client(base),replacement=await SoftKey.make();
+          const options=await recovery.post('/recover/options',{code:'rollback-local-recovery-code-at-least-32-bytes'});assert.equal(options.status,200);
+          const restored=await recovery.post('/recover/verify',await replacement.create((await options.json()).options,base));assert.equal(restored.status,200,'actual previous runtime owner recovery');
+          await runtime.stop();runtime=null;runtime=await current();
+          for(const token of Object.values(fixture.agentReadKeys)){await rejectedReadKey(base,token);await blankReadKey(base,token);}
+          console.log(`rollback-data: ${edition}: new read prefix rejected by actual old runtime; revoke survives return; actual old owner recovery invalidates read keys by epoch`);
+        }
+
       }
     } catch (error) {
       failures.push(`${edition}: ${error.stack || error}`);
