@@ -124,10 +124,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **AF-C1** OPEN: an older release approving a version written by newer
-  code approves every site_fields key, so it can switch on the AI-training
-  choice without showing it (same class as the broker fields). Needs the
-  receipt pattern private mode uses. Found in AF Slice1 review, 2026-10-17.
 - **REL-1** OPEN: the release script refuses a changed look whose version
   wasn't bumped, but only at release time. Move that check into the
   regular gates (theme:check). Found 2026-10-16.

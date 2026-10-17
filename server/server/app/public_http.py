@@ -35,7 +35,7 @@ def session_request(req):
 
 
 async def training_disabled(db):
-    row = await db.fetchrow("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'ai_training_disabled' AND f.approved = 1 WHERE l.item_id = 'site'")
+    row = await db.fetchrow("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'ai_training_disabled' AND f.approved = 1 JOIN training_approvals a ON a.version = l.version WHERE l.item_id = 'site'")
     return bool(row and json.loads(row['value']) is True)
 
 

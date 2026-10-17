@@ -1,4 +1,5 @@
 import * as agentTraffic from "./agent-traffic";
+import { trainingState } from "./site-fields";
 import { agentPage } from './agent-pages';
 import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
@@ -298,6 +299,11 @@ async function importPage(req: Request, error = "", problems: string[] = []): Pr
   );
 }
 
+async function trainingNotice(db: D1Database): Promise<Raw> {
+  const state = await trainingState(db);
+  return state.needs_publication ? html`<p class="warn">${state.note}</p>` : raw("");
+}
+
 async function reviewIndex(env: Env, req: Request): Promise<Response> {
   await alerts.opened(env.DB,req);
   const devices=await alerts.devices(env.DB), device=devices.find(d=>d.id===alerts.cookie(req));
@@ -310,7 +316,7 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     )}<span class="go">${a.items.some((i) => i.status === "pending") ? "Review and decide →" : "See details →"}</span></a>`;
   return ownerPage(
     "Review",
-    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
+    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${await trainingNotice(env.DB)}${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
@@ -391,7 +397,7 @@ ${it.status === "pending"
   return ownerPage(
     "Review changes",
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
-${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
+${await trainingNotice(env.DB)}${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
 ${raised.map((r) => html`<p class="warn">${raiseLine(r)}</p>`)}
 ${pending ? html`<p>${sentence} Nothing changes until you approve. Look first:</p><p><a class="button" href="/review/${a.id}/preview">See the site as it will look</a></p>` : ""}
 <form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}">

@@ -1,3 +1,4 @@
+import { trainingState } from "./site-fields";
 import * as privacy from "./privacy";
 /**
  * The assistant's tools (SPEC §4). Every tool goes through content.ts and
@@ -331,6 +332,7 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
         kinds: KIND_GUIDE,
         fields: fieldGuide(),
         site_defaults: content.validate("site", {}),
+        training_choice: await trainingState(db),
         release: RELEASE,
         update: await privacy.withRollback(db,RELEASE,await update.check((env as unknown as Env).OAUTH_KV)),
       })),

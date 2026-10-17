@@ -303,6 +303,10 @@ CREATE TABLE agent_traffic_daily (
   PRIMARY KEY (day, kind)
 );
 """),
+    ("0016_training_approvals", """
+-- No backfill from approved fields: older code can approve unseen keys.
+CREATE TABLE training_approvals (version INTEGER PRIMARY KEY);
+"""),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

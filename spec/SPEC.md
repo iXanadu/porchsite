@@ -1660,13 +1660,96 @@ all discovery URLs.
 ### AF-4: the owner's training choice
 
 The optional boolean `site.ai_training_disabled` defaults to false.
-Absent or false allows training; true disables it. It is an
+Absent or false allows training; true disables it only with the matching
+owner-approval receipt defined below. It is an
 allowlisted exact-version site_fields value, never a key in legacy item,
 revision or live JSON. Absence at the approved live version means training is allowed;
 no older version's setting is inherited. Draft changes have no public
 effect. Normal owner approval, review, restore and rollback apply; the
 owner sees the setting and its effect before approving. No extra agent
 approval step or service credential is introduced.
+
+#### AF-C1: exact-version training approval receipt
+
+Both editions add `training_approvals(version INTEGER PRIMARY KEY)` as a
+new table, following the private-mode receipt pattern. Reserve Cloudflare
+migration 0022 and server migration 0016, after the agent-traffic migrations
+0021/0015. No existing table, column, field encoding or legacy JSON changes.
+The previous released runtime must still start and operate on the new schema.
+
+The effective published choice is disabled **only** when all four facts
+hold: the live site points to version V; V has the exact
+`ai_training_disabled` field with JSON boolean true; that field is approved;
+and `training_approvals` contains V. A receipt for another version, another
+field's approval or a draft version never qualifies. Absent/false fields
+and absent receipts mean training is allowed, without inheriting any earlier
+choice. Draft/revision reads retain the proposed value so review can show it;
+they must never substitute that proposal for the effective published choice.
+Both the live site projection and public HTTP metadata use this same rule.
+The protected `site_state.training_choice` reports `proposed_disabled`
+(current site item), `effective_disabled` (live site), `needs_publication`
+(proposed off while effectively allowed), and a plain `note` explaining how
+to activate that proposal, or an empty note otherwise. This metadata is
+outside item data and is never emitted in public agent representations.
+
+Only a successful current-code owner publication of the site may insert
+its receipt. The exact version and proposed training choice must be shown
+to the owner by that publication flow. The existing approval decision and
+direct owner publication paths (including owner writing, restored revisions
+and whole-site revert) insert an idempotent receipt for a true field in the
+same atomic D1 batch or PostgreSQL transaction that advances live and marks
+its fields approved. The insert checks that V is the live site version and
+its true field is approved. A version mismatch, denied/deferred/superseded
+item, failed validation, failed publication or rollback of that transaction
+must not create a receipt or publish the setting. Publication of another
+item cannot receipt the site. There is no second owner approval step.
+
+Drafting, copying, import, restoring a draft, ordinary reads and approval
+request creation never write receipts. Receipts are not imported, exported
+as owner content, copied to a new version or inferred from `approved=1`.
+A new version with training disabled needs its own owner publication even
+when its proposed value equals the preceding version's. Existing receipts
+remain immutable; only the receipt for the current live version is consulted.
+Re-enabling training publishes an absent/false field at a new version and
+immediately makes the prior receipt irrelevant.
+
+Migration creates an empty table: **no backfill** from live, approval
+history or approved fields. This also applies to sites used with earlier
+receipt-unaware AF code. Such an existing true field without a receipt is
+proposed training-off but effectively training-allowed. Protected owner
+review/state must distinguish those facts and tell the owner that publishing
+a fresh site version with this choice is required to activate it. An old
+approval already marked decided is not silently replayed. No startup, read,
+review render or migration may certify it. Apply the migration before the
+new runtime starts; migration failure is an upgrade failure, never permission
+to bypass receipt checking.
+
+On rollback, a prior runtime ignores the new table. Its bulk approval may
+mark the field approved, but returning to receipt-aware code must still
+ignore any unreceipted version. An old runtime cannot produce a receipt;
+this guarantee applies when the receipt-aware runtime is serving. It cannot
+make receipt-unaware AF code enforce the new rule while that code is running.
+An already receipted exact version retains its receipt across rollback and
+return; an older runtime publishing a different version cannot transfer it.
+Private gating and private robots bytes remain unchanged.
+
+Robots, Content-Signal and ETag input derive from the effective choice,
+never the unreceipted proposal. An old-code approval without a receipt must
+not switch the signal or robots to training-off. A real current-code
+approval does switch them and retags public representations as AF-2 requires.
+Session no-store, private blank denials and cache revalidation rules still
+apply; no receipt or approval metadata enters public bodies.
+
+Named acceptance cases, required in both editions:
+
+| Case | Required evidence |
+| --- | --- |
+| `af_training_receipt_exact_version` | True + approved + matching live receipt is off; independently missing each fact, a stale receipt, absent/false and a different live version are allowed. Draft review still shows the proposed true value. |
+| `af_training_receipt_owner_publish` | Both approval paths atomically receipt the exact displayed site version; denied, deferred, stale, non-site and failed publications create none. Forced transaction/batch failure leaves no partial publication or receipt. |
+| `af_training_receipt_copy_restore` | Draft/copy/import/restore and approval requests create no receipt; owner publication of the resulting version creates its own; false/removal is allowed with no inherited receipt. |
+| `af_training_receipt_no_backfill` | Migration over already-approved true fields creates no receipts; effective state and owner copy distinguish proposed off from effective allowed until a fresh shown version is published. Reads and restarts do not change that. |
+| `af_training_receipt_old_runtime` | Run the actual previous released runtimes on the additive schema: approve/edit a newer-code draft, then return. Bulk-approved true remains allowed without a receipt; an existing receipt survives unchanged and cannot qualify another version. Prior pages, sign-in and approval still operate. |
+| `af_training_receipt_http_parity` | Identical robots, Content-Signal and AF-2 tags across editions before/after genuine receipt-bearing publication; old approval alone cannot activate off. Private denials/robots and authenticated no-store remain unchanged. |
 
 Public `/robots.txt` starts with `User-agent: *`, `Allow: /`. When training
 is off append three groups, in this order, each with `Disallow: /`:
@@ -1847,7 +1930,7 @@ Routing
 
 AF-4 training switch
 32. Public default: today's robots (`User-agent: *` Allow: / plus Sitemap). Training-off adds well-known training-crawler Disallow groups; `User-agent: *` Allow: / stays for search and user-triggered agents.
-33. The switch is an exact-version approved site_fields key (like private), never a legacy JSON key the previous release would parse into SiteData (S4-11 BLOCK 1). Absent or false = training allowed. Private robots ignore it (10).
+33. The switch is an exact-version approved site_fields key plus the matching training_approvals receipt (AF-C1), never a legacy JSON key the previous release would parse into SiteData (S4-11 BLOCK 1). Absent, false or unreceipted = training allowed. Private robots ignore it (10).
 
 Protocol leftovers
 34. /.well-known/porchsite-release, OAuth metadata, /login, /mcp stay as today: no site content, no llms listing of private pages.
@@ -1893,7 +1976,7 @@ The named cases implement the corresponding numbered invariant above.
 | 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public misses stay themed HTML 404. |
 | 31 | `af_cross_edition_http_parity` | Bytes and headers match for every new representation and training setting. |
 | 32 | `af_public_robots_choices` | Default unchanged; off adds training-only denial groups. |
-| 33 | `af_training_additive_approval` | Exact-version field; absent/false allowed; legacy JSON unchanged; private ignores it. |
+| 33 | `af_training_additive_approval` | Exact-version field and owner-publication receipt; absent/false/unreceipted allowed; legacy JSON unchanged; private ignores it. Include AF-C1 receipt cases above. |
 | 34 | `af_protocol_routes_unchanged` | Release, OAuth, sign-in and MCP behavior stays unchanged. |
 
 ### Compatibility and paired acceptance
