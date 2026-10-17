@@ -6,9 +6,6 @@ from ada_url import URL
 VOID = set('area base br col embed hr img input link meta param source track wbr'.split())
 OMIT = set('script style nav form button input select textarea svg canvas iframe object template noscript'.split())
 
-BLOCK = set('address article aside blockquote dd div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main ol p pre section table td th tr ul'.split())
-LABEL = set('a data label output small span time'.split())
-PROSE = set('abbr b cite code dd dfn dt em figcaption h1 h2 h3 h4 h5 h6 i kbd p pre q samp strong sub summary sup u var'.split())
 
 def trim(value):
     return value.strip(' \t\r\n\f')
@@ -41,9 +38,7 @@ class Tree(HTMLParser):
         values = {}
         for key, value in attrs:
             values.setdefault(key, value or '')
-        layout = bool(re.search(r'display\s*:\s*(?:inline-)?(?:flex|grid)\b', values.get('style', ''), re.I))
-        prose = not layout and (tag in PROSE or (tag not in BLOCK and self.stack[-1].get('prose', False)))
-        n = dict(tag=tag, attrs=values, children=[], text='', prose=prose)
+        n = dict(tag=tag, attrs=values, children=[], text='')
         self.stack[-1]['children'].append(n)
         if tag not in VOID:
             self.stack.append(n)
@@ -78,24 +73,15 @@ def find(n, tag, visible=True):
     return None
 
 
-def separates(parent, left, right, group):
-    if left['tag'] in BLOCK or right['tag'] in BLOCK:
-        return True
-    layout = bool(re.search(r'display\s*:\s*(?:inline-)?(?:flex|grid)\b', parent['attrs'].get('style', ''), re.I))
-    return layout or ((not parent.get('prose', False) or group) and left['tag'] in LABEL and right['tag'] in LABEL)
-
-
 def children(n, render):
     result, previous = '', None
-    # Named label-only components retain boundaries even when nested in prose.
-    group = (bool(n['attrs'].get('class'))
-             and (n['tag'] not in PROSE or (n['tag'] == 'p' and any(c['attrs'].get('class') for c in n['children'])))
-             and all(hidden(c) or (c['tag'] in LABEL if c['tag'] else not inline_text(c['text'])) for c in n['children']))
+    # Direct text distinguishes mixed prose from an element-only label group.
+    group = not any(not c['tag'] and inline_text(c['text']) for c in n['children'])
     for child in n['children']:
         value = render(child)
         if not value:
             continue
-        if previous is not None and separates(n, previous, child, group) and result and result[-1] not in ' \t\r\n\f' and value[0] not in ' \t\r\n\f':
+        if group and previous is not None and previous['tag'] and child['tag'] and result and result[-1] not in ' \t\r\n\f' and value[0] not in ' \t\r\n\f':
             result += ' '
         result += value
         previous = child
@@ -168,10 +154,10 @@ def markdown_document(source, canonical):
             return '\n\n---\n\n'
         if re.fullmatch(r'h[1-6]', tag):
             return '\n\n'+'#'*int(tag[1])+' '+trim(inner())+'\n\n'
-        if tag in ('strong', 'b'):
-            return '**'+inner()+'**'
-        if tag in ('em', 'i'):
-            return '*'+inner()+'*'
+        if tag in ('strong', 'b', 'em', 'i'):
+            value = inner()
+            mark = '**' if tag in ('strong', 'b') else '*'
+            return mark+value+mark if value else ''
         if tag == 'blockquote':
             return '\n\n'+'\n'.join('> '+line for line in trim(inner()).split('\n'))+'\n\n'
         if tag in ('ul', 'ol'):

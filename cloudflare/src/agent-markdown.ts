@@ -1,11 +1,8 @@
 /** Mechanical text projection of visitor HTML. No fetching or agent directions. */
 import { decodeHTML, decodeHTMLAttribute } from 'entities';
-type Node = { tag:string; attrs:Record<string,string>; children:Node[]; text:string; prose?:boolean };
+type Node = { tag:string; attrs:Record<string,string>; children:Node[]; text:string };
 const VOID = new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
 const OMIT = new Set('script style nav form button input select textarea svg canvas iframe object template noscript'.split(' '));
-const BLOCK = new Set('address article aside blockquote dd div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main ol p pre section table td th tr ul'.split(' '));
-const LABEL = new Set('a data label output small span time'.split(' '));
-const PROSE = new Set('abbr b cite code dd dfn dt em figcaption h1 h2 h3 h4 h5 h6 i kbd p pre q samp strong sub summary sup u var'.split(' '));
 const trim = (s:string) => s.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g,'');
 export const inlineText = (s:string) => trim(s.replace(/[ \t\r\n\f]+/g,' '));
 export const mdText = (s:string) => s.replace(/[\\`*_{}\[\]()#+.!|~-]/g,'\\$&').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -26,8 +23,6 @@ function parse(html:string):Node {
     if(start){const n:Node={tag:start[1].toLowerCase(),attrs:Object.create(null),children:[],text:''};
       for(const m of start[2].matchAll(/([^\s=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g))
         if(!Object.hasOwn(n.attrs,m[1].toLowerCase()))n.attrs[m[1].toLowerCase()]=decodeHTMLAttribute(m[2]??m[3]??m[4]??'');
-      // Prose flow follows inline descendants, including styled fragments in links.
-      n.prose=!/display\s*:\s*(?:inline-)?(?:flex|grid)\b/i.test(n.attrs.style??'')&&(PROSE.has(n.tag)||(!BLOCK.has(n.tag)&&!!stack[stack.length-1].prose));
       stack[stack.length-1].children.push(n);if(!VOID.has(n.tag)&&!token.endsWith('/>'))stack.push(n);
     }else stack[stack.length-1].children.push({tag:'',attrs:{},children:[],text:decodeHTML(token)});
   }
@@ -38,20 +33,13 @@ function find(n:Node,tag:string, visible=true):Node|undefined {
   if(n.tag===tag)return n;
   for(const child of n.children){const found=find(child,tag,visible);if(found)return found;}
 }
-function separates(parent:Node,left:Node,right:Node,group:boolean):boolean {
-  if(BLOCK.has(left.tag)||BLOCK.has(right.tag))return true;
-  const layout=/display\s*:\s*(?:inline-)?(?:flex|grid)\b/i.test(parent.attrs.style??'');
-  return layout || ((!parent.prose||group)&&LABEL.has(left.tag)&&LABEL.has(right.tag));
-}
 function children(n:Node,render:(child:Node)=>string):string {
   let result='',previous:Node|undefined;
-  // Named label-only components retain boundaries even when nested in prose.
-  const group=!!n.attrs.class
-    &&(!PROSE.has(n.tag)||(n.tag==='p'&&n.children.some(c=>!!c.attrs.class)))
-    &&n.children.every(c=>hidden(c)||(c.tag?LABEL.has(c.tag):!inlineText(c.text)));
+  // Direct text distinguishes mixed prose from an element-only label group.
+  const group=!n.children.some(c=>!c.tag&&!!inlineText(c.text));
   for(const child of n.children) {
     const value=render(child);if(!value)continue;
-    if(previous&&separates(n,previous,child,group)&&/[^ \t\r\n\f]$/.test(result)&&/^[^ \t\r\n\f]/.test(value))result+=' ';
+    if(group&&previous?.tag&&child.tag&&/[^ \t\r\n\f]$/.test(result)&&/^[^ \t\r\n\f]/.test(value))result+=' ';
     result+=value;previous=child;
   }
   return result;
@@ -78,8 +66,7 @@ export function markdownDocument(html:string,canonical:string):{title:string;des
     if(n.tag==='br')return '\n';
     if(n.tag==='hr')return '\n\n---\n\n';
     if(/^h[1-6]$/.test(n.tag))return `\n\n${'#'.repeat(Number(n.tag[1]))} ${trim(inner())}\n\n`;
-    if(['strong','b'].includes(n.tag))return `**${inner()}**`;
-    if(['em','i'].includes(n.tag))return `*${inner()}*`;
+    if(['strong','b','em','i'].includes(n.tag)){const value=inner(),mark=['strong','b'].includes(n.tag)?'**':'*';return value?mark+value+mark:'';}
     if(n.tag==='blockquote')return '\n\n'+trim(inner()).split('\n').map(line=>'> '+line).join('\n')+'\n\n';
     if(['ul','ol'].includes(n.tag))return '\n\n'+n.children.filter(c=>c.tag==='li'&&!hidden(c)).map((c,i)=>`${n.tag==='ol'?`${i+1}.`:'-'} ${trim(render(c,depth+1)).replace(/\n/g,'\n  ')}`).join('\n')+'\n\n';
     const value=inner();

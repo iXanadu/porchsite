@@ -1,4 +1,4 @@
-"""Independent all-look source-boundary scan, paired with the Worker test."""
+"""All-look regression edges from the independent offline CSS audit."""
 import json
 import re
 from datetime import datetime
@@ -9,17 +9,17 @@ from server.app.agent_markdown import markdown_document
 
 ROOT = Path(__file__).parents[3]
 SAMPLES = sorted((ROOT/'themes').glob('*/sample.json'))
-INLINE = set('abbr b cite code dfn em i kbd q samp script strong style sub sup u var'.split())
+BOUNDARIES = json.loads((ROOT/'spec/fixtures/agent-markdown.json').read_text())['layoutBoundaries']
 
 
 @pytest.mark.parametrize('sample', SAMPLES, ids=lambda p: p.parent.name)
 def test_af_markdown_visible_text_all_look_boundaries(sample):
     pages = render_sample(sample.parent.name, json.loads(sample.read_text()), 'https://example.com', datetime.fromisoformat('2026-10-15T15:30:00+00:00'))
-    for path, html in pages.items():
-        if not path.endswith('index.html'):
+    for theme, path, left, right in BOUNDARIES:
+        if theme != sample.parent.name:
             continue
-        markdown = markdown_document(html, 'https://example.com/'+path[:-10])['markdown']
-        for match in re.finditer(r'([^\W_]+)</([a-z][\w:-]*)>\s*<([a-z][\w:-]*)\b[^>]*>([^\W_]+)', html):
-            if match[2] in INLINE or match[3] in INLINE:
-                continue
-            assert match[1]+match[4] not in markdown, (sample.parent.name, path, match[1], match[4])
+        markdown = markdown_document(pages[path.lstrip('/')+'index.html'], 'https://example.com'+path)['markdown']
+        plain = re.sub(r'\]\(<[^>]*>\)', ']', markdown)
+        plain = re.sub(r'\\([\\`*_{}\[\]()#+.!|~-])', r'\1', plain)
+        plain = re.sub(r'[*_`\[\]]', '', plain)
+        assert left+right not in plain, (theme, path, left, right)

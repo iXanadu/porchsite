@@ -1478,10 +1478,20 @@ owner strings cannot open a metadata/header block, inject an extra map
 entry or become an HTTP header. Relative content links resolve using the
 canonical HTML page, including when fetched through its deeper copy path.
 Generated internal links have canonical existing destinations. Use UTF-8,
-LF line endings and a final newline. Adjacent labels in layout containers
-retain a word boundary (including number/unit and linked title/summary
-pairs); paragraph and heading prose keeps intentional inline joins across
-links, emphasis and code. Byte parity fixtures cover
+LF line endings and a final newline. Decide boundaries per parent: a
+non-whitespace direct text child makes it mixed prose, whose children join
+exactly as source whitespace says. Otherwise it is an element-only label
+group; adjacent visible sibling elements get a single space when neither
+rendered edge has whitespace. Hidden or empty children do not erase a
+boundary. This applies regardless of tag, class or inherited prose context:
+sibling spans spelling Work/place or wood/work become Work place or wood
+work, while `Some<em>thing</em>` in mixed prose stays Something. No runtime CSS
+lookup or fetch is permitted. Offline acceptance uses shipped CSS to check
+all looks in both editions for glued layout labels, and independently
+parsed Markdown to check that mixed prose has gained no spaces. Replay
+paired native sample captures with `cloudflare/scripts/agent-layout-browser.mjs`
+(the independent CommonMark helper is `server/scripts/agent-markdown-oracle.py`).
+Byte parity fixtures cover
 Unicode, escapes, lists, code, embeds and relative links. Canonical page
 addresses and generated paths, not untrusted forwarded-host values, supply
 all discovery URLs.

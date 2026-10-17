@@ -15,15 +15,14 @@ import sample9 from '../../themes/portfolio/sample.json';
 import sample10 from '../../themes/product-page/sample.json';
 import sample11 from '../../themes/services-page/sample.json';
 const samples={'catalogue-page':sample0,'event-page':sample1,'group-page':sample2,'link-page':sample3,'listing-page':sample4,'local-business':sample5,'menu-page':sample6,'personal-homepage':sample7,'playbook':sample8,'portfolio':sample9,'product-page':sample10,'services-page':sample11};
-// Independent source-boundary audit: prose formatting may intentionally split a word.
-const INLINE=new Set('abbr b cite code dfn em i kbd q samp script strong style sub sup u var'.split(' '));
+import fixtures from '../../spec/fixtures/agent-markdown.json';
+// These edges were found by the independent offline CSS/computed-display audit.
 for(const [look,sample] of Object.entries(samples))it('af_markdown_visible_text all-look boundaries '+look,()=>{
- for(const [path,html] of Object.entries(renderSample(THEMES[look] as any,sample,'https://example.com',new Date('2026-10-15T15:30:00Z')))) {
-  if(!path.endsWith('index.html'))continue;
-  const markdown=markdownDocument(html,'https://example.com/'+path.slice(0,-10)).markdown;
-  for(const match of html.matchAll(/([\p{L}\p{N}]+)<\/([a-z][\w:-]*)>\s*<([a-z][\w:-]*)\b[^>]*>([\p{L}\p{N}]+)/gu)) {
-   if(INLINE.has(match[2])||INLINE.has(match[3]))continue;
-   expect(markdown,`${look}/${path}: ${match[1]} | ${match[4]}`).not.toContain(match[1]+match[4]);
-  }
+ const pages=renderSample(THEMES[look] as any,sample,'https://example.com',new Date('2026-10-15T15:30:00Z'));
+ for(const [theme,path,left,right] of fixtures.layoutBoundaries.filter(row=>row[0]===look)) {
+  const html=pages[path.slice(1)+'index.html'];expect(html,`${theme}${path}`).toBeDefined();
+  const markdown=markdownDocument(html,'https://example.com'+path).markdown;
+  const plain=markdown.replace(/\]\(<[^>]*>\)/g,']').replace(/\\([\\`*_{}\[\]()#+.!|~-])/g,'$1').replace(/[*_`\[\]]/g,'');
+  expect(plain,`${theme}${path}: ${left} | ${right}`).not.toContain(left+right);
  }
 });
