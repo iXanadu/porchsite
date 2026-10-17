@@ -35,7 +35,7 @@ it("af_agent_kind_daily_counts: classes, HEAD/304, one llms request, concurrent 
 it("af_agent_kind_no_identifiers: schema and writes are aggregates; legacy analytics stay untouched",async()=>{
  await fixture();const schema=await db.prepare("PRAGMA table_info(agent_traffic_daily)").all<{name:string;pk:number}>();expect(schema.results.map(r=>r.name)).toEqual(["day","kind","requests"]);expect(schema.results.filter(r=>r.pk).map(r=>r.name)).toEqual(["day","kind"]);
  await at("/?request=not-stored","GET",{"User-Agent":"GPTBot/1.0 marker-not-stored","Referer":"https://example.com/secret","CF-Connecting-IP":"192.0.2.71","X-Request-Id":"not-stored-id"});
- const rows=await db.prepare("SELECT * FROM agent_traffic_daily").all();expect(JSON.stringify(rows.results)).not.toMatch(/GPTBot|192\.0|not-stored|secret|request_id/);
+ const rows=await db.prepare("SELECT * FROM agent_traffic_daily").all();expect(rows.results).toHaveLength(1);expect(rows.results[0]).toMatchObject({kind:"training",requests:1});expect(JSON.stringify(rows.results)).not.toMatch(/GPTBot|192\.0|not-stored|secret|request_id/);
  for(const table of ["pageviews","analytics_daily","analytics_salts"])expect(await db.prepare(`SELECT count(*) n FROM ${table}`).first("n")).toBe(0);
  await expect(db.prepare("INSERT INTO agent_traffic_daily VALUES ('2026-10-17','unknown',1)").run()).rejects.toThrow();await expect(db.prepare("INSERT INTO agent_traffic_daily VALUES ('2026-10-17','other',-1)").run()).rejects.toThrow();
 });
@@ -65,4 +65,16 @@ it("excludes failures, misses, protocol/capability paths and other representatio
 });
 it("counter failures preserve public response delivery",async()=>{
  await fixture();vi.spyOn(traffic,"observe").mockRejectedValue(new Error("counter unavailable"));const r=await at("/");expect(r.status).toBe(200);expect(await r.text()).toContain("Counter fixture");
+});
+it("public representations count each anonymous GET, HEAD and 304 once",async()=>{
+ await fixture();
+ const paths=["/","/index.md","/robots.txt","/journal/feed.xml","/sitemap.xml","/llms.txt","/archive/","/archive/index.md"];
+ for(const path of paths){
+  const headers={"User-Agent":"OAI-SearchBot"},r=await at(path,"GET",headers);
+  expect(r.status,path).toBe(200);expect(r.headers.get("ETag"),path).toBeTruthy();
+  expect((await at(path,"HEAD",headers)).status,path).toBe(200);
+  expect((await at(path,"GET",{...headers,"If-None-Match":r.headers.get("ETag")!})).status,path).toBe(304);
+ }
+ expect(await db.prepare("SELECT SUM(requests) n FROM agent_traffic_daily WHERE kind='search'").first("n")).toBe(paths.length*3);
+ expect(await db.prepare("SELECT count(*) n FROM agent_traffic_daily WHERE kind!='search'").first("n")).toBe(0);
 });

@@ -123,6 +123,7 @@ async def test_af_agent_kind_no_identifiers(db, http):
         },
     )
     rows = [dict(r) for r in await db.fetch("SELECT * FROM agent_traffic_daily")]
+    assert len(rows) == 1 and rows[0]["kind"] == "training" and rows[0]["requests"] == 1
     encoded = json.dumps(rows)
     for secret in ["GPTBot", "192.0", "not-stored", "secret", "request_id"]:
         assert secret not in encoded
@@ -221,3 +222,31 @@ async def test_counter_failures_preserve_public_response(db, http, monkeypatch):
     )
     response = await http.get("/")
     assert response.status_code == 200 and "Counter fixture" in response.text
+
+
+async def test_public_representations_count_each_anonymous_get_head_and_304_once(db, http):
+    await fixture(db)
+    paths = [
+        "/",
+        "/index.md",
+        "/robots.txt",
+        "/journal/feed.xml",
+        "/sitemap.xml",
+        "/llms.txt",
+        "/archive/",
+        "/archive/index.md",
+    ]
+    for path in paths:
+        headers = {"User-Agent": "OAI-SearchBot"}
+        response = await http.get(path, headers=headers)
+        assert response.status_code == 200, path
+        assert response.headers.get("etag"), path
+        assert (await http.head(path, headers=headers)).status_code == 200, path
+        assert (
+            await http.get(path, headers={**headers, "If-None-Match": response.headers["etag"]})
+        ).status_code == 304, path
+    assert (
+        await db.fetchval("SELECT SUM(requests) FROM agent_traffic_daily WHERE kind='search'")
+        == len(paths) * 3
+    )
+    assert await db.fetchval("SELECT count(*) FROM agent_traffic_daily WHERE kind!='search'") == 0
