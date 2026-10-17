@@ -25,10 +25,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
   check before rendering, one read of the site per request, small 404s,
   counting off the request path, and /llms.txt from stored titles.
   Found 2026-10-17.
-- **GATE-1** OPEN: the release gate runs the test suites but never starts
-  the real Worker bundle, so an import-order failure at startup (every
-  page down) would pass every check. Add a bundle build plus start plus
-  a few requests to the release script. Found 2026-10-17 in PERF-1 work.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
