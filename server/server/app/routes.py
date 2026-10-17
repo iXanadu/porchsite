@@ -1884,7 +1884,7 @@ async def app_asset(req, cx, path):
                 "name": title,
                 "short_name": u16slice(title, 0, 30),
                 "id": "/review",
-                "start_url": "/review",
+                "start_url": "/login?next=/review",
                 "scope": "/",
                 "display": "standalone",
                 "icons": icons,

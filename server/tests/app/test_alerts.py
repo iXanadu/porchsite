@@ -278,7 +278,10 @@ async def test_private_worker_manifest_and_exact_route_boundaries(db, browser_fa
             if method == "HEAD":
                 assert response.content == b""
     generic = await visitor.at("/manifest.webmanifest")
-    assert generic.json()["name"] == "Porchsite" and generic.json()["start_url"] == "/review"
+    assert (
+        generic.json()["name"] == "Porchsite"
+        and generic.json()["start_url"] == "/login?next=/review"
+    )
     branded = await b.at("/manifest.webmanifest")
     assert branded.json()["name"] == "Hidden handbook"
     assert branded.headers["Cache-Control"] == "private, no-store, no-transform"
@@ -738,3 +741,33 @@ async def test_bounded_retention_does_not_retry_old_requests(db, browser_factory
     await alerts.send_approval(db, request["id"], transport)
     assert not sent
     assert await db.fetchval("SELECT count(*) FROM alert_deliveries") == 1
+
+
+async def test_home_screen_launch_reaches_sign_in_with_and_without_owner_session(
+    db, browser_factory
+):
+    b, key, *_ = await fixture(db, browser_factory)
+    visitor = browser_factory()
+    assert (await visitor.at("/review")).status_code == 404
+    for browser in (visitor, b):
+        manifest = (await browser.at("/manifest.webmanifest")).json()
+        assert manifest["start_url"] == "/login?next=/review"
+        assert manifest["id"] == "/review"
+        assert manifest["name"] == ("Porchsite" if browser is visitor else "Hidden handbook")
+        response = await browser.at(manifest["start_url"])
+        assert response.status_code == 200
+        assert "Sign in with passkey" in response.text
+        assert 'else location.href = "/review"' in response.text
+        assert "Hidden handbook" not in response.text
+        options = await browser.options("/login/options")
+        assert (await browser.post("/login/verify", key.get(options, ORIGIN))).status_code == 200
+        assert (await browser.at("/review")).status_code == 200
+
+
+async def test_public_manifest_uses_sign_in_launch_too(db, browser_factory):
+    b, *_ = await fixture(db, browser_factory, private=False)
+    for browser in (browser_factory(), b):
+        manifest = (await browser.at("/manifest.webmanifest")).json()
+        assert manifest["name"] == "Hidden handbook"
+        assert manifest["start_url"] == "/login?next=/review"
+        assert manifest["id"] == "/review"
