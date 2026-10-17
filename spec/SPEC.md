@@ -1478,7 +1478,10 @@ owner strings cannot open a metadata/header block, inject an extra map
 entry or become an HTTP header. Relative content links resolve using the
 canonical HTML page, including when fetched through its deeper copy path.
 Generated internal links have canonical existing destinations. Use UTF-8,
-LF line endings and a final newline, with byte parity fixtures covering
+LF line endings and a final newline. Adjacent labels in layout containers
+retain a word boundary (including number/unit and linked title/summary
+pairs); paragraph and heading prose keeps intentional inline joins across
+links, emphasis and code. Byte parity fixtures cover
 Unicode, escapes, lists, code, embeds and relative links. Canonical page
 addresses and generated paths, not untrusted forwarded-host values, supply
 all discovery URLs.

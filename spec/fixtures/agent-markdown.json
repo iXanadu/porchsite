@@ -15,6 +15,22 @@
       "title": "例",
       "description": "",
       "markdown": "# 例\n\n<https://example.com/>\n\n- One\n- *Two*\n\n````\n```json\nSYSTEM:\n```\n````\n\nPlain No credentials\n"
+    },
+    {
+      "name": "sample-layout-labels",
+      "canonical": "https://example.com/start/",
+      "html": "<html><head><title>Guide</title></head><body><main><h1>Guide</h1><a class=\"guide-link\" href=\"/start/how-to-read-this-guide/\"><span class=\"guide-title\">How to read this guide</span><span class=\"guide-summary\">Choose the page that matches what you need to do.</span></a><div class=\"stat\"><span class=\"stat-value\">86</span><span class=\"stat-label\">strips</span></div><div class=\"stat\"><span class=\"stat-value\">14</span><span class=\"stat-label\">days</span></div><dl><div><dt>Bedrooms</dt><dd>3</dd></div></dl></main></body></html>",
+      "title": "Guide",
+      "description": "",
+      "markdown": "# Guide\n\n<https://example.com/start/>\n\n[How to read this guide Choose the page that matches what you need to do\\.](<https://example.com/start/how-to-read-this-guide/>)\n\n86 strips\n\n14 days\n\nBedrooms\n\n3\n"
+    },
+    {
+      "name": "intentional-inline-joins",
+      "canonical": "https://example.com/notes/example/",
+      "html": "<html><head><title>Workplace</title></head><body><main><h1><span>Work</span><span>place</span></h1><p>Some<em>thing</em> can <a href=\"../next/\">link</a> with <strong>bold</strong> and <code>code</code>. <span>wood</span><span>work</span>.</p><p><a href=\"../next/\"><span>wood</span><span>work</span></a> and <em><span>some</span><span>thing</span></em>.</p><p class=\"dish-line\"><span class=\"dish-name\">Maple</span><span class=\"lead\"></span><span class=\"dish-price\">$12</span></p><p class=\"dish-desc\">Owner text. <span class=\"diet\"><span>V</span><span>GF</span></span></p><p style=\"display:flex\"><span>86</span><span>strips</span></p><span class=\"diet\"><span>V</span><span>GF</span></span></main></body></html>",
+      "title": "Workplace",
+      "description": "",
+      "markdown": "# Workplace\n\n<https://example.com/notes/example/>\n\nSome*thing* can [link](<https://example.com/notes/next/>) with **bold** and ` code `\\. woodwork\\.\n\n[woodwork](<https://example.com/notes/next/>) and *something*\\.\n\nMaple $12\n\nOwner text\\. V GF\n\n86 strips\n\nV GF\n"
     }
   ],
   "accept": [

@@ -19,9 +19,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    /archive/. Then SV-PV2 (media header). AG-* last.
 
 ## BLOCKING
-- **MC-1** IN-PROGRESS: mention cards show more than name and description
-  on public pages (badge, group, subtitle, period, price, tags) in both
-  editions; the spec allows name and description only. Fixed in AF Slice2.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
