@@ -180,6 +180,14 @@ or content conversion that overrides the site's declaration.
 
 ### Alerts on your devices
 
+In the Home Screen app, tap Review (bottom right) to manage alerts.
+
+To check it on a device:
+1. Open the site from its Home Screen icon and sign in as the owner.
+2. From a site page, tap Review at the bottom right and check that alerts
+   can be managed there.
+3. Sign out and check that the Review link disappears from site pages.
+
 Alerts need HTTPS and outbound access to the allowed push services.
 
 On `/review`, the owner can turn alerts on or off for each device and use
