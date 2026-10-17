@@ -1331,7 +1331,7 @@ async function appAsset(
       name: String(data.title || "Porchsite"),
       short_name: pushWire.u16slice(String(data.title || "Porchsite"), 30),
       id: "/review",
-      start_url: "/review",
+      start_url: "/login?next=/review",
       scope: "/",
       display: "standalone",
       icons,

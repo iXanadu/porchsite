@@ -949,8 +949,11 @@ other content. Notification icons, if used, are bundled generic icons, not
 content-dependent fetches. Revocation does not remove an already displayed
 notification.
 
-GET/HEAD `/manifest.webmanifest` supplies `start_url: "/review"`, same-origin
-scope and standalone display with installable name/icons. On a public site,
+GET/HEAD `/manifest.webmanifest` supplies `start_url: "/login?next=/review"`, same-origin
+scope and standalone display with installable name/icons. The app id stays
+`/review`; notification clicks still open `/review`. Launch through sign-in
+so a private Home Screen app with no existing session can reach its passkey
+button. This launch URL is the same for every manifest variant. On a public site,
 name and icons come from published site settings. On a private site, an
 anonymous response uses only the generic name "Porchsite" and bundled
 generic icons; readers also receive this generic variant. An

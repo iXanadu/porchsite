@@ -350,7 +350,8 @@ describe("owner approval alerts", () => {
       await visitor.at("/manifest.webmanifest")
     ).json()) as any;
     expect(manifest.name).toBe("Porchsite");
-    expect(manifest.start_url).toBe("/review");
+    expect(manifest.start_url).toBe("/login?next=/review");
+    expect(manifest.id).toBe("/review");
     const named = await b.at("/manifest.webmanifest");
     expect(((await named.json()) as any).name).toBe("Hidden title");
     expect(named.headers.get("Cache-Control")).toBe(
@@ -759,4 +760,32 @@ it("prunes at most 500 old deliveries and never retries a request past retention
   await alerts.sendApproval(db, request.id, transport);
   expect((await db.prepare("SELECT count(*) AS n FROM alert_deliveries").first<any>())!.n).toBe(1);
   expect(transport).not.toHaveBeenCalled();
+});
+
+it("launches Home Screen apps through reachable sign-in with or without an owner session", async () => {
+  const { b, key } = await setup(), visitor = new Browser();
+  expect((await visitor.at("/review")).status).toBe(404);
+  for (const browser of [visitor, b]) {
+    const manifest = await (await browser.at("/manifest.webmanifest")).json() as any;
+    expect(manifest.start_url).toBe("/login?next=/review");
+    expect(manifest.id).toBe("/review");
+    expect(manifest.name).toBe(browser === visitor ? "Porchsite" : "Hidden title");
+    const response = await browser.at(manifest.start_url), page = await response.text();
+    expect(response.status).toBe(200);
+    expect(page).toContain("Sign in with passkey");
+    expect(page).toContain('else location.href = "/review"');
+    expect(page).not.toContain("Hidden title");
+    const login = await browser.options("/login/options");
+    expect((await browser.post("/login/verify", await key.get(login, origin))).status).toBe(200);
+    expect((await browser.at("/review")).status).toBe(200);
+  }
+});
+it("uses the sign-in launch URL for a public site's manifests too", async () => {
+  const { b } = await setup(false);
+  for (const browser of [new Browser(), b]) {
+    const manifest = await (await browser.at("/manifest.webmanifest")).json() as any;
+    expect(manifest.name).toBe("Hidden title");
+    expect(manifest.start_url).toBe("/login?next=/review");
+    expect(manifest.id).toBe("/review");
+  }
 });
