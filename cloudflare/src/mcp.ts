@@ -1,3 +1,5 @@
+import * as readKeys from "./read-keys";
+import * as publishedRead from "./published-read";
 import { trainingState } from "./site-fields";
 import { fixedGuide, withGuide } from "./site-guide";
 import * as privacy from "./privacy";
@@ -298,7 +300,7 @@ export const TOOL_DEFINITIONS = {
 };
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "porchsite", version: "0.0.1" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "porchsite", version: "0.0.1" }, { instructions: readKeys.restricted(toolProps())?readKeys.INSTRUCTIONS:INSTRUCTIONS });
   registerTools(server);
   return server;
 }
@@ -314,6 +316,22 @@ export function createToolHandlers() {
 
 function registerTools(server: Pick<McpServer, "registerTool">) {
   const db = (env as unknown as Env).DB;
+  const target=server;
+  const restrictedRegistration=readKeys.restricted(toolProps());
+  server={registerTool:((name:string,definition:unknown,handler:(args:any)=>Promise<any>)=>{
+    if(restrictedRegistration&&!readKeys.ALLOWED.has(name))return {};
+    return target.registerTool(name as any,definition as any,async(args:any)=>{
+      const props=toolProps();
+      try {
+        await readKeys.authorize(db,props,name);
+        if(!readKeys.restricted(props))return await handler(args);
+        const value=name==='site_state'?await publishedRead.state(db,args,props):name==='site_check'?await publishedRead.check(db,args,String(props.origin??'')):null;
+        if(value===null)throw new ApiError(403,'unauthorized','This read tool is not available.');
+        await readKeys.used(db,props);
+        return ok(value);
+      } catch(error){if(error instanceof ApiError)return {content:[{type:"text",text:JSON.stringify(error.toJSON())}],isError:true};throw error;}
+    });
+  }) as McpServer['registerTool']};
   const origin = () => (toolProps() as { origin?: string }).origin ?? "";
 
   server.registerTool(

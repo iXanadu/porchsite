@@ -1,3 +1,5 @@
+import {createToolHandlers} from "../src/mcp";
+import {withToolContext} from "../src/tool-context";
 // Run only by vitest.parity.config.ts. Actual D1 + MCP handlers, fixed data.
 import { env } from "cloudflare:workers";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
@@ -88,6 +90,14 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
             console.info("GUIDE_SAMPLE_BYTES "+JSON.stringify({name:c.name,full:new TextEncoder().encode(JSON.stringify(baseline)).length,compact:new TextEncoder().encode(rpc.result.content[0].text).length}));
           }
           answers[key] = { error: !!rpc.result.isError, value: decoded(rpc.result.content[0].text) };
+        }
+        await e.DB.prepare('DELETE FROM agent_read_keys').run();
+        await e.DB.prepare("INSERT INTO agent_read_keys(id,name,key_hash,created_at,expires_at,owner_epoch) SELECT 'read_parity','Reader','fixture','2026-10-10T12:00:00.000Z','2099-01-01T00:00:00.000Z',owner_epoch FROM auth_state WHERE id=1").run();
+        const epoch=await e.DB.prepare('SELECT owner_epoch FROM auth_state WHERE id=1').first<number>('owner_epoch');
+        const props={scope:'published_read',readKeyId:'read_parity',ownerEpoch:epoch,origin:'https://example.invalid'};
+        for(const [key,name,args] of [['ag_state','site_state',{}],['ag_state_guide','site_state',{guide:{}}],['ag_state_full','site_state',{full:true}],['ag_check','site_check',{}],['ag_check_deep','site_check',{deep:true}]] as [string,string,any][]){
+          const result=await withToolContext(props,()=>createToolHandlers().get(name)!(args));
+          answers[key]={error:!!result.isError,value:decoded(result.content[0].text)};
         }
       } finally { await server.close(); }
       // Vitest's snapshot bridge writes to the host, outside the Worker. These

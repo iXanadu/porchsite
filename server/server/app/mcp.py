@@ -1,3 +1,4 @@
+from . import read_keys,published_read
 """The assistant's tools (SPEC §4), served at /mcp over streamable HTTP. Every
 tool goes through content.py and approvals.py; none of them can publish (S1).
 Port of cloudflare/src/mcp.ts on the mcp SDK's low-level server, so each
@@ -529,11 +530,14 @@ async def state_items(db: Db, full: bool = False, ids: list[str] | None = None) 
 # --- the server ------------------------------------------------------------------------------
 
 
-def create_server(pool: Callable[[], Db], release: Callable[[], str]) -> Server:
+def create_server(pool: Callable[[], Db], release: Callable[[], str], published_only=False) -> Server:
     """The MCP server. `pool` gives the database; `release` the running release."""
 
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=[types.Tool.model_validate(t) for t in TOOLS])
+        req=getattr(ctx,'request',None)
+        props=(req.scope.get('porchsite.props') if req else None) or {}
+        await read_keys.authorize(pool(),props)
+        return types.ListToolsResult(tools=[types.Tool.model_validate(t) for t in TOOLS if not read_keys.restricted(props) or t['name'] in read_keys.ALLOWED])
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         name = params.name
@@ -553,7 +557,7 @@ def create_server(pool: Callable[[], Db], release: Callable[[], str]) -> Server:
     return _Server(
         "porchsite",
         version="0.0.1",
-        instructions=INSTRUCTIONS,
+        instructions=read_keys.INSTRUCTIONS if published_only else INSTRUCTIONS,
         on_list_tools=list_tools,
         on_call_tool=call_tool,
     )
@@ -573,6 +577,15 @@ class _Server(Server):
 async def _call(
     db: Db, name: str, a: dict[str, Any], props: dict[str, Any], release: str
 ) -> types.CallToolResult:
+    if read_keys.restricted(props):
+        async def read_call():
+            await read_keys.authorize(db,props,name)
+            if name=='site_state':value=await published_read.state(db,a,props)
+            elif name=='site_check':value=await published_read.check(db,a,props.get('origin',''))
+            else:raise ApiError(403,'unauthorized','This read tool is not available.')
+            await read_keys.used(db,props)
+            return value
+        return await _run(read_call)
     actor = f"assistant:{props.get('client') or 'unknown'}"
     origin = props.get("origin") or ""
 

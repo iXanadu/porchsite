@@ -338,6 +338,11 @@ const OWNER_SESSION_QUERY = `SELECT 1 FROM sessions s JOIN auth_state a ON a.id 
     ((m.token_hash IS NULL AND a.owner_epoch = 0) OR
      (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))`;
 
+/** Same live session fence for owner credential writes inside an atomic batch. */
+export async function ownerSessionGuard(req:Request):Promise<{sql:string;args:string[]}>{
+  return {sql:'EXISTS ('+OWNER_SESSION_QUERY+')',args:[await hash(cookie(req,SESSION_COOKIE)??''),iso(now())]};
+}
+
 export async function signedIn(db: D1Database, req: Request): Promise<boolean> {
   const token = cookie(req, SESSION_COOKIE);
   if (!token) return false;

@@ -1,3 +1,4 @@
+import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
@@ -569,6 +570,7 @@ async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { 
   const token = await owner.csrf(req);
   const mcpUrl = new URL("/mcp", req.url).href;
   const keyList = await keys.list(env.DB);
+  const readers=await readKeys.list(env.DB),audit=await readKeys.events(env.DB);
   return ownerPage(
     "Assistants",
     html`<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>${
@@ -581,14 +583,17 @@ async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { 
         : html`<p class="meta">None yet. In your assistant, add a connector with this address: <b>${mcpUrl}</b></p>`
     }
 <h1 style="margin-top:36px">Assistant keys</h1>
-<p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
+<p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. A drafting key can read and draft; a read-only key reads published pages only. Neither can publish. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
 ${made ? html`<div class="card"><h2>Key for ${made.name}</h2><p class="value"><b>${made.token}</b></p><p>Put it in your assistant's app, in its field for secrets, API keys or connector credentials. <b>Never paste it into a chat</b>, even if your assistant asks: anyone who reads the chat could use it. If you did, revoke it below and make a new one.</p><p class="meta">Copy it now: it isn't shown again. Works until ${made.expires_at.slice(0, 10)}.</p></div>` : ""}
 ${keyList.map(
   (k) =>
     html`<div class="card"><h2>${k.name}</h2><div class="meta">made ${k.created_at.slice(0, 10)} · works until ${k.expires_at.slice(0, 10)} · ${k.last_used_at ? `last used ${k.last_used_at.slice(0, 10)}` : "not used yet"}</div>
 <form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`,
 )}
-<form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><button name="make_key" value="1">Make a key</button></form>`,
+<h2>Published-only read keys</h2><p>These keys read published pages only. They cannot draft, read owner review or publish.</p>
+${readers.map(k=>html`<div class="card"><h2>${k.name}</h2><div class="meta">Read only — published pages · made ${k.created_at.slice(0,10)} · works until ${k.expires_at.slice(0,10)} · ${k.last_used_at?`last used ${k.last_used_at.slice(0,10)}`:'not used yet'}</div><form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_read_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`)}
+<h2>Read-key history</h2>${audit.map(a=>html`<p>${a.created_at} · ${a.actor} · ${a.kind} · ${a.name} · ${a.key_id}</p>`)}
+<form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><label><input type="checkbox" name="read_only" value="1">Read only — published pages</label><button name="make_key" value="1">Make a key</button></form>`,
     { signedIn: true },
   );
 }
@@ -1160,8 +1165,9 @@ async function route(req: Request, env: Env): Promise<Response> {
           if (form.get("csrf") !== (await owner.csrf(req))) return await assistantsPage(env, req);
           if (form.get("make_key")) {
             const name = String(form.get("key_name") ?? "").trim().slice(0, 40) || "Assistant";
-            return await assistantsPage(env, req, undefined, { name, ...(await keys.create(env.DB, name)) });
+            return await assistantsPage(env, req, undefined, { name, ...(await (form.get("read_only")==="1"?readKeys.create(env.DB,name,'owner',req):keys.create(env.DB, name))) });
           }
+          if(form.get('revoke_read_key')){await readKeys.revoke(env.DB,String(form.get('revoke_read_key')),'owner',req);return await assistantsPage(env,req);}
           if (form.get("revoke_key")) {
             await keys.revoke(env.DB, String(form.get("revoke_key")));
             return await assistantsPage(env, req);

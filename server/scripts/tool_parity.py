@@ -131,6 +131,16 @@ async def main(output, names):
                     assert json.loads(result.content[0].text) == expected
                     print("GUIDE_SAMPLE_BYTES " + json.dumps({"name":case["name"],"full":len(json.dumps(baseline,ensure_ascii=False,separators=(",",":")).encode()),"compact":len(result.content[0].text.encode())},separators=(",",":")))
                 answers[key] = {"error": bool(result.is_error), "value": decoded(result.content[0].text)}
+            await pool.execute('DELETE FROM agent_read_keys')
+            await pool.execute("INSERT INTO agent_read_keys(id,name,key_hash,created_at,expires_at,owner_epoch) SELECT 'read_parity','Reader','fixture','2026-10-10T12:00:00.000Z','2099-01-01T00:00:00.000Z',owner_epoch FROM auth_state WHERE id=1")
+            epoch=await pool.fetchval('SELECT owner_epoch FROM auth_state WHERE id=1')
+            props={'scope':'published_read','readKeyId':'read_parity','ownerEpoch':epoch,'origin':'https://example.invalid'}
+            for key,tool,args in [('ag_state','site_state',{}),('ag_state_guide','site_state',{'guide':{}}),('ag_state_full','site_state',{'full':True}),('ag_check','site_check',{}),('ag_check_deep','site_check',{'deep':True})]:
+                try:
+                    result=await mcp._call(pool,tool,args,props,'dev')
+                except Exception as error:
+                    result=mcp._refusal(str(error))
+                answers[key]={'error':bool(result.is_error),'value':decoded(result.content[0].text)}
             write_json(output / f'{case["name"]}.json', answers)
         print(f"Server tool parity: {len(names)} samples and {len(cases) - len(names)} regression fixtures")
     finally:
