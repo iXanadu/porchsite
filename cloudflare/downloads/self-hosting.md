@@ -105,6 +105,9 @@ engine changes that policy. Purge old copies you operate after unpublishing
 photos or changing privacy. This cannot revoke files already downloaded or
 erase a browser's still-fresh old one-year copy. The deploy guide includes
 an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
+After an origin update, remove the interim media override only when every
+intervening cache honors revalidation and has stale reuse disabled. Keep
+cookie bypass, 404 passthrough and purge requirements in place.
 
 ## Update policy
 

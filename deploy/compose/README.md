@@ -188,6 +188,10 @@ other directives belong in this site's existing `server` block. Replace
 the example upstream with the app's **private** address. If using a host
 port, bind it to loopback only; the Compose setup publishes no app port.
 Do not expose the app directly: it trusts its proxy's forwarding headers.
+Nginx does not inherit a parent's `add_header` directives when a location
+sets any of its own. Repeat every server-level `add_header` inside the
+media location too; the example repeats HSTS. Repeat any other headers in
+your existing server configuration, preserving their values and `always`.
 
 ```nginx
 # http context
@@ -206,6 +210,7 @@ proxy_intercept_errors off;
 proxy_set_header Host $host;
 proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-For $remote_addr;
+add_header Strict-Transport-Security "max-age=31536000" always;
 
 location / {
     proxy_pass http://127.0.0.1:8000;
@@ -215,6 +220,7 @@ location /media/ {
     proxy_hide_header Cache-Control;
     proxy_hide_header Expires;
     add_header Cache-Control "private, no-store, no-transform" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
 }
 ```
 
@@ -223,6 +229,10 @@ location or a provider's "cache everything" rule can override this example.
 Do not configure `proxy_ignore_headers` to ignore Cache-Control, Set-Cookie
 or Vary. Reload only after `nginx -t` succeeds. The directive semantics are
 documented in the [Nginx proxy module](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
+When the origin media policy changes, remove the interim media header
+override only after verifying every intervening cache honors revalidation
+and cannot serve stale responses. Cookie bypass, 404 passthrough and purge
+requirements still apply; an origin header cannot fix a misconfigured cache.
 
 Verify with disposable local content before using private mode: fetch a
 published photo through the proxy, unpublish its last reference, then fetch
