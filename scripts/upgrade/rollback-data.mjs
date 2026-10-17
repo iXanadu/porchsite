@@ -120,7 +120,9 @@ async function seed(base) {
     return JSON.parse(result.content[0].text);
   }
   const tools = (await rpc('tools/list', {})).tools.map(t => t.name);
-  const defaults = (await call('site_state', {})).site_defaults;
+  const initialState = await call('site_state', {});
+  const defaults = initialState.site_defaults;
+  const receiptFeature = Object.hasOwn(initialState, 'training_choice');
   const brokerFeature = Object.hasOwn(defaults, 'broker');
   const streamFeature = Object.hasOwn(defaults, 'archive');
   const trainingFeature = Object.hasOwn(defaults, 'ai_training_disabled');
@@ -173,7 +175,7 @@ async function seed(base) {
   }
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
-  await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: false} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
+  await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: receiptFeature} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
   const pending = await call('approval_request', { ids: [site.id], note: 'Pending source fixture' });
   let batch = false;
   if (tools.includes('photo_batch_link')) {
@@ -193,7 +195,7 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, token:access.token, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -234,6 +236,16 @@ async function checkPrevious(base, fixture, edition) {
   assert.equal(response.status, 200, 'previous owner must be able to review the new pending item');
   assert.equal(failures.length, 0, `${edition} previous runtime failed after current feature writes: ${failures.join('; ')}`);
   console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
+}
+
+async function checkTraining(base, fixture, disabled) {
+  if (!fixture.receiptFeature) return;
+  const state = await existingCall(base,fixture.token,'site_state',{ids:['site']});
+  assert.equal(state.training_choice.effective_disabled,disabled,'only a receipted live version may disable training after runtime return');
+  const page = await fetch(base+'/'), robots = await (await fetch(base+'/robots.txt')).text();
+  assert.equal(page.headers.get('Content-Signal'),`search=yes, ai-input=yes, ai-train=${disabled?'no':'yes'}`);
+  assert.equal(robots.includes('User-agent: GPTBot'),disabled);
+  return state;
 }
 
 async function loginOwner(base,fixture){
@@ -278,6 +290,7 @@ try {
         old = () => launch(python,[adapter,'serve-old'],{...common,PYTHONPATH:path.join(previous,'server'),PORCHSITE_RELEASE:release},base);
       }
       runtime = await current(); const fixture = await seed(base);
+      await checkTraining(base,fixture,true);
       console.log(`rollback-data: ${edition}: seeded current features ${JSON.stringify(fixture.features)}`);
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
@@ -294,6 +307,7 @@ try {
         }
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
         assert((await response.text()).includes('Ninth stream report'),'approved ninth stream survives rollback');
+        await checkTraining(base,fixture,true);
         await runtime.stop();runtime=null;
         runtime=await old();
         const http=await loginOwner(base,fixture);
@@ -301,6 +315,13 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
+        const unreceipted = await checkTraining(base,fixture,false);
+        if(fixture.receiptFeature){
+          assert.equal(unreceipted.training_choice.proposed_disabled,true,'actual old approval leaves the unseen true field intact');
+          assert.equal(unreceipted.training_choice.needs_publication,true);
+          const owner=await loginOwner(base,fixture),review=await owner.request('/review');
+          assert((await review.text()).includes('AI training is currently allowed. Training-off is proposed;'));
+        }
         await runtime.stop();runtime=null;
         runtime=await old();
         const edited=await existingCall(base,fixture.token,'item_update',{id:'site',version:fixture.pendingVersion,data:{title:'Rollback old edit'}});
@@ -313,6 +334,14 @@ try {
         assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
         assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
         assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
+        await checkTraining(base,fixture,false);
+        if(fixture.receiptFeature){
+          const fresh=await existingCall(base,fixture.token,'item_update',{id:'site',version:edited.version,data:{ai_training_disabled:true}});
+          const requested=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Show the training choice for current-code owner approval'});
+          await approveAt(await loginOwner(base,fixture),new URL(requested.review_url).pathname);
+          await checkTraining(base,fixture,true);
+          console.log(`rollback-data: ${edition}: training receipt survives untouched rollback; actual old approval and edit cannot activate unseen choice; fresh shown owner approval activates its own version ${fresh.version}`);
+        }
         console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }
     } catch (error) {

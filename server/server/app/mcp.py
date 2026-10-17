@@ -23,6 +23,7 @@ from server.spec.embed_url import EMBED_ADVICE, EMBED_SYNTAX
 from server.spec.embeds import embed_notes
 
 from . import alerts
+from .site_fields import training_state
 from . import privacy
 from . import (
     analytics,
@@ -580,6 +581,7 @@ async def _call(
                 "kinds": kind_guide(),
                 "fields": field_guide(),
                 "site_defaults": content.validate("site", {}),
+                "training_choice": await training_state(db),
                 "release": release,
                 "update": await privacy.with_rollback(db,release,await updates.check(db, release)),
             }

@@ -24,6 +24,7 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from .site_fields import training_state
 from .agent_pages import agent_page
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
@@ -519,6 +520,11 @@ async def import_page(req: Request, error: str = "", problems: list[str] | None 
 _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
+async def _training_notice(db):
+    state = await training_state(db)
+    return f'<p class="warn">{esc(state["note"])}</p>' if state["needs_publication"] else ""
+
+
 async def review_index(req: Request, cx: Context) -> Response:
     await alerts.opened(cx.db, req)
     device = next((d for d in await alerts.devices(cx.db) if d["id"] == alerts.cookie(req)), {})
@@ -546,7 +552,7 @@ async def review_index(req: Request, cx: Context) -> Response:
     decided = "".join(row(a) for a in done) if done else '<p class="meta">Nothing yet.</p>'
     return owner_page(
         "Review",
-        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
+        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{await _training_notice(cx.db)}{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
@@ -665,7 +671,8 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
         else ""
     )
     raised = await visibility.raises(cx.db, waiting)
-    embed_warn = await _embed_review_for(cx.db, embed_changes, origin_of(req))
+    embed_warn = await _training_notice(cx.db)
+    embed_warn += await _embed_review_for(cx.db, embed_changes, origin_of(req))
     embed_warn += await _private_review_warning(cx.db, embed_changes)
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
@@ -1342,7 +1349,8 @@ async def history_page(req: Request, cx: Context) -> Response:
 async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Response:
     p = await history.plan(cx.db, id)
     plan = p["changes"]
-    embed_warn = await _embed_review_for(cx.db, plan, origin_of(req))
+    embed_warn = await _training_notice(cx.db)
+    embed_warn += await _embed_review_for(cx.db, plan, origin_of(req))
     embed_warn += await _private_review_warning(cx.db, plan)
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:

@@ -1686,6 +1686,11 @@ and absent receipts mean training is allowed, without inheriting any earlier
 choice. Draft/revision reads retain the proposed value so review can show it;
 they must never substitute that proposal for the effective published choice.
 Both the live site projection and public HTTP metadata use this same rule.
+The protected `site_state.training_choice` reports `proposed_disabled`
+(current site item), `effective_disabled` (live site), `needs_publication`
+(proposed off while effectively allowed), and a plain `note` explaining how
+to activate that proposal, or an empty note otherwise. This metadata is
+outside item data and is never emitted in public agent representations.
 
 Only a successful current-code owner publication of the site may insert
 its receipt. The exact version and proposed training choice must be shown

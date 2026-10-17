@@ -21,7 +21,7 @@ export function sessionRequest(req: Request): boolean {
   return req.headers.has('Authorization') || /(?:^|;\s*)__Host-sk_(?:owner|reader)=/.test(req.headers.get('Cookie') ?? '');
 }
 export async function trainingDisabled(db: D1Database): Promise<boolean> {
-  const row = await db.prepare("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'ai_training_disabled' AND f.approved = 1 WHERE l.item_id = 'site'").first<{value:string}>();
+  const row = await db.prepare("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'ai_training_disabled' AND f.approved = 1 JOIN training_approvals a ON a.version = l.version WHERE l.item_id = 'site'").first<{value:string}>();
   return !!row && JSON.parse(row.value) === true;
 }
 export function matchesTag(value: string | null, tag: string): boolean {
