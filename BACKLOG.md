@@ -13,10 +13,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AF-2..AF-8 and UC9, built in slices on branch `af-integration` (kept off
-   main until their release, because INSTALL.md and llms.txt are read raw
-   from main). Then ST-1..ST-3, rebased onto AF, with AF handling for
-   /archive/. Then SV-PV2 (media header). AG-* last.
+1. AF-2..AF-8 and UC9 on `af-integration`, incorporating the released
+   ST-1..ST-3 archive. Keep AF off main until its release because INSTALL.md
+   and llms.txt are read raw from main. SV-PV2 (media header) is next;
+   AG-* last.
 
 ## BLOCKING
 

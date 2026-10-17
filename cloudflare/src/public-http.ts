@@ -1,11 +1,21 @@
 /** Public representation metadata; called only after the private-site gate. */
 import { robots } from './sitemap';
+import { archiveFilter } from './archive';
 import { noStore } from './privacy';
 export const PUBLIC_CACHE = 'public, no-cache, must-revalidate, no-transform';
 export const trainingSignal = (disabled: boolean) => `search=yes, ai-input=yes, ai-train=${disabled ? 'no' : 'yes'}`;
 export function publicPath(path: string): boolean {
   return path === '/' || path === '/robots.txt' || path === '/sitemap.xml' ||
     /^\/[a-z][a-z0-9-]{0,29}\/(?:[a-z0-9-]{1,80}\/|tags\/[a-z0-9-]{1,30}\/|feed\.xml)?$/.test(path);
+}
+/** Canonical query identity is needed only for the filtered combined archive. */
+export function pageQuery(req:Request,path:string):string {
+  if(path!=='/archive/')return '';
+  const filters=archiveFilter(new URL(req.url).searchParams),query=new URLSearchParams();
+  if(filters.sort!=='date')query.set('sort',filters.sort);
+  if(filters.stream)query.set('stream',filters.stream);
+  if(filters.tag)query.set('tag',filters.tag);
+  return query.size?'?'+query.toString():'';
 }
 export function sessionRequest(req: Request): boolean {
   return req.headers.has('Authorization') || /(?:^|;\s*)__Host-sk_(?:owner|reader)=/.test(req.headers.get('Cookie') ?? '');
@@ -30,7 +40,7 @@ export async function publicResponse(db: D1Database, req: Request, response: Res
     ? new Response(robots(url.origin, await trainingDisabled(db)), response) : response);
   const disabled = await trainingDisabled(db), signal = trainingSignal(disabled);
   const body = path === '/robots.txt' ? robots(url.origin, disabled) : await response.text();
-  const input = `${url.origin}${markdownPath(path)??path}\0${type}\0${signal}\0${body}`;
+  const input = `${url.origin}${markdownPath(path)??path}${pageQuery(req,markdownPath(path)??path)}\0${type}\0${signal}\0${body}`;
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input)));
   const tag = `W/"sha256-${[...digest].map(n=>n.toString(16).padStart(2,'0')).join('')}"`;
   const headers = new Headers(response.headers);
