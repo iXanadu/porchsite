@@ -243,6 +243,98 @@ responses, errors and redirects, is `private, no-store, no-transform`; condition
 never bypass authentication or reuse another actor's cached body.
 Anonymous `/collect` requests make no analytics writes while private.
 
+### Proposed media and stored-copy cache policy (SV-PV2)
+
+This is a proposal for both editions, not a claim about the current media
+headers. Today public `/media/` responses have a one-year immutable
+lifetime. A content hash makes bytes stable; it does not make publication
+or permission permanent. The proposed successful anonymous public media
+header, including generated share pictures, is
+`Cache-Control: no-cache, no-transform`. There is no `public`, `immutable`,
+positive freshness lifetime, `stale-while-revalidate` or `stale-if-error`.
+Every reuse must consult the origin before showing stored bytes. Media
+also gets an ETag, so a still-published unchanged image can revalidate with
+a bodyless 304 instead of a full download. This replaces the long media
+lifetime; it does not change the separate AF page/feed policy.
+
+Use the AF-2 validator encoding for binary media: SHA-256 of the canonical
+absolute media URL's UTF-8 bytes, a zero byte, the exact Content-Type's UTF-8
+bytes, a zero byte, the public Content-Signal's UTF-8 bytes (empty if media
+emits none), a zero byte, then the stored image bytes without any text
+conversion. The ETag is `W/"sha256-<64 lowercase hex digits>"`. Neither
+session data nor publication state is hash input: publication is checked
+before a conditional response. Both editions use identical input and tags.
+Apply AF-2's If-None-Match grammar, weak comparison, wildcard and precedence
+rules only after those checks. A matching successful anonymous GET or HEAD
+returns 304 with the same ETag and cache policy as GET, no body and no
+nonzero Content-Length. A non-match or malformed field gets the ordinary
+successful response. Owner and reader responses do not reuse this anonymous
+validator or return 304 from it.
+
+For every media GET or HEAD, private-site access and current publication
+checks run before byte lookup, shared-copy lookup or conditional handling.
+An owner or reader response is `private, no-store, no-transform`, including
+on a public site; the proxy must bypass cache reads and writes for both
+session cookies. A private anonymous request retains the exact blank 404
+and private headers already specified. A public media miss or an image no
+longer referenced by published content returns 404 with `no-store`, without
+old bytes, a success redirect or a validator. An already-authorized
+in-flight response follows the existing private-mode limitation.
+
+This extends agent-friendly invariant 16: engine-managed HTML, Markdown,
+llms and media copies must not outlive their source's publication or access
+decision. Unpublishing an item, deleting it from the live view, changing
+card visibility, turning private on, restoring an earlier publish or
+replacing live content invalidates every affected representation and its
+validators as part of the change's committed visibility boundary, before
+the next newly authorized response. Use a transactional generation or
+equivalent serialization; an earlier concurrent build cannot refill a
+current-generation cache with old public bytes. Deleting all managed copies
+is acceptable when dependency-specific invalidation cannot prove coverage.
+Draft edits do not invalidate or publish live content. Removing an item's
+last reference to an image ends its anonymous availability; an image still
+used by another published item remains available. Kept history is not a
+public reference.
+
+On a newly started request after the change commits, the same old URL with
+its former ETag must run the current checks: it cannot get 304 from an old
+copy after unpublish or private-on. Private authorization precedes all
+validators and negotiations, including Markdown and AF stored-copy reads.
+HEAD must agree with GET's status and headers and have an empty body.
+Authorization and current publication checks are mandatory before every
+media 304, including `If-None-Match: *`.
+
+The engine cannot delete a browser's previously fresh immutable copy, a
+third-party archive, downloaded files, or caches outside its control. Before
+enabling private mode, the deployment procedure disables shared proxy/CDN
+caching and purges all operator-controlled public copies, including media
+and redirects. Public-cache operators must purge affected copies on
+unpublish and never serve stale content, including on an origin 404 or
+failure. A proxy can store a no-cache response; the origin header cannot
+override a proxy configured to ignore revalidation or serve stale data.
+These proxy requirements remain mandatory after the new origin policy
+ships. Remove the interim no-store media override only after verifying that
+every intervening cache honors no-cache and has stale reuse disabled.
+Until these requirements are met, do not claim that the deployment
+enforces immediate removal of cached public content. Existing cached copies
+remain the accepted residual stated in the private-mode documentation.
+
+Acceptance requires identical media status/headers/bytes in both editions,
+with public, owner, reader and private-anonymous GET/HEAD cases; matching,
+nonmatching, weak/strong, wildcard, list and malformed If-None-Match fields;
+an unchanged image's bodyless 304; unpublishing the last reference and
+retaining another published reference; and private-on after warming every
+managed representation. Warm public tags and `*` must give 404, never 304,
+after last-reference removal or private-on. Authenticated responses must
+remain private/no-store and must not answer 304 from a public tag.
+Include a stalled cache build racing the visibility change and prove it
+cannot repopulate the new generation. A disposable local proxy must prove
+both-cookie isolation, origin 404 passthrough, no stale image on upstream
+failure, and cold/warm/conditional behavior. Tests must create no real
+external cache or production data. Runtime implementation and its parity
+checks are a separate change after proposal approval; deployment docs may
+land independently and must continue to describe the current long header.
+
 Private mode hides published site content, not the routes needed to sign in,
 claim or recover the site, connect an assistant, or check releases. Setup
 redirects after claim. The release endpoint reveals only release id and the
