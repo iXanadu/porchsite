@@ -137,14 +137,10 @@ rm -rf "$TMP"
 node - "$OUT" <<'JS'
 const fs = require("fs"), path = require("path"), crypto = require("crypto"), { pathToFileURL } = require("url");
 (async () => {
-const { parseCredits, packageManifest, catalogEntry } = await import(pathToFileURL(path.resolve("scripts/catalog.mjs")).href);
+const { parseCredits, catalogEntry } = await import(pathToFileURL(path.resolve("scripts/catalog.mjs")).href);
+const { themePackage } = await import(pathToFileURL(path.resolve("scripts/theme-version.mjs")).href);
 const out = process.argv[2];
 const root = "../themes";
-const read = (dir, ext) => {
-  let files = [];
-  try { files = fs.readdirSync(dir); } catch { return {}; }
-  return Object.fromEntries(files.filter((f) => !ext || f.endsWith(ext)).map((f) => [ext ? f.slice(0, -ext.length) : f, fs.readFileSync(path.join(dir, f), "utf8")]));
-};
 const names = fs.readdirSync(root).sort().filter((n) => fs.statSync(path.join(root, n)).isDirectory());
 const creditsFile = path.join(root, "credits.json");
 const credits = parseCredits(fs.existsSync(creditsFile) ? fs.readFileSync(creditsFile, "utf8") : "{}", names);
@@ -152,7 +148,7 @@ const list = [];
 for (const name of names) {
   const dir = path.join(root, name);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, "template.json"), "utf8"));
-  const pkg = JSON.stringify({ manifest: packageManifest(manifest), pages: read(dir, ".mustache"), partials: read(path.join(dir, "partials"), ".mustache"), static: read(path.join(dir, "static"), "") });
+  const pkg = themePackage(dir);
   const rel = `themes/${name}/${manifest.version}.json`;
   // A published version never changes: a changed theme needs a new version.
   const kept = path.join("downloads/releases-themes", name, `${manifest.version}.json`);
