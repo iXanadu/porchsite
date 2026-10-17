@@ -128,6 +128,8 @@ Public HTML pages advertise a Markdown copy at their address plus `index.md`
 (for example, `/notes/example/index.md`). An explicit `Accept: text/markdown`
 also selects that copy at the HTML address; proxies must honor `Vary: Accept`.
 `/llms.txt` provides a bounded map of the home page and published local entries.
+Public HTML also carries inert schema.org page data from the visible
+approved title and description, under the existing script policy.
 Copies use the text the look displays; private sites expose none of these
 new paths, including to signed-in owners and readers.
 

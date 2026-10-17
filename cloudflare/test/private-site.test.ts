@@ -8,6 +8,7 @@ import * as approvals from "../src/approvals";
 import * as importer from "../src/importer";
 import * as media from "../src/media";
 import * as site from "../src/site";
+import * as structured from "../src/structured-data";
 import * as privacy from "../src/privacy";
 import { BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
@@ -318,10 +319,11 @@ it("af_gate_before_representation: new private agent surfaces are blank for ever
  const f=await fixture(),r=await reader(),visitor=new Browser();
  const expired=new Browser(),revoked=new Browser();expired.jar.set("__Host-sk_owner","expired");revoked.jar.set("__Host-sk_reader","revoked");
  const view=vi.spyOn(site,"liveView").mockImplementation(async()=>{throw Error("View before AF denial");});
+ const data=vi.spyOn(structured,"structuredBlock").mockImplementation(()=>{throw Error("Structured data before AF denial");});
  try {for(const b of [f.browser,r.browser,visitor,expired,revoked])for(const path of ["/index.md","/index.md/","/guide/published-guide/index.md","/missing/index.md","/llms.txt","/index.jsonld","/","/guide/published-guide/"]) {
   await blank(await b.at(path,{headers:{Accept:"text/markdown","If-None-Match":"*"}}));
   const head=await b.at(path,{method:"HEAD",headers:{Accept:"text/markdown"}});expect(head.status).toBe(404);expect(await head.text()).toBe("");expect(head.headers.has("Vary")).toBe(false);
- }expect(view).not.toHaveBeenCalled();}finally{view.mockRestore();}
+ }expect(view).not.toHaveBeenCalled();expect(data).not.toHaveBeenCalled();}finally{view.mockRestore();data.mockRestore();}
 });
 
 describe('AF public data copies',()=>{
@@ -329,7 +331,9 @@ describe('AF public data copies',()=>{
   const {browser}=await fixture(false),visitor=new Browser();
   for(const path of ['/','/guide/','/guide/published-guide/','/guide/tags/guide/']) {
    const html=await visitor.at(path);expect(html.status).toBe(200);expect(html.headers.get('Vary')).toBe('Accept');
-   expect(await html.text()).toContain(`<link rel="alternate" type="text/markdown" href="${path}index.md">`);
+   const delivered=await html.text();expect(delivered.match(/<script type="application\/ld\+json">/g)).toHaveLength(1);expect(delivered).toContain(`<link rel="alternate" type="text/markdown" href="${path}index.md">`);
+   const data=/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(delivered)![1];
+   const ownerHTML=await browser.at(path);expect(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(await ownerHTML.text())![1]).toBe(data);
    expect(html.headers.get('Link')).toContain('rel="alternate"');expect(html.headers.get('Link')).toContain('rel="describedby"');
    const copy=await visitor.at(path+'index.md'),negotiated=await visitor.at(path,{headers:{Accept:'text/markdown'}});
    expect(copy.status).toBe(200);expect(copy.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');

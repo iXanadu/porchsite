@@ -932,6 +932,8 @@ async def test_af_gate_before_representation_all_roles(db, browser_factory, monk
     async def forbidden(*args, **kwargs):
         raise AssertionError("View before AF denial")
     monkeypatch.setattr(site, "live_view", forbidden)
+    from server.app import agent_pages
+    monkeypatch.setattr(agent_pages, "structured_block", forbidden)
     expired, revoked = browser_factory(), browser_factory()
     expired.http.cookies.set("__Host-sk_owner", "expired", domain="site.example", path="/")
     revoked.http.cookies.set("__Host-sk_reader", "revoked", domain="site.example", path="/")
@@ -951,6 +953,10 @@ async def test_af_markdown_discovery_negotiation(db, browser_factory):
         html = await visitor.at(path)
         assert html.status_code == 200
         assert html.headers['vary'] == 'Accept'
+        assert html.text.count('<script type="application/ld+json">') == 1
+        data = re.search(r'<script type="application/ld\+json">([\s\S]*?)</script>', html.text)[1]
+        owner_html = await browser.at(path)
+        assert re.search(r'<script type="application/ld\+json">([\s\S]*?)</script>', owner_html.text)[1] == data
         assert '<link rel="alternate" type="text/markdown" href="'+path+'index.md">' in html.text
         assert 'rel="alternate"' in html.headers['link']
         assert 'rel="describedby"' in html.headers['link']

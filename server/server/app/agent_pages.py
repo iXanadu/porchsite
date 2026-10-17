@@ -3,7 +3,9 @@ import re
 from starlette.requests import Request
 from starlette.responses import Response
 from .agent_markdown import markdown_document, md_text
-from .public_http import markdown_path, page_path, page_query, representation
+from .public_http import markdown_path, page_path, page_query, representation, session_request
+
+from .structured_data import structured_block
 
 MD = {'Content-Type': 'text/markdown; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; base-uri 'none'; frame-ancestors 'none'", 'Link': '</llms.txt>; rel="describedby"'}
 
@@ -74,5 +76,12 @@ async def agent_page(req, route, paths, origin, not_found):
     if path == '/archive/':
         canonical = (origin+path+page_query(req, path)).replace('&', '&amp;')
         original = re.sub(r'<link rel="canonical" href="[^"]*">', lambda _: '<link rel="canonical" href="'+canonical+'">', original, count=1)
-    body = original.replace('</head>', '<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
+    visitor_html = original
+    if session_request(req):
+        visitor = await route(anonymous(req, path, True))
+        if not is_html(visitor):
+            return visitor
+        visitor_html = visitor.body.decode()
+    data = structured_block(visitor_html, origin+path+page_query(req, path))
+    body = original.replace('</head>', data+'<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
     return Response(body, headers=headers)
