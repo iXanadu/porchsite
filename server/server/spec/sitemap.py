@@ -6,12 +6,13 @@ from .theme import streams
 
 SITEMAP_HEADERS = {
     "Content-Type": "application/xml; charset=utf-8",
-    "Cache-Control": "public, max-age=300",
+    "Cache-Control": "public, no-cache, must-revalidate, no-transform",
 }
 
 
-def robots(origin):
-    return f"User-agent: *\nAllow: /\nSitemap: {origin}/sitemap.xml\n"
+def robots(origin, disabled=False):
+    groups = "\n" + "\n".join(f"User-agent: {name}\nDisallow: /\n" for name in ("GPTBot", "ClaudeBot", "Google-Extended")) if disabled else ""
+    return f"User-agent: *\nAllow: /\n{groups}Sitemap: {origin}/sitemap.xml\n"
 
 
 def _xml(value):

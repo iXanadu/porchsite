@@ -27,3 +27,8 @@ async def fields_approval(db, version):
 async def private_data(db, version, live):
     row = await db.fetchrow("SELECT value,approved FROM site_fields WHERE version = $1 AND key = 'private'",version)
     return bool(row and json.loads(row["value"]) is True and (not live or (row["approved"] and await db.fetchrow("SELECT 1 FROM private_approvals WHERE version = $1",version))))
+
+
+async def training_data(db, version, live):
+    row = await db.fetchrow("SELECT value,approved FROM site_fields WHERE version = $1 AND key = 'ai_training_disabled'",version)
+    return bool(row and json.loads(row["value"]) is True and (not live or row["approved"]))

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+from pathlib import Path
 
 import httpx
 import pytest
@@ -11,7 +12,7 @@ from starlette.requests import Request
 
 from server.app import approvals, content, importer, media, owner, privacy, site
 from server.app.errors import ApiError
-from server.app import routes, site_owner_link
+from server.app import routes, site_owner_link, public_http
 
 from .conftest import TABLES
 from .softkey import SoftKey
@@ -857,3 +858,81 @@ async def test_owner_navigation_preserves_other_roles(db, browser_factory, monke
         blank(await browser.at("/"))
     else:
         assert site_owner_link.OWNER_SITE_LINK not in (await browser.at("/")).text
+
+
+async def test_af_etag_public_input_grammar():
+    cases = json.loads((Path(__file__).parents[3] / "spec/fixtures/public-validators.json").read_text())
+    for case in cases:
+        assert public_http.matches_tag(case["field"], 'W/"sha256-test"') == case["match"]
+
+
+async def test_af_slice1_public_conditionals_training_and_roles(db, browser_factory):
+    browser, _, item, _, _ = await fixture(db, browser_factory, False)
+    visitor = browser_factory()
+    reader_browser, _, _ = await reader(db, browser_factory)
+    for path in ("/", "/guide/published-guide/", "/guide/", "/guide/tags/guide/", "/guide/feed.xml", "/sitemap.xml", "/robots.txt"):
+        original = await visitor.at(path)
+        body, tag = original.content, original.headers.get("ETag")
+        assert tag and re.fullmatch(r'W/"sha256-[a-f0-9]{64}"', tag), path
+        assert original.headers["Cache-Control"] == public_http.PUBLIC_CACHE
+        assert original.headers["Content-Signal"] == 'search=yes, ai-input=yes, ai-train=yes'
+        for method in ("GET", "HEAD"):
+            for candidate in (tag, tag[2:], '*', '"other", ' + tag):
+                unchanged = await visitor.at(path, method=method, headers={"If-None-Match": candidate})
+                assert unchanged.status_code == 304 and unchanged.content == b""
+                assert unchanged.headers["ETag"] == tag
+        changed = await visitor.at(path, headers={"If-None-Match": '"unknown"', "If-Modified-Since": "Wed, 21 Oct 2099 07:28:00 GMT"})
+        assert changed.status_code == 200 and changed.content == body
+        for client in (browser, reader_browser):
+            own = await client.at(path, headers={"If-None-Match": tag})
+            assert own.status_code == 200 and "no-store" in own.headers["Cache-Control"]
+            assert "ETag" not in own.headers and "Content-Signal" not in own.headers
+        after = await visitor.at(path)
+        assert after.content == body and after.headers["ETag"] == tag
+    for path in ("/missing/", "/login", "/review", "/index.md", "/llms.txt"):
+        assert "ETag" not in (await visitor.at(path)).headers
+    original = await visitor.at("/")
+    tag, body = original.headers["ETag"], original.content
+    draft = await content.update_item(db, WHO, "site", item["version"], {"ai_training_disabled": True}, "")
+    assert (await visitor.at("/")).headers["ETag"] == tag
+    request = await approvals.request(db, WHO, ["site"], "")
+    assert "Blocked for GPTBot" in (await browser.at("/review/" + request["id"])).text
+    await approvals.decide(db, request["id"], {"site": {"decision": "approve"}}, "")
+    off = await visitor.at("/")
+    assert off.content == body and off.headers["ETag"] != tag
+    assert 'ai-train=no' in off.headers["Content-Signal"]
+    robots = (await visitor.at("/robots.txt")).text
+    assert "User-agent: *\nAllow: /\n" in robots
+    for bot in ("GPTBot", "ClaudeBot", "Google-Extended"):
+        assert f"User-agent: {bot}\nDisallow: /" in robots
+    for table in ("items", "revisions", "live"):
+        key = "id" if table == "items" else "item_id"
+        for row in await db.fetch(f"SELECT data FROM {table} WHERE {key}='site'"):
+            assert "ai_training_disabled" not in json.loads(row["data"])
+    allowed = await content.update_item(db, WHO, "site", draft["version"], {"ai_training_disabled": False}, "")
+    await publish(db, [allowed["id"]])
+    assert (await visitor.at("/")).headers["ETag"] == tag
+    enabling = await content.update_item(db, WHO, "site", allowed["version"], {"private": True}, "")
+    await publish(db, [enabling["id"]])
+    for path in ("/", "/guide/published-guide/", "/guide/feed.xml", "/sitemap.xml", "/index.md", "/llms.txt"):
+        for method in ("GET", "HEAD"):
+            denied = await visitor.at(path, method=method, headers={"If-None-Match": tag, "If-Match": '"other"', "If-Modified-Since": "Wed, 21 Oct 2099 07:28:00 GMT", "If-Unmodified-Since": "Wed, 01 Jan 2020 00:00:00 GMT"})
+            assert denied.status_code == 404
+            assert "ETag" not in denied.headers and "Content-Signal" not in denied.headers
+            assert denied.text == ("" if method == "HEAD" else privacy.BLANK)
+    assert (await visitor.at("/robots.txt")).text == "User-agent: *\nDisallow: /\n"
+
+
+async def test_af_gate_before_representation_all_roles(db, browser_factory, monkeypatch):
+    browser, _, _, _, _ = await fixture(db, browser_factory)
+    reader_browser, _, _ = await reader(db, browser_factory)
+    visitor = browser_factory()
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("View before AF denial")
+    monkeypatch.setattr(site, "live_view", forbidden)
+    for client in (browser, reader_browser, visitor):
+        for path in ("/index.md", "/index.md/", "/guide/published-guide/index.md", "/missing/index.md", "/llms.txt", "/index.jsonld", "/", "/guide/published-guide/"):
+            blank(await client.at(path, headers={"Accept": "text/markdown", "If-None-Match": "*"}))
+            head = await client.at(path, method="HEAD", headers={"Accept": "text/markdown"})
+            assert head.status_code == 404 and head.content == b""
+            assert "Vary" not in head.headers

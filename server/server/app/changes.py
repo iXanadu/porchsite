@@ -23,6 +23,7 @@ Data = dict[str, Any]
 
 # Plain words for the fields a person sees on the review page.
 LABELS = {
+    "ai_training_disabled": "AI training",
     "title": "Name", "tagline": "Headline", "intro": "Intro", "description": "Description for search and shared links", "about": "About",
     "hero": "Main picture", "logo": "Mark (and browser icon)", "share_image": "Picture for shared links", "hero_caption": "Line under the masthead",
     "theme": "Look", "palette": "Colours", "links": "Menu", "buttons": "Buttons", "streams": "Sections", "sections": "Order of the home page",
@@ -36,7 +37,8 @@ LABELS = {
     "cta_link": "Main button link", "cta2_link": "Second button link",
 }  # fmt: skip
 # Per kind, where the shared word would mislead.
-KIND_LABELS = {"card": {"description": "Description"}}
+KIND_LABELS = {
+    "ai_training_disabled": "AI training","card": {"description": "Description"}}
 # Fields "What it says" leaves out (alt text, order, styling); "What changed"
 # still shows them when they change.
 SILENT = {"hero_alt", "logo_alt", "follow_image_alt", "share_image_alt", "cover_alt", "image_alt", "cta_link", "cta2_link", "sort", "status", "badge_tone", "stream"}  # fmt: skip
@@ -61,6 +63,8 @@ def _dumps(v: Any) -> str:
 
 
 def plain_value(k: str, v: Any) -> str:
+    if k == "ai_training_disabled":
+        return "Blocked for GPTBot, ClaudeBot and Google-Extended" if v is True else "Allowed"
     if isinstance(v, str):
         if not v:
             return '<span class="meta">(empty)</span>'
@@ -246,7 +250,9 @@ def _change_row(kind: str, k: str, old: Any, now: Any) -> str:
     def is_list(v: Any) -> bool:
         return isinstance(v, list | dict)
 
-    if is_list(old) or is_list(now):
+    if k == "ai_training_disabled":
+        value = f'<div class="value"><span class="old">{plain_value(k, old)}</span> → {plain_value(k, now)}</div>'
+    elif is_list(old) or is_list(now):
         value = _list_change(old, now)
     elif (isinstance(old, str) and LOCAL.search(old)) or (isinstance(now, str) and LOCAL.search(now)):  # fmt: skip
         o = "" if old is None else string(old)

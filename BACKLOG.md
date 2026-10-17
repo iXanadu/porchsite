@@ -71,17 +71,10 @@ security invariants written before the spec.
   a 304). Then an owner-readable count of traffic by kind: search
   crawlers, training crawlers, agents acting for a person. On request
   only, as facts.
-- **AF-2** OPEN: cheap re-checks. ETag and a conditional 304 on public
-  pages, entries, archives, tags, feeds and the sitemap, identical in both
-  editions. Pages send no validator today.
 - **AF-3** OPEN: a light copy of every public page. Markdown at
   `<page>/index.md`, advertised by `rel="alternate" type="text/markdown"` in
   the page and a Link header; `Accept: text/markdown` on the page URL
   returns the same with `Vary: Accept`; ETag/304 on both.
-- **AF-4** OPEN: AI-training switch, allowed by default. robots.txt always
-  allows search crawlers and user-triggered agents; training crawlers are
-  disallowed only when the owner switches training off. The site states
-  the choice itself, whatever a host default says.
 - **AF-5** OPEN: schema.org JSON-LD in every look, from existing fields
   only, matching what the page shows (was AI-2, Listing and Local business
   only). Structured listing facts (price, beds) would need fields stored

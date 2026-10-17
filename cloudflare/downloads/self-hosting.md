@@ -162,6 +162,21 @@ To check older published photos for saved location data, run `python3 scripts/ph
   server, a managed database) can work, but aren't documented or supported.
 - One owner per site; approvals need that owner's passkey.
 
+### AI training and public re-checks
+
+AI training is allowed by default. To block the named training crawlers,
+propose `ai_training_disabled: true` on the site item and let the owner
+approve it. Search crawlers and agents fetching for a person stay allowed.
+The site declares the choice in robots.txt and its response headers; this
+is a preference, not a guarantee that every crawler obeys it. Private sites
+keep their existing disallow-all response and blank public pages.
+
+Public pages, feeds and sitemap support ETag re-checks: an unchanged
+representation returns 304 with no body. Owner and reader sessions keep
+private, no-store responses. Self-hosted proxies must respect these cache
+headers and bypass authenticated responses; disable host robots injection
+or content conversion that overrides the site's declaration.
+
 ### Alerts on your devices
 
 In the Home Screen app, tap Review (bottom right) to manage alerts.

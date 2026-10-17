@@ -8,11 +8,11 @@ from server.spec.embed_url import embed_sources
 
 from .db import dumps, transaction
 from .errors import ApiError
-from .site_fields import broker_data, private_data
+from .site_fields import broker_data, private_data, training_data
 
 
 def stored_data(kind, data):
-    return {k: v for k, v in data.items() if k not in ("embed_sources", "broker", "private")} if kind == "site" else data
+    return {k: v for k, v in data.items() if k not in ("embed_sources", "broker", "private", "ai_training_disabled")} if kind == "site" else data
 
 
 async def source_data(db, id, version, data, live=False):
@@ -23,13 +23,13 @@ async def source_data(db, id, version, data, live=False):
             "SELECT sources, approved FROM site_embed_sources WHERE version = $1", version
         )
     except asyncpg.UndefinedTableError:
-        return {**data, "embed_sources": [], "broker": await broker_data(db, version, live), "private": await private_data(db, version, live)}
+        return {**data, "embed_sources": [], "broker": await broker_data(db, version, live), "private": await private_data(db, version, live), "ai_training_disabled": await training_data(db, version, live)}
     sources = (
         (json.loads(row["sources"]) if not live or row["approved"] else [])
         if row
         else data.get("embed_sources", [])
     )
-    return {**data, "embed_sources": sources, "broker": await broker_data(db, version, live), "private": await private_data(db, version, live)}
+    return {**data, "embed_sources": sources, "broker": await broker_data(db, version, live), "private": await private_data(db, version, live), "ai_training_disabled": await training_data(db, version, live)}
 
 
 async def source_approval(db, version):

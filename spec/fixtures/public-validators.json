@@ -1,0 +1,14 @@
+[
+ {"field":"W/\"sha256-test\"","match":true},
+ {"field":"\"sha256-test\"","match":true},
+ {"field":"\"other\", W/\"sha256-test\"","match":true},
+ {"field":"\"has,comma\", \"sha256-test\"","match":true},
+ {"field":"*","match":true},
+ {"field":"\"other\"","match":false},
+ {"field":"\"sha256-test-suffix\"","match":false},
+ {"field":"garbage W/\"sha256-test\"","match":false},
+ {"field":"*, W/\"sha256-test\"","match":false},
+ {"field":"W/\"sha256-test\",","match":false},
+ {"field":"w/\"sha256-test\"","match":false},
+ {"field":"\"sha256-test\" \"other\"","match":false}
+]
