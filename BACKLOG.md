@@ -104,16 +104,13 @@ in a shared cache or shared place; anonymous visitors see no change.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.
-- **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
-  renderer, both editions, proven identical. Playbook reference pages use
-  "Term: meaning" lists until then.
 
 ## DEGRADING
-- **PV-6** OPEN: on a private site a signed-out owner who opens /review (or
-  any page) sees the blank 404 with no way forward, which looks like a
-  broken site. Send signed-out /review to /login?next=/review (sign-in is
-  already public, so nothing new is revealed); everything else stays blank.
-  Security review first. Found 2026-10-17 (owner on a new browser).
+- **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
+  filter check accepts a decoded trailing newline in tag/stream (JS `$`)
+  where the server edition refuses it, so the two editions answer a
+  malformed filter differently. Not an access issue. Anchor the check to
+  the exact end in both editions, with a paired test. Found 2026-10-17.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,

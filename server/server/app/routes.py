@@ -1472,7 +1472,7 @@ async def handle(req: Request, cx: Context) -> Response:
             pass  # Cleanup failure never changes a private denial.
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
     if is_private and private_agent_path(req):
-        response = privacy.blank_response()
+        response = privacy.blank_response(req)
     elif response is None:
         if is_private:
             response = await _route(get,cx)
@@ -1733,7 +1733,7 @@ async def _route(req: Request, cx: Context) -> Response:
 
         return await not_found_page(req, cx)
     except privacy.PrivateContentDenied:
-        return privacy.blank_response()
+        return privacy.blank_response(req)
     except ApiError as e:
         if "json" in (req.headers.get("content-type") or "") or path.endswith(
             ("/options", "/verify")
@@ -1967,7 +1967,7 @@ async def render_public(req,cx):
     private_now,gated_now,denial=await privacy.access(cx.db,req)
     get=Request({**req.scope,'method':'GET'},req.receive) if req.method=='HEAD' else req
     if private_now and private_agent_path(req):
-        return privacy.blank_response()
+        return privacy.blank_response(req)
     if denial is not None:
         return denial
     if private_now:

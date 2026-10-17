@@ -1,6 +1,9 @@
 /** Access is checked before any content view or existence lookup. */
 import * as owner from "./owner";
 export const BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>';
+export const SIGN_IN = BLANK+'<a href="/login?next=%2Freview">Sign in</a>';
+/** Presentation only: never a content, existence or authorization lookup. */
+export function denialBody(req?:Request){return req&&['GET','HEAD'].includes(req.method)&&!req.headers.has('Authorization')?SIGN_IN:BLANK;}
 export const BLANK_CSP = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'";
 export const PRIVATE_HEADERS = {"Cache-Control":"private, no-store, no-transform"};
 export const ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public.";
@@ -36,7 +39,7 @@ export async function access(db: D1Database, req: Request) {
     const isOwner = await owner.signedIn(db,req);
     const reader = !isOwner && await owner.readerSignedIn(db,req);
     if (reader && (path === "/authorize" || path === "/review" || path.startsWith("/review/"))) response = new Response(null,{status:303,headers:{Location:"/",...PRIVATE_HEADERS}});
-    else if (isPrivate && gated && !isOwner && !reader) response = path === "/collect" ? new Response(null,{status:204,headers:PRIVATE_HEADERS}) : new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Security-Policy":BLANK_CSP,"Content-Type":"text/html; charset=utf-8"}});
+    else if (isPrivate && gated && !isOwner && !reader) response = path === "/collect" ? new Response(null,{status:204,headers:PRIVATE_HEADERS}) : blankResponse(req);
   }
   return {isPrivate,gated,response};
 }
@@ -52,8 +55,9 @@ export async function withRollback(db: D1Database, release: string, state: Recor
 }
 
 export class PrivateContentDenied extends Error {}
-export function blankResponse() {
-  return new Response(BLANK,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Security-Policy":BLANK_CSP,"Content-Type":"text/html; charset=utf-8"}});
+export function blankResponse(req?:Request) {
+  const body=denialBody(req);
+  return new Response(body,{status:404,headers:{...PRIVATE_HEADERS,"X-Robots-Tag":"noindex","Content-Security-Policy":BLANK_CSP,"Content-Type":"text/html; charset=utf-8",...(body===SIGN_IN?{"X-Content-Type-Options":"nosniff"}:{})}});
 }
 export async function requireContent(db: D1Database, req: Request) {
   if (await livePrivate(db) && !await owner.signedIn(db,req) && !await owner.readerSignedIn(db,req)) throw new PrivateContentDenied();

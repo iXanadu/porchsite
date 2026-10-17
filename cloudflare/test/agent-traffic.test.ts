@@ -8,7 +8,7 @@ import * as approvals from "../src/approvals";
 import * as content from "../src/content";
 import type {Env} from "../src/env";
 import {handle} from "../src/routes";
-import {BLANK} from "../src/privacy";
+import {SIGN_IN as BLANK} from "../src/privacy";
 const e=env as unknown as Env, db=e.DB, who="assistant:test", origin="https://site.example";
 const t1=new Date("2026-10-18T06:59:00Z"),t2=new Date("2026-10-18T07:01:00Z");
 const at=(path:string,method="GET",headers:Record<string,string>={})=>handle(new Request(origin+path,{method,headers}),e);
