@@ -29,7 +29,7 @@ function provider(origin: string): OAuthProvider<Env> {
       },
       apiRoute: "/mcp",
       apiHandler: { fetch: (req, env, ctx) => toolTransport(req, env, ctx) },
-      defaultHandler: { fetch: (req, env) => handle(req, env as Env) },
+      defaultHandler: { fetch: (req, env, ctx) => handle(req, env as Env, ctx) },
       authorizeEndpoint: "/authorize",
       tokenEndpoint: "/oauth/token",
       clientRegistrationEndpoint: "/oauth/register",

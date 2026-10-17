@@ -119,14 +119,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **AF-LL1** IN-PROGRESS (BLOCKING for larger free-plan sites): /llms.txt
-  renders full HTML and a Markdown copy for every listed page on every
-  request, about 85 database calls on an 8-link sample and 463 on a
-  200-entry site, above the free plan's limit of about 50 per request.
-  It is slow (1-6 s live) and likely to fail on larger sites; a 304 does
-  the same work first. Fix: one published view, a small constant number of
-  queries, the validator before heavy work. Check the map and archive
-  paths for the same pattern. Found 2026-10-17.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a

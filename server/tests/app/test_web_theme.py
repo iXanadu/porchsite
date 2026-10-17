@@ -101,6 +101,8 @@ async def test_renders_every_page_from_content_with_nothing_unapproved(db, http)
     missing = await http.get("/nowhere/")
     assert missing.status_code == 404
     assert missing.headers["cache-control"] == "no-store"
-    assert "Nothing here." in missing.text
+    assert missing.text == '<!doctype html><title>Not found</title>'
+    assert missing.headers['cache-control'] == 'no-store'
+    assert 'etag' not in missing.headers
     # The owner's pages are untouched by the theme.
     assert (await http.get("/review")).status_code == 303

@@ -54,7 +54,7 @@ async def clear(db):
     async with transaction(db) as c:
         await invalidate(c)
 
-ALLOWED = {'content-type','content-security-policy','permissions-policy','x-content-type-options','referrer-policy','link','content-signal','etag','cache-control','vary'}
+ALLOWED = {'x-internal-body-sha256','content-type','content-security-policy','permissions-policy','x-content-type-options','referrer-policy','link','content-signal','etag','cache-control','vary'}
 TYPES = {'html':'text/html; charset=utf-8','markdown':'text/markdown; charset=utf-8','map':'text/markdown; charset=utf-8'}
 
 def configured_origin(value):
@@ -115,7 +115,7 @@ def safe_metadata(headers,req,c,stamp):
         allowed.extend(base.replace("form-action 'none'","form-action 'self'") for base in HTML_POLICIES)
     return headers.get('content-security-policy') in allowed
 
-def delivery(row,req,c,stamp):
+async def delivery(db,row,req,c,stamp,release):
     import re
     from .public_http import PUBLIC_CACHE,matches_tag
     if len(row['body'].encode())>MAX_BODY or len(row['metadata'].encode())>8192:
@@ -129,13 +129,16 @@ def delivery(row,req,c,stamp):
         headers=dict(entries)
         if not safe_metadata(headers,req,c,stamp):
             return None
-        if headers.get('content-type')!=TYPES[c['type']] or headers.get('cache-control')!=PUBLIC_CACHE or not re.fullmatch(r'W/"sha256-[a-f0-9]{64}"',headers.get('etag','')) or not re.fullmatch(r'search=yes, ai-input=yes, ai-train=(yes|no)',headers.get('content-signal','')):
+        if headers.get('content-type')!=TYPES[c['type']] or headers.get('cache-control')!=PUBLIC_CACHE or not re.fullmatch(r'W/"dep1-[a-f0-9]{64}"',headers.get('etag','')) or not re.fullmatch(r'search=yes, ai-input=yes, ai-train=(yes|no)',headers.get('content-signal','')):
             return None
     except (ValueError,TypeError):
         return None
-    expected='W/"sha256-'+digest(f"{req.url.scheme}://{req.url.netloc}{c['base']}{c['query']}\0{TYPES[c['type']]}\0{headers['content-signal']}\0{row['body']}")+'"'
-    if headers['etag']!=expected:
+    from . import public_read
+    f=await public_read.facts(db)
+    selected=public_read.choice(req,f)
+    if f['private'] or not selected or headers['etag']!=public_read.tag(f,req,selected,release) or headers.get('x-internal-body-sha256')!=digest(row['body']):
         return None
+    headers.pop('x-internal-body-sha256',None)
     if c['type']=='html' or (c['type']=='markdown' and not c['direct']):
         headers['vary']='Accept'
     else:
@@ -175,7 +178,7 @@ async def respond(db,req,configured,release,render):
         row=await db.fetchrow('SELECT body,metadata,valid_until FROM public_artifacts WHERE key=$1 AND generation=$2',key,generation)
         if row and row['valid_until']>time.time()*1000:
             if await snapshot(db)==stamp:
-                hit=delivery(row,req,c,stamp)
+                hit=await delivery(db,row,req,c,stamp,release)
                 if hit and row['valid_until']>time.time()*1000 and await snapshot(db)==stamp:
                     return hit
             await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
@@ -186,7 +189,7 @@ async def respond(db,req,configured,release,render):
         return response
     body=response.body.decode()
     size=len(body.encode())
-    metadata=dumps([[name,value] for name,value in response.headers.items() if name in ALLOWED])
+    metadata=dumps([[name,value] for name,value in response.headers.items() if name in ALLOWED]+[['x-internal-body-sha256',digest(body)]])
     if size>MAX_BODY or len(metadata.encode())>8192 or time.time()*1000>=until:
         return response
     try:

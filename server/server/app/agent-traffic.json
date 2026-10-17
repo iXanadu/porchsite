@@ -15,7 +15,7 @@
     {"token": "ChatGPT-User", "kind": "user"},
     {"token": "Claude-User", "kind": "user"}
   ],
-  "coverage": "Only successful anonymous public requests observed by the engine are counted. Requests served elsewhere or failed counter writes may be absent. Counts are requests, not unique people.",
+  "coverage": "Only anonymous public GET 200 responses observed by the engine are counted. HEAD, 304, requests served elsewhere and failed writes are excluded. Buffered counts can appear late or be lost on process restart. Counts are requests, not unique people.",
   "classification": "Kinds are estimates from declared user-agent names, not verified agent identities.",
   "scope": "Whole site; content and campaign filters do not apply."
 }

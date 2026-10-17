@@ -1538,7 +1538,8 @@ itself Sitekeeper-safe.
 
 First-party and privacy-preserving; nothing identifies a person. The site
 kit's beacon (`/static/a.js`, every look) posts each page view, then
-heartbeats, to the same site's `POST /collect` (always 204). Send the page
+heartbeats, to the same site's `POST /collect` (always 204). PERF-1's fixed
+anonymous 404 documents contain no beacon. Send the page
 view immediately. Keep engagement ticks and scroll measurements in the browser;
 coalesce cumulative heartbeats into one at 30 seconds, then one every 60
 seconds. Flush on visibility-hidden and pagehide, suppressing unchanged
@@ -1839,7 +1840,7 @@ return 406 without discovery, validators or cached content. Wildcards never
 select Markdown: an HTML q=0 exclusion without an acceptable explicit
 Markdown selection also returns 406. Negotiate only
 existing successful HTML pages: an anonymous public miss remains the
-ordinary themed HTML 404 even when Accept prefers Markdown. Direct
+fixed HTML 404 from the current dependency facts even when Accept prefers Markdown. Direct
 `index.md` paths select Markdown independently of Accept. Both negotiated
 HTML and Markdown, including 304 and 406, carry `Vary: Accept`.
 
@@ -2441,7 +2442,7 @@ AF-8
 
 Routing
 29. <page>/index.md exists only for addresses that are a public HTML page (home /index.md, entry /stream/slug/index.md, archive/tag if those pages exist). /review/index.md, /login/index.md, /media/.../index.md, /mcp/index.md are not Markdown copies: private anonymous → blank 404; public → ordinary miss, never owner HTML as markdown.
-30. On a public page, Accept: text/markdown returns the same bytes as that page's /index.md, Content-Type text/markdown; charset=utf-8, Vary: Accept. Public miss: themed HTML 404, not markdown. Private anonymous: blank HTML 404 even with that Accept (5).
+30. On a public page, Accept: text/markdown returns the same bytes as that page's /index.md, Content-Type text/markdown; charset=utf-8, Vary: Accept. Public anonymous miss: fixed HTML 404 from current dependency facts, not Markdown. Private anonymous: blank HTML 404 even with that Accept (5).
 31. Both editions: identical bytes and headers for the same published site (parity includes Markdown, llms.txt, robots with the training switch, JSON-LD).
 
 AF-4 training switch
@@ -2489,7 +2490,7 @@ The named cases implement the corresponding numbered invariant above.
 | 27 | `af_injection_payload_matrix` | Payload matrix preserves JSON data boundaries and content guards without new instructions. |
 | 28 | `af_generated_link_origins` | Alternate and describedby target only generated same-origin paths. |
 | 29 | `af_copy_route_matrix` | Copies exist only for real pages; reserved and missing paths remain misses. |
-| 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public misses stay themed HTML 404. |
+| 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public anonymous misses stay fixed HTML 404. |
 | 31 | `af_cross_edition_http_parity` | Bytes and headers match for every new representation and training setting. |
 | 32 | `af_public_robots_choices` | Default unchanged; off adds training-only denial groups. |
 | 33 | `af_training_additive_approval` | Exact-version field and owner-publication receipt; absent/false/unreceipted allowed; legacy JSON unchanged; private ignores it. Include AF-C1 receipt cases above. |
@@ -2569,8 +2570,10 @@ A matching public GET/HEAD returns an empty 304 without liveView, HTML or
 Markdown parsing, body hashing, a prepared-copy snapshot/read/fill, or request
 accounting. It retains the corresponding Content-Type, public cache policy,
 Content-Signal, discovery Link and Vary headers. HEAD never returns a body.
-A miss builds at most one approved reader view per request and passes it to
-all page, archive and missing-page helpers. Current-data facts resolve canonical misses without
+A miss builds one approved reader view while dependencies stay unchanged and
+passes it to all page, archive and missing-page helpers. A committed dependency
+change during rendering permits one fresh retry; another change forces a
+no-store response, with private-on and removal still denied before return. Current-data facts resolve canonical misses without
 a view; legacy address redirects keep their bounded lookup. Reuse the access and training
 results within that request; do not repeat their database queries.
 
@@ -2584,7 +2587,9 @@ facts nor map rows expose drafts, private cards, mention destinations or
 unapproved fields. Preserve map links, ordering and 50-link/16 KiB bounds.
 
 After the private gate, a path outside the engine's public route shapes gets
-a tiny fixed 404 without loading a reader view. This decision uses path shape,
+a tiny fixed 404 without loading a reader view. Session-bearing requests bypass
+this shortcut so the owner link on rendered not-found pages remains intact.
+This decision uses path shape,
 not a lookup of whether a slug exists. A canonical route-shaped miss is a 404 from the current dependency facts,
 without liveView, even with If-None-Match *. Existing aliases and historical
 address redirects are checked before declaring a miss.

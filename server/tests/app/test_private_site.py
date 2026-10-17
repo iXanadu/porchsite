@@ -875,7 +875,7 @@ async def test_af_slice1_public_conditionals_training_and_roles(db, browser_fact
     for path in ("/", "/guide/published-guide/", "/guide/", "/guide/tags/guide/", "/guide/feed.xml", "/sitemap.xml", "/robots.txt"):
         original = await visitor.at(path)
         body, tag = original.content, original.headers.get("ETag")
-        assert tag and re.fullmatch(r'W/"sha256-[a-f0-9]{64}"', tag), path
+        assert tag and re.fullmatch(r'W/"dep1-[a-f0-9]{64}"', tag), path
         assert original.headers["Cache-Control"] == public_http.PUBLIC_CACHE
         assert original.headers["Content-Signal"] == 'search=yes, ai-input=yes, ai-train=yes'
         for method in ("GET", "HEAD"):
@@ -913,7 +913,9 @@ async def test_af_slice1_public_conditionals_training_and_roles(db, browser_fact
             assert "ai_training_disabled" not in json.loads(row["data"])
     allowed = await content.update_item(db, WHO, "site", draft["version"], {"ai_training_disabled": False}, "")
     await publish(db, [allowed["id"]])
-    assert (await visitor.at("/")).headers["ETag"] == tag
+    allowed_response=await visitor.at("/")
+    assert allowed_response.content==body and allowed_response.headers["ETag"]!=tag
+    assert "ai-train=yes" in allowed_response.headers["Content-Signal"]
     enabling = await content.update_item(db, WHO, "site", allowed["version"], {"private": True}, "")
     await publish(db, [enabling["id"]])
     for path in ("/", "/guide/published-guide/", "/guide/feed.xml", "/sitemap.xml", "/index.md", "/llms.txt"):

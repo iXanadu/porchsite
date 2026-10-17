@@ -1,0 +1,10 @@
+{
+  "now": 1792274400000,
+  "release": "2026.10.17-abcdef0",
+  "origin": "https://example.com",
+  "rows": [
+    {"category":"live","ident":"entry-one","value":"[\"entry\",\"one\",1,\"2026-10-17T12:00:00.000Z\",\"2026-10-17T11:00:00.000Z\",\"ready\",\"journal\",\"\",null]"},
+    {"category":"live","ident":"site","value":"[\"site\",null,1,\"2026-10-17T12:00:00.000Z\",\"2026-10-17T11:00:00.000Z\",null,null,null,\"{\\\"title\\\":\\\"Approved 🐦 title\\\",\\\"description\\\":\\\"Summary <data>\\\",\\\"timezone\\\":\\\"UTC\\\"}\"]"}
+  ],
+  "paths": ["/", "/index.md", "/journal/one/", "/journal/one/index.md", "/robots.txt", "/sitemap.xml", "/llms.txt", "/journal/absent/"]
+}

@@ -1,32 +1,15 @@
 /** Public data twins. The caller must run the private-site gate first. */
-import { structuredBlock } from './structured-data';
-import { markdownDocument, mdText } from './agent-markdown';
+import { structuredBlock,structuredViewBlock } from './structured-data';
+import { markdownDocument } from './agent-markdown';
 import { markdownPath, pagePath, pageQuery, representation, sessionRequest } from './public-http';
 type Route=(req:Request)=>Promise<Response>;
 const MD={'Content-Type':'text/markdown; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Link':'</llms.txt>; rel="describedby"'};
 const anonymous=(req:Request,path:string,preserveQuery=false)=>{const url=new URL(path,req.url);if(preserveQuery&&path==='/archive/')url.search=new URL(req.url).search;return new Request(url,{method:'GET'});};
 const isHTML=(r:Response)=>r.status===200&&r.headers.get('Content-Type')==='text/html; charset=utf-8';
-export async function agentPage(req:Request,route:Route,paths:()=>Promise<string[]>,notFound:Route):Promise<Response> {
+export async function agentPage(req:Request,route:Route,map:()=>Promise<Response>,notFound:Route,view?:()=>Promise<import('./site').SiteView>):Promise<Response> {
   const path=new URL(req.url).pathname;
   if(req.method!=='GET')return route(req);
-  if(path==='/llms.txt') {
-    const rows:string[]=[],seen=new Set<string>();let count=0;
-    for(const p of ['/',...await paths()]) {
-      if(seen.has(p)||!pagePath(p))continue;seen.add(p);
-      const response=await route(anonymous(req,p));if(!isHTML(response))continue;
-      const doc=markdownDocument(await response.text(),new URL(p,req.url).href);
-      if(!rows.length) {
-        const title=[...doc.title].slice(0,512).join(''),description=[...doc.description].slice(0,2048).join('');
-        rows.push('# '+mdText(title),'');if(description)rows.push(mdText(description),'');
-      }
-      const label=mdText([...doc.title].slice(0,512).join(''));
-      const summary=mdText([...doc.description].slice(0,2048).join(''));
-      const line=`- [${label}](<${new URL(p+'index.md',req.url).href}>)${summary?': '+summary:''}`;
-      if(new TextEncoder().encode([...rows,line,''].join('\n')).length>16384)break;
-      rows.push(line);if(++count===50)break;
-    }
-    return new Response(rows.join('\n')+'\n',{headers:MD});
-  }
+  if(path==='/llms.txt')return map();
   const base=markdownPath(path);
   if(base || /\/index\.md\/?$/.test(path)) {
     if(!base)return notFound(req);
@@ -52,8 +35,9 @@ export async function agentPage(req:Request,route:Route,paths:()=>Promise<string
   let original=await response.text();
   if(path==='/archive/'){const canonical=new URL(path+pageQuery(req,path),req.url).href.replace(/&/g,'&amp;');original=original.replace(/<link rel="canonical" href="[^"]*">/,`<link rel="canonical" href="${canonical}">`);}
   let visitorHTML=original;
-  if(sessionRequest(req)){const visitor=await route(anonymous(req,path,true));if(!isHTML(visitor))return visitor;visitorHTML=await visitor.text();}
-  const data=structuredBlock(visitorHTML,new URL(path+pageQuery(req,path),req.url).href);
+  if(!view&&sessionRequest(req)){const visitor=await route(anonymous(req,path,true));if(!isHTML(visitor))return visitor;visitorHTML=await visitor.text();}
+  const canonical=new URL(path+pageQuery(req,path),req.url).href;
+  const data=view?structuredViewBlock(await view(),canonical):structuredBlock(visitorHTML,canonical);
   const body=original.replace('</head>',`${data}<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
   return new Response(body,{status:200,headers});
 }

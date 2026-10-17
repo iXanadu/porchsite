@@ -28,6 +28,7 @@ CASES = json.loads(
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean(db):
+    traffic.reset(db)
     await db.execute(f"TRUNCATE {TABLES} RESTART IDENTITY")
     await db.execute("UPDATE auth_state SET owner_epoch=0,private_floor='' WHERE id=1")
 
@@ -97,10 +98,10 @@ async def test_af_agent_kind_daily_counts(db, http, monkeypatch):
         {"day": "2026-10-17", "kind": "search", "requests": 4},
         {"day": "2026-10-17", "kind": "training", "requests": 3},
         {"day": "2026-10-17", "kind": "user", "requests": 26},
-        {"day": "2026-10-17", "kind": "other", "requests": 3},
+        {"day": "2026-10-17", "kind": "other", "requests": 1},
         {"day": "2026-10-18", "kind": "other", "requests": 1},
     ]
-    assert [r["requests"] for r in report["totals"]] == [4, 3, 26, 4]
+    assert [r["requests"] for r in report["totals"]] == [4, 3, 26, 2]
 
 
 async def test_af_agent_kind_no_identifiers(db, http):
@@ -122,6 +123,7 @@ async def test_af_agent_kind_no_identifiers(db, http):
             "X-Request-Id": "not-stored-id",
         },
     )
+    await traffic.settle(db)
     rows = [dict(r) for r in await db.fetch("SELECT * FROM agent_traffic_daily")]
     assert len(rows) == 1 and rows[0]["kind"] == "training" and rows[0]["requests"] == 1
     encoded = json.dumps(rows)
@@ -140,6 +142,7 @@ async def test_af_agent_kind_owner_only(db, http):
     item = await fixture(db)
     cookies = await signed_in(db)
     await http.get("/", headers={"User-Agent": "GPTBot"})
+    await traffic.settle(db)
     before = await db.fetchval("SELECT SUM(requests) FROM agent_traffic_daily")
     for cookie in [
         "; ".join(f"{k}={v}" for k, v in cookies.items()),
@@ -158,6 +161,7 @@ async def test_af_agent_kind_owner_only(db, http):
         assert "Requests by agent kind" not in (await http.get(path)).text
     await content.update_item(db, who, item["id"], item["version"], {"private": True})
     await publish(db, [item["id"]])
+    await traffic.settle(db)
     before = await db.fetchval("SELECT SUM(requests) FROM agent_traffic_daily")
     for path in [
         "/",
@@ -224,7 +228,7 @@ async def test_counter_failures_preserve_public_response(db, http, monkeypatch):
     assert response.status_code == 200 and "Counter fixture" in response.text
 
 
-async def test_public_representations_count_each_anonymous_get_head_and_304_once(db, http):
+async def test_public_representations_count_get_200_only_excluding_head_and_304(db, http):
     await fixture(db)
     paths = [
         "/",
@@ -245,8 +249,30 @@ async def test_public_representations_count_each_anonymous_get_head_and_304_once
         assert (
             await http.get(path, headers={**headers, "If-None-Match": response.headers["etag"]})
         ).status_code == 304, path
-    assert (
-        await db.fetchval("SELECT SUM(requests) FROM agent_traffic_daily WHERE kind='search'")
-        == len(paths) * 3
-    )
+    report=await traffic.traffic_report(db,"2000-01-01","2099-01-01")
+    assert next(r["requests"] for r in report["totals"] if r["kind"]=="search")==len(paths)
     assert await db.fetchval("SELECT count(*) FROM agent_traffic_daily WHERE kind!='search'") == 0
+
+
+async def test_perf_uc9_buffer(db,monkeypatch):
+    await fixture(db)
+    response=Response('',headers={'Content-Type':'text/html; charset=utf-8'})
+    from .test_agent_map import Count
+    counted=Count(db)
+    await traffic.observe(counted,request('GPTBot'),response,T1,'UTC')
+    await asyncio.gather(*(traffic.observe(counted,request('GPTBot'),response,T1,'UTC') for _ in range(24)))
+    assert sum(q.startswith('INSERT INTO agent_traffic_daily') for q in counted.calls)==1
+    report=await traffic.traffic_report(counted,'2026-10-01','2026-10-31')
+    assert next(r['requests'] for r in report['totals'] if r['kind']=='training')==25
+    await traffic.flush(counted,T1.timestamp()*1000+60000)
+    assert sum(q.startswith('INSERT INTO agent_traffic_daily') for q in counted.calls)==2
+    assert await db.fetchval("SELECT sum(requests) FROM agent_traffic_daily WHERE kind='training'")==25
+    traffic.reset(counted)
+    original=counted.__getattr__
+    async def fail(*args,**kwargs):
+        raise RuntimeError('flush unavailable')
+    monkeypatch.setattr(counted,'execute',fail,raising=False)
+    await traffic.observe(counted,request('GPTBot'),response,T1,'UTC')
+    monkeypatch.delattr(counted,'execute')
+    await traffic.flush(counted,T1.timestamp()*1000+60000)
+    assert await db.fetchval("SELECT sum(requests) FROM agent_traffic_daily WHERE kind='training'")==26

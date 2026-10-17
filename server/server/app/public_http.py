@@ -1,5 +1,4 @@
 """Public representation metadata, applied only after the private-site gate."""
-import hashlib
 import json
 import re
 from urllib.parse import urlencode
@@ -50,7 +49,7 @@ def matches_tag(value, tag):
     return any(x.removeprefix('W/') == tag.removeprefix('W/') for x in re.findall(r'(?:W/)?"[^"]*"', value))
 
 
-async def public_response(db, req, response, origin):
+async def public_response(db, req, response, origin, stamp=None):
     path = req.url.path
     if req.method not in ('GET', 'HEAD') or response.status_code != 200 or not (public_path(path) or path == '/llms.txt' or markdown_path(path)):
         return response
@@ -63,11 +62,13 @@ async def public_response(db, req, response, origin):
             headers.pop('content-length', None)
             response = Response(robots(origin, await training_disabled(db)), headers=headers)
         return no_store(response)
-    disabled = await training_disabled(db)
+    # A validator requires the caller's current resource proof, never a body-tag fallback.
+    if stamp is None:
+        return no_store(response)
+    disabled = stamp["disabled"]
     signal = training_signal(disabled)
     body = robots(origin, disabled).encode('utf-8') if path == '/robots.txt' else response.body
-    payload = (origin + (markdown_path(path) or path) + page_query(req, markdown_path(path) or path) + '\0' + content_type + '\0' + signal + '\0').encode('utf-8') + body
-    tag = 'W/"sha256-' + hashlib.sha256(payload).hexdigest() + '"'
+    tag = stamp['tag']
     headers = dict(response.headers)
     headers.update({'cache-control': PUBLIC_CACHE, 'content-signal': signal, 'etag': tag})
     headers.pop('last-modified', None)

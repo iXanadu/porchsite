@@ -287,7 +287,7 @@ it("AF1 slice: conditional public representations never cross roles or gates",as
  const f=await fixture(false), visitor=new Browser(), r=await reader();
  for(const path of ["/","/guide/published-guide/","/guide/","/guide/tags/guide/","/guide/feed.xml","/sitemap.xml","/robots.txt"]) {
   const original=await visitor.at(path), body=await original.text(), tag=original.headers.get("ETag")!;
-  expect(tag,path).toMatch(/^W\/"sha256-[a-f0-9]{64}"$/);
+  expect(tag,path).toMatch(/^W\/"dep1-[a-f0-9]{64}"$/);
   expect(original.headers.get("Cache-Control")).toBe("public, no-cache, must-revalidate, no-transform");
   expect(original.headers.get("Content-Signal")).toBe("search=yes, ai-input=yes, ai-train=yes");
   const unchanged=await visitor.at(path,{headers:{"If-None-Match":tag}});
@@ -309,7 +309,7 @@ it("AF1 slice: conditional public representations never cross roles or gates",as
  const robots=await (await visitor.at("/robots.txt")).text();expect(robots).toContain("User-agent: *\nAllow: /\n");for(const bot of ["GPTBot","ClaudeBot","Google-Extended"])expect(robots).toContain(`User-agent: ${bot}\nDisallow: /`);
  for(const table of ["items","revisions","live"]) {const key=table==="items"?"id":"item_id";for(const row of (await db.prepare(`SELECT data FROM ${table} WHERE ${key}='site'`).all<{data:string}>()).results)expect(JSON.parse(row.data)).not.toHaveProperty("ai_training_disabled");}
  const allowed=await content.updateItem(db,who,"site",draft.version,{ai_training_disabled:false},undefined);await publish([allowed.id]);
- expect((await visitor.at("/")).headers.get("ETag")).toBe(tag);
+ const allowedResponse=await visitor.at("/");expect(await allowedResponse.text()).toBe(body);expect(allowedResponse.headers.get("Content-Signal")).toContain("ai-train=yes");expect(allowedResponse.headers.get("ETag")).not.toBe(tag);
  const enabling=await content.updateItem(db,who,"site",allowed.version,{private:true},undefined);await publish([enabling.id]);
  for(const path of ["/","/guide/published-guide/","/guide/feed.xml","/sitemap.xml","/index.md","/llms.txt"])for(const method of ["GET","HEAD"]) {const denied=await visitor.at(path,{method,headers:{"If-None-Match":tag!,"If-Match":'"other"',"If-Modified-Since":"Wed, 21 Oct 2099 07:28:00 GMT","If-Unmodified-Since":"Wed, 01 Jan 2020 00:00:00 GMT"}});expect(denied.status).toBe(404);expect(denied.headers.has("ETag")).toBe(false);expect(denied.headers.has("Content-Signal")).toBe(false);expect(await denied.text()).toBe(method==="HEAD"?"":BLANK);}
  expect(await (await visitor.at("/robots.txt")).text()).toBe("User-agent: *\nDisallow: /\n");

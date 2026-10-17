@@ -15,10 +15,10 @@ const at=(path:string,method="GET",headers:Record<string,string>={})=>handle(new
 async function publish(ids:string[]){const a=await approvals.request(db,who,ids,"");await approvals.decide(db,a.id,Object.fromEntries(ids.map(id=>[id,{decision:"approve" as const} ])),"");}
 async function fixture(){const s=await content.createItem(db,who,"site",{title:"Counter fixture",timezone:"America/Los_Angeles",archive:{enabled:true}},undefined);const entry=await content.createItem(db,who,"entry",{title:"Counted entry",date:"2026-10-17"},undefined);await publish([s.id,entry.id]);return s;}
 async function ownerCookie(){const token="count-owner-fixture";const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)));const hash=btoa(String.fromCharCode(...digest)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");await db.prepare("INSERT INTO owner (id,name,user_handle,created_at) VALUES (1,'Owner','AA','2026-10-17')").run();await db.prepare("INSERT INTO sessions (token_hash,created_at,expires_at) VALUES (?,'2026-10-17','2099-01-01')").bind(hash).run();return `__Host-sk_owner=${token}`;}
-beforeEach(async()=>{const tables=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();for(const {name} of tables.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith("sqlite_")&&!name.startsWith("d1_"))await db.prepare(`DELETE FROM ${name}`).run();await db.prepare("INSERT INTO auth_state (id) VALUES (1)").run();});
+beforeEach(async()=>{traffic.reset(db);const tables=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();for(const {name} of tables.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith("sqlite_")&&!name.startsWith("d1_"))await db.prepare(`DELETE FROM ${name}`).run();await db.prepare("INSERT INTO auth_state (id) VALUES (1)").run();});
 afterEach(()=>vi.restoreAllMocks());
 
-it("af_agent_kind_daily_counts: classes, HEAD/304, one llms request, concurrent increments and local date rollover",async()=>{
+it("af_agent_kind_daily_counts: classes, HEAD/304 exclusions, one llms request, concurrent increments and local date rollover",async()=>{
  await fixture();const original=traffic.observe;vi.spyOn(traffic,"observe").mockImplementation((d,q,r)=>original(d,q,r,t1));
  for(const ua of ["OAI-SearchBot","Claude-SearchBot","Googlebot","GPTBot","ClaudeBot","ChatGPT-User","Claude-User"]){expect((await at("/","GET",{"User-Agent":ua})).status).toBe(200);}
  const robots=await at("/robots.txt");expect(robots.status).toBe(200);expect((await at("/robots.txt","HEAD")).status).toBe(200);
@@ -29,8 +29,8 @@ it("af_agent_kind_daily_counts: classes, HEAD/304, one llms request, concurrent 
  await Promise.all(Array.from({length:24},()=>original(db,new Request(origin,{headers:{"User-Agent":"Claude-User"}}),response,t1)));
  await original(db,new Request(origin),response,t2);
  const r=await traffic.trafficReport(db,"2026-10-17","2026-10-18");
- expect(r.daily).toEqual([{day:"2026-10-17",kind:"search",requests:4},{day:"2026-10-17",kind:"training",requests:3},{day:"2026-10-17",kind:"user",requests:26},{day:"2026-10-17",kind:"other",requests:3},{day:"2026-10-18",kind:"other",requests:1}]);
- expect(r.totals.map(x=>x.requests)).toEqual([4,3,26,4]);
+ expect(r.daily).toEqual([{day:"2026-10-17",kind:"search",requests:4},{day:"2026-10-17",kind:"training",requests:3},{day:"2026-10-17",kind:"user",requests:26},{day:"2026-10-17",kind:"other",requests:1},{day:"2026-10-18",kind:"other",requests:1}]);
+ expect(r.totals.map(x=>x.requests)).toEqual([4,3,26,2]);
 });
 it("af_agent_kind_no_identifiers: schema and writes are aggregates; legacy analytics stay untouched",async()=>{
  await fixture();const schema=await db.prepare("PRAGMA table_info(agent_traffic_daily)").all<{name:string;pk:number}>();expect(schema.results.map(r=>r.name)).toEqual(["day","kind","requests"]);expect(schema.results.filter(r=>r.pk).map(r=>r.name)).toEqual(["day","kind"]);
@@ -66,7 +66,7 @@ it("excludes failures, misses, protocol/capability paths and other representatio
 it("counter failures preserve public response delivery",async()=>{
  await fixture();vi.spyOn(traffic,"observe").mockRejectedValue(new Error("counter unavailable"));const r=await at("/");expect(r.status).toBe(200);expect(await r.text()).toContain("Counter fixture");
 });
-it("public representations count each anonymous GET, HEAD and 304 once",async()=>{
+it("public representations count GET 200 only, excluding HEAD and 304",async()=>{
  await fixture();
  const paths=["/","/index.md","/robots.txt","/journal/feed.xml","/sitemap.xml","/llms.txt","/archive/","/archive/index.md"];
  for(const path of paths){
@@ -75,6 +75,18 @@ it("public representations count each anonymous GET, HEAD and 304 once",async()=
   expect((await at(path,"HEAD",headers)).status,path).toBe(200);
   expect((await at(path,"GET",{...headers,"If-None-Match":r.headers.get("ETag")!})).status,path).toBe(304);
  }
- expect(await db.prepare("SELECT SUM(requests) n FROM agent_traffic_daily WHERE kind='search'").first("n")).toBe(paths.length*3);
+ const report=await traffic.trafficReport(db,"2000-01-01","2099-01-01");expect(report.totals.find(r=>r.kind==='search')!.requests).toBe(paths.length);
  expect(await db.prepare("SELECT count(*) n FROM agent_traffic_daily WHERE kind!='search'").first("n")).toBe(0);
+});
+it('perf_uc9_buffer: at most one UPSERT per minute, concurrent increments retained and failed flush retried',async()=>{
+ await fixture();const response=new Response('',{headers:{'Content-Type':'text/html; charset=utf-8'}}),request=new Request(origin,{headers:{'User-Agent':'GPTBot'}}),real=db.prepare.bind(db),sql=vi.spyOn(db,'prepare');
+ await traffic.observe(db,request,response,t1,'UTC');
+ await Promise.all(Array.from({length:24},()=>traffic.observe(db,request,response,t1,'UTC')));
+ expect(sql.mock.calls.filter(([q])=>q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(1);
+ expect((await traffic.trafficReport(db,'2026-10-01','2026-10-31')).totals.find(r=>r.kind==='training')!.requests).toBe(25);
+ await traffic.flush(db,t1.getTime()+60000);expect(sql.mock.calls.filter(([q])=>q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(2);
+ expect(await db.prepare("SELECT sum(requests)n FROM agent_traffic_daily WHERE kind='training'").first('n')).toBe(25);
+ traffic.reset(db);sql.mockImplementation((q:string)=>{if(q.startsWith('INSERT INTO agent_traffic_daily'))throw Error('flush unavailable');return real(q);});
+ await traffic.observe(db,request,response,t1,'UTC');sql.mockImplementation(real);await traffic.flush(db,t1.getTime()+60000);
+ expect(await db.prepare("SELECT sum(requests)n FROM agent_traffic_daily WHERE kind='training'").first('n')).toBe(26);
 });
