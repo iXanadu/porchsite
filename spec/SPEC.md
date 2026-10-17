@@ -897,6 +897,18 @@ image read. Paired tests cover upload backfill, repeated legacy GET/HEAD
 with zero media/artifact writes and one view, and an empty matching 304 that
 does not read image bytes. No migration or new maintenance endpoint is required.
 
+The public dependency statement selects only the current theme's
+`name`, `version` and `sha256` (including the existing legacy-name aliases),
+and image dimensions actually consumed by public rendering: currently the
+approved site's local hero. Both use indexed name lookups; an unused upload
+or an unselected installed theme must not add dependency rows or change a
+validator. Never scan the entire media library to search for references.
+Other image paths and theme selection remain covered by the live row versions
+and share-card references. Adding another renderer-side dimension lookup also
+requires adding its exact dimension dependency to the statement. Paired tests
+prove unused images/themes do not invalidate a tag, while the chosen hero's
+dimensions and chosen theme's digest do.
+
 Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
 
 Pictures should be compressed before upload by default: web size, about
@@ -2567,7 +2579,8 @@ Read the current render-dependency facts in one database statement instead of
 rendering a body to compute its validator. Include every live item identity,
 version, slug, publication and creation timestamp; approved site extensions
 and their exact values, private/training receipts, selected theme digest,
-share-card references and referenced media dimensions. A count or maximum
+share-card references and media dimensions consumed by rendering (PERF-3).
+A count or maximum
 version alone is insufficient. The identity also includes engine release, canonical
 origin and path with normalized archive query, selected Content-Type, approved
 training signal, and the current UTC minute. The minute is conservative: this
