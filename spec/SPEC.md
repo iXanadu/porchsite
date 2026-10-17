@@ -862,6 +862,123 @@ with `no_such_item`, never a partial result. Both reads use the same
 owner-authorized MCP interface as every other tool; neither exposes a
 public lookup. Reads do not change item versions or publication state.
 
+#### Proposal SP-S3: opt-in reuse of the fixed site guide
+
+**Proposal only; not implemented.** The current `site_state(full?, ids?)`
+contract above remains in force until this proposal is accepted and built
+in both editions. This changes the authenticated tool response only; it
+adds no public endpoint, resource, browser cache or template variable.
+
+The fixed `states`, `kinds`, `fields` and `site_defaults` blocks occupy
+12,858 bytes as compact UTF-8 JSON at proposal base `a1c22ea`, before the MCP
+wrapper or item data. Repeating them on every targeted item read consumes
+context without conveying a new item version. Keep the current default
+answer and add explicit caller-controlled reuse rather than remembering
+whether a server session has already seen a guide.
+
+**Proposed request.** Add one optional argument:
+`guide: {known_revision?: string}`. An absent `guide` preserves the exact
+existing success shape, including all four fixed blocks and no new guide
+metadata. `guide: {}` opts in and requests the complete guide. Within an
+opted-in request, `known_revision` is an opaque ASCII token of 1 to 128
+characters matching `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`. A malformed value,
+wrong type or unknown member of `guide` gets the existing invalid-params
+refusal after authentication. A well-formed unfamiliar token is a cache
+miss, never an error, path, URL or instruction to fetch anything.
+
+Every successful opted-in answer adds top-level
+`guide: {revision: string, included: boolean}`:
+
+| Request | Four fixed blocks | Guide metadata |
+| --- | --- | --- |
+| No `guide` argument | Present, unchanged | Absent |
+| `guide: {}` | Present | Current revision, `included: true` |
+| `guide: {known_revision: current}` | All four omitted | Current revision, `included: false` |
+| A well-formed older or unknown revision | Present | Current revision, `included: true` |
+
+Omission is all-or-nothing; the client supplies its locally held four
+blocks only when `included` is false and the revision matches its cache.
+Omitted blocks are absent keys, not empty objects or null. `items`,
+`release` and `update` retain their current shape and are freshly read on
+every call. Existing `ids` selection, ordering, `full` precedence, item
+versions, pending approvals, and unknown-id refusal are unchanged. In
+particular, a matching guide never skips an item lookup, update/rollback
+check or error. An `ids: []` call is a supported cheap guide handshake.
+This is a normal MCP result, not HTTP 304 or a not-modified response.
+
+**Revision and parity.** The revision covers exactly the four fixed
+blocks, including every field description, state label and model default;
+`site_defaults` means model defaults, never the site's current values.
+Do not include items, origin, identity, tokens, live/pending state, clock,
+release id or update information. A release whose guide is unchanged may
+reuse the revision; a release, upgrade or rollback with any changed guide
+must return the complete current guide on a mismatching request.
+
+Use a single generated revision contract packaged with the server and
+bundled into the Worker, with no network dependency. Its format-1 token is
+`ssg1-sha256-<64 lowercase hex>`. A single generator derives the digest
+from UTF-8 compact JSON for `{format: 1, guide: <four blocks>}`: recursively
+sort object keys by ASCII order (keys in this contract are ASCII), retain
+array order, and serialize primitives with `JSON.stringify`; no whitespace,
+BOM or trailing newline enters the digest. Both editions consume that
+same generated token rather than implementing different serializers.
+The generator's check mode must refuse a stale revision contract, and
+native parity must prove both actual guide builders equal its input.
+Changes to guide semantics or encoding require regeneration; an encoding
+change also increments the format prefix. This is a content revision,
+not a credential, approval receipt or trusted assertion by the caller.
+
+**Client lifecycle and compatibility.** The tool description explains the
+opt-in: a new conversation or empty client cache first requests `guide:
+{}` (optionally with `ids: []`), retains all four blocks and the returned
+revision, then supplies that revision on subsequent reads. A caller that
+cannot retain those blocks uses the unchanged default. Keep the cache in
+the authorized caller's context, scoped to the site origin and login
+context; do not create a shared service for private tool responses. Clear
+it when that context is lost. A compact answer without the matching local
+guide requires a fresh `guide: {}` request before interpreting guide terms.
+
+There is no server-side seen-guide flag, session counter, persistent row,
+KV entry, cookie or identity-to-revision record. Requests on another
+worker, connection, transport or edition have the same result. Authentication
+and authorization run normally on every request; possession of a revision
+neither grants access nor changes what item data is readable. Failed auth
+must not disclose guide metadata or use a token as a lookup key. No item
+or caller data enters the revision artifact, public discovery, logs or
+shared caches. Writes, validation and owner approval use current engine
+rules, never client-cached descriptions.
+
+Old callers omit the argument and receive today's shape. A new caller
+against an old runtime may receive its ordinary full answer without guide
+metadata; use that answer and stop sending conditional guide arguments.
+If the old runtime rejects the new argument, retry once without it. Do
+not invent a revision from that response or infer support from a release
+number. Old binaries continue on the unchanged schema: no migration,
+release floor, installation change or reconnect is required. Regenerate
+tool descriptions, input schemas and paired wire/contract snapshots when
+implementing; only explicit opt-in responses may omit existing fields.
+`TEMPLATES.md` and public rendering are unchanged.
+
+**Required implementation proof, both editions.** Named paired cases:
+`site_state_guide_default_compat` (existing default/full/ids shapes and
+bytes unchanged); `site_state_guide_conditional` (first, matching, stale,
+unknown, invalid token and all-or-nothing cases);
+`site_state_guide_fresh_state` (writes, approvals, removals, empty ids and
+unknown ids still produce fresh data or the usual error with a matching
+revision); `site_state_guide_access` (OAuth and assistant-key authorization,
+invalid/revoked credentials, private sites, and no public discovery);
+`site_state_guide_revision_parity` (actual four-block values, token and
+compact/full responses identical, with a change to each block invalidating
+the revision); and `site_state_guide_rollback` (actual previous bundle and
+server, new argument ignored or refused, fallback full read, return to new
+and stale revision refresh). Repeat on a fresh connection and isolated
+client cache to prove no server-session dependency. Run the normal paired
+contract, parity and upgrade gates. Measure full and compact responses on
+the sample sites and targeted `ids` calls; report absolute bytes saved and
+wrapper/token overhead rather than promising a fixed percentage or CPU
+saving. The compact form must remove all four blocks, approximately the
+fixed 12.9 KB here, while retaining every dynamic field.
+
 With `deep: true`, reachability uses the selected look, including an installed or site-made look,
 on the same proposed site as the other checks. Starting at `/`, follow
 rendered HTML anchor links through local entry, archive and tag pages;
