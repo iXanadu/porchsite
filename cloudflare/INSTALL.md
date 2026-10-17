@@ -176,6 +176,17 @@ two parts:
   }
   ```
   with your `DB`, `KV` and `CODE` values in place of the quoted names.
+  For a known stable site address, also include the plain-text binding
+  `{"type":"plain_text","name":"SITE_URL","text":"https://example.com"}`,
+  using that site's actual canonical origin with no path. Account subdomain
+  discovery in step 7 can be done before upload. The installer records its
+  known address automatically for a new site. Preserve an existing SITE_URL
+  on updates; changing it also changes the origin assistant tokens bind to.
+  When this value is absent or does not match the request origin, public
+  pages keep the live rendering path and do not use prepared copies.
+  Prepared public delivery remains off unless the operator explicitly sets
+  `PUBLIC_ARTIFACTS=1`; SITE_URL alone does not enable it. The installer never
+  sets that flag, and requests or assistant tool arguments cannot enable it.
 - `sitekeeper.js` (`application/javascript+module`): the file's contents,
   with that part name and filename.
 

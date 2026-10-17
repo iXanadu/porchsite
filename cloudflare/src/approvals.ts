@@ -1,3 +1,4 @@
+import { invalidation } from "./public-artifacts";
 import { streamApproval } from "./stream-settings";
 import { fieldsApproval, privateApproval, trainingApproval } from "./site-fields";
 import { storedData, sourceData, sourceApproval, migrateSources } from "./embed-storage";
@@ -202,6 +203,7 @@ export async function decide(
   if (a.items.every((i) => i.status !== "pending")) a.decided_at = at;
   stmts.push(updateStmt(db, a));
   if (published.length) {
+    stmts.push(...invalidation(db));
     stmts.push(
       db
         .prepare("INSERT INTO publishes (actor, approval_id, items, created_at) VALUES ('owner', ?, ?, ?)")
@@ -271,6 +273,7 @@ export async function publishNow(db: D1Database, items: { id: string; version: n
       .prepare("INSERT INTO publishes (actor, approval_id, items, created_at, note) VALUES ('owner', NULL, ?, ?, ?)")
       .bind(JSON.stringify(going.map((i) => ({ id: i.id, version: i.version }))), at, note.slice(0, 1000)),
   );
+  stmts.push(...invalidation(db));
   await db.batch(stmts);
   return going.map((i) => i.id);
 }

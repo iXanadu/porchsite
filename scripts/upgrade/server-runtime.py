@@ -59,6 +59,12 @@ async def serve(current):
             await JSONResponse(await keys.create(app.pool, "Rollback fixture"))(
                 scope, receive, send
             )
+        elif current and scope.get("path") == "/__rollback/artifacts":
+            try:
+                rows=await app.pool.fetch('SELECT key,generation FROM public_artifacts ORDER BY key')
+                await JSONResponse([dict(row) for row in rows])(scope,receive,send)
+            except Exception:
+                await JSONResponse({},status_code=404)(scope,receive,send)
         else:
             await app(scope, receive, send)
 

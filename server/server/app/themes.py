@@ -7,6 +7,8 @@ against the catalog's sha256. Port of cloudflare/src/themes.ts.
 A theme is a dict: {manifest, pages, partials, static} (file name -> text).
 """
 
+from .public_artifacts import public_change
+
 import hashlib
 import json
 import re
@@ -213,7 +215,7 @@ async def install(db: Db, name: str, actor: str, fetcher: Fetcher = fetch) -> di
             f"This site has its own look called {name}; the catalog one can't replace it.",
         )
     version = _js(t["manifest"].get("version"))
-    await db.execute(
+    await public_change(db,
         "INSERT INTO themes (name, version, package, sha256, installed_at, installed_by, source)"
         " VALUES ($1, $2, $3, $4, $5, $6, 'catalog')"
         " ON CONFLICT (name) DO UPDATE SET version = excluded.version, package = excluded.package,"
@@ -270,7 +272,7 @@ async def create(
     if problems:
         raise ApiError(422, "theme_problems", f"The look isn't usable yet: {'; '.join(problems)}")
     version = _js(manifest.get("version"))
-    await db.execute(
+    await public_change(db,
         "INSERT INTO themes (name, version, package, sha256, installed_at, installed_by, source)"
         " VALUES ($1, $2, $3, $4, $5, $6, 'private')"
         " ON CONFLICT (name) DO UPDATE SET version = excluded.version, package = excluded.package,"

@@ -8,6 +8,8 @@ Fetching is safe to point at a caller's URL: https only, public addresses
 only (fetch.capped_public_fetch), at most MAX_BYTES read.
 """
 
+from .public_artifacts import public_change
+
 import hashlib
 import re
 from typing import Any
@@ -144,7 +146,7 @@ async def store(db: Db, data: bytes, type_: str, source: str) -> str:
         # Stored before sizes were recorded: fill it in now.
         w, h = size(data)
         if w:
-            await db.execute("UPDATE media SET width = $1, height = $2 WHERE name = $3", w, h, name)
+            await public_change(db, "UPDATE media SET width = $1, height = $2 WHERE name = $3", w, h, name)
     if not have:
         w, h = size(data)
         await db.execute(
@@ -268,7 +270,7 @@ async def size_of(db: Db, name: str) -> tuple[int, int]:
     data = await db.fetchval("SELECT data FROM media WHERE name = $1", name)
     w, h = size(bytes(data))
     if w:
-        await db.execute("UPDATE media SET width = $1, height = $2 WHERE name = $3", w, h, name)
+        await public_change(db, "UPDATE media SET width = $1, height = $2 WHERE name = $3", w, h, name)
     return w, h
 
 

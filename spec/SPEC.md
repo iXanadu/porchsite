@@ -1963,6 +1963,18 @@ This file is a convenience map, with no search-ranking claim.
 
 ### AF-7: prepare public artifacts without weakening publication
 
+Prepared lookup, delivery, filling and build-ahead are OFF by default.
+Only the operator environment value `PUBLIC_ARTIFACTS=1` (Cloudflare) or
+`PORCHSITE_PUBLIC_ARTIFACTS=1` (server), together with the pinned canonical
+`SITE_URL` / `PORCHSITE_SITE_URL`, enables them. Absent, empty and every other
+flag value keep ordinary live rendering. Requests, cookies, MCP arguments
+and public discovery never set or expose this flag. The installer pins a
+new site's known install origin without enabling prepared delivery; updates
+preserve existing origin metadata. Public requests never pin an origin.
+Invalidation remains mandatory and atomic even with delivery disabled.
+Hosted CPU is unmeasured by local diagnostics; default enablement awaits a
+separate hosted measurement and release decision.
+
 Both editions store prepared public HTML (including its inert JSON-LD),
 Markdown and `/llms.txt`, built from the anonymous approved snapshot.
 This replaces repeat rendering, not the per-request access check. Nothing
@@ -1977,6 +1989,11 @@ PostgreSQL table in the server edition. Both work with the existing install
 bindings, API-uploaded bundle and self-hosted process; no paid cache product,
 new service credential, queue service or domain change is required. Reserve
 Cloudflare migration 0023 and server migration 0017, after training receipts.
+The existing canonical-origin configuration (`SITE_URL` on the Worker,
+`PORCHSITE_SITE_URL` on server) is required for cache eligibility and must
+match the request origin. The new-site installer records its known origin;
+updates preserve it, and requests on an unconfigured or different origin keep
+today's live path. No public request pins or changes this configuration.
 The tables are disposable derived data; prior releases ignore them and
 continue operating on the additive schema. No existing migration is edited.
 
@@ -2037,7 +2054,9 @@ In particular, a generation counter bumped only by new code is insufficient:
 previous runtimes can publish, change a theme or write share-card mappings
 without knowing it. Fresh state observation must detect those changes after
 rollback/return too. The implementation supplies shared deterministic fixtures
-for G; both editions hash the same normalized dependency values. Snapshot
+for G; both editions hash the same normalized dependency values. Embedded
+JSON is decoded and object keys are ordered before hashing, so database JSON
+whitespace and Unicode escapes do not create different G values. Snapshot
 reads must be consistent across those dependencies, with a final fresh
 comparison before a build is admitted. A mismatch retries from current state
 or uses the ordinary safe live path; it never serves a mixed snapshot.
@@ -2055,7 +2074,12 @@ Canonical and direct Markdown use the same representation body and AF-2 tag;
 request-specific Vary/HEAD behavior is reconstructed on delivery.
 
 Use new `public_artifact_state` and `public_artifacts` tables. The former is a
-singleton recording the observed G; it is not an authorization or clock cache.
+singleton recording the observed G and a bounded build lease; neither is an
+authorization or display-clock cache. Leases coalesce one snapshot job and
+expire after 30 seconds; jobs check a 250 ms wall budget and the current
+minute boundary before starting each next copy. An in-flight render may
+finish after that budget, but cannot admit an expired copy. Later requests
+safely fill unfinished work.
 The latter stores key, G, normalized origin/address/representation, UTF-8 body,
 Content-Type, AF-2 ETag, approved Content-Signal, a fixed allowlist of public
 response metadata and an exclusive `valid_until` UTC timestamp. No arbitrary
@@ -2113,6 +2137,11 @@ that commit cannot serve an old body or 304. Already delivered or previously
 authorized in-flight public bytes cannot be recalled, as in the existing rule.
 
 Time-dependent hours, notices, events and date labels are rendering inputs.
+The current helpers observe timezone-local date and minute; both editions
+conservatively expire at the next UTC minute boundary (at most 60 seconds),
+with paired timezone/DST tests proving the display contract. A new helper
+that can change between those boundaries must supply an earlier boundary or
+bypass storage.
 A prepared row expires before the earliest point when displayed bytes can
 change in the site's timezone, including schedule endpoints and DST changes;
 never assume a UTC day is that interval. The renderer must supply that
@@ -2208,8 +2237,8 @@ Required named paired acceptance cases:
 | `af_prebuild_upgrade_return` | Actual previous server runtime and archived Worker on the additive schema can approve/edit/unpublish/change privacy/theme/share cards, then return; stale rows are purged before lookup, no old 304/private copy, and published owner content/receipts/counters survive. |
 | `af_prebuild_hosted_cpu` | Reproducible before/after hosted CPU and server CPU report, complete hit-path accounting and rebuild cost; hosted evidence is identified separately from local diagnostics. |
 
-This is a spec proposal only until review/security approve implementation;
-no stored-copy backend or deployment is created by this text.
+The table backend implements this contract in both editions. Delivery remains
+operator opt-in; local process-CPU diagnostics are not hosted CPU evidence.
 
 ### AF-8: content is data, never agent authority
 

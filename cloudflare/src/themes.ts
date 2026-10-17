@@ -1,3 +1,4 @@
+import { invalidation } from "./public-artifacts";
 /**
  * Where a site's themes come from: the built-in ones bundled with this
  * release, and ones the assistant installed from the Sitekeeper catalog.
@@ -116,10 +117,8 @@ export async function install(db: D1Database, name: string, actor: string, fetch
   const mine = await db.prepare("SELECT source FROM themes WHERE name = ?").bind(name).first<{ source: string }>();
   if (mine?.source === "private") throw new ApiError(409, "name_taken", `This site has its own look called ${name}; the catalog one can't replace it.`);
   const version = String(t.manifest.version);
-  await db
-    .prepare("INSERT OR REPLACE INTO themes (name, version, package, sha256, installed_at, installed_by, source) VALUES (?, ?, ?, ?, ?, ?, 'catalog')")
-    .bind(name, version, text, entry.package.sha256, new Date().toISOString(), actor)
-    .run();
+  await db.batch([...invalidation(db), db.prepare("INSERT OR REPLACE INTO themes (name, version, package, sha256, installed_at, installed_by, source) VALUES (?, ?, ?, ?, ?, ?, 'catalog')")
+    .bind(name, version, text, entry.package.sha256, new Date().toISOString(), actor)]);
   return { name, version };
 }
 
@@ -142,10 +141,8 @@ export async function create(db: D1Database, made: Made, actor: string, fetcher:
   const problems = checkTheme(name, t, made.sample, { scripts: false });
   if (problems.length) throw new ApiError(422, "theme_problems", `The look isn't usable yet: ${problems.join("; ")}`);
   const version = String(t.manifest.version);
-  await db
-    .prepare("INSERT OR REPLACE INTO themes (name, version, package, sha256, installed_at, installed_by, source) VALUES (?, ?, ?, ?, ?, ?, 'private')")
-    .bind(name, version, text, await sha256(text), new Date().toISOString(), actor)
-    .run();
+  await db.batch([...invalidation(db), db.prepare("INSERT OR REPLACE INTO themes (name, version, package, sha256, installed_at, installed_by, source) VALUES (?, ?, ?, ?, ?, ?, 'private')")
+    .bind(name, version, text, await sha256(text), new Date().toISOString(), actor)]);
   cache.clear();
   return { name, version };
 }

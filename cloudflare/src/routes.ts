@@ -1,3 +1,4 @@
+import * as publicArtifacts from "./public-artifacts";
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
 import { agentPage } from './agent-pages';
@@ -973,22 +974,39 @@ const BEACON_HEADERS = { "Content-Type": "text/javascript; charset=utf-8", "Cach
  */
 export async function handle(req: Request, env: Env): Promise<Response> {
   const access = await privacy.access(env.DB,req);
+  if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
   if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse();
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
-  else res=await agentPage(get,r=>route(r,env),async()=>{
-    const v=await contentView(new Request(get.url),env);
-    return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>
-      v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
-  },r=>notFoundPage(r,env));
+  else res=await publicArtifacts.respond(env.DB,req,env.PUBLIC_ARTIFACTS==='1'?env.SITE_URL:undefined,RELEASE,()=>renderPublic(req,env));
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
-  if (!access.isPrivate) res = await publicResponse(env.DB,req,res);
+
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
   if (!access.isPrivate) await agentTraffic.observe(env.DB,req,res).catch(()=>{});
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
+}
+
+/** Anonymous renderer used by both requests and internal build-ahead. */
+async function publicPaths(req:Request,env:Env):Promise<string[]> {
+ const v=await contentView(new Request(new URL('/',req.url)),env);
+ return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
+}
+async function renderPublic(req:Request,env:Env):Promise<Response>{
+ const fresh=await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
+ if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse();
+ if(fresh.response)return fresh.response;
+ if(fresh.isPrivate)return privacy.noStore(await route(get,env));
+ const rendered=await agentPage(get,r=>route(r,env),()=>publicPaths(get,env),r=>notFoundPage(r,env));
+ return publicResponse(env.DB,req,rendered);
+}
+export async function preparePublic(env:Env):Promise<void>{
+  if(env.PUBLIC_ARTIFACTS!=='1')return;
+ if(!env.SITE_URL)return;
+ const req=new Request(env.SITE_URL);
+ await publicArtifacts.prepare(env.DB,env.SITE_URL,RELEASE,r=>renderPublic(r,env),()=>publicPaths(req,env));
 }
 
 // Every handler is awaited inside the try, so a refusal it throws reaches the
