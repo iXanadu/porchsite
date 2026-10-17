@@ -12,12 +12,23 @@
 Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
-## NOW (sprint 2026-10-17, in order)
-1. AF-7H: hosted measurement, then decide whether prepared copies go on by
-   default.
-2. The AGENT ACCESS TO PRIVATE SITES section last.
+## NOW (sprint 2026-10-17, in order; owner: performance first)
+1. PERF-1: public pages within the Cloudflare free plan (10 ms CPU).
+2. Agent access to private sites (A, B and C accepted; ships after PERF-1).
+3. PERF-2: the next CPU costs on a first page render.
 
 ## BLOCKING
+- **PERF-1** IN-PROGRESS: every Cloudflare site is on the free plan
+  (10 ms CPU per request). Public pages run far over that: each GET
+  re-reads the site several times, hashes the full page and writes a
+  counter, even when nothing changed. Fix: a cheap "anything changed?"
+  check before rendering, one read of the site per request, small 404s,
+  counting off the request path, and /llms.txt from stored titles.
+  Found 2026-10-17.
+- **GATE-1** OPEN: the release gate runs the test suites but never starts
+  the real Worker bundle, so an import-order failure at startup (every
+  page down) would pass every check. Add a bundle build plus start plus
+  a few requests to the release script. Found 2026-10-17 in PERF-1 work.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
