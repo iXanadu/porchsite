@@ -124,9 +124,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **REL-1** OPEN: the release script refuses a changed look whose version
-  wasn't bumped, but only at release time. Move that check into the
-  regular gates (theme:check). Found 2026-10-16.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,

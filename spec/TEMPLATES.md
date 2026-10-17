@@ -307,6 +307,15 @@ changed template is a new version. An edition may also bundle templates as
 built-ins. A credited look's entry carries `author: {"x": "<handle>"}`
 (§3c), and nothing else about its maker; the package never carries credit.
 
+The local authoring gate `npm run theme:check` rejects changed package
+bytes at an already published look version and directs the author to bump
+`template.json` before proceeding. It compares the same package bytes as
+the release script, using an existing local package archive or a local
+release tag when ignored archives are absent. Both checks remain active;
+neither changes an archive or fetches remote data. New looks and new
+unpublished versions pass this version check. Credit is excluded from the
+package comparison as in §3c.
+
 ## 3c. Credit
 
 Credit for a look is its maker's X handle, and nothing else: no name, email

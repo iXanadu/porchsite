@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {sitemap, robots} from "../src/sitemap";
+import { publishedThemeProblems } from "./theme-version.mjs";
 import {sampleView} from "../src/themecheck";
 import { paletteCss } from "../src/blocks";
 import { check, renderSample } from "../src/themecheck";
@@ -59,7 +60,7 @@ function main() {
     for (const n of names) {
       const sample = existsSync(join(ROOT, n, "sample.json")) ? JSON.parse(readFileSync(join(ROOT, n, "sample.json"), "utf8")) : null;
       // Built-in themes may carry their own scripts; looks made by assistants may not.
-      const problems = check(n, loadTheme(n) as any, sample, { scripts: true });
+      const problems = [...check(n, loadTheme(n) as any, sample, { scripts: true }), ...publishedThemeProblems(ROOT, n)];
       bad += problems.length;
       console.log(problems.length ? `✗ ${n}\n${problems.map((p) => `  - ${p}`).join("\n")}` : `✓ ${n}`);
     }
