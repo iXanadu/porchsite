@@ -13,12 +13,15 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. **S4-4R** IN-PROGRESS: release S4-4 (approval alerts, all 8 device
-   steps passed) with an owner-only Review link on every site page (the
-   Home Screen app has no address bar). Visitors and readers byte-identical.
-2. **MCP-1**, then AF-1..AF-8 (spec first), then ST-1..ST-3. AG-* last.
+1. AF-2..AF-8 and UC9, built in slices on branch `af-integration` (kept off
+   main until their release, because INSTALL.md and llms.txt are read raw
+   from main). Then ST-1..ST-3, rebased onto AF, with AF handling for
+   /archive/. Then SV-PV2 (media header). AG-* last.
 
 ## BLOCKING
+- **MC-1** IN-PROGRESS: mention cards show more than name and description
+  on public pages (badge, group, subtitle, period, price, tags) in both
+  editions; the spec allows name and description only. Fixed in AF Slice2.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
@@ -163,6 +166,10 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **AF-C1** OPEN: an older release approving a version written by newer
+  code approves every site_fields key, so it can switch on the AI-training
+  choice without showing it (same class as the broker fields). Needs the
+  receipt pattern private mode uses. Found in AF Slice1 review, 2026-10-17.
 - **SV-PV2** OPEN: a caching reverse proxy in front of a server-edition
   site keeps serving /media files the site no longer publishes: the site
   sends `public, max-age=31536000, immutable`. Deploy guidance now disables
