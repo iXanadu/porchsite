@@ -62,12 +62,14 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
-- **AF-7** OPEN: build-ahead for public pages (was S4-9). Hosted CPU on
+- **AF-7** IN-PROGRESS: build-ahead for public pages (was S4-9). Hosted CPU on
   Free is about 2-3x local, so even a warm home page costs 9-14 ms. Serve
   stored copies of public pages, Markdown copies and llms.txt, cleared on
   every change; Workers Caching first, the site's own table if that can't
   be switched on through the API upload, and the server edition's
-  equivalent. Also takes page views off the free plan's daily read limit.
+  equivalent. Spec proposal uses D1/PostgreSQL tables with a fresh live gate
+  before every hit; hosted CPU reduction and read costs must be measured,
+  not inferred from cached bodies.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos
   without alt text, embeds without a caption, pages without a description,
   heading order). Facts, never advice.
