@@ -19,7 +19,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import asyncpg
 
-from server.app import check, content, mcp, site, themes
+from server.app import check, content, mcp, site, themes, published_read
 from server.app.db import apply_schema
 from server.app.embed_storage import stored_data
 from server.app.site_guide import GUIDE_REVISION
@@ -58,6 +58,7 @@ async def main(output, names):
         return view
 
     site.proposed_view = fixed_view
+    published_read._clock = lambda: fixed
     mutation = os.environ.get("PORCHSITE_PARITY_MUTATION", "")
     if mutation:
         if mutation != "legacy-url":
@@ -135,12 +136,16 @@ async def main(output, names):
             await pool.execute("INSERT INTO agent_read_keys(id,name,key_hash,created_at,expires_at,owner_epoch) SELECT 'read_parity','Reader','fixture','2026-10-10T12:00:00.000Z','2099-01-01T00:00:00.000Z',owner_epoch FROM auth_state WHERE id=1")
             epoch=await pool.fetchval('SELECT owner_epoch FROM auth_state WHERE id=1')
             props={'scope':'published_read','readKeyId':'read_parity','ownerEpoch':epoch,'origin':'https://example.invalid'}
-            for key,tool,args in [('ag_state','site_state',{}),('ag_state_guide','site_state',{'guide':{}}),('ag_state_full','site_state',{'full':True}),('ag_check','site_check',{}),('ag_check_deep','site_check',{'deep':True})]:
+            for key,tool,args in [('ag_state','site_state',{}),('ag_state_guide','site_state',{'guide':{}}),('ag_state_full','site_state',{'full':True}),('ag_check','site_check',{}),('ag_check_deep','site_check',{'deep':True}),('ag_pages','pages_list',{}),('ag_pages_one','pages_list',{'limit':1}),('ag_pages_tag','pages_list',{'tag':'missing'}),('ag_search','search',{'query':'site'}),('ag_search_unicode','search',{'query':'ΟΣ İ CAFE\u0301'}),('ag_page_home','page_get',{'path':'/'}),('ag_page_missing','page_get',{'path':'/not-published/'})]:
                 try:
                     result=await mcp._call(pool,tool,args,props,'dev')
                 except Exception as error:
                     result=mcp._refusal(str(error))
                 answers[key]={'error':bool(result.is_error),'value':decoded(result.content[0].text)}
+            first = answers['ag_pages_one']['value']
+            if first.get('next_cursor'):
+                result = await mcp._call(pool, 'pages_list', {'limit':1,'cursor':first['next_cursor']}, props, 'dev')
+                answers['ag_pages_next'] = {'error':bool(result.is_error),'value':decoded(result.content[0].text)}
             write_json(output / f'{case["name"]}.json', answers)
         print(f"Server tool parity: {len(names)} samples and {len(cases) - len(names)} regression fixtures")
     finally:
