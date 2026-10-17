@@ -122,6 +122,11 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
+- **PV-6** OPEN: on a private site a signed-out owner who opens /review (or
+  any page) sees the blank 404 with no way forward, which looks like a
+  broken site. Send signed-out /review to /login?next=/review (sign-in is
+  already public, so nothing new is revealed); everything else stays blank.
+  Security review first. Found 2026-10-17 (owner on a new browser).
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,
