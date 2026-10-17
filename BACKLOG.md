@@ -13,7 +13,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AF-7 (prepared public copies; independent acceptance).
+1. AF-7H: hosted measurement, then decide whether prepared copies go on by
+   default.
 2. The AGENT ACCESS TO PRIVATE SITES section last.
 
 ## BLOCKING
