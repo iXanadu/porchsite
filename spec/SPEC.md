@@ -2527,3 +2527,81 @@ the existing parity, conformance and mutation gates remain required.
   with no GitHub account (`cloudflare/INSTALL.md`).
 - Q2. Which consumer assistants connect to a remote MCP server with OAuth
   today, and do any need an adapter?
+
+### PERF-1: bounded public reads (proposal)
+
+This amendment replaces body-derived validators on anonymous public text
+representations when prepared public copies are disabled. It does not change
+media validators or private principal-bound validators. Prepared copies stay
+off by default; no private body is prepared or shared.
+
+Run the live private-site gate first. Any Authorization header or owner/reader
+cookie bypasses the public conditional shortcut, including invalid or expired
+credentials. Resolve representation negotiation and archive query validation
+before a successful conditional response, after the access gate. A missing,
+redirecting or invalid resource cannot become 304, including with `*`.
+
+Read the current render-dependency facts in one database statement instead of
+rendering a body to compute its validator. Include every live item identity,
+version, slug, publication and creation timestamp; approved site extensions
+and their exact values, private/training receipts, selected theme digest,
+share-card references and referenced media dimensions. A count or maximum
+version alone is insufficient. The identity also includes engine release, canonical
+origin and path with normalized archive query, selected Content-Type, approved
+training signal, and the current UTC minute. The minute is conservative: this
+amendment does not claim the clock-independence proof proposed for longer-lived
+prepared copies. A theme, media/share-card metadata, approved extension or
+receipt change must invalidate the identity as well as a live item change.
+Derive these facts from committed data on every request, so writes by an older
+runtime also change the identity without a migration or trigger.
+No pending body, session identifier or credential enters the identity. Hash
+the canonical JSON encoding of these facts and identity fields with SHA-256;
+use W/"dep1-<64 lowercase hex digits>". This is a dependency hash, not a body
+hash. Equivalent direct and negotiated Markdown use the same canonical URL
+and type. Canonical object keys, row ordering and timestamp strings agree in
+both editions. A changed body must imply changed dependencies or minute.
+
+A matching public GET/HEAD returns an empty 304 without liveView, HTML or
+Markdown parsing, body hashing, a prepared-copy snapshot/read/fill, or request
+accounting. It retains the corresponding Content-Type, public cache policy,
+Content-Signal, discovery Link and Vary headers. HEAD never returns a body.
+A miss builds at most one approved reader view per request and passes it to
+all page, archive and missing-page helpers. Reuse the access and training
+results within that request; do not repeat their database queries.
+
+Structured facts and the public map take their title and optional summary
+from the same approved view fields. They do not render or parse a complete
+page to recover metadata. Home uses site.title/site.description, entries use
+title/summary, and the combined archive uses its configured title without a
+synthetic description. This intentionally replaces look-specific headings
+and text-copy fallback descriptions. Escape inert JSON-LD as before; neither
+facts nor map rows expose drafts, private cards, mention destinations or
+unapproved fields. Preserve map links, ordering and 50-link/16 KiB bounds.
+
+After the private gate, a path outside the engine's public route shapes gets
+a tiny fixed 404 without loading a reader view. This decision uses path shape,
+not a lookup of whether a slug exists. A route-shaped miss can reuse the one
+loaded view for its ordinary missing-page behavior.
+
+UC9 becomes best-effort buffered accounting of anonymous public GET 200
+responses only. HEAD and 304 no longer increment counts. Keep only day, kind
+and count in process/isolate memory, with no URL, UA, IP, credential or request
+identifier. Flush aggregates in one bounded UPSERT at most once per minute;
+Worker work uses waitUntil and the server uses equivalent background work.
+Concurrent arrivals must not overwrite increments. Failed flushes retain the
+bounded aggregates for retry, but process loss can lose unflushed counts;
+this is an estimate, not durable per-request delivery. Owner reports disclose
+the excluded HEAD/304 traffic, delayed visibility and possible loss. No flush
+or accounting work belongs on a public conditional or HEAD request path.
+
+Required paired proof: private/session gate before every conditional shortcut;
+unknown paths and removed resources never 304; old tags fail after live,
+training, theme, receipt, media or clock changes; actual previous-runtime
+writes cannot leave a reusable stamp. Test direct/negotiated Markdown tag
+identity, escaped metadata, map caps and 200-entry constant query cost, and
+concurrent buffered increments/flush failures. Assert no more than three
+D1 statements for a public 304 or unshaped 404, with zero liveView calls,
+body hashes, prepared-copy accesses and accounting writes. Measure first
+render 200 statement counts and compare them with the previous implementation.
+Measure hosted public 304 and 404 CPU against the 10 ms target; local timings
+are reported separately and are not hosted CPU evidence.
