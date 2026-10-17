@@ -17,6 +17,11 @@ Two editions implement it, both in this repository:
 This folder (`spec/`) holds the contract, the conformance check and the
 template format. Both editions follow it; neither defines it.
 
+Before protocol construction, content/access lookup or routing, both editions
+answer every non-loopback HTTP request with an empty 301 to the same URL on
+HTTPS and `Cache-Control: no-store` (all methods, paths and query strings).
+Loopback development (`localhost`, IPv4 127/8 and IPv6 ::1) remains HTTP-capable.
+
 `scripts/parity.sh` compares every look's rendered sample pages and its
 `site_check` and `site_state` answers in both editions. Tool comparisons
 use the same item ids, versions and clock; JSON object keys may differ

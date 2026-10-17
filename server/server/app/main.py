@@ -99,6 +99,14 @@ class App:
             return
         if scope["type"] != "http":
             return
+        # Redirect before OAuth, access checks, database work or body reads.
+        req = Request(scope, receive)
+        host = req.url.hostname or ""
+        loopback = host in ("localhost", "::1") or bool(re.fullmatch(r"127(?:\.[0-9]{1,3}){3}", host) and all(int(x) <= 255 for x in host.split(".")))
+        if req.url.scheme == "http" and not loopback:
+            response = Response(None, status_code=301, headers={"Location":str(req.url.replace(scheme="https")), "Cache-Control":"no-store"})
+            await response(scope, receive, send)
+            return
         release = self.settings.release.encode("latin-1")
         prepared=False
 
@@ -117,7 +125,6 @@ class App:
                 message = {**message, "headers": [*headers, (b"x-porchsite-release", release)]}
             await send(message)
 
-        req = Request(scope, receive)
         # One address per site: a passkey works only where it was made, so
         # www.<domain> sends everyone to <domain>.
         host = req.url.hostname or ""
