@@ -23,6 +23,7 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from .agent_pages import agent_page
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
 from . import privacy, alerts
@@ -1438,7 +1439,14 @@ async def handle(req: Request, cx: Context) -> Response:
     if is_private and private_agent_path(req):
         response = privacy.blank_response()
     elif response is None:
-        response = await _route(get,cx)
+        if is_private:
+            response = await _route(get,cx)
+        else:
+            async def agent_paths():
+                from .agent_pages import anonymous
+                v = await content_view(anonymous(get, '/'),cx)
+                return [e['page'] for s in v.site['streams'] for e in v.entries if e['stream'] == s['id'] and not e.get('external_url')]
+            response = await agent_page(get,lambda r: _route(r,cx),agent_paths,origin_of(req),lambda r: not_found_page(r,cx))
     if is_private and gated:
         response = privacy.no_store(response)
     if not is_private:

@@ -19,9 +19,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    /archive/. Then SV-PV2 (media header). AG-* last.
 
 ## BLOCKING
-- **MC-1** IN-PROGRESS: mention cards show more than name and description
-  on public pages (badge, group, subtitle, period, price, tags) in both
-  editions; the spec allows name and description only. Fixed in AF Slice2.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
@@ -71,24 +68,17 @@ security invariants written before the spec.
   a 304). Then an owner-readable count of traffic by kind: search
   crawlers, training crawlers, agents acting for a person. On request
   only, as facts.
-- **AF-3** OPEN: a light copy of every public page. Markdown at
-  `<page>/index.md`, advertised by `rel="alternate" type="text/markdown"` in
-  the page and a Link header; `Accept: text/markdown` on the page URL
-  returns the same with `Vary: Accept`; ETag/304 on both.
 - **AF-5** OPEN: schema.org JSON-LD in every look, from existing fields
   only, matching what the page shows (was AI-2, Listing and Local business
   only). Structured listing facts (price, beds) would need fields stored
   where the previous release never reads them (see S4-11).
-- **AF-6** OPEN: a short `/llms.txt` per site (title, summary, key pages
-  pointing at the Markdown copies), with `Link: </llms.txt>; rel="describedby"`.
-  Low value, low cost; not sold as an SEO feature.
 - **AF-7** OPEN: build-ahead for public pages (was S4-9). Hosted CPU on
   Free is about 2-3x local, so even a warm home page costs 9-14 ms. Serve
   stored copies of public pages, Markdown copies and llms.txt, cleared on
   every change; Workers Caching first, the site's own table if that can't
   be switched on through the API upload, and the server edition's
   equivalent. Also takes page views off the free plan's daily read limit.
-- **AF-8** OPEN: anything published for agents (Markdown, JSON-LD,
+- **AF-8** IN-PROGRESS (Markdown and map boundary complete; JSON-LD remains): anything published for agents (Markdown, JSON-LD,
   llms.txt) comes only from the owner's approved content and never carries
   instructions aimed at agents. A spec rule plus tests.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos

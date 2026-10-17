@@ -124,6 +124,13 @@ private, no-store responses. Self-hosted proxies must respect these cache
 headers and bypass authenticated responses; disable host robots injection
 or content conversion that overrides the site's declaration.
 
+Public HTML pages advertise a Markdown copy at their address plus `index.md`
+(for example, `/notes/example/index.md`). An explicit `Accept: text/markdown`
+also selects that copy at the HTML address; proxies must honor `Vary: Accept`.
+`/llms.txt` provides a bounded map of the home page and published local entries.
+Copies use the text the look displays; private sites expose none of these
+new paths, including to signed-in owners and readers.
+
 ### Alerts on your devices
 
 In the Home Screen app, tap Review (bottom right) to manage alerts.
