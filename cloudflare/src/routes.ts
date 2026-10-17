@@ -1,3 +1,4 @@
+import * as agentTraffic from "./agent-traffic";
 import { agentPage } from './agent-pages';
 import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
@@ -708,7 +709,7 @@ async function statsPage(env: Env, req: Request): Promise<Response> {
     "Stats",
     html`<h1>Who's reading</h1>
 <div class="ranges">${RANGES.map(([k, label]) => html`<a class="range${k === days ? " on" : ""}" href="/review/stats?days=${k}">${label}</a>`)}</div>
-<p class="meta">${s.range.start} to ${s.range.end} · you, bots and test runs aren't counted</p>
+<p class="meta">${s.range.start} to ${s.range.end} · visitor statistics exclude you, bots and test runs</p>
 <p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">${tile(String(t.visits), "visitors")}${tile(String(t.views), "pages read")}${tile(duration(t.median_visit_engaged_ms), "typical stay")}${tile(`${whole(t.bounce_rate)}%`, "left right away")}</div>
 ${t.visits ? html`<p class="meta">${whole(t.multi_page_rate)}% read more than one page. A visitor is one person on one day.</p>` : ""}
@@ -717,6 +718,7 @@ ${s.daily.length > 1
       (d: any) => html`<div class="bar-row"><span class="bar-label">${d.day.slice(5)}</span><span class="bar"><span style="width:${peak ? whole((100 * d.visits) / peak) : 0}%"></span></span><span class="bar-num">${d.visits}</span></div>`,
     )}</div>`
   : ""}
+${raw(agentTraffic.trafficHTML(s.agent_traffic))}
 <h2 class="sub">What they read</h2>
 ${s.pages.length
   ? s.pages.map(
@@ -978,6 +980,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
   if (!access.isPrivate) res = await publicResponse(env.DB,req,res);
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
+  if (!access.isPrivate) await agentTraffic.observe(env.DB,req,res).catch(()=>{});
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }

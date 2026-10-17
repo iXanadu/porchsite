@@ -29,7 +29,7 @@ if not ADMIN_DSN:
     )
 
 TABLES = (
-    "site_stream_settings, alert_deliveries, alert_subscriptions, alert_keys, private_approvals, owner_session_auth, auth_operations, readers, reader_passkeys, reader_sessions, reader_invites, recovery_codes, site_fields, site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
+    "agent_traffic_daily, site_stream_settings, alert_deliveries, alert_subscriptions, alert_keys, private_approvals, owner_session_auth, auth_operations, readers, reader_passkeys, reader_sessions, reader_invites, recovery_codes, site_fields, site_embed_sources, items, revisions, idempotency, live, approvals, publishes, owner, passkeys, sessions, "
     "challenges, media, uploads, passkey_links, themes, request_proofs, theme_requests, "
     "theme_submissions, oauth_clients, oauth_grants, oauth_tokens, oauth_consents, analytics_salts, pageviews, slug_history, old_addresses, setup_codes, kv_cache, analytics_daily, share_cards, assistant_keys"
 )

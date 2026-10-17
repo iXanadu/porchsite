@@ -33,7 +33,7 @@ build-backend = "setuptools.build_meta"
 include = ["server*"]
 
 [tool.setuptools.package-data]
-"server.app" = ["schema.sql", "field_guide.json", "beacon.js"]
+"server.app" = ["schema.sql", "field_guide.json", "beacon.js", "agent-traffic.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

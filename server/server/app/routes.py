@@ -27,7 +27,7 @@ from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 from .agent_pages import agent_page
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
-from . import privacy, alerts
+from . import privacy, alerts, agent_traffic
 from .media_http import conditional_media, media_session
 from .alert_assets import ALERT_JS, SW_JS, ICONS
 from . import (
@@ -1107,11 +1107,12 @@ async def stats_page(req: Request, cx: Context) -> Response:
         "Stats",
         f"""<h1>Who's reading</h1>
 <div class="ranges">{ranges}</div>
-<p class="meta">{esc(s["range"]["start"])} to {esc(s["range"]["end"])} · you, bots and test runs aren't counted</p>
+<p class="meta">{esc(s["range"]["start"])} to {esc(s["range"]["end"])} · visitor statistics exclude you, bots and test runs</p>
 <p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">{tiles}</div>
 {multi}
 {by_day}
+{agent_traffic.traffic_html(s["agent_traffic"])}
 <h2 class="sub">What they read</h2>
 {pages}
 {sources}
@@ -1465,6 +1466,11 @@ async def handle(req: Request, cx: Context) -> Response:
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:
             response.headers["Cache-Control"]="no-store"
+    if not is_private:
+        try:
+            await agent_traffic.observe(cx.db,req,response)
+        except Exception:
+            pass  # Accounting failure never changes content delivery.
     if req.method == "HEAD":
         response.body = b""
     return response

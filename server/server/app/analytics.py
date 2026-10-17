@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from server.spec.jsutil import add_days, local, u16slice, url_host
 
+from .agent_traffic import traffic_report
 from .content import site_data
 from .db import Db, iso, transaction
 
@@ -417,6 +418,7 @@ async def stats(
     )
 
     return {
+        "agent_traffic": await traffic_report(db,start,end),
         "range": {"start": start, "end": end},
         "filter": {
             "content_id": content_id,
