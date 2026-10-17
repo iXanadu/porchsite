@@ -60,6 +60,41 @@ Found building a single-property listing site on the live release.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
   custom GPT, Meta AI's skills), then a run with each.
 
+## AGENT ACCESS (owner's request, 2026-10-17: "make sites easy for agents to read")
+People read a site through passkeys; agents can't and shouldn't use passkeys.
+Three audiences, each with its own door. The owner's own records
+stays the truth; a site is a view, so agents read the site only when they
+need what people see.
+- **AG-1** OPEN (first): read-only assistant keys. At /review/assistants the
+  owner ticks "Read only" when making a key. The key may call site_state,
+  site_check and the new read tools (AG-2), and nothing that drafts. Listed
+  with last use; one key per agent, so access is attributable and revocable.
+  Both editions; security review first. Today every key can also draft.
+- **AG-2** OPEN: lighter read tools over /mcp: `page_get(path)` (one
+  published page as Markdown with its title, date, tags and canonical URL),
+  `pages_list(stream?, tag?, since?)` (paths and titles), and
+  `search(query)` (published text, ranked). site_state returns the whole
+  site at once, which is heavy for an agent that wants one page.
+- **AG-3** OPEN: agent readers, the agent counterpart of reader passkeys.
+  The owner issues a named key that sees PUBLISHED pages only (never
+  drafts, history or stats), for agents the owner trusts that aren't the
+  owner's own (a teammate's assistant, a family member's). Revoking it works
+  like revoking a reader: immediate, and logged. Keys live in a NEW table,
+  apart from assistant keys and reader passkeys.
+- **AG-4** OPEN: plain-HTTP reading for agents that don't speak MCP:
+  `GET <page>` with `Accept: text/markdown`, or `<page>/index.md`, returns
+  that page as Markdown. On a public site it's open, like the HTML. On a
+  private site it needs `Authorization: Bearer <AG-1 or AG-3 key>` in the
+  header (never in the URL); without it, the same blank 404. It shares the
+  stored Markdown copies of AI-4 and the build-ahead of S4-9.
+- **AG-5** OPEN: discovery. /llms.txt (AI-4) says what the site is and how
+  an agent reads it: the Markdown pages, the feeds, and that /mcp exists for
+  assistants with a key. On a private site, llms.txt sits behind the gate
+  too; anonymous agents learn nothing beyond the blank page.
+Order: AG-1, then AG-2, then AG-3, with AG-4 and AG-5 alongside AI-4. AI-2
+(JSON-LD) and AI-3 (AI-reader facts in site_check) belong to this effort
+too.
+
 ## AI READERS AND ASSISTANT GUIDANCE (owner's request, 2026-10-15; after the Listing look)
 - **AI-2** OPEN: JSON-LD for the Listing and Local business looks, from
   existing fields only; built and stored with build-ahead (S4-9), never per
