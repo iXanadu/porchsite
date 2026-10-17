@@ -789,6 +789,16 @@ instead. No button: the assistant updates, when the owner says so.
 
 ## 5. Owner surface
 
+When a rendered site page is requested with a valid owner session, the
+engine inserts a fixed bottom-right `Review` link to `/review` immediately
+before `</body>`, independently of the look. It has inline styling, a
+44-pixel minimum tap target and readable light/dark contrast; no script.
+This covers home, entries, archives, tags and not-found pages, in public
+and private modes. Such responses are `private, no-store, no-transform`,
+vary on Cookie, and have no validators. Visitors, readers and assistants
+without an owner session receive the existing bytes and headers; the
+private-site gate is unchanged.
+
 ### Approval alerts on the owner's devices
 
 Both editions offer Web Push alerts, off by default, as an owner-only device

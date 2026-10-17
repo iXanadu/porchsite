@@ -111,6 +111,14 @@ To check older published photos for saved location data, run `python3 scripts/ph
 
 ### Alerts on your devices
 
+In the Home Screen app, tap Review (bottom right) to manage alerts.
+
+To check it on a device:
+1. Open the site from its Home Screen icon and sign in as the owner.
+2. From a site page, tap Review at the bottom right and check that alerts
+   can be managed there.
+3. Sign out and check that the Review link disappears from site pages.
+
 On `/review`, the owner can turn alerts on or off for each device and use
 `/review/alerts` to remove saved devices. Alerts are off until the owner
 turns them on and grants the browser permission.
