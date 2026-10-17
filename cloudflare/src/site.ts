@@ -58,7 +58,7 @@ export function view(site: Data, rows: { id: string; kind: string; slug: string 
   // A private card is never shown; a mention shows its name and description only.
   const cards = rows
     .filter((r) => r.kind === "card" && r.data.visibility !== "private")
-    .map((r): Data => (r.data.visibility === "mention" ? { ...r.data, link: "", link_label: "", image: "", image_alt: "", id: r.id } : { ...r.data, id: r.id }))
+    .map((r): Data => (r.data.visibility === "mention" ? { name:r.data.name, description:r.data.description, sort:r.data.sort, visibility:"mention", link:"", link_label:"", image:"", image_alt:"", id:r.id } : { ...r.data, id: r.id }))
     .sort((a, b) => a.sort - b.sort || String(a.name).localeCompare(String(b.name)));
   const notes = rows
     .filter((r) => r.kind === "note")

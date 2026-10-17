@@ -57,8 +57,10 @@ def view(site: Data, rows: list[Data]) -> SiteView:
     # A private card is never shown; a mention shows its name and description only.
     cards = [
         {
-            **r["data"],
-            **(_MENTION if r["data"].get("visibility") == "mention" else {}),
+            **({
+                **{k:r["data"][k] for k in ("name", "description", "sort", "visibility")},
+                **_MENTION,
+            } if r["data"].get("visibility") == "mention" else r["data"]),
             "id": r["id"],
         }
         for r in rows

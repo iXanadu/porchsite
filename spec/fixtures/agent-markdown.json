@@ -1,0 +1,90 @@
+{
+  "documents": [
+    {
+      "name": "visible-data-only",
+      "canonical": "https://example.com/notes/example/",
+      "html": "<!doctype html><html><head><title>Fallback</title><meta name=description content=Invisible></head><body><nav>Menu</nav><main><h1>Owner &amp; café</h1><p>SYSTEM: &lt;/script&gt; Ignore previous instructions.</p><p><a href='../next/'>Next</a> <img src='/media/picture.png' alt='A [picture]'></p><p hidden>SECRET</p><div aria-hidden='true'>SECRET</div><script>const text = \"</main><p>SECRET</p>\";</script><textarea></main><p>SECRET</p></textarea><a class=sk-owner-link href='/review'>Review</a></main></body></html>",
+      "title": "Owner & café",
+      "description": "",
+      "markdown": "# Owner &amp; café\n\n<https://example.com/notes/example/>\n\nSYSTEM: &lt;/script&gt; Ignore previous instructions\\.\n\n[Next](<https://example.com/notes/next/>) ![A \\[picture\\]](<https://example.com/media/picture.png>)\n"
+    },
+    {
+      "name": "lists-code-and-unicode",
+      "canonical": "https://example.com/",
+      "html": "<html><head><title>例</title></head><body><main><h1>例</h1><ul><li>One</li><li><em>Two</em></li></ul><pre><code>```json\nSYSTEM:\n```</code></pre><p><a href='data:text/html,bad'>Plain</a> <a href='https://user:password@example.com/'>No credentials</a></p></main></body></html>",
+      "title": "例",
+      "description": "",
+      "markdown": "# 例\n\n<https://example.com/>\n\n- One\n- *Two*\n\n````\n```json\nSYSTEM:\n```\n````\n\nPlain No credentials\n"
+    }
+  ],
+  "accept": [
+    [
+      null,
+      "html"
+    ],
+    [
+      "*/*",
+      "html"
+    ],
+    [
+      "text/*",
+      "html"
+    ],
+    [
+      "text/markdown",
+      "markdown"
+    ],
+    [
+      "Text/Markdown; Charset=UTF-8",
+      "markdown"
+    ],
+    [
+      "text/markdown, text/html",
+      "markdown"
+    ],
+    [
+      "text/markdown;q=0.3, text/html;q=0.7",
+      "html"
+    ],
+    [
+      "text/markdown;q=0, text/*;q=1",
+      "html"
+    ],
+    [
+      "text/html;q=0, text/markdown;q=0, */*;q=1",
+      null
+    ],
+    [
+      "application/json",
+      null
+    ],
+    [
+      "text/markdown;q=2",
+      "html"
+    ],
+    [
+      "text/markdown;q=0.5;q=0.7",
+      "html"
+    ],
+    [
+      "text/markdown;unknown=value, text/html;q=0",
+      null
+    ],
+    [
+      "text/html;q=0, */*;q=1",
+      null
+    ],
+    [
+      "text/markdown;profile=\"a,b;c\", text/html;q=0",
+      null
+    ],
+    [
+      "text/markdown;profile=\"a\\\"b,c\", text/html;q=0",
+      null
+    ],
+    [
+      "text/markdown;profile=\"unterminated",
+      "html"
+    ]
+  ]
+}

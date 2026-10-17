@@ -133,7 +133,7 @@ parity includes sitemap and robots at a fixed origin and approval clock.
 
 **Card visibility.** A card is `public` (the default: the whole card shows),
 `mention` (only its name and description show: no link, no link text, no
-picture) or `private` (it never shows). The rules, checked on every save
+picture, badge, group, subtitle, period, price or tags) or `private` (it never shows). The rules, checked on every save
 (refusals in brackets):
 
 - No item may contain a private card's name, as a whole word in any case
@@ -1453,7 +1453,9 @@ apply specific ranges before wildcards and honor q=0 exclusions as in
 [RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
 Absent Accept, `*/*` alone, or a strictly preferred HTML range selects HTML.
 An invalid Accept is treated as absent. If neither format is acceptable,
-return 406 without discovery, validators or cached content. Negotiate only
+return 406 without discovery, validators or cached content. Wildcards never
+select Markdown: an HTML q=0 exclusion without an acceptable explicit
+Markdown selection also returns 406. Negotiate only
 existing successful HTML pages: an anonymous public miss remains the
 ordinary themed HTML 404 even when Accept prefers Markdown. Direct
 `index.md` paths select Markdown independently of Accept. Both negotiated

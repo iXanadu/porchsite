@@ -37,8 +37,7 @@ LABELS = {
     "cta_link": "Main button link", "cta2_link": "Second button link",
 }  # fmt: skip
 # Per kind, where the shared word would mislead.
-KIND_LABELS = {
-    "ai_training_disabled": "AI training","card": {"description": "Description"}}
+KIND_LABELS = {"card": {"description": "Description"}}
 # Fields "What it says" leaves out (alt text, order, styling); "What changed"
 # still shows them when they change.
 SILENT = {"hero_alt", "logo_alt", "follow_image_alt", "share_image_alt", "cover_alt", "image_alt", "cta_link", "cta2_link", "sort", "status", "badge_tone", "stream"}  # fmt: skip
