@@ -881,12 +881,11 @@ lookup. Validation order and errors stay unchanged; a hotlink stored earlier
 in the same item can satisfy a later local reference.
 
 **PERF-3: image dimensions without read-side writes.** Uploads record pixel
-dimensions from the stored image headers. Re-uploading an existing image or
-successfully validating an item's local image references may backfill missing
-dimensions from those same stored bytes; this metadata change invalidates
+dimensions from the stored image headers. Re-uploading an existing image
+backfills missing dimensions from those same stored bytes; this metadata change invalidates
 prepared public copies atomically with the dimension update. It does not alter
-image bytes, names, publication or approval. Local references are deduplicated
-before backfill. Unknown or unreadable dimensions remain unknown.
+image bytes, names, publication or approval. Unknown or unreadable dimensions
+remain unknown. Saving a local reference alone need not backfill dimensions.
 
 Rendering, previews and read-only image-size checks never persist dimensions
 or invalidate prepared copies. A legacy image with missing dimensions may be
@@ -894,7 +893,7 @@ sized from its stored bytes in memory for that response; its metadata and
 dependency validator remain unchanged. Consequently an otherwise stable public
 GET or HEAD does not retry rendering merely because an image was sized. The
 existing authorization and publication gates still precede any rendering or
-image read. Paired tests cover upload/save backfill, repeated legacy GET/HEAD
+image read. Paired tests cover upload backfill, repeated legacy GET/HEAD
 with zero media/artifact writes and one view, and an empty matching 304 that
 does not read image bytes. No migration or new maintenance endpoint is required.
 

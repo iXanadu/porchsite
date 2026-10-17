@@ -19,8 +19,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 
 ## BLOCKING
 - **PERF-3** IN-PROGRESS: rendering an unsized legacy hero writes dimensions
-  and invalidates prepared pages, doubling the render. Backfill on upload or
-  item save; legacy size reads must be read-only. Found 2026-10-17.
+  and invalidates prepared pages, doubling the render. Backfill on upload;
+  legacy size reads must be read-only. Found 2026-10-17.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
