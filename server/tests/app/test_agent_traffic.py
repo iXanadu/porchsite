@@ -172,7 +172,7 @@ async def test_af_agent_kind_owner_only(db, http):
             response = await http.request(method, path)
             assert response.status_code == (200 if path == "/robots.txt" else 404)
             if path == "/" and method == "GET":
-                assert response.text == privacy.BLANK
+                assert response.text == privacy.SIGN_IN
     assert (await http.get("/review/stats", cookies=cookies)).status_code == 200
     assert await db.fetchval("SELECT SUM(requests) FROM agent_traffic_daily") == before
 

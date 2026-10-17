@@ -401,7 +401,7 @@ try {
           await runtime.stop();runtime=null;runtime=await old();await oldSite({private:true});
           await runtime.stop();runtime=null;runtime=await current();
           for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
-            const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title>');
+            const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>');
             for(const header of ['ETag','Last-Modified','Link','Vary','Content-Signal'])assert(!denial.headers.has(header),'private return has no '+header);
           }
           const empty=await(await fetch(base+'/__rollback/artifacts')).json();assert.equal((empty.results??empty).length,0,'actual old private-on clears prepared rows without serving them');

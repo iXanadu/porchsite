@@ -8,7 +8,7 @@ import * as site from '../src/site';
 import * as theme from '../src/theme';
 import * as owner from '../src/owner';
 import {handle} from '../src/routes';
-import {BLANK} from '../src/privacy';
+import {SIGN_IN as BLANK} from '../src/privacy';
 import {SoftKey} from './softkey';
 import * as changes from '../src/changes';
 import * as importer from '../src/importer';

@@ -977,7 +977,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
-  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse();
+  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse(req);
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
   else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
@@ -997,7 +997,7 @@ async function publicPaths(req:Request,env:Env):Promise<string[]> {
 }
 async function renderPublic(req:Request,env:Env):Promise<Response>{
  const fresh=await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
- if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse();
+ if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse(req);
  if(fresh.response)return fresh.response;
  if(fresh.isPrivate)return privacy.noStore(await route(get,env));
  const rendered=await agentPage(get,r=>route(r,env),()=>publicPaths(get,env),r=>notFoundPage(r,env));
@@ -1188,7 +1188,7 @@ async function route(req: Request, env: Env): Promise<Response> {
 
     return await notFoundPage(req, env);
   } catch (e) {
-    if (e instanceof privacy.PrivateContentDenied) return privacy.blankResponse();
+    if (e instanceof privacy.PrivateContentDenied) return privacy.blankResponse(req);
     if (e instanceof ApiError) {
       if (req.headers.get("content-type")?.includes("json") || path.endsWith("/options") || path.endsWith("/verify")) {
         return json(e.toJSON(), e.status);

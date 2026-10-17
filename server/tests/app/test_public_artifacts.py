@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 import pytest
 from server.app import approvals,content,site,public_artifacts as artifacts
-from server.app.privacy import BLANK
+from server.app.privacy import BLANK,SIGN_IN
 from .conftest import TABLES
 
 ORIGIN, ACTOR = 'https://site.example','assistant:test'
@@ -107,7 +107,7 @@ async def test_af_prebuild_gate_first(db,http,monkeypatch):
     for path in ['/','/index.md','/llms.txt','/missing/index.md']:
         for headers in [{},{'Cookie':'__Host-sk_owner=expired'},{'Authorization':'Bearer fixture'}]:
             response=await http.get(path,headers={**headers,'Accept':'text/markdown','If-None-Match':'*'})
-            assert response.status_code==404 and response.content==BLANK.encode()
+            assert response.status_code==404 and response.content==(BLANK if "Authorization" in headers else SIGN_IN).encode()
             assert 'etag' not in response.headers
     assert await count(db)==0
 
@@ -131,7 +131,7 @@ async def test_af_prebuild_races(db,http,monkeypatch):
     await publish(db,hidden)
     resume.set()
     response=await pending
-    assert response.status_code==404 and response.content==BLANK.encode()
+    assert response.status_code==404 and response.content==SIGN_IN.encode()
     assert await count(db)==0
 
 async def test_af_prebuild_clock(db,http,monkeypatch):
@@ -381,7 +381,7 @@ async def test_af_prebuild_no_owner_bytes(db,http):
     for role in ['owner','reader']:
         headers={'Cookie':f'__Host-sk_{role}={role}-fixture'}
         assert (await http.get('/',headers=headers)).status_code==200
-        assert (await http.get('/index.md',headers=headers)).content==BLANK.encode()
+        assert (await http.get('/index.md',headers=headers)).content==SIGN_IN.encode()
     assert await count(db)==0
 
 
@@ -497,7 +497,7 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
         assert response.status_code==404 and 'etag' not in response.headers
         assert await count(db)==0
         if change=='private':
-            assert response.content==BLANK.encode()
+            assert response.content==SIGN_IN.encode()
 
 
 async def test_af_prebuild_visitor_fill(db,http):

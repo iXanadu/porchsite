@@ -184,7 +184,7 @@ async def test_private_on_gates_warm_tags_before_bytes_owner_reader_remain_no_st
         for condition in [tag, "*"]:
             response = await http.request(method, path, headers={"If-None-Match": condition})
             assert response.status_code == 404
-            assert response.text == ("" if method == "HEAD" else privacy.BLANK)
+            assert response.text == ("" if method == "HEAD" else privacy.SIGN_IN)
             assert response.headers["cache-control"] == "private, no-store, no-transform"
             assert "etag" not in response.headers
     read.assert_not_awaited()
