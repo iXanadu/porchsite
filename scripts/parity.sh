@@ -44,6 +44,15 @@ fi
 }
 
 bad=0
+# Regenerate from the actual Worker builders in check mode; compare the server builders.
+if ! node "$ROOT/scripts/site-guide-contract.mjs" --input >"$TMP/guide-cf.json" \
+ || ! PYTHONPATH="$ROOT/server" "$PYTHON" -c 'import json;from server.app.site_guide import fixed_guide;print(json.dumps({"format":1,"guide":fixed_guide()},ensure_ascii=False,sort_keys=True,separators=(",",":")))' >"$TMP/guide-py.json" \
+ || ! cmp -s "$TMP/guide-cf.json" "$TMP/guide-py.json"; then
+ echo "✗ site guide revision contract or native builders differ"
+ bad=$((bad + 1))
+else
+ echo "✓ site guide: generated revision and native fixed blocks identical"
+fi
 for look in "${looks[@]}"; do
   cf="$TMP/cf/$look" py="$TMP/py/$look"
   if ! (cd "$ROOT/cloudflare" && node "$TMP/theme.cjs" raw "$look" "$ROOT/themes" "$cf" "$NOW") >"$TMP/$look.cf.log" 2>&1; then
@@ -113,6 +122,10 @@ elif ! diff -ru "$TMP/tools-cf" "$TMP/tools-py" >"$TMP/tools.diff"; then
   bad=$((bad + 1))
 else
   echo "✓ tool answers: ${#looks[@]} samples and regression fixtures identical (site_check quick/deep; site_state summary/full/ids/empty/unknown)"
+  if [ "${PORCHSITE_PARITY_MEASURE:-}" = "1" ]; then
+    sed -n 's/^GUIDE_SAMPLE_BYTES /GUIDE_SAMPLE_BYTES_CF /p' "$TMP/tools.cf.log"
+    sed -n 's/^GUIDE_SAMPLE_BYTES /GUIDE_SAMPLE_BYTES_PY /p' "$TMP/tools.py.log"
+  fi
 fi
 
 # Expanded stream settings and the common archive must match for every look.

@@ -6,6 +6,8 @@ import { validate } from "../src/content";
 import { storedData } from "../src/embed-storage";
 import { createServer } from "../src/mcp";
 import { THEMES } from "../src/themes.gen";
+import STATE_BASELINES from "../../spec/site-state-baselines.json";
+import { GUIDE_REVISION } from "../src/site-guide";
 import BASELINES from "../../spec/site-check-baselines.json";
 import type { Env } from "../src/env";
 
@@ -13,6 +15,7 @@ type Case = { name: string; theme: string; sample: { site: Record<string, unknow
 const e = env as unknown as Env & { PARITY_CASES: string; PARITY_NOW: string; PARITY_OUTPUT: string };
 const cases: Case[] = JSON.parse(e.PARITY_CASES);
 const stamp = (n: number) => new Date(Date.UTC(2026, 9, 10, 12, 0, n)).toISOString();
+function decoded(text:string):unknown {try{return JSON.parse(text);}catch{return text;}}
 function ordered(value: any): any {
   if (Array.isArray(value)) return value.map(ordered);
   if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
@@ -53,6 +56,15 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
           ["site_state_ids", "site_state", { ids: ["site", "i0"] }],
           ["site_state_empty", "site_state", { ids: [] }],
           ["site_state_unknown", "site_state", { ids: ["missing"] }],
+          ["site_state_guide_first", "site_state", {guide:{}}],
+          ["site_state_guide_match", "site_state", {guide:{known_revision:GUIDE_REVISION}}],
+          ["site_state_guide_stale", "site_state", {ids:["site","i0"],guide:{known_revision:"old-guide"}}],
+          ["site_state_guide_empty", "site_state", {ids:[],guide:{known_revision:GUIDE_REVISION}}],
+          ["site_state_guide_unknown", "site_state", {ids:["missing"],guide:{known_revision:GUIDE_REVISION}}],
+          ["site_state_guide_invalid_null", "site_state", {guide:null}],
+          ["site_state_guide_invalid_member", "site_state", {guide:{unknown:true}}],
+          ["site_state_guide_invalid_token", "site_state", {guide:{known_revision:"token\n"}}],
+          ["site_state_guide_invalid_long", "site_state", {guide:{known_revision:"x".repeat(129)}}],
         ];
         for (const [key, name, args] of calls) {
           const response = await transport.handleRequest(new Request("https://example.invalid/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) }));
@@ -62,7 +74,20 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
             const expected = BASELINES.cases[c.name as keyof typeof BASELINES.cases];
             expect(rpc.result.content[0].text, `${c.name} ${key} historical bytes`).toBe(key === "site_check" ? expected.quick : expected.deep);
           }
-          answers[key] = { error: !!rpc.result.isError, value: JSON.parse(rpc.result.content[0].text) };
+          const historical=(STATE_BASELINES.cases as Record<string,Record<string,Record<string,string>>>)[c.name]?.cloudflare?.[key];
+          if(key.startsWith("site_state")&&!key.startsWith("site_state_guide")){
+            expect(historical, `${c.name} ${key} must have a pre-change byte baseline`).toBeTruthy();
+            const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rpc.result.content[0].text)));
+            expect([...digest].map(n=>n.toString(16).padStart(2,"0")).join(""),`${c.name} ${key} unchanged bytes`).toBe(historical);
+          }
+          if(key === "site_state_guide_match"){
+            const baseline=(answers.site_state as any).value,expected={...baseline};
+            for(const k of ["states","kinds","fields","site_defaults"])delete expected[k];
+            expected.guide={revision:GUIDE_REVISION,included:false};
+            expect(JSON.parse(rpc.result.content[0].text)).toEqual(expected);
+            console.info("GUIDE_SAMPLE_BYTES "+JSON.stringify({name:c.name,full:new TextEncoder().encode(JSON.stringify(baseline)).length,compact:new TextEncoder().encode(rpc.result.content[0].text).length}));
+          }
+          answers[key] = { error: !!rpc.result.isError, value: decoded(rpc.result.content[0].text) };
         }
       } finally { await server.close(); }
       // Vitest's snapshot bridge writes to the host, outside the Worker. These

@@ -776,7 +776,7 @@ replacement, so a refresh whose answer was lost can be retried.
 
 | Tool | Does |
 |---|---|
-| `site_state(full?, ids?)` | By default, every item summarized as `{id, kind, title, state, version}`; `full: true` returns the complete existing item shape, including data and approval metadata; `ids: [...]` returns full items only for those ids. The `release` running and `update` (below), and all other top-level fields, are unchanged |
+| `site_state(full?, ids?, guide?)` | By default, every item summarized as `{id, kind, title, state, version}`; `full: true` returns the complete existing item shape, including data and approval metadata; `ids: [...]` returns full items only for those ids. The `release` running and `update` (below), and all other top-level fields, are unchanged unless fixed-guide reuse is explicitly requested (SP-S3 below) |
 | `item_create(kind, data, idempotency_key)` | New item (S4) |
 | `item_update(id, version, data)` | Change fields (S3) |
 | `item_remove(id, version)` | Remove (recoverable, S5) |
@@ -862,11 +862,11 @@ with `no_such_item`, never a partial result. Both reads use the same
 owner-authorized MCP interface as every other tool; neither exposes a
 public lookup. Reads do not change item versions or publication state.
 
-#### Proposal SP-S3: opt-in reuse of the fixed site guide
+#### SP-S3: opt-in reuse of the fixed site guide
 
-**Proposal only; not implemented.** The current `site_state(full?, ids?)`
-contract above remains in force until this proposal is accepted and built
-in both editions. This changes the authenticated tool response only; it
+The `site_state(full?, ids?, guide?)` extension is opt-in. Without `guide`,
+the existing contract above remains unchanged. This changes the
+authenticated tool response only; it
 adds no public endpoint, resource, browser cache or template variable.
 
 The fixed `states`, `kinds`, `fields` and `site_defaults` blocks occupy
@@ -876,7 +876,7 @@ context without conveying a new item version. Keep the current default
 answer and add explicit caller-controlled reuse rather than remembering
 whether a server session has already seen a guide.
 
-**Proposed request.** Add one optional argument:
+**Request.** Add one optional argument:
 `guide: {known_revision?: string}`. An absent `guide` preserves the exact
 existing success shape, including all four fixed blocks and no new guide
 metadata. `guide: {}` opts in and requests the complete guide. Within an
@@ -886,7 +886,8 @@ wrong type or unknown member of `guide` gets the existing invalid-params
 refusal after authentication. A well-formed unfamiliar token is a cache
 miss, never an error, path, URL or instruction to fetch anything.
 
-Every successful opted-in answer adds top-level
+Errors and refusals retain their existing envelopes and contain no guide
+metadata. Every successful opted-in answer adds top-level
 `guide: {revision: string, included: boolean}`:
 
 | Request | Four fixed blocks | Guide metadata |
@@ -954,12 +955,14 @@ metadata; use that answer and stop sending conditional guide arguments.
 If the old runtime rejects the new argument, retry once without it. Do
 not invent a revision from that response or infer support from a release
 number. Old binaries continue on the unchanged schema: no migration,
-release floor, installation change or reconnect is required. Regenerate
+release floor or installation change is required. The release changelog sets
+`reconnect: true` so assistants rediscover the changed tool input schema and
+description; no credentials are rotated. Regenerate
 tool descriptions, input schemas and paired wire/contract snapshots when
 implementing; only explicit opt-in responses may omit existing fields.
 `TEMPLATES.md` and public rendering are unchanged.
 
-**Required implementation proof, both editions.** Named paired cases:
+**Required proof, both editions.** Named paired cases:
 `site_state_guide_default_compat` (existing default/full/ids shapes and
 bytes unchanged); `site_state_guide_conditional` (first, matching, stale,
 unknown, invalid token and all-or-nothing cases);

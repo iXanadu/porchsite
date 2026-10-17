@@ -1,4 +1,5 @@
 import { trainingState } from "./site-fields";
+import { fixedGuide, withGuide } from "./site-guide";
 import * as privacy from "./privacy";
 /**
  * The assistant's tools (SPEC §4). Every tool goes through content.ts and
@@ -26,7 +27,7 @@ import * as themes from "./themes";
 import * as update from "./update";
 import * as uploads from "./uploads";
 import { ApiError } from "./errors";
-import { fieldGuide, KIND_GUIDE, KINDS } from "./models";
+import { KIND_GUIDE, KINDS } from "./models";
 
 export const INSTRUCTIONS = `You keep this person's website up to date. The site is theirs:
 nothing you write is public until they approve it, and the site enforces that.
@@ -115,13 +116,6 @@ async function stateItems(db: D1Database, full?: boolean, ids?: string[]) {
 const NEXT = "When your changes are ready, call site_check, then approval_request with the ids you changed.";
 const IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file." + " " + PHOTO_ADVICE;
 const CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Unapproved embed sources appear as non-failing embed_notes. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites.";
-const STATES = {
-  live: "published, and the current version is what visitors see",
-  changed: "published, with a newer version that isn't approved yet",
-  new: "never published",
-  "removal staged": "published, and removed here; the removal waits for approval",
-  removed: "removed and not published",
-};
 
 /** Share only immutable schemas; servers, callbacks and auth stay per request. */
 function toolSchema<T extends z.ZodType>(schema: T): T {
@@ -144,7 +138,7 @@ function toolSchema<T extends z.ZodType>(schema: T): T {
   return schema;
 }
 const INPUT_SCHEMAS = {
-  site_state: toolSchema(z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional() })),
+  site_state: toolSchema(z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional(), guide: z.strictObject({ known_revision: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\s\S])/).optional() }).optional() })),
   item_create: toolSchema(z.object({
         kind: z.enum(KINDS as [string, ...string[]]),
         data: z.record(z.string(), z.unknown()),
@@ -206,7 +200,7 @@ const INPUT_SCHEMAS = {
 
 export const TOOL_DEFINITIONS = {
   site_state: {
-      description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
+      description: "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. Without a guide argument, all top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url. Opt in with guide: {} to receive the four fixed blocks plus guide {revision,included}. Retain all four blocks in this site/login conversation, then send guide: {known_revision: revision}; a match omits only states/kinds/fields/site_defaults (included:false), while stale or unknown revisions return them all (included:true). Items, release and update are always current. If you do not hold the matching guide, request guide: {} before interpreting it; ids: [] is a no-item handshake. Errors have no guide metadata. Against older code, use a normal full answer without guide metadata, or retry once without an unsupported guide argument.",
       inputSchema: INPUT_SCHEMAS.site_state,
       annotations: { readOnlyHint: true },
     },
@@ -325,17 +319,14 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
   server.registerTool(
     "site_state",
     TOOL_DEFINITIONS.site_state,
-    async ({ full, ids }) =>
-      run(async () => ({
+    async ({ full, ids, guide }) =>
+      run(async () => withGuide({
         items: await stateItems(db, full, ids),
-        states: STATES,
-        kinds: KIND_GUIDE,
-        fields: fieldGuide(),
-        site_defaults: content.validate("site", {}),
+        ...fixedGuide(),
         training_choice: await trainingState(db),
         release: RELEASE,
         update: await privacy.withRollback(db,RELEASE,await update.check((env as unknown as Env).OAUTH_KV)),
-      })),
+      }, guide)),
   );
 
   server.registerTool(

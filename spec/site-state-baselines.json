@@ -1,0 +1,263 @@
+{
+  "base": "cd5da4a",
+  "clock": "2026-10-15T15:30:00Z",
+  "encoding": "SHA-256 of literal native content[0].text UTF-8 bytes, before SP-S3",
+  "cases": {
+    "catalogue-page": {
+      "cloudflare": {
+        "site_state": "3e0dd20ec2085bedbf47495c88dbaa030e094c9900910f74fede14f478ca1189",
+        "site_state_full": "60ea2734fb52d8805e9a32375ab1282e96e08a4bc019bae0d264fd756d6289fd",
+        "site_state_ids": "4f9fbbd712e4829623519f535b95f3382f1323bb298c557ddaa24bbb6d21d2ea",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "49f62a7212960170c91e68d1bb64ced23abe6fb4ff45d3e5555fcc60fcade29f",
+        "site_state_full": "dd421e21f4814238339acde0856c997d401d68c46426ad7c87a74e3f76e5bdca",
+        "site_state_ids": "25dd8e0faee57aa6207cc0df536c3965c9a13eda24b997b7c9dad02b52cd95a4",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "embed-sources": {
+      "cloudflare": {
+        "site_state": "9f268a25fc760b20a9eae23a4fe0f876ae77cd19a0ef0aa3382f959b5bd73038",
+        "site_state_full": "aa59ead19666fa11b39ab594d1fbbad983a6a278d7b2ab45c83161c23c69bed8",
+        "site_state_ids": "aa59ead19666fa11b39ab594d1fbbad983a6a278d7b2ab45c83161c23c69bed8",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "c356fa7dd52b8de18284411c8f50e64f3a00a396f7d9d5fdbb4c9cc07596df9d",
+        "site_state_full": "e05caf3486995fbe0bde4ec2da18ead4e3f03ff4ded5cfd177ee2e952c762915",
+        "site_state_ids": "e05caf3486995fbe0bde4ec2da18ead4e3f03ff4ded5cfd177ee2e952c762915",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "event-page": {
+      "cloudflare": {
+        "site_state": "36e50c3936148c2d447aa87133d3b3aa159e5f7acbcb5df1dcf51bf748542a0b",
+        "site_state_full": "3b4a376267e01f64abae48b69bdf74ec5db23a61acef9b761a0b50fe8053748f",
+        "site_state_ids": "843e2b9177b2d9c26884587c2e5fca8ed016041492a96ff2798732312b22455f",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "cedd788333795677d8321af2127813ff9d59265dc105b3062e4849b9bd4a64eb",
+        "site_state_full": "751bbf3eb4a51f91391acddd7dd2af6afac448a141fbb0d99e22944337ebb0f0",
+        "site_state_ids": "7db30cf78ddba0715b3781b3575c43d4e4291bb6814dbd8007988a4b72b795ee",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "group-page": {
+      "cloudflare": {
+        "site_state": "586214e9bd9f194791528e0af75566098474bb5b981a3852302a8f53cc3e9956",
+        "site_state_full": "d55f5df0410b136afb251f028c6e6fe1210f1bdd08ea331899d15e06a6bdbaa1",
+        "site_state_ids": "15a49ff2d0db47590e7ab859df3bda1673e3a5ea284aee552ac915225162107d",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "b5cdd640fe3aebff975c8874789e930d9c5fd6007034c0c6030ed0ec062ac467",
+        "site_state_full": "c97f1ad01f63c254debc7caad849edede6cb9a34c08886d598d95a3e9123a3c8",
+        "site_state_ids": "30aea6f10d3bedee7dcc017ef5814437cc075d650b4768df594ad83bce19f154",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "link-page": {
+      "cloudflare": {
+        "site_state": "4552b35f97aadf418d16b2ce0f2be3fe36395b81571a98b8d17afc86d8cde093",
+        "site_state_full": "16bfe12a9100027c377323b73475ae7ac30033751b1c15845fb935e5351ca7c2",
+        "site_state_ids": "457df3764ab2b51081fda535fa2bd269630973ee56f04e8a7169695b156f3dfa",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "6cf411f4e9f4911ae54f4ad675e46b238477870c02c85116a2f913928b49719f",
+        "site_state_full": "6499265345af4d286e553d439747b34cb420ee0a13f6c6907195dddd7241ce84",
+        "site_state_ids": "67fe76e0b179b7f59ee20bc5e8a38cc7e2655099222c96e041a0cd5fbd9278d8",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "listing-page": {
+      "cloudflare": {
+        "site_state": "1cbc2215867c1ec70673f18bbe6896175990e1e76a8738d569c0b75d93f0c60f",
+        "site_state_full": "eda46ff4f625bdc1bbb81540590047e97f61da7c5f28558f75937047fc4f3ce4",
+        "site_state_ids": "c88f92205d632d43cd44dbd1cafa39db85e36edd307338d39f836d88fa5c0458",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "3bc7a654e7d342e573be131f053dfd844e1be7f55bf7b046e293ecb39337197d",
+        "site_state_full": "240b07e2a7ba816856ca90656eef63f11b4466311ee128f015cc8d2b63449e37",
+        "site_state_ids": "2aa12d7cc89b9932b40527922f7c952383f0c093deae816cdfb4a49c9142d4b6",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "local-business": {
+      "cloudflare": {
+        "site_state": "78bde38d9ee94aed3f6bd05ce08a5234754ff0fdb14befd7840e1e219a854c0f",
+        "site_state_full": "2c9549ed4be009979f05326f164e094eb7dc5b5a118eb756d55f78060ac41817",
+        "site_state_ids": "2829ff7a4eb84c6ade8fde307af96f4c2253491d3167c1e69c12910571a53c07",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "b53b4544cabae8713d5ebc5b9a54ab4809041e540615a3bc25598d0f461ea949",
+        "site_state_full": "6a839b1a9479e43602cd0189894085a70f367b3e6e8595d2c0fb24a3c4b11193",
+        "site_state_ids": "4f22f51c8ec87148369fab4bc76e13ac9100012bd99ff3047f929189351ba796",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "menu-page": {
+      "cloudflare": {
+        "site_state": "741a62883d90bc762fd7edba94c6a11ab7d275085a59e8a97941b9b72066e49c",
+        "site_state_full": "074b63922597424781fef58aab481c3368cd42080d6f1dc8a41bdff6d4c11864",
+        "site_state_ids": "53671c34087150975831d834b5962c20d0f8acf122c8653ac7ba4c4d20bc5c1b",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "994b493da5880d718c0ede6ab882bdce0ebeabd5c4672e441e015a8a55f3f4e2",
+        "site_state_full": "c8b63c7abddeab8c1bebf8ce860df44423ef102debb173b5be1ff8166da80fc4",
+        "site_state_ids": "e811a653cae573c6c8968aff1ed489de39901a7a038c6cd65b6dda8dc1c36ad5",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "personal-homepage": {
+      "cloudflare": {
+        "site_state": "65965037fb2aa7846047a39d8161dcb42db9e82495985ed81b2456dd21c49544",
+        "site_state_full": "8e9b7ad9356aa5771b281adcfddb453302c3477da507e29e749c60b56701114e",
+        "site_state_ids": "eb3919f5bce2edfcb8163614c39f68e5d90742492edfaa7862b452ab6dd914f4",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "c418e78d5eb1794c6e82da6e665c5126efdd270d96c322f9cd0f9a7b0df33c8d",
+        "site_state_full": "98ed3114fae94ff85a278be19d6cae1b914fc4a74078d53e46060a5e9d174c57",
+        "site_state_ids": "c7a777b4f1a46189da9fe2441f7388e869542a774ec4b399042a4090d699ffde",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "playbook": {
+      "cloudflare": {
+        "site_state": "12723d9b5d4bac9c6e54ae58cfbe5acf72e9ae1821a919c5b16e362a936072c7",
+        "site_state_full": "4d7677f08cd343ebd0438b84f447a9c5629cc01bb9bd58577be18052c9bd1f0c",
+        "site_state_ids": "9015ba616b8d39908ab5e0c26ee5bac99646bacda78e264d77a7c1ba7d556704",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "9b39d693f0c1ca1ad389920d982b30077d942fa2210618d9f20cdd7c9b7a7f50",
+        "site_state_full": "6e7fcfc173fb726eea0c5c31e1bd6510233e1267cca0f2113ad8c79dfc21f497",
+        "site_state_ids": "9bee61447394dab7507ab3a75c896290ec953c926584d17bfd4a5fe6b9010a17",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "portfolio": {
+      "cloudflare": {
+        "site_state": "71185832084d8a8e512789de48c3b1f2a81856e5026c274d847cb399ee0f84d6",
+        "site_state_full": "7141f972bc9c3cc101cae7aeef93f689a226dc4b393e8dae7232748c51d56461",
+        "site_state_ids": "a34cd7f8d040df999189ea675813574078be5fe592586fd0d7f239940675ffa1",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "fcfda4ab750c634c0018926fe7446050d03930ae1553240806c80e2add2ea1d5",
+        "site_state_full": "a8c24bcb08a194dd94728869f8df6a103c05bf80402932728fef0bb0e0d5cd37",
+        "site_state_ids": "84a141587bd40fa468c8495fc6e50ce0a9358444fb76ef2cf3d1840d9ef4d617",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "private-site-state": {
+      "cloudflare": {
+        "site_state": "abe6d86df72dd99aa353b5d6b34ae77618e4350370978f2538816dca5613b516",
+        "site_state_full": "4d8fcd99783b7d2da13631aa6c591218e2b633f31ca6219b2513bcd2f3502fb6",
+        "site_state_ids": "4d8fcd99783b7d2da13631aa6c591218e2b633f31ca6219b2513bcd2f3502fb6",
+        "site_state_empty": "acb519d76589bd3c0b7243d332e0f34de20d8424c54c6bcbe4a483b2d32b9a9c",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "016832159292e009acacffa8057574b3cd0d04697f53c64733fb6790ab36eb2f",
+        "site_state_full": "f07b039745a2d05db7ef8987629efb2a0f857cc9cd103f9825c07a9cf0b65ef1",
+        "site_state_ids": "f07b039745a2d05db7ef8987629efb2a0f857cc9cd103f9825c07a9cf0b65ef1",
+        "site_state_empty": "a4ffc9ef83b3cc0cc35bd6f018837a42926d6089b60285423682b11d0d1dc130",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "product-page": {
+      "cloudflare": {
+        "site_state": "e01cd7b15966fd4e5339f14a0f87dfc5d4fa6ed1d1fbd5b5622c1947aaf1a547",
+        "site_state_full": "fa68c205b5eae664c901f859ecf45629afa210791c9a7858f9a3e87f1271d381",
+        "site_state_ids": "bbadc74383c227531a72e8f032d7cf425063af555f9385cbc5f0a81ec5e5bb99",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "b1cf5fd1c6296a81e2fac3444c1c55356a2a86c80b67c52bad54b4e296ea2334",
+        "site_state_full": "86eee6bd391744423c11931f8dfb118bfe5a6886a0735e9f11a499ea203689a7",
+        "site_state_ids": "bb94de0e91f393614e9691cef12ae77a358b40b8d75ec481f2d056e3fc485c14",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "renderer-origin": {
+      "cloudflare": {
+        "site_state": "bb38c467b6dd1d7a25289ca7a9e675a3a785391dd2e2fc8fc65a0a322d0c9992",
+        "site_state_full": "46edcdcb12b50adedbd71c0c85b3555cdf4c3260b26eb17c8941e5815e2e52f5",
+        "site_state_ids": "46edcdcb12b50adedbd71c0c85b3555cdf4c3260b26eb17c8941e5815e2e52f5",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "633e8e21cb1716c9953e84ce20bf4a0b371ca8e31604a2506452e4108a8fb8e3",
+        "site_state_full": "de0078aee24c3c551c2ddf6473932b7a333b116f98c382551d6c6393ad76e223",
+        "site_state_ids": "de0078aee24c3c551c2ddf6473932b7a333b116f98c382551d6c6393ad76e223",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "services-page": {
+      "cloudflare": {
+        "site_state": "97566cf48abb37b0475273e9481be85c17b9f5965bc0627f86463048523649d7",
+        "site_state_full": "a40bc3f9697ff6b7274521685d1a3ae4c6f5b3822d673770ee45db1afa6dcde4",
+        "site_state_ids": "3a148f5f66904ba1c0a672085b0f0d49a74a825a80f16cb6f01c877ed659e219",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "a8b85e4438233ad52c0c4ad875d446ac75f44ef274e926d77b0ed43910d70660",
+        "site_state_full": "00e68ea65029780e208e41b9d2bf180261e005f24041af11edea40fdb218fcb0",
+        "site_state_ids": "4de37d30302c28bb484c328d0b8d933151e5b5c7012fff720f553f67bb82c936",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    },
+    "url-equivalence": {
+      "cloudflare": {
+        "site_state": "bb38c467b6dd1d7a25289ca7a9e675a3a785391dd2e2fc8fc65a0a322d0c9992",
+        "site_state_full": "6816055ff0fde590075fc14450578b64ab36637fdd617f3244466339773105ae",
+        "site_state_ids": "6816055ff0fde590075fc14450578b64ab36637fdd617f3244466339773105ae",
+        "site_state_empty": "e2a4a8baa5c23436b618d18163e888b211966db8a1685c067a61e218c1fe00a8",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      },
+      "server": {
+        "site_state": "633e8e21cb1716c9953e84ce20bf4a0b371ca8e31604a2506452e4108a8fb8e3",
+        "site_state_full": "c30d73e272f8d6539529afa5ef92f0469d9e243c8da8fdc600d21bff6e584784",
+        "site_state_ids": "c30d73e272f8d6539529afa5ef92f0469d9e243c8da8fdc600d21bff6e584784",
+        "site_state_empty": "c24a77b25da8e02e05e4ae0c697a383f3e89b6a902e2ab17455ff7a2bc424175",
+        "site_state_unknown": "fcfd1bfe525a7d0b835761630291d53e17c2f701914a5d2d37e1fc56645bf565"
+      }
+    }
+  }
+}
