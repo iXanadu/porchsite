@@ -880,6 +880,24 @@ When saving an item, check its local picture references together in one database
 lookup. Validation order and errors stay unchanged; a hotlink stored earlier
 in the same item can satisfy a later local reference.
 
+**PERF-3: image dimensions without read-side writes.** Uploads record pixel
+dimensions from the stored image headers. Re-uploading an existing image or
+successfully validating an item's local image references may backfill missing
+dimensions from those same stored bytes; this metadata change invalidates
+prepared public copies atomically with the dimension update. It does not alter
+image bytes, names, publication or approval. Local references are deduplicated
+before backfill. Unknown or unreadable dimensions remain unknown.
+
+Rendering, previews and read-only image-size checks never persist dimensions
+or invalidate prepared copies. A legacy image with missing dimensions may be
+sized from its stored bytes in memory for that response; its metadata and
+dependency validator remain unchanged. Consequently an otherwise stable public
+GET or HEAD does not retry rendering merely because an image was sized. The
+existing authorization and publication gates still precede any rendering or
+image read. Paired tests cover upload/save backfill, repeated legacy GET/HEAD
+with zero media/artifact writes and one view, and an empty matching 304 that
+does not read image bytes. No migration or new maintenance endpoint is required.
+
 Stored pictures carry no standard location metadata; orientation and encoded pixel data are preserved, and previously stored pictures are not rewritten. Known limit: non-standard EXIF inside a JPEG APP2 segment is retained.
 
 Pictures should be compressed before upload by default: web size, about
