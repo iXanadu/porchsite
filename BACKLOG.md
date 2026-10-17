@@ -13,10 +13,9 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AF-2..AF-8 and UC9 on `af-integration`, incorporating the released
-   ST-1..ST-3 archive. Keep AF off main until its release because INSTALL.md
-   and llms.txt are read raw from main. SV-PV2 (media header) is next;
-   AG-* last.
+1. SP-S3 (opt-in fixed guide reuse in site_state; needs reconnect).
+2. AF-7 (build-ahead for public pages), then the AGENT ACCESS TO PRIVATE
+   SITES section last.
 
 ## BLOCKING
 
