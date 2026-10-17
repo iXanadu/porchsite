@@ -1,0 +1,35 @@
+{
+  "legacy_body": "<!doctype html><meta name=\"robots\" content=\"noindex\"><title></title>",
+  "browser_body": "<!doctype html><meta name=\"robots\" content=\"noindex\"><title></title><a href=\"/login?next=%2Freview\">Sign in</a>",
+  "href": "/login?next=%2Freview",
+  "csp": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  "cache_control": "private, no-store, no-transform",
+  "paths": [
+    "/",
+    "/no-such-slug",
+    "/review",
+    "/review/",
+    "/review/a",
+    "/review/b",
+    "/index.md",
+    "/llms.txt",
+    "/missing/index.md",
+    "/guide/feed.xml",
+    "/sitemap.xml",
+    "/media/00000000000000000000000000000000.jpg"
+  ],
+  "accept": [
+    "",
+    "text/html",
+    "text/markdown",
+    "application/json",
+    "text/html;q=0,text/markdown;q=0"
+  ],
+  "authorization": [
+    "",
+    "Bearer unknown",
+    "Bearer psk_fixture",
+    "Bearer prk_fixture",
+    "Basic fixture"
+  ]
+}

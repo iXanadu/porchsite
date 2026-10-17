@@ -8,6 +8,11 @@ from starlette.responses import Response
 from . import owner
 
 BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>'
+SIGN_IN = BLANK+'<a href="/login?next=%2Freview">Sign in</a>'
+
+def denial_body(req=None):
+    return SIGN_IN if req is not None and req.method in ('GET','HEAD') and 'authorization' not in req.headers else BLANK
+
 BLANK_CSP = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 PRIVATE_HEADERS = {"Cache-Control": "private, no-store, no-transform"}
 ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public."
@@ -78,16 +83,7 @@ async def access(db, req):
             response = (
                 Response(status_code=204, headers=PRIVATE_HEADERS)
                 if path == "/collect"
-                else Response(
-                    BLANK,
-                    status_code=404,
-                    headers={
-                        **PRIVATE_HEADERS,
-                        "X-Robots-Tag": "noindex",
-                        "Content-Security-Policy": BLANK_CSP,
-                    },
-                    media_type="text/html",
-                )
+                else blank_response(req)
             )
     return is_private, gated, response
 
@@ -109,14 +105,15 @@ class PrivateContentDenied(Exception):
     pass
 
 
-def blank_response():
+def blank_response(req=None):
     return Response(
-        BLANK,
+        denial_body(req),
         status_code=404,
         headers={
             **PRIVATE_HEADERS,
             "X-Robots-Tag": "noindex",
             "Content-Security-Policy": BLANK_CSP,
+            **({"X-Content-Type-Options":"nosniff"} if denial_body(req)==SIGN_IN else {}),
         },
         media_type="text/html",
     )

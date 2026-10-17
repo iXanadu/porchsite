@@ -291,7 +291,7 @@ async def test_private_worker_manifest_and_exact_route_boundaries(db, browser_fa
         response = await visitor.at(path)
         assert response.status_code == 404
         assert (
-            response.text == '<!doctype html><meta name="robots" content="noindex"><title></title>'
+            response.text == '<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>'
         )
 
 

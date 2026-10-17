@@ -358,7 +358,7 @@ async def test_st2_private_archive_gate_before_query_or_redirect_and_owner_reade
         for path in ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus']:
             for method in ['GET','HEAD']:
                 r = await browser.at(path,method=method,headers={'Accept':'text/markdown','If-None-Match':'*'})
-                assert r.status_code == 404 and r.content == (b'' if method == 'HEAD' else b'<!doctype html><meta name="robots" content="noindex"><title></title>')
+                assert r.status_code == 404 and r.content == (b'' if method == 'HEAD' else b'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>')
                 assert r.headers['content-type'] == 'text/html; charset=utf-8'
                 assert r.headers['cache-control'] == 'private, no-store, no-transform'
                 assert not any(h in r.headers for h in ['etag','last-modified','link','vary','content-signal','location'])

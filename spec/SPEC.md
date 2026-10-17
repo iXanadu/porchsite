@@ -302,11 +302,33 @@ when the proposed version would turn private off. When turning private on,
 tell the owner that earlier search-engine copies and pictures already fetched
 cannot be recalled. Previously authorized in-flight bytes cannot be recalled.
 
-A private site's visitors receive exactly this UTF-8 body (no whitespace):
+A denied private gated GET/HEAD with no `Authorization` header receives
+this exact unbranded UTF-8 document (111 bytes, no trailing newline):
+`<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>`.
+The link is fixed: no requested path, query, site name, title text, look,
+item existence or credential is interpolated. Real and missing addresses,
+Accept values and invalid/expired/revoked cookies share these bytes. The
+existing login sends a reader passkey session to `/` and an owner session
+to `/review`. The existing `safeNext` grammar is unchanged.
+
+Any `Authorization` header, including empty, unknown, writer, published-read
+or other schemes, retains the legacy exact 68-byte `BLANK` document:
 `<!doctype html><meta name="robots" content="noindex"><title></title>`.
-Status is 404; headers include `Cache-Control: private, no-store, no-transform`,
+Non-GET/HEAD denials also retain BLANK. These display rules confer no new
+read, draft, review or agent authority. Authorized owner/reader pages and
+existing owner-route refusals are unchanged.
+
+Both denial documents have status 404 and no Location, ETag, Last-Modified,
+Link or Vary. Headers include `Cache-Control: private, no-store, no-transform`,
 `Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ancestors 'none'`
-and `X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
+and `X-Robots-Tag: noindex`; the Sign in document also has
+`X-Content-Type-Options: nosniff`. It has no inline style or script. This
+intentionally replaces the former blank-page assertion for browser reads,
+including feeds, media misses and new AF paths; it preserves the old exact
+credential refusal. The fixture `spec/fixtures/private-denial.json` binds
+both editions. Required paired cases: `pv6_uniform_denial`,
+`pv6_authorization_blank`, `pv6_gate_before_content`, `pv6_head_metadata`,
+`pv6_reader_owner_signin`, `pv6_protocol_unchanged` and `pv6_upgrade`.
 GET and HEAD have matching status/headers (HEAD has no body). Check access
 before constructing a live view, looking up media or resolving redirects.
 This covers pages, misses, entries, tags, feeds, sitemap, search JSON, media,
@@ -348,7 +370,7 @@ checks run before byte lookup, shared-copy lookup or conditional handling.
 Requests carrying either owner or reader session cookie, or Authorization,
 are `private, no-store, no-transform` even on a public site, including
 expired or invalid credentials. They get no validators. The proxy must
-bypass cache reads and writes for both session cookies and Authorization. A private anonymous request retains the exact blank 404
+bypass cache reads and writes for both session cookies and Authorization. A private denied request retains the request-appropriate 404 document (§3)
 and private headers already specified. A public media miss or an image no
 longer referenced by published content returns 404 with `no-store`, without
 old bytes, a success redirect or a validator. An already-authorized
@@ -2271,18 +2293,21 @@ requires an explicit product decision before implementation.
 ### Security invariants (normative)
 
 The following numbered invariants bind the implementation and paired tests.
-`BLANK` refers to the exact private-site body specified in §3. These apply
+`BLANK` is the legacy credential denial in §3. For denied GET/HEAD without
+Authorization, PV-6 replaces it with the exact Sign in document, including
+new AF paths and all Accept values. All blank-denial references and named
+cases below use this request-appropriate document. These rules apply
 before the feature-specific presentation rules above.
 
 Gating
 1. Access check runs before live view, media lookup, Markdown/JSON-LD/llms build, ETag, Link, stored-copy lookup, or Accept negotiation.
 2. AF paths are not on the private open-path allowlist: GET/HEAD /llms.txt, GET/HEAD <page>/index.md, and page URLs with Accept: text/markdown.
-3. New private AF surfaces return exactly today's blank 404 for every cookie class (anonymous, owner, reader, expired, revoked): status, BLANK body and headers above.
+3. New private AF surfaces return the exact §3 denial for every cookie class (anonymous, owner, reader, expired, revoked): 404; Sign in document on GET/HEAD without Authorization, legacy BLANK with Authorization; the corresponding headers above.
 4. That 404 has no ETag, Last-Modified, Link, Vary, Content-Location, or Age.
 5. Its Content-Type is text/html (charset utf-8 allowed). Never text/markdown, application/ld+json, or text/plain except private /robots.txt as in 10. Accept: text/markdown does not change this (no content-type oracle).
 6. HEAD matches GET status and those headers, empty body.
 7. If-None-Match, If-Modified-Since, If-Match, If-Unmodified-Since never change 3-6. Never 304 for anonymous private.
-8. All those gated anonymous private GET bodies are byte-identical to BLANK (no size oracle by path existence). Hits and misses match: /index.md of a real page equals /missing/index.md.
+8. All gated private GET bodies within the same Authorization-header class are byte-identical to the §3 document (no size oracle by path existence). Hits and misses match: /index.md of a real page equals /missing/index.md.
 9. Test: spy/monkeypatch live_view, media lookup, stored-copy read, Markdown/JSON-LD/llms builders — they are not called for anonymous private gated requests (timing oracle = content lookup before gate).
 10. Private /robots.txt stays exactly `User-agent: *\nDisallow: /\n` with private, no-store, no-transform; no Sitemap; no extra User-agent groups. The AF-4 training switch has zero effect on private robots bytes. No ETag/Link.
 
@@ -2333,12 +2358,12 @@ The named cases implement the corresponding numbered invariant above.
 | --- | --- | --- |
 | 1 | `af_gate_before_representation` | Access precedes views, media, builds, validators, links, storage and negotiation. |
 | 2 | `af_no_private_open_paths` | AF paths never enter the private allowlist. |
-| 3 | `af_private_exact_blank` | New private AF surfaces return the existing blank 404 for every cookie class. |
+| 3 | `af_private_exact_blank` | Every cookie class gets the exact §3 denial; GET/HEAD without Authorization uses Sign in, Authorization retains BLANK. |
 | 4 | `af_blank_no_metadata` | No validators, links, Vary, Content-Location or Age. |
 | 5 | `af_blank_html_type` | Accept never changes denial Content-Type. |
 | 6 | `af_private_head` | HEAD has GET status/security headers and empty body. |
 | 7 | `af_private_conditionals` | All four conditional fields preserve the denial. |
-| 8 | `af_private_hit_miss_identity` | Existing and missing copy paths have identical blank bytes. |
+| 8 | `af_private_hit_miss_identity` | Existing and missing copy paths have identical §3 denial bytes within each Authorization class. |
 | 9 | `af_denial_lookup_spies` | All content, media, copy and builder spies remain uncalled. |
 | 10 | `af_private_robots_unchanged` | Exact disallow-all bytes/headers under every training setting. |
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |

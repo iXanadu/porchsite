@@ -7,7 +7,7 @@ import * as approvals from '../src/approvals';
 import * as site from '../src/site';
 import * as artifacts from '../src/public-artifacts';
 import {handle} from '../src/routes';
-import {BLANK} from '../src/privacy';
+import {BLANK,SIGN_IN} from '../src/privacy';
 const origin='https://site.example',actor='assistant:test',base=env as unknown as Env,e={...base,SITE_URL:origin,PUBLIC_ARTIFACTS:'1'},db=e.DB;
 beforeEach(async()=>{
  vi.restoreAllMocks();vi.useRealTimers();
@@ -55,7 +55,7 @@ it('af_prebuild_gate_first: private and credentialed requests never look up prep
  }
  expect(await count()).toBe(1);const privateSite=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(privateSite);expect(await count()).toBe(0);cache.mockClear();
  for(const path of ['/','/index.md','/llms.txt','/missing/index.md'])for(const headers of ([{},{Cookie:'__Host-sk_owner=expired'},{Authorization:'Bearer fixture'}] as Record<string,string>[])){
-  const r=await get(path,{...headers,Accept:'text/markdown','If-None-Match':'*'});expect(r.status).toBe(404);expect(await r.text()).toBe(BLANK);expect(r.headers.has('ETag')).toBe(false);
+  const r=await get(path,{...headers,Accept:'text/markdown','If-None-Match':'*'});expect(r.status).toBe(404);expect(await r.text()).toBe(headers.Authorization?BLANK:SIGN_IN);expect(r.headers.has('ETag')).toBe(false);
  }
  expect(cache).not.toHaveBeenCalled();expect(await count()).toBe(0);
 });
@@ -65,7 +65,7 @@ it('af_prebuild_races: private-on discards a builder already holding a public sn
  const render=vi.spyOn(site,'liveView').mockImplementation(async(...args)=>{const view=await original(...args);if(once){once=false;entered();await barrier;}return view;});
  const pending=get();await started;
  const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);resume();
- const response=await pending;expect(response.status).toBe(404);expect(await response.text()).toBe(BLANK);expect(await count()).toBe(0);render.mockRestore();
+ const response=await pending;expect(response.status).toBe(404);expect(await response.text()).toBe(SIGN_IN);expect(await count()).toBe(0);render.mockRestore();
 });
 it('af_prebuild_clock: expired intervals are reclaimed before the next fill',async()=>{
  await fixture();await get();await db.prepare('UPDATE public_artifacts SET valid_until=0').run();
@@ -178,7 +178,7 @@ it('af_prebuild_no_owner_bytes: valid owner/reader sessions bypass warmed copies
  expect(await count()).toBe(1);expect(await(await get()).text()).toBe(visitor);
  const rows=await db.prepare('SELECT body,metadata FROM public_artifacts').all<{body:string;metadata:string}>();expect(JSON.stringify(rows.results)).not.toContain('sk-owner-link');expect(JSON.stringify(rows.results)).not.toContain('/review');
  const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);
- for(const role of ['owner','reader']){const cookie={Cookie:`__Host-sk_${role}=${role}-fixture`};expect((await get('/',cookie)).status).toBe(200);expect(await(await get('/index.md',cookie)).text()).toBe(BLANK);}
+ for(const role of ['owner','reader']){const cookie={Cookie:`__Host-sk_${role}=${role}-fixture`};expect((await get('/',cookie)).status).toBe(200);expect(await(await get('/index.md',cookie)).text()).toBe(SIGN_IN);}
  expect(await count()).toBe(0);
 });
 it('af_prebuild_races: an entry removed during rendering cannot be filled or delivered',async()=>{
@@ -228,7 +228,7 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after t
  }});
  const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
  if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(304);}
- else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(BLANK);}
+ else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(SIGN_IN);}
 });
 
 

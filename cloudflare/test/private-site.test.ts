@@ -1,3 +1,4 @@
+import privateDenial from '../../spec/fixtures/private-denial.json';
 // PV-1/OR-1 acceptance: paired with server/tests/app/test_private_site.py.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +11,7 @@ import * as media from "../src/media";
 import * as site from "../src/site";
 import * as structured from "../src/structured-data";
 import * as privacy from "../src/privacy";
-import { BLANK, livePrivate } from "../src/privacy";
+import { SIGN_IN as BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
 import { matchesTag } from "../src/public-http";
 import validators from "../../spec/fixtures/public-validators.json";
@@ -360,4 +361,43 @@ it('af_approved_only af_private_card_absent af_mention_card_projection af_markdo
  for(const forbidden of ['Hidden card sentinel','Hidden description sentinel','hidden.example','Hidden badge sentinel','mention.example','Mention picture sentinel','Mention badge sentinel','Mention group sentinel','Mention subtitle sentinel','Mention period sentinel','Mention price sentinel','Mention tag sentinel','unapproved.example','/review']){expect(home).not.toContain(forbidden);expect(await (await visitor.at('/')).text()).not.toContain(forbidden);}
  const body=await (await visitor.at('/guide/published-guide/index.md')).text();expect(body).toContain('Owner body: &lt;/script&gt;');expect(body).toContain('```json');expect(body).not.toContain('unapproved.example');
  const map=await (await visitor.at('/llms.txt')).text();expect(map).toContain(payload);expect(map).not.toContain('SYSTEM: footer');expect(map).not.toContain('Hidden');expect(map).not.toContain('unapproved.example');
+});
+
+// PV-6 intentionally replaces browser BLANK assertions; credential bytes stay legacy.
+it('pv6_uniform_denial pv6_authorization_blank pv6_gate_before_content pv6_head_metadata',async()=>{
+ await fixture();
+ const data=privateDenial;
+ const view=vi.spyOn(site,'liveView').mockRejectedValue(Error('view before denial'));
+ const exists=vi.spyOn(owner,'hasOwner').mockRejectedValue(Error('existence before denial'));
+ const visitor=new Browser();
+ try{
+  for(const path of data.paths)for(const accept of data.accept){
+   const headers={Accept:accept,'If-None-Match':'*','If-Modified-Since':'Wed, 01 Jan 2099 00:00:00 GMT'};
+   const get=await visitor.at(path,{headers});expect(get.status,path).toBe(404);expect(await get.text()).toBe(data.browser_body);
+   expect(get.headers.get('Content-Security-Policy')).toBe(data.csp);expect(get.headers.get('Cache-Control')).toBe(data.cache_control);expect(get.headers.get('X-Content-Type-Options')).toBe('nosniff');expect(get.headers.get('X-Robots-Tag')).toBe('noindex');
+   for(const name of ['Location','ETag','Last-Modified','Link','Vary'])expect(get.headers.has(name)).toBe(false);
+   const head=await visitor.at(path,{method:'HEAD',headers});expect(head.status).toBe(404);expect(await head.text()).toBe('');expect([...head.headers]).toEqual([...get.headers]);
+   for(const authorization of data.authorization){const r=await visitor.at(path,{headers:{...headers,Authorization:authorization}});expect(r.status).toBe(404);expect(await r.text()).toBe(data.legacy_body);const head=await visitor.at(path,{method:'HEAD',headers:{...headers,Authorization:authorization}});expect(head.status).toBe(404);expect(await head.text()).toBe('');expect([...head.headers]).toEqual([...r.headers]);}
+  }
+  for(const cookie of ['__Host-sk_owner=expired','__Host-sk_reader=revoked']){const r=await handle(new Request(origin+'/review?next=https://outside.example',{headers:{Cookie:cookie}}),e);expect(await r.text()).toBe(data.browser_body);}
+  for(const path of ['/review/%22%3Escript','/review?next=//outside.example','//outside.example/path']){const r=await visitor.at(path);expect(await r.text()).toBe(data.browser_body);}
+  expect(view).not.toHaveBeenCalled();expect(exists).not.toHaveBeenCalled();
+ }finally{view.mockRestore();exists.mockRestore();}
+});
+it('pv6_reader_owner_signin: one fixed link leads both real passkey roles somewhere useful',async()=>{
+ const f=await fixture(),r=await reader();
+ for(const [key,isReader] of [[r.key,true],[f.key,false]] as [SoftKey,boolean][]){
+  const browser=new Browser(),denied=await browser.at('/review/deep-link?unsafe="<value>');
+  const href=/<a href="([^"]+)">Sign in<\/a>/.exec(await denied.text())![1];expect(href).toBe('/login?next=%2Freview');
+  const login=await browser.at(href),html=await login.text();expect(login.status).toBe(200);expect(html).toContain('if (k.reader) location.href = "/"; else location.href = "/review"');
+  const options=await browser.options('/login/options');const signed=await browser.post('/login/verify',await key.get(options,origin));expect(signed.status).toBe(200);expect(!!(await signed.json() as any).reader).toBe(isReader);
+  expect((await browser.at(isReader?'/':'/review')).status).toBe(200);
+ }
+});
+it('pv6_protocol_unchanged: collect, robots, and MCP keep their existing refusals',async()=>{
+ await fixture();const visitor=new Browser();const collect=await visitor.at('/collect',{method:'POST',body:'{}'});expect(collect.status).toBe(204);expect(await collect.text()).toBe('');
+ const post=await visitor.at('/missing',{method:'POST'});expect(post.status).toBe(404);expect(await post.text()).toBe(privateDenial.legacy_body);
+ const robots=await visitor.at('/robots.txt');expect(await robots.text()).toBe('User-agent: *\nDisallow: /\n');expect(robots.headers.has('ETag')).toBe(false);
+ const ctx={waitUntil(){},passThroughOnException(){}} as unknown as ExecutionContext;
+ const mcp=await worker.fetch(new Request(origin+'/mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),e,ctx);expect(mcp.status).toBe(401);
 });
