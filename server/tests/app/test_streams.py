@@ -354,14 +354,23 @@ async def test_st2_private_archive_gate_before_query_or_redirect_and_owner_reade
 
     for browser in (own, read):
         assert '<link rel="canonical" href="'+ORIGIN+'/archive/">' in (await browser.at('/archive/?stream=missing')).text
-    for browser in (own, read, visitor):
+    for browser,authorized in ((own,True),(read,True),(visitor,False)):
         for path in ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus']:
             for method in ['GET','HEAD']:
                 r = await browser.at(path,method=method,headers={'Accept':'text/markdown','If-None-Match':'*'})
-                assert r.status_code == 404 and r.content == (b'' if method == 'HEAD' else b'<!doctype html><meta name="robots" content="noindex"><title></title>')
-                assert r.headers['content-type'] == 'text/html; charset=utf-8'
-                assert r.headers['cache-control'] == 'private, no-store, no-transform'
-                assert not any(h in r.headers for h in ['etag','last-modified','link','vary','content-signal','location'])
+                if authorized:
+                    if 'bogus' in path:
+                        assert r.status_code==400 and r.headers['cache-control']=='private, no-store, no-transform' and 'etag' not in r.headers
+                    else:
+                        assert r.status_code==304 and not r.content
+                        assert r.headers['cache-control']=='private, no-cache, must-revalidate, no-transform' and r.headers['etag'].startswith('W/"ag-sha256-')
+                else:
+                    assert r.status_code==404 and r.content==(b'' if method=='HEAD' else b'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>')
+                    assert r.headers['content-type']=='text/html; charset=utf-8' and r.headers['cache-control']=='private, no-store, no-transform'
+                    assert not any(h in r.headers for h in ['etag','last-modified','link','vary'])
+                assert not any(h in r.headers for h in ['content-signal','location'])
+                if method=='HEAD':assert not r.content
+    assert await db.fetchval('SELECT count(*) FROM public_artifacts')==0
 
 
 async def test_af_combined_archive_filters_validators_and_map(db, http):

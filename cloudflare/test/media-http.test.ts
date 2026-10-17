@@ -6,7 +6,7 @@ import type { Env } from "../src/env";
 import * as content from "../src/content";
 import * as approvals from "../src/approvals";
 import * as media from "../src/media";
-import { BLANK } from "../src/privacy";
+import { SIGN_IN as BLANK } from "../src/privacy";
 import { handle } from "../src/routes";
 
 const e = env as unknown as Env, db = e.DB, origin = "https://site.example", who = "assistant:test";

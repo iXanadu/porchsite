@@ -17,6 +17,14 @@ Two editions implement it, both in this repository:
 This folder (`spec/`) holds the contract, the conformance check and the
 template format. Both editions follow it; neither defines it.
 
+Before protocol construction, content/access lookup or routing, the Worker
+answers every non-loopback HTTP request with an empty 301 to the same URL on
+HTTPS and `Cache-Control: no-store` (all methods, paths and query strings).
+Loopback development (`localhost`, IPv4 127/8 and IPv6 ::1) remains HTTP-capable.
+The server edition requires its reverse proxy to terminate TLS and redirect
+external HTTP to HTTPS. The application does not redirect by request scheme:
+plain HTTP upstream requests with the site's public Host must keep working.
+
 `scripts/parity.sh` compares every look's rendered sample pages and its
 `site_check` and `site_state` answers in both editions. Tool comparisons
 use the same item ids, versions and clock; JSON object keys may differ
@@ -239,6 +247,39 @@ one small dialect both editions render to the same bytes. The cases in
   starts a numbered list there (`1999. A good year.` stays text); inside a
   list item any number does. A list with a blank line between its items
   wraps each item's text in `<p>`.
+- Pipe tables (MD-1): a single header line containing an unescaped `|`,
+  immediately followed by a delimiter line with the same number of cells.
+  Each delimiter cell is one or more `-` with an optional `:` at either
+  end: left, right, or both for centered alignment. Boundary pipes are
+  optional; ASCII space/tab padding is removed. A backslash-escaped pipe
+  stays in its cell, including within inline code; unescaped pipes split
+  cells even within code. Ordinary inline Markdown is parsed in each cell.
+  Data rows continue to a blank line or another block. Short rows gain
+  empty cells; extra cells are ignored. A header-only table has no body.
+  This is the core [GFM table syntax](https://github.github.com/gfm/#tables-extension-),
+  within this engine's existing block and inline dialect.
+  Tables may begin at a block boundary or interrupt a paragraph when the
+  next two lines form a valid header/delimiter pair. Fenced and indented
+  code keep precedence. Quotes and list items support tables after their
+  normal container prefixes are stripped. A standalone engine block ends
+  a top-level table and is emitted once; cells never expand engine embeds.
+  Header cells render as `<th scope="col">`; data cells use `<td>`, with
+  `align="left|center|right"` only for explicit column alignment. The
+  engine emits `<table><thead><tr>...` and optional `<tbody>` rows, within
+  `<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto">`.
+  The table has `style="border-spacing:0.75em 0.35em;overflow-wrap:normal"`. These fixed styles
+  provide spacing, normal word wrapping (overriding inherited
+  `overflow-wrap:anywhere`) and keyboard-reachable horizontal scrolling on narrow
+  screens without changing a look or accepting authored styles.
+  Recognition is limited to 64 columns; a wider candidate stays ordinary
+  Markdown. A document, including all nested containers, may generate at
+  most 4,096 table cells, including headers and padded empty cells. A
+  header that does not fit remains ordinary Markdown. Before a body row
+  would exceed the remaining budget, close the table and resume ordinary
+  block parsing at that row. No source is truncated or rejected. The
+  splitter and recognition are linear in the input being examined; no
+  delimiter or padding can cause unbounded generated output. Shared cases
+  prove the grammar, boundaries, escaping, limits and exact bytes.
 - Inline: `*em*` / `_em_`, `**strong**` / `__strong__` (underscores inside
   a word, as in `snake_case`, stay as they are), `` `code` ``, links
   `[text](address "optional title")`, images `![alt](/media/…)`, and a
@@ -302,11 +343,33 @@ when the proposed version would turn private off. When turning private on,
 tell the owner that earlier search-engine copies and pictures already fetched
 cannot be recalled. Previously authorized in-flight bytes cannot be recalled.
 
-A private site's visitors receive exactly this UTF-8 body (no whitespace):
+A denied private gated GET/HEAD with no `Authorization` header receives
+this exact unbranded UTF-8 document (111 bytes, no trailing newline):
+`<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>`.
+The link is fixed: no requested path, query, site name, title text, look,
+item existence or credential is interpolated. Real and missing addresses,
+Accept values and invalid/expired/revoked cookies share these bytes. The
+existing login sends a reader passkey session to `/` and an owner session
+to `/review`. The existing `safeNext` grammar is unchanged.
+
+Any `Authorization` header, including empty, unknown, writer, published-read
+or other schemes, retains the legacy exact 68-byte `BLANK` document:
 `<!doctype html><meta name="robots" content="noindex"><title></title>`.
-Status is 404; headers include `Cache-Control: private, no-store, no-transform`,
+Non-GET/HEAD denials also retain BLANK. These display rules confer no new
+read, draft, review or agent authority. Authorized owner/reader pages and
+existing owner-route refusals are unchanged.
+
+Both denial documents have status 404 and no Location, ETag, Last-Modified,
+Link or Vary. Headers include `Cache-Control: private, no-store, no-transform`,
 `Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ancestors 'none'`
-and `X-Robots-Tag: noindex`; there is no Location, beacon, site name or link.
+and `X-Robots-Tag: noindex`; the Sign in document also has
+`X-Content-Type-Options: nosniff`. It has no inline style or script. This
+intentionally replaces the former blank-page assertion for browser reads,
+including feeds, media misses and new AF paths; it preserves the old exact
+credential refusal. The fixture `spec/fixtures/private-denial.json` binds
+both editions. Required paired cases: `pv6_uniform_denial`,
+`pv6_authorization_blank`, `pv6_gate_before_content`, `pv6_head_metadata`,
+`pv6_reader_owner_signin`, `pv6_protocol_unchanged` and `pv6_upgrade`.
 GET and HEAD have matching status/headers (HEAD has no body). Check access
 before constructing a live view, looking up media or resolving redirects.
 This covers pages, misses, entries, tags, feeds, sitemap, search JSON, media,
@@ -348,7 +411,7 @@ checks run before byte lookup, shared-copy lookup or conditional handling.
 Requests carrying either owner or reader session cookie, or Authorization,
 are `private, no-store, no-transform` even on a public site, including
 expired or invalid credentials. They get no validators. The proxy must
-bypass cache reads and writes for both session cookies and Authorization. A private anonymous request retains the exact blank 404
+bypass cache reads and writes for both session cookies and Authorization. A private denied request retains the request-appropriate 404 document (§3)
 and private headers already specified. A public media miss or an image no
 longer referenced by published content returns 404 with `no-store`, without
 old bytes, a success redirect or a validator. An already-authorized
@@ -1652,6 +1715,40 @@ HEAD/304, concurrent increments and date rollover),
 leak), and `af_agent_kind_parity_rollback` (same classification/report in
 both editions; previous-release tests pass on the additive schema).
 
+#### MD-1: tables in the light Markdown copy
+
+The copy continues to derive only from the rendered approved visitor HTML,
+never raw item bodies. A visible simple table with one all-`th` header row,
+rectangular visible data rows, no spans or nested tables, and at most the
+renderer limits becomes a GFM pipe table with a delimiter row. Preserve
+header/data order and explicit left/center/right alignment. A caption, if
+present, stays before it. A hidden row or cell contributes no text.
+Non-rectangular, spanned, nested or block-content authored tables keep the
+existing mechanical text fallback; do not invent a header or discard
+visible cells to force them into a pipe table.
+
+Cells retain escaped visible text, emphasis, safe links and image alt
+references. Escape literal pipe separators, encode a literal pipe in a
+link/image URL as `%7C`, and flatten a cell's line breaks to spaces so one
+row stays on one line. A code span containing pipes is split into code
+spans around escaped plain pipe characters: its visible code text,
+including literal backslashes and backticks, must survive a Markdown
+round trip. Never double-escape an already escaped text pipe. Ordinary
+code outside a table is unchanged. Generated raw HTML, executable markup,
+owner navigation, private/draft data and agent instructions remain absent.
+
+Required paired cases are `md_pipe_tables` (shared exact-HTML examples),
+`md_pipe_table_bounds` (64-column and shared 4,096-cell limits),
+`af_pipe_table_roundtrip` (header/body structure, code/pipe/backslash/link
+text, alignment and literal HTML through the copy), and
+`af_pipe_table_access` (published-only, private blank gate, owner isolation,
+GET/HEAD/304 and direct/negotiated copy identity). Test inline text and code
+with an independent parser as well as cross-edition parity. Prepared
+public copies follow the existing release/dependency identity and access
+checks: new rendering must not reuse a previous engine's prepared bytes.
+No new item field, schema, tool, auth path or release floor is needed.
+Rolling back renders pipe syntax as the previous dialect's ordinary text.
+
 ### AF-2: validators and conditional reads
 
 Successful anonymous GET and HEAD for home, on-site entries, stream
@@ -2280,18 +2377,21 @@ requires an explicit product decision before implementation.
 ### Security invariants (normative)
 
 The following numbered invariants bind the implementation and paired tests.
-`BLANK` refers to the exact private-site body specified in §3. These apply
+`BLANK` is the legacy credential denial in §3. For denied GET/HEAD without
+Authorization, PV-6 replaces it with the exact Sign in document, including
+new AF paths and all Accept values. All blank-denial references and named
+cases below use this request-appropriate document. These rules apply
 before the feature-specific presentation rules above.
 
 Gating
 1. Access check runs before live view, media lookup, Markdown/JSON-LD/llms build, ETag, Link, stored-copy lookup, or Accept negotiation.
 2. AF paths are not on the private open-path allowlist: GET/HEAD /llms.txt, GET/HEAD <page>/index.md, and page URLs with Accept: text/markdown.
-3. New private AF surfaces return exactly today's blank 404 without a valid §11 principal: status, BLANK body and headers above. Valid AG Bearer or owner/reader sessions are the §11 published-copy exception; anonymous/expired/revoked/malformed requests remain blank. Owner review copies require AG-6's valid owner session.
+3. New private AF surfaces return the exact §3 denial without a valid §11 principal: 404; Sign in document on GET/HEAD without Authorization, legacy BLANK with Authorization; the corresponding headers above. Valid AG Bearer or owner/reader sessions are the §11 published-copy exception. Owner review copies require AG-6's valid owner session.
 4. That 404 has no ETag, Last-Modified, Link, Vary, Content-Location, or Age.
 5. Its Content-Type is text/html (charset utf-8 allowed). Never text/markdown, application/ld+json, or text/plain except private /robots.txt as in 10. Accept: text/markdown does not change this (no content-type oracle).
 6. HEAD matches GET status and those headers, empty body.
 7. If-None-Match, If-Modified-Since, If-Match, If-Unmodified-Since never change 3-6. Never 304 for anonymous private.
-8. All those gated anonymous private GET bodies are byte-identical to BLANK (no size oracle by path existence). Hits and misses match: /index.md of a real page equals /missing/index.md.
+8. All gated private GET bodies within the same Authorization-header class are byte-identical to the §3 document (no size oracle by path existence). Hits and misses match: /index.md of a real page equals /missing/index.md.
 9. Test: spy/monkeypatch live_view, media lookup, stored-copy read, Markdown/JSON-LD/llms builders — they are not called for anonymous private gated requests (timing oracle = content lookup before gate).
 10. Private /robots.txt stays exactly `User-agent: *\nDisallow: /\n` with private, no-store, no-transform; no Sitemap; no extra User-agent groups. The AF-4 training switch has zero effect on private robots bytes. No ETag/Link.
 
@@ -2344,12 +2444,12 @@ The named cases implement the corresponding numbered invariant above.
 | --- | --- | --- |
 | 1 | `af_gate_before_representation` | Access precedes views, media, builds, validators, links, storage and negotiation. |
 | 2 | `af_no_private_open_paths` | AF paths never enter the private allowlist. |
-| 3 | `af_private_exact_blank` | Without a valid §11 principal, every new private AF surface keeps exact BLANK for anonymous/expired/revoked/malformed/unknown credentials; valid AG or owner/reader sessions follow the named §11 authorized-copy cases. |
+| 3 | `af_private_exact_blank` | Without a valid §11 principal, new private AF surfaces return the exact §3 denial: GET/HEAD without Authorization uses Sign in, Authorization retains BLANK; valid AG or owner/reader sessions follow the named §11 authorized-copy cases. |
 | 4 | `af_blank_no_metadata` | No validators, links, Vary, Content-Location or Age. |
 | 5 | `af_blank_html_type` | Accept never changes denial Content-Type. |
 | 6 | `af_private_head` | HEAD has GET status/security headers and empty body. |
 | 7 | `af_private_conditionals` | All four conditional fields preserve the denial. |
-| 8 | `af_private_hit_miss_identity` | Existing and missing copy paths have identical blank bytes. |
+| 8 | `af_private_hit_miss_identity` | Existing and missing copy paths have identical §3 denial bytes within each Authorization class. |
 | 9 | `af_denial_lookup_spies` | All content, media, copy and builder spies remain uncalled. |
 | 10 | `af_private_robots_unchanged` | Exact disallow-all bytes/headers under every training setting. |
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
@@ -2439,7 +2539,7 @@ session authority from AG. An owner session is not an MCP credential.
 
 | Principal | Published page HTML and light copies on a private site | Owner review light copies | MCP |
 | --- | --- | --- | --- |
-| No valid credential | Existing blank denial | Existing denial | Existing HTTP 401 |
+| No valid credential | Request-appropriate §3 denial | Existing denial | Existing HTTP 401 |
 | New published-only key | Published pages and private map only | Never | Five published-only read tools |
 | Valid reader passkey session | Same published pages as existing reader HTML | Existing reader refusal | Not a credential |
 | Valid owner passkey session | Published view, without owner decorations in copies | Existing authorized owner GET pages | Not a credential |
@@ -2752,12 +2852,15 @@ publication creates the published page and all its read representations.
 
 ### Normative security invariants and named paired tests
 
-Every rule below is normative in both editions. BLANK is the existing
-private 404: `<!doctype html><meta name="robots" content="noindex"><title></title>`
-with the existing private no-store/no-transform headers, noindex and blank
-CSP, HTML Content-Type, no Location, ETag, Last-Modified, Link, Vary,
-Content-Location, Age or WWW-Authenticate. HEAD has those headers and no
-body. Unauthorized existing/missing paths are indistinguishable.
+Every rule below is normative in both editions. Denial references, including
+BLANK, mean the request-appropriate §3 private 404. PV-6 supplies its fixed
+111-byte Sign in document for denied GET/HEAD without Authorization; any
+Authorization header retains the exact 68-byte legacy BLANK. Neither path
+reflects the requested URL or grants authority. Both retain private
+no-store/no-transform, noindex, the denial CSP, HTML Content-Type and no
+Location, ETag, Last-Modified, Link, Vary, Content-Location, Age or
+WWW-Authenticate. HEAD has GET headers and no body. Unauthorized existing
+and missing paths are indistinguishable within each header class.
 
 | Rule | Invariant | Named paired case |
 | --- | --- | --- |

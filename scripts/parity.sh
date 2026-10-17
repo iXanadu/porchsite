@@ -53,6 +53,15 @@ if ! node "$ROOT/scripts/site-guide-contract.mjs" --input >"$TMP/guide-cf.json" 
 else
  echo "✓ site guide: generated revision and native fixed blocks identical"
 fi
+# The Markdown engine and its light copy share the same source cases.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/markdown-parity.ts --bundle --platform=node --outfile="$TMP/markdown.cjs" --log-level=error && node "$TMP/markdown.cjs" "$ROOT") >"$TMP/markdown-cf.json" \
+  || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/markdown_parity.py" >"$TMP/markdown-py.json" \
+  || ! cmp -s "$TMP/markdown-cf.json" "$TMP/markdown-py.json"; then
+  echo "✗ Markdown rendering or light copy differs"
+  bad=$((bad + 1))
+else
+  echo "✓ Markdown: shared source cases and light copies identical"
+fi
 for look in "${looks[@]}"; do
   cf="$TMP/cf/$look" py="$TMP/py/$look"
   if ! (cd "$ROOT/cloudflare" && node "$TMP/theme.cjs" raw "$look" "$ROOT/themes" "$cf" "$NOW") >"$TMP/$look.cf.log" 2>&1; then
@@ -85,6 +94,16 @@ for look in "${looks[@]}"; do
     echo "✗ $look: ${#differ[@]} files differ; first: $first"
   fi
 done
+
+# Both private denial documents preserve identical content-independent policy.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/private-denial-parity.ts --bundle --platform=node --outfile="$TMP/private.cjs" --log-level=error && node "$TMP/private.cjs") >"$TMP/private-cf.json" \
+  || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/private_denial_parity.py" >"$TMP/private-py.json" \
+  || ! cmp -s "$TMP/private-cf.json" "$TMP/private-py.json"; then
+  echo "✗ private denial bodies or metadata differ"
+  bad=$((bad + 1))
+else
+  echo "✓ private denials: browser Sign in and credential BLANK identical"
+fi
 
 # Conditional binary media uses identical bytes, header fields and weak validators.
 if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/media-parity.ts --bundle --platform=node --outfile="$TMP/media.cjs" --log-level=error && node "$TMP/media.cjs") >"$TMP/media-cf.json" \

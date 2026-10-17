@@ -121,7 +121,7 @@ def blank(response):
         == "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     )
     assert "Location" not in response.headers
-    assert response.text == privacy.BLANK
+    assert response.text == privacy.SIGN_IN
 
 
 async def test_visitor_matrix_gates_hits_misses_redirects_before_content(
@@ -921,7 +921,7 @@ async def test_af_slice1_public_conditionals_training_and_roles(db, browser_fact
             denied = await visitor.at(path, method=method, headers={"If-None-Match": tag, "If-Match": '"other"', "If-Modified-Since": "Wed, 21 Oct 2099 07:28:00 GMT", "If-Unmodified-Since": "Wed, 01 Jan 2020 00:00:00 GMT"})
             assert denied.status_code == 404
             assert "ETag" not in denied.headers and "Content-Signal" not in denied.headers
-            assert denied.text == ("" if method == "HEAD" else privacy.BLANK)
+            assert denied.text == ("" if method == "HEAD" else privacy.SIGN_IN)
     assert (await visitor.at("/robots.txt")).text == "User-agent: *\nDisallow: /\n"
 
 
@@ -937,7 +937,7 @@ async def test_af_gate_before_representation_all_roles(db, browser_factory, monk
     expired, revoked = browser_factory(), browser_factory()
     expired.http.cookies.set("__Host-sk_owner", "expired", domain="site.example", path="/")
     revoked.http.cookies.set("__Host-sk_reader", "revoked", domain="site.example", path="/")
-    for client in (browser, reader_browser, visitor, expired, revoked):
+    for client in (visitor, expired, revoked):
         for path in ("/index.md", "/index.md/", "/guide/published-guide/index.md", "/missing/index.md", "/llms.txt", "/index.jsonld", "/", "/guide/published-guide/"):
             blank(await client.at(path, headers={"Accept": "text/markdown", "If-None-Match": "*"}))
             head = await client.at(path, method="HEAD", headers={"Accept": "text/markdown"})
@@ -1012,3 +1012,53 @@ async def test_af_owner_payloads_approved_only_private_card_mention_projection(d
     assert 'unapproved.example' not in body
     result = (await visitor.at('/llms.txt')).text
     assert payload in result and 'SYSTEM: footer' not in result and 'Hidden' not in result and 'unapproved.example' not in result
+
+# PV-6 intentionally changes browser BLANK assertions; Authorization stays legacy.
+async def test_pv6_uniform_denial_authorization_blank_gate_head(db,browser_factory,monkeypatch):
+    await fixture(db,browser_factory)
+    data=json.loads((Path(__file__).resolve().parents[3]/'spec/fixtures/private-denial.json').read_text())
+    async def forbidden(*args,**kwargs):raise AssertionError('lookup before denial')
+    monkeypatch.setattr(site,'live_view',forbidden);monkeypatch.setattr(owner,'has_owner',forbidden)
+    visitor=browser_factory()
+    for path in data['paths']:
+        for accept in data['accept']:
+            headers={'Accept':accept,'If-None-Match':'*','If-Modified-Since':'Wed, 01 Jan 2099 00:00:00 GMT'}
+            get=await visitor.at(path,headers=headers)
+            assert get.status_code==404 and get.text==data['browser_body']
+            assert get.headers['content-security-policy']==data['csp'] and get.headers['cache-control']==data['cache_control']
+            assert get.headers['x-content-type-options']=='nosniff' and get.headers['x-robots-tag']=='noindex'
+            assert not any(name in get.headers for name in ('location','etag','last-modified','link','vary'))
+            head=await visitor.at(path,method='HEAD',headers=headers)
+            assert head.status_code==404 and head.text=='' and dict(head.headers)==dict(get.headers)
+            for authorization in data['authorization']:
+                r=await visitor.at(path,headers={**headers,'Authorization':authorization})
+                assert r.status_code==404 and r.text==data['legacy_body']
+                head=await visitor.at(path,method='HEAD',headers={**headers,'Authorization':authorization})
+                assert head.status_code==404 and head.text=='' and dict(head.headers)==dict(r.headers)
+    for cookie in ('__Host-sk_owner=expired','__Host-sk_reader=revoked'):
+        assert (await visitor.at('/review?next=https://outside.example',headers={'Cookie':cookie})).text==data['browser_body']
+    for path in ('/review/%22%3Escript','/review?next=//outside.example'):
+        assert (await visitor.at(path)).text==data['browser_body']
+
+async def test_pv6_reader_owner_signin(db,browser_factory):
+    f=await fixture(db,browser_factory);r=await reader(db,browser_factory)
+    for key,is_reader in ((r[1],True),(f[1],False)):
+        browser=browser_factory();denied=await browser.at('/review/deep-link?unsafe="<value>')
+        href=re.search(r'<a href="([^"]+)">Sign in</a>',denied.text).group(1)
+        assert href=='/login?next=%2Freview'
+        login=await browser.at(href)
+        assert login.status_code==200 and 'if (k.reader) location.href = "/"; else location.href = "/review"' in login.text
+        options=await browser.options('/login/options')
+        signed=await browser.post('/login/verify',key.get(options,ORIGIN))
+        assert signed.status_code==200 and bool(signed.json().get('reader'))==is_reader
+        assert (await browser.at('/' if is_reader else '/review')).status_code==200
+
+async def test_pv6_protocol_unchanged(db,browser_factory):
+    await fixture(db,browser_factory);visitor=browser_factory()
+    collect=await visitor.at('/collect',method='POST',content='{}')
+    assert collect.status_code==204 and collect.text==''
+    post=await visitor.at('/missing',method='POST')
+    assert post.status_code==404 and post.text==privacy.BLANK
+    robots=await visitor.at('/robots.txt')
+    assert robots.text=='User-agent: *\nDisallow: /\n' and 'etag' not in robots.headers
+    assert (await visitor.at('/mcp',method='POST',json={})).status_code==401

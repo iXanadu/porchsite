@@ -99,6 +99,9 @@ class App:
             return
         if scope["type"] != "http":
             return
+        # TLS and HTTP-to-HTTPS redirects belong to the reverse proxy.
+        # Its upstream request can be HTTP with the site's public Host.
+        req = Request(scope, receive)
         release = self.settings.release.encode("latin-1")
         prepared=False
 
@@ -117,7 +120,6 @@ class App:
                 message = {**message, "headers": [*headers, (b"x-porchsite-release", release)]}
             await send(message)
 
-        req = Request(scope, receive)
         # One address per site: a passkey works only where it was made, so
         # www.<domain> sends everyone to <domain>.
         host = req.url.hostname or ""

@@ -510,36 +510,27 @@ async def _start_session(db, credential, expected):
     return await _issue_session(db, "owner", credential, expected)
 
 
-async def signed_in(db: Db, req: Request) -> bool:
-    token = cookie(req, SESSION_COOKIE)
-    if not token:
-        return False
-    return bool(
-        await db.fetchrow(
-            """SELECT 1 FROM sessions s JOIN auth_state a ON a.id = 1
+def session_guard(req,kind):
+    token=cookie(req,SESSION_COOKIE if kind=='owner' else READER_COOKIE) or ''
+    query=("""SELECT 1 FROM sessions s JOIN auth_state a ON a.id = 1
         LEFT JOIN owner_session_auth m ON m.token_hash = s.token_hash
         WHERE s.token_hash = $1 AND s.expires_at > $2 AND
         ((m.token_hash IS NULL AND a.owner_epoch = 0) OR
-         (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))""",
-            hash_token(token),
-            now(),
-        )
-    )
-
-
-async def reader_signed_in(db, req):
-    token = cookie(req, READER_COOKIE)
-    if not token:
-        return False
-    return bool(
-        await db.fetchrow(
-            """SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
+         (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))""" if kind=='owner' else
+        """SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
         JOIN reader_passkeys p ON p.id = s.credential_id AND p.reader_id = r.id
-        WHERE s.token_hash = $1 AND s.expires_at > $2 AND r.revoked = 0 AND r.auth_epoch = s.epoch""",
-            hash_token(token),
-            now(),
-        )
-    )
+        WHERE s.token_hash = $1 AND s.expires_at > $2 AND r.revoked = 0 AND r.auth_epoch = s.epoch""")
+    return query,[hash_token(token),now()]
+
+async def signed_in(db: Db, req: Request) -> bool:
+    if not cookie(req,SESSION_COOKIE):return False
+    query,args=session_guard(req,'owner')
+    return bool(await db.fetchrow(query,*args))
+
+async def reader_signed_in(db,req):
+    if not cookie(req,READER_COOKIE):return False
+    query,args=session_guard(req,'reader')
+    return bool(await db.fetchrow(query,*args))
 
 
 async def sign_out(db: Db, req: Request) -> str:

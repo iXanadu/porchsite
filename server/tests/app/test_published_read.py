@@ -68,8 +68,14 @@ async def test_ag_read_tools_live_only(db, http, fallback):
     await publish(db, hidden)
     _, _, got = await call(http, made['token'], 'page_get', {'path': path}, fallback)
     assert 'Café woodwork' in got['markdown']
-    denied = await http.get(path, headers={'Authorization': 'Bearer '+made['token']})
-    assert denied.status_code == 404 and denied.text == BLANK
+    # Slice C replaces B's no-HTTP checkpoint with published reader HTML only.
+    private_html = await http.get(path, headers={'Authorization': 'Bearer '+made['token'], 'If-None-Match': '*'})
+    assert private_html.status_code == 200 and 'Café woodwork' in private_html.text
+    assert private_html.headers['cache-control'] == 'private, no-store, no-transform'
+    assert not any(name in private_html.headers for name in ('etag', 'last-modified', 'content-signal'))
+    for headers in ({}, {'Authorization': 'Bearer psk_unknown'}):
+        denied = await http.get(path, headers=headers)
+        assert denied.status_code == 404 and 'Café woodwork' not in denied.text
     writer = await mcp._call(db, 'page_get', {'path': path}, {'client': 'writer', 'clientId': 'writer-1', 'origin': ORIGIN}, 'test')
     assert not writer.is_error
 

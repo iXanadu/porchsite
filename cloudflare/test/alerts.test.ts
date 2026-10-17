@@ -368,7 +368,7 @@ describe("owner approval alerts", () => {
       const r = await visitor.at(path);
       expect(r.status).toBe(404);
       expect(await r.text()).toBe(
-        '<!doctype html><meta name="robots" content="noindex"><title></title>',
+        '<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>',
       );
     }
   });

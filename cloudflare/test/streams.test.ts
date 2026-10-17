@@ -8,7 +8,7 @@ import * as site from '../src/site';
 import * as theme from '../src/theme';
 import * as owner from '../src/owner';
 import {handle} from '../src/routes';
-import {BLANK} from '../src/privacy';
+import {SIGN_IN as BLANK} from '../src/privacy';
 import {SoftKey} from './softkey';
 import * as changes from '../src/changes';
 import * as importer from '../src/importer';
@@ -101,11 +101,15 @@ it('ST-2 private archive gates before malformed queries or redirects; owner and 
   for(const browser of [own,read]){const r=await browser.at(path,{method});expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(r.status).toBe(path==='/archive'?301:path.includes('bogus')||path.includes('script')||path.includes('unknown')?400:200);}
  }
  for(const browser of [own,read])expect(await(await browser.at('/archive/?stream=missing')).text()).toContain(`<link rel="canonical" href="${origin}/archive/">`);
- for(const browser of [own,read,new Browser()])for(const path of ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus'])for(const method of ['GET','HEAD']){
-  const r=await browser.at(path,{method,headers:{Accept:'text/markdown','If-None-Match':'*'}});expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');
-  expect(r.headers.get('Content-Type')).toBe('text/html; charset=utf-8');expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
-  for(const h of ['ETag','Last-Modified','Link','Vary','Content-Signal','Location'])expect(r.headers.get(h)).toBeNull();
+ for(const [browser,authorized] of [[own,true],[read,true],[new Browser(),false]] as const)for(const path of ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus'])for(const method of ['GET','HEAD']){
+  const r=await browser.at(path,{method,headers:{Accept:'text/markdown','If-None-Match':'*'}});
+  if(authorized){
+   if(path.includes('bogus')){expect(r.status).toBe(400);expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(r.headers.has('ETag')).toBe(false);}
+   else{expect(r.status).toBe(304);expect(await r.text()).toBe('');expect(r.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate, no-transform');expect(r.headers.get('ETag')).toMatch(/^W\/"ag-sha256-[a-f0-9]{64}"$/);}
+  }else{expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');expect(r.headers.get('Content-Type')).toBe('text/html; charset=utf-8');expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');for(const h of ['ETag','Last-Modified','Link','Vary'])expect(r.headers.get(h)).toBeNull();}
+  for(const h of ['Content-Signal','Location'])expect(r.headers.get(h)).toBeNull();if(method==='HEAD')expect(await r.text()).toBe('');
  }
+ expect(await db.prepare('SELECT count(*) n FROM public_artifacts').first('n')).toBe(0);
 });
 
 it('af_combined_archive copies preserve filters, canonical validators and map visibility',async()=>{

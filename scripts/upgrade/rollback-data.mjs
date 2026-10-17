@@ -434,7 +434,7 @@ try {
           if(fixture.agentReadKeys)for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await blankReadKey(base,token);
           await runtime.stop();runtime=null;runtime=await current();
           for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
-            const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title>');
+            const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>');
             for(const header of ['ETag','Last-Modified','Link','Vary','Content-Signal'])assert(!denial.headers.has(header),'private return has no '+header);
           }
           const empty=await(await fetch(base+'/__rollback/artifacts')).json();assert.equal((empty.results??empty).length,0,'actual old private-on clears prepared rows without serving them');
@@ -461,6 +461,14 @@ try {
           const currentSite=await existingCall(base,fixture.token,'site_state',{ids:['site']});
           await existingCall(base,fixture.token,'item_update',{id:'site',version:currentSite.items[0].version,data:{private:true}});
           const pending=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Read-key recovery boundary'});await approveAt(await loginOwner(base,fixture),new URL(pending.review_url).pathname);
+          const privateCopy=await fetch(base+'/index.md',{headers:{Authorization:'Bearer '+fixture.agentReadKeys.active}});
+          if(existsSync(path.join(root,'cloudflare/src/private-agent.ts'))){
+            assert.equal(privateCopy.status,200,'private HTTP slice must grant the live published read key');
+            assert.equal(privateCopy.headers.get('Cache-Control'),'private, no-cache, must-revalidate, no-transform');
+            const tag=privateCopy.headers.get('ETag');assert.match(tag,/^W\/"ag-sha256-[a-f0-9]{64}"$/);
+            const checked=await fetch(base+'/index.md',{headers:{Authorization:'Bearer '+fixture.agentReadKeys.active,'If-None-Match':tag}});assert.equal(checked.status,304);assert.equal(await checked.text(),'');
+            const html=await fetch(base+'/',{headers:{Authorization:'Bearer '+fixture.agentReadKeys.active,'If-None-Match':'*'}});assert.equal(html.status,200);assert.equal(html.headers.get('Cache-Control'),'private, no-store, no-transform');assert(!html.headers.has('ETag'));
+          }else assert.equal(privateCopy.status,404,'credential-only slice has no private HTTP grant');
           const prepared=await fetch(base+'/__rollback/recovery');assert.equal(prepared.status,200);
           await runtime.stop();runtime=null;runtime=await old();
           const recovery=client(base),replacement=await SoftKey.make();

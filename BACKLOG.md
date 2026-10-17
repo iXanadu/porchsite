@@ -13,7 +13,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AG-2 and AG-4..AG-6: finish published read tools and private light copies.
+1. AG-6: owner-session light copies of existing review pages.
 2. AF-7H: hosted measurement when authorized, before any default enablement.
 
 ## BLOCKING
@@ -83,11 +83,6 @@ the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-4** IN-PROGRESS (spec §11): valid owner/reader sessions or header-only
-  Bearer keys read private Markdown; principal-bound ETags, private revalidation,
-  no shared storage; invalid/anonymous stays exact blank 404.
-- **AG-5** IN-PROGRESS (spec §11): private llms.txt behind the same live gate,
-  listing only published pages that principal can read; anonymous stays blank.
 - **AG-6** IN-PROGRESS (spec §11): existing owner-authorized GET review pages
   negotiate no-store light copies with the same owner session. No key/reader
   grant, duplicate content approval or separate agent mode.
@@ -102,19 +97,21 @@ in a shared cache or shared place; anonymous visitors see no change.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.
-- **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
-  renderer, both editions, proven identical. Playbook reference pages use
-  "Term: meaning" lists until then.
 
 ## DEGRADING
-- **AR-1** OPEN: decoded trailing newline in an archive tag or stream passes
-  the Cloudflare filter regex but is refused by the server. Use exact end-of-
-  input validation on the public route; read-tool input already refuses it.
-- **PV-6** OPEN: on a private site a signed-out owner who opens /review (or
-  any page) sees the blank 404 with no way forward, which looks like a
-  broken site. Send signed-out /review to /login?next=/review (sign-in is
-  already public, so nothing new is revealed); everything else stays blank.
-  Security review first. Found 2026-10-17 (owner on a new browser).
+- **AF-LL1** IN-PROGRESS (BLOCKING for larger free-plan sites): /llms.txt
+  renders full HTML and a Markdown copy for every listed page on every
+  request, about 85 database calls on an 8-link sample and 463 on a
+  200-entry site, above the free plan's limit of about 50 per request.
+  It is slow (1-6 s live) and likely to fail on larger sites; a 304 does
+  the same work first. Fix: one published view, a small constant number of
+  queries, the validator before heavy work. Check the map and archive
+  paths for the same pattern. Found 2026-10-17.
+- **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
+  filter check accepts a decoded trailing newline in tag/stream (JS `$`)
+  where the server edition refuses it, so the two editions answer a
+  malformed filter differently. Not an access issue. Anchor the check to
+  the exact end in both editions, with a paired test. Found 2026-10-17.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,

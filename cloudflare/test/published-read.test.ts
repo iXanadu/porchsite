@@ -48,7 +48,9 @@ it.each([false,true])('ag_read_tools_live_only: all transports and writer catalo
  expect(await published.pagesList(db,{stream:'missing'},principal)).toEqual({pages:[],next_cursor:null});expect(await published.pagesList(db,{tag:'missing'},principal)).toEqual({pages:[],next_cursor:null});
  const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);
  expect((await rpc(made.token,'page_get',{path},fallback)).value.markdown).toContain('Café woodwork');
- const denied=await handle(new Request(origin+path,{headers:{Authorization:'Bearer '+made.token}}),e);expect(denied.status).toBe(404);expect(await denied.text()).toBe(BLANK);
+ // Slice C replaces B's no-HTTP checkpoint with published reader HTML only.
+ const privateHTML=await handle(new Request(origin+path,{headers:{Authorization:'Bearer '+made.token,'If-None-Match':'*'}}),e);expect(privateHTML.status).toBe(200);expect(await privateHTML.text()).toContain('Café woodwork');expect(privateHTML.headers.get('Cache-Control')).toBe('private, no-store, no-transform');for(const name of ['ETag','Last-Modified','Content-Signal'])expect(privateHTML.headers.has(name)).toBe(false);
+ for(const headers of ([{},{Authorization:'Bearer psk_unknown'}] as Record<string,string>[])){const denied=await handle(new Request(origin+path,{headers}),e);expect(denied.status).toBe(404);expect(await denied.text()).not.toContain('Café woodwork');}
  const writer=await withToolContext({client:'writer',clientId:'writer-1',origin},()=>createToolHandlers().get('page_get')!({path}));expect(writer.isError).not.toBe(true);
 });
 it('ag_read_cursor: bounded continuation binds principal, scope, filters and current visible corpus',async()=>{

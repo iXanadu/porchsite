@@ -48,6 +48,11 @@ export default {
     // One address per site: a passkey works only where it was made, so
     // www.<domain> sends everyone to <domain>.
     const u = new URL(req.url);
+    const loopback = u.hostname === "localhost" || u.hostname === "[::1]" || /^127(?:\.[0-9]{1,3}){3}$/.test(u.hostname);
+    if (u.protocol === "http:" && !loopback) {
+      u.protocol = "https:";
+      return new Response(null, {status:301, headers:{Location:u.href, "Cache-Control":"no-store"}});
+    }
     if (u.hostname.startsWith("www.")) {
       u.hostname = u.hostname.slice(4);
       return new Response(null, { status: 301, headers: { Location: u.href, "Cache-Control": await livePrivate(env.DB) ? "private, no-store, no-transform" : "max-age=3600" } });
