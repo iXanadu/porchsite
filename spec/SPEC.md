@@ -1099,6 +1099,12 @@ previous release (Cloudflare) or checking it out (server) with no schema
 step. Released migrations never change (append only). Enforced at release
 time: `scripts/migration-check.py` and `scripts/upgrade-check.sh` (the
 previous release's tests and archived bundle on the new schema).
+The release also runs `scripts/runtime-smoke.py` under the coordinator's
+suite lock: build the real Worker entry, boot its emitted bundle on fresh
+local D1/KV and boot the server entry on a disposable local PostgreSQL.
+Both must serve HTML, Markdown and the map, refuse unauthenticated MCP,
+and return an empty conditional 304. A startup error or an unexpected
+status fails the release; the smoke check has a 60-second budget.
 
 **Stream-settings rollback compatibility.** The public content model has
 up to 64 streams, per-stream sort and the all-stream archive, but the legacy
