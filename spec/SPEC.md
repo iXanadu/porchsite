@@ -2058,6 +2058,31 @@ responses, merging it with the alternate link rather than replacing it.
 No llms-full.txt, plugin instructions or new agent protocol is generated.
 This file is a convenience map, with no search-ranking claim.
 
+The map is built from one approved reader view, without rendering or routing
+one HTML/Markdown copy per link. Home uses the published site `title` and
+`description`; the combined archive uses its configured `title` and no
+summary; local entries use their published `title` and `summary`. No tagline,
+intro excerpt, title repeated as a summary, or theme-authored heading is used
+as a substitute. This deliberately makes labels independent of a customized
+heading and may change existing labels/summaries; URLs, order, escaping and
+caps remain the same. A site with no approved site row has an empty map.
+This metadata consists only of fields approved for public publication, never
+private-card data, pending revisions or owner metadata. The HTML/Markdown
+copies themselves retain their existing mechanical projection.
+
+Eligibility is established from that same validated live view and the
+engine's canonical route rules: home, enabled combined archive, and local
+non-draft entries. It does not perform internal HTTP reachability probes.
+Both ordinary and conditional map reads use a small constant number of
+database calls independent of entry count (at most 16 with prepared artifacts
+off), one whole-live query, no template/body rendering, no media lookup and
+no per-link Markdown projection. Compute the normal AF-2 body validator from
+the bounded map text before any such expensive work; a matching GET/HEAD
+returns the usual empty 304. No derived body or validator bypasses the fresh
+private/publication gate, and session requests remain no-store without a
+public validator. A 200-entry fixture proves the database-call ceiling for
+both 200 and 304, plus unchanged private-gate behavior.
+
 ### AF-7: prepare public artifacts without weakening publication
 
 Prepared lookup, delivery, filling and build-ahead are OFF by default.
