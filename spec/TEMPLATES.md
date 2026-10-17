@@ -131,7 +131,8 @@ No script, template or theme choice substitutes for the access gate.
   tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th scope="col">`, `<td>`,
   with optional fixed `align`), so a look
   styles all of them. Pipe tables have an engine-owned `.md-table` wrapper
-  with horizontal scrolling and `tabindex="0"`, plus fixed table spacing;
+  with horizontal scrolling and `tabindex="0"`, plus fixed table spacing
+  and normal word wrapping;
   looks may add table styling but must retain narrow-screen usability.
 - **Scripts only from the kit or `static/`,** by `<script src>`, never
   inline. Pages are served with a Content-Security-Policy that blocks the

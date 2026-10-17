@@ -355,7 +355,7 @@ def _blocks(
                 rows.append(row(_cells(lines[i])[0]))
                 budget[0] -= cols
                 i += 1
-            out.append(('<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em"><thead>'+head+'</thead>'+('<tbody>'+''.join(rows)+'</tbody>' if rows else '')+'</table></div>', None))
+            out.append(('<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em;overflow-wrap:normal"><thead>'+head+'</thead>'+('<tbody>'+''.join(rows)+'</tbody>' if rows else '')+'</table></div>', None))
             if special is not None:
                 out.append((special, None))
             continue

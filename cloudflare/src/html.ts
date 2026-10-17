@@ -305,7 +305,7 @@ function mdBlocks(lines: string[], depth: number, inItem = false, block?: (line:
         if (special !== null) { i++; break; }
         rows.push(row(mdCells(lines[i++]).cells)); budget.remaining -= cols;
       }
-      out.push({html: '<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em"><thead>' + head + '</thead>' + (rows.length ? '<tbody>' + rows.join('') + '</tbody>' : '') + '</table></div>'});
+      out.push({html: '<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-spacing:0.75em 0.35em;overflow-wrap:normal"><thead>' + head + '</thead>' + (rows.length ? '<tbody>' + rows.join('') + '</tbody>' : '') + '</table></div>'});
       if (special !== null) out.push({html: special});
       continue;
     }

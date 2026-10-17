@@ -259,8 +259,9 @@ one small dialect both editions render to the same bytes. The cases in
   `align="left|center|right"` only for explicit column alignment. The
   engine emits `<table><thead><tr>...` and optional `<tbody>` rows, within
   `<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto">`.
-  The table has `style="border-spacing:0.75em 0.35em"`. These fixed styles
-  provide spacing and keyboard-reachable horizontal scrolling on narrow
+  The table has `style="border-spacing:0.75em 0.35em;overflow-wrap:normal"`. These fixed styles
+  provide spacing, normal word wrapping (overriding inherited
+  `overflow-wrap:anywhere`) and keyboard-reachable horizontal scrolling on narrow
   screens without changing a look or accepting authored styles.
   Recognition is limited to 64 columns; a wider candidate stays ordinary
   Markdown. A document, including all nested containers, may generate at
