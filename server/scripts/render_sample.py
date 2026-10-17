@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from server.app.agent_markdown import markdown_document
 from server.spec.sample import render_sample, sample_view
 from server.spec.sitemap import robots, sitemap
 from server.spec.theme import THEMES
@@ -38,6 +39,9 @@ def main() -> int:
     }
     pages["sitemap.xml"] = sitemap(v, "https://example.com")
     pages["robots.txt"] = robots("https://example.com")
+    for rel, html in list(pages.items()):
+        if rel.endswith("index.html"):
+            pages[rel[:-10]+"index.md"] = markdown_document(html, "https://example.com/"+rel[:-10])["markdown"]
     for rel, html in pages.items():
         p = outdir / rel
         p.parent.mkdir(parents=True, exist_ok=True)

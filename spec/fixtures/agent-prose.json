@@ -1,0 +1,7 @@
+[
+ {"html":"<p>Some<em>thing</em> and wood<a href=\"/next/\">work</a>.</p>","expected":"Something and woodwork."},
+ {"html":"<p>Good <strong>news</strong> and <code>code</code> stay exact.</p>","expected":"Good news and code stay exact."},
+ {"html":"<h1>Work<em>place</em></h1>","expected":"Workplace"},
+ {"html":"<p><span>Some</span>thing and wood<span>work</span>.</p>","expected":"Something and woodwork."},
+ {"html":"<p>Some <em>thing</em> and wood <a href=\"/next/\">work</a>.</p>","expected":"Some thing and wood work."}
+]

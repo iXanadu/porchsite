@@ -42,10 +42,10 @@ def matches_tag(value, tag):
 
 async def public_response(db, req, response, origin):
     path = req.url.path
-    if req.method not in ('GET', 'HEAD') or response.status_code != 200 or not public_path(path):
+    if req.method not in ('GET', 'HEAD') or response.status_code != 200 or not (public_path(path) or path == '/llms.txt' or markdown_path(path)):
         return response
     content_type = response.headers.get('Content-Type', '')
-    if content_type not in ('text/html; charset=utf-8', 'text/plain; charset=utf-8', 'application/atom+xml; charset=utf-8', 'application/xml; charset=utf-8'):
+    if content_type not in ('text/markdown; charset=utf-8', 'text/html; charset=utf-8', 'text/plain; charset=utf-8', 'application/atom+xml; charset=utf-8', 'application/xml; charset=utf-8'):
         return response
     if session_request(req):
         if path == '/robots.txt':
@@ -56,7 +56,7 @@ async def public_response(db, req, response, origin):
     disabled = await training_disabled(db)
     signal = training_signal(disabled)
     body = robots(origin, disabled).encode('utf-8') if path == '/robots.txt' else response.body
-    payload = (origin + path + '\0' + content_type + '\0' + signal + '\0').encode('utf-8') + body
+    payload = (origin + (markdown_path(path) or path) + '\0' + content_type + '\0' + signal + '\0').encode('utf-8') + body
     tag = 'W/"sha256-' + hashlib.sha256(payload).hexdigest() + '"'
     headers = dict(response.headers)
     headers.update({'cache-control': PUBLIC_CACHE, 'content-signal': signal, 'etag': tag})
@@ -66,25 +66,48 @@ async def public_response(db, req, response, origin):
     return Response(None if matched else body, status_code=304 if matched else 200, headers=headers)
 
 
-def markdown_requested(accept):
+def split_header(value, delimiter):
+    parts, start, quoted, escaped = [], 0, False, False
+    for i, char in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+        if quoted and char == '\\':
+            escaped = True
+            continue
+        if char == '"':
+            quoted = not quoted
+        elif char == delimiter and not quoted:
+            parts.append(value[start:i])
+            start = i+1
+    return None if quoted or escaped else [*parts, value[start:]]
+
+
+def representation(accept):
     if not accept:
-        return False
+        return 'html'
     ranges = []
     token = r"[a-z0-9!#$%&'*+.^_`|~-]+"
-    for part in accept.split(','):
-        name, *params = [x.strip() for x in part.strip().lower().split(';')]
+    parts = split_header(accept, ',')
+    if parts is None:
+        return 'html'
+    for part in parts:
+        fields = split_header(part.strip().lower(), ';')
+        if fields is None:
+            return 'html'
+        name, *params = [x.strip() for x in fields]
         matched = re.fullmatch(r'(' + token + r'|\*)/(' + token + r'|\*)', name)
         if not matched or (matched[1] == '*' and matched[2] != '*'):
-            return False
+            return 'html'
         quality, usable, seen_quality = 1, True, False
         for param in params:
-            m = re.fullmatch(r'(' + token + r')=(?:"([^"\r\n]*)"|(' + token + r'))', param)
+            m = re.fullmatch(r'(' + token + r')=(?:"((?:[^"\\\r\n]|\\.)*)"|(' + token + r'))', param)
             if not m:
-                return False
-            value = m[2] if m[2] is not None else m[3]
+                return 'html'
+            value = re.sub(r'\\(.)', r'\1', m[2]) if m[2] is not None else m[3]
             if m[1] == 'q':
                 if seen_quality or not re.fullmatch(r'(?:0(?:\.[0-9]{0,3})?|1(?:\.0{0,3})?)', value):
-                    return False
+                    return 'html'
                 quality, seen_quality = float(value), True
             elif m[1] != 'charset' or value != 'utf-8':
                 usable = False
@@ -95,7 +118,24 @@ def markdown_requested(accept):
         specificity = max([-1] + [r[3] for r in matched])
         return max([0] + [r[2] for r in matched if r[3] == specificity])
 
-    return any(r[4] and r[0:2] == ('text', 'markdown') for r in ranges) and score('markdown') > 0 and score('markdown') >= score('html')
+    if score('html') == 0 and score('markdown') == 0:
+        return None
+    if any(r[4] and r[0:2] == ('text', 'markdown') for r in ranges) and score('markdown') > 0 and score('markdown') >= score('html'):
+        return 'markdown'
+    return 'html' if score('html') > 0 else None
+
+
+def markdown_requested(accept):
+    return representation(accept) == 'markdown'
+
+
+def page_path(path):
+    return path == '/' or (public_path(path) and path.endswith('/'))
+
+
+def markdown_path(path):
+    base = path[:-8] if path.endswith('/index.md') else None
+    return base if base and page_path(base) else None
 
 
 def private_agent_path(req):

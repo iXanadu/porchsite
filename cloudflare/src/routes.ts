@@ -1,3 +1,4 @@
+import { agentPage } from './agent-pages';
 import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
 import { archiveFilter } from "./archive";
@@ -964,7 +965,15 @@ const BEACON_HEADERS = { "Content-Type": "text/javascript; charset=utf-8", "Cach
 export async function handle(req: Request, env: Env): Promise<Response> {
   const access = await privacy.access(env.DB,req);
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
-  let res = access.isPrivate && privateAgentPath(req) ? privacy.blankResponse() : access.response ?? await route(get,env);
+  let res:Response;
+  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse();
+  else if(access.response)res=access.response;
+  else if(access.isPrivate)res=await route(get,env);
+  else res=await agentPage(get,r=>route(r,env),async()=>{
+    const v=await contentView(new Request(get.url),env);
+    return (v.site.streams as {id:string}[]).flatMap(s=>
+      v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)));
+  },r=>notFoundPage(r,env));
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
   if (!access.isPrivate) res = await publicResponse(env.DB,req,res);
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
