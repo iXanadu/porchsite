@@ -17,7 +17,7 @@ my-template/
 ├── template.json        # manifest (required)
 ├── home.mustache        # the home page (required)
 ├── entry.mustache       # one entry's own page (required)
-├── archive.mustache     # a stream's entries, newest first (required)
+├── archive.mustache     # a stream's entries, in its chosen order (required)
 ├── tag.mustache         # a stream's entries with one tag (required)
 ├── not_found.mustache   # the 404 page (required)
 ├── partials/            # optional *.mustache, used as {{> name}}
@@ -169,7 +169,7 @@ Every page gets:
 | `site` | Site-wide words and settings: `site_name`, `logo_text`, `tagline`, `description`, `handle` (X, no @), `x_url`, `follow_label`, `footer_line`, `contact_line`, `contact_email`, `hero_image`, `hero_width`, `hero_height`, `links` (`[{label, url}]`, the owner's menu links, may be empty), `logo` and `logo_alt` (the site's mark, also its icon; may be empty), `follow_image` and `follow_image_alt` (a small round photo of the owner beside the Follow link; may be empty), `updated` (when the site last changed, display-ready), `base_url`, `release` |
 | `page` | Home-page words: `lede`, `hero_alt`, `hero_caption`, `cta_label`, `cta_link` |
 | `strings` | The template's UI words ("Back to top", "Read the full entry", the 404 sentences, …), with the owner's own words for any of them on top (the site item's `strings`, by name; an empty one keeps the default). The hours and event blocks use them too |
-| `nav` | `[{href, label}]` in the owner's section order, only sections with something in them (a stream with entries, any cards, a non-empty About) |
+| `nav` | `[{href, label}]` in the owner's section order, only sections with something in them (a stream with entries, any cards, a non-empty About); when the all-stream archive is enabled, append its `/archive/` link labelled with the site's archive title |
 | `highlights`, `has_highlights` | All visible formatted cards and whether any exist, independent of the section-menu selection |
 | `feeds` | `[{title, url}]` the site's Atom feeds |
 | `kit` | `css_url`, `beacon_url` (the kit's analytics beacon, SPEC §8; a template includes it with `<script src="{{kit.beacon_url}}" defer>` and puts `data-kind="{{meta.kind}}" data-id="{{meta.content_id}}"` on `<body>`), `filter_url`, `search_url` |
@@ -208,17 +208,22 @@ on accent.
 `stream`: `id`, `anchor`, `title`, `byline`, `intro`, `author`, `nav_label`,
 `archive_url`, `feed_url`, `all_label`, `link_label`, `see_also` (`{label,
 url}` of another stream, or empty), and one layout flag true: `is_feature`
-(the newest entry in full, with the notes) or `is_list`.
+(the newest entry in full, with the notes) or `is_list`. It also supplies
+`sort` (`date` or `title`). There may be up to 64 streams; a look must not
+assume an eight-stream or twelve-section maximum. New content has unique
+stream ids and effective paths (legacy ambiguous paths remain readable,
+SPEC §3). The engine supplies the order: templates must not re-sort.
 
 **Home** adds `sections`, in the owner's order, each with exactly one of
 `is_entries`, `is_cards`, `is_about` true, plus `not_last`:
 
-- **entries:** `stream`, `show`, `latest` (`[entry]`, the newest),
-  `more_than_one`, `items` (the newest three), `all` (every entry),
+- **entries:** `stream`, `show`, `latest` (`[entry]`, the newest by date),
+  `more_than_one`, `items` (the first three in the stream's chosen order),
+  `all` (every entry in that order),
   `count_suffix` (" (12)" when there are more), `activity` (`[note]`),
   `has_activity`; for events, `upcoming` (soonest first), `earlier`
   (newest first), `has_upcoming`, `has_earlier`, and the stream's entries
-  that aren't events, newest first, as `others` and `has_others` (empty
+  that aren't events, in the stream's chosen order, as `others` and `has_others` (empty
   when the stream has no events).
 - **cards:** `anchor`, `title`, `show`, `projects` (`[card]`),
   `has_projects`, `groups` (`[{key, label, count}]`), `has_chips`,
@@ -264,6 +269,32 @@ Items carry display-ready values, so templates never format anything:
 `stream`, `tag` and `entries`. Tag pages live at `<archive_url>tags/<name>/`,
 and a stream's search index (for the kit's search script) at
 `<archive_url>search.json`.
+
+Stream archives, tag pages and search indexes follow `stream.sort` (SPEC
+§3). Date order is descending date, descending creation time, ascending item
+id. Title order is ascending case-sensitive Unicode scalar comparison of
+the validated title, with date order as the tie-breaker. No locale sorting
+or case folding. Atom feeds and the home feature's `latest` stay
+chronological. Tags and result metadata retain their existing meanings.
+
+**All-stream archive.** Enabled by `site.archive` (SPEC §3), `/archive/`
+is an engine page, not another stream or a required template. Its common
+responsive shell shows the site's branding, a Home link, title, a GET form
+for tag/stream filters and date/stream grouping, and dated summaries with
+stream labels and links. Without individual stream archive pages, a stream
+label links to `/archive/?stream=<id>` instead of a missing page. It has no
+full bodies or players. Its controls
+work without JavaScript. The engine owns this page in every look, including
+installed looks and the built-in fallback; no theme package format changes
+or template upgrades are necessary. The existing `archive.mustache` and
+`tag.mustache` remain the individual-stream pages.
+
+The extra navigation item appears only when enabled; templates that render
+`nav` get it without changes. Templates that omit `nav` can use an ordinary
+owner menu link to `/archive/`. Disabled sites gain no visible markup.
+Parity covers the common page alongside each look's sample, with date and
+stream grouping, intersecting filters and empty results. Both editions
+escape every title, label, summary and control value identically.
 
 ## 3b. The catalog
 

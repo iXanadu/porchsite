@@ -35,7 +35,8 @@ def view(site: Data, rows: list[Data]) -> SiteView:
     streams = [x["id"] for x in site["streams"]]
     path_of = {x["id"]: x["path"] or x["id"] for x in site["streams"]}
     # Newest created first, so the date sorts below leave same-day items that way.
-    rows = sorted(rows, key=lambda r: str(r.get("created") or ""), reverse=True)
+    rows = sorted(rows, key=lambda r: r["id"])
+    rows.sort(key=lambda r: str(r.get("created") or ""), reverse=True)
     entries = []
     for r in rows:
         if r["kind"] != "entry" or r["data"].get("status") == "draft":

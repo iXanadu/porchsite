@@ -288,6 +288,13 @@ CREATE TABLE alert_deliveries (
 );
 CREATE INDEX alert_deliveries_age ON alert_deliveries(created_at,claim);
 """),
+    ("0014_stream_settings", """
+CREATE TABLE site_stream_settings (
+ version INTEGER PRIMARY KEY,
+ settings TEXT NOT NULL,
+ approved INTEGER NOT NULL DEFAULT 0
+);
+"""),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

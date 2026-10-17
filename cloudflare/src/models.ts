@@ -98,6 +98,7 @@ const Stream = z
     feed_subtitle: optLine(160).describe("the subtitle of its feed; {handle} becomes the X handle; empty uses the byline"),
     see_also_label: optLine(80).describe("on its archive, the words pointing to another stream (e.g. 'My own writing is'); empty uses that stream's name"),
     all_label: optLine(60).describe("text of the link to all its entries; empty uses 'All of <title>'"),
+    sort: z.enum(["date", "title"]).default("date").describe("display order: date (newest first) or title (Unicode scalar ascending); feeds and the feature latest remain chronological"),
     dated_addresses: z
       .boolean()
       .default(true)
@@ -184,10 +185,11 @@ export const SiteData = z
     streams: z
       .array(Stream)
       .min(1)
-      .max(8)
-      .default([{ id: "journal", title: "Updates", byline: "", layout: "list", link_label: "", intro: "", author: "", nav_label: "", path: "", anchor: "", description: "", feed_subtitle: "", see_also_label: "", all_label: "", dated_addresses: true }])
+      .max(64)
+      .default([{ id: "journal", title: "Updates", byline: "", layout: "list", link_label: "", intro: "", author: "", nav_label: "", path: "", anchor: "", description: "", feed_subtitle: "", see_also_label: "", all_label: "", dated_addresses: true, sort: "date" }])
       .refine((v) => new Set(v.map((x) => x.id)).size === v.length, "each stream id at most once")
-      .describe("the kinds of entries the site has, each its own home section: a list of {id, title, byline, layout, link_label, dated_addresses}. The first is where an entry goes when it names no stream"),
+      .describe("the kinds of entries the site has, each its own home section: 1 to 64 {id, title, byline, layout, link_label, dated_addresses, sort}. sort is date (default) or title; feeds and feature latest remain chronological. The first is where an entry goes when it names no stream"),
+    archive: z.object({ enabled: z.boolean().default(false), title: line(60).default("All entries") }).strict().default({enabled: false, title: "All entries"}).describe("combined archive at /archive/: opt-in, owner approval required"),
     cards_title: line(60).default("Projects").describe("heading of the cards section"),
     cards_nav: optLine(30).describe("the cards section's menu item; empty uses its heading"),
     cards_anchor: optLine(30).describe("the cards section's id on the home page; empty uses cards"),
@@ -195,7 +197,7 @@ export const SiteData = z
     about_title: line(60).default("About").describe("heading of the About section"),
     sections: z
       .array(z.string().regex(/^[a-z][a-z0-9-]{0,29}$/, "a stream id, or cards, notes, about"))
-      .max(12)
+      .max(68)
       .default(["entries", "cards", "notes", "about"])
       .refine((v) => new Set(v).size === v.length, "each section at most once")
       .describe("home page sections in order: stream ids, cards, notes, about; entries means every stream not listed by id. Leave one out to hide it. A section with nothing published (or an empty About) is hidden anyway"),

@@ -79,6 +79,7 @@ def test_an_old_site_items_entries_heading_becomes_its_first_stream():
             "see_also_label": "",
             "all_label": "",
             "dated_addresses": True,
+            "sort": "date",
         }
     ]
 

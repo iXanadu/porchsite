@@ -20,7 +20,7 @@ export const LABELS: Record<string, string> = {
   ai_training_disabled: "AI training",
   title: "Name", tagline: "Headline", intro: "Intro", description: "Description for search and shared links", about: "About",
   hero: "Main picture", logo: "Mark (and browser icon)", share_image: "Picture for shared links", hero_caption: "Line under the masthead",
-  theme: "Look", palette: "Colours", links: "Menu", buttons: "Buttons", streams: "Sections", sections: "Order of the home page",
+  theme: "Look", palette: "Colours", links: "Menu", buttons: "Buttons", streams: "Sections", archive: "All-stream archive", sections: "Order of the home page",
   cta_label: "Main button", cta2_label: "Second button", footer_line: "Footer", contact: "Contact details", hours: "Opening hours",
   notice: "Banner", handle: "X handle", summary: "Summary", body: "Text", cover: "Picture", date: "Date", name: "Name",
   price: "Price", subtitle: "Second line", period: "Dates", image: "Picture", event: "Event details", stats: "Figures", tags: "Tags",
@@ -43,6 +43,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? "") === JSON.string
 
 function plainValue(k: string, v: unknown): Raw | string {
   if (k === "ai_training_disabled") return v === true ? "Blocked for GPTBot, ClaudeBot and Google-Extended" : "Allowed";
+  if (k === "streams" && Array.isArray(v)) return v.map(entryName).join(" · ");
+  if (k === "archive" && v && typeof v === "object") {const a=v as Data; return `${a.enabled ? "On" : "Off"} · ${String(a.title ?? "All entries")}`;}
   if (typeof v === "string") {
     if (!v) return html`<span class="meta">(empty)</span>`;
     if (media.LOCAL.test(v)) return html`<img src="${v}" alt="" style="max-width:100%;max-height:320px;height:auto;border-radius:8px">`;
@@ -149,6 +151,7 @@ function thumb(v: string): Raw {
 function entryName(x: unknown): string {
   if (x && typeof x === "object" && !Array.isArray(x)) {
     const o = x as Data;
+    if (o.id && o.title && ("layout" in o || "dated_addresses" in o)) return `${String(o.title)} (${String(o.id)}) · ${o.sort === "title" ? "By title" : "Newest first"} · /${String(o.path || o.id)}/`;
     const main = o.label ?? o.title ?? o.value ?? o.name ?? o.kind ?? o.day ?? o.from;
     const url = o.url ?? o.href;
     if (main !== undefined && main !== null && main !== "") return url ? `${String(main)} (${String(url)})` : String(main);

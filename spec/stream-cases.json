@@ -1,0 +1,178 @@
+{
+  "site": {
+    "title": "Stream examples",
+    "streams": [
+      {
+        "id": "part-0",
+        "title": "Part 0",
+        "sort": "title",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-1",
+        "title": "Part 1",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-2",
+        "title": "Part 2",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-3",
+        "title": "Part 3",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-4",
+        "title": "Part 4",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-5",
+        "title": "Part 5",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-6",
+        "title": "Part 6",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-7",
+        "title": "Part 7",
+        "sort": "date",
+        "dated_addresses": false
+      },
+      {
+        "id": "part-8",
+        "title": "Part 8",
+        "sort": "date",
+        "dated_addresses": false
+      }
+    ],
+    "sections": [
+      "part-8",
+      "entries"
+    ],
+    "archive": {
+      "enabled": true,
+      "title": "All <reports>"
+    }
+  },
+  "items": [
+    {
+      "kind": "entry",
+      "slug": "entry-0",
+      "data": {
+        "title": "Zulu",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-17",
+        "stream": "part-0",
+        "tags": [
+          "report"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-1",
+      "data": {
+        "title": "Alpha",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-16",
+        "stream": "part-0",
+        "tags": [
+          "other"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-2",
+      "data": {
+        "title": "Alpha",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-15",
+        "stream": "part-0",
+        "tags": [
+          "report"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-3",
+      "data": {
+        "title": "𐀀",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-14",
+        "stream": "part-0",
+        "tags": [
+          "other"
+        ],
+        "body": "A complete entry.",
+        "event": {
+          "start": "2026-10-20T12:00"
+        }
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-4",
+      "data": {
+        "title": "",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-14",
+        "stream": "part-0",
+        "tags": [
+          "report"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-5",
+      "data": {
+        "title": "Ninth project",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-17",
+        "stream": "part-8",
+        "tags": [
+          "other"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    },
+    {
+      "kind": "entry",
+      "slug": "entry-6",
+      "data": {
+        "title": "<Example & title>",
+        "summary": "Escaped <summary> & text",
+        "date": "2026-10-14",
+        "stream": "part-0",
+        "tags": [
+          "report"
+        ],
+        "body": "A complete entry.",
+        "event": null
+      }
+    }
+  ]
+}

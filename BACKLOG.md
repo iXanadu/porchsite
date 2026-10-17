@@ -138,19 +138,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   playbook go through the owner's one always-on assistant; PMs send their
   report there instead of filing drafts, so no per-PM write key. No new
   engine code.
-- **ST-1** OPEN (medium): a site allows at most 8 streams (`streams`
-  max 8 in both editions' models). The fleet playbook wanted 9 guide Parts
-  plus a report stream per project and had to merge them. Raising the cap
-  is a compatibility change: the previous release validates the stored site
-  item strictly, so a site saved with more streams may fail on rollback.
-  Needs the additive pattern (extra streams outside the legacy JSON, or a
-  release floor like private mode) and an upgrade-check case. Found
-  2026-10-16.
-- **ST-2** OPEN: one archive of all entries by date across streams,
-  filterable by tag (for reports sortable by project or by date as a
-  reader's choice). Found 2026-10-17.
-- **ST-3** OPEN: a stream chooses its sort order (date or title).
-  Found 2026-10-17.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.

@@ -41,6 +41,7 @@ export function streams(site: Data): Data[] {
     const path = s.path || s.id;
     return {
       id: s.id,
+      sort: s.sort || "date",
       anchor: s.anchor || s.id,
       title: s.title,
       byline: s.byline,
@@ -164,7 +165,7 @@ function base(v: SiteView, release: string, origin: string, meta: { kind: string
       .map((k) => {
         const s = st.find((x) => x.id === k);
         return { href: `/#${s ? s.anchor : anchorOf(k)}`, label: s ? s.nav_label : named[k] ?? k };
-      }),
+      }).concat(v.site.archive?.enabled ? [{href:"/archive/",label:v.site.archive.title}] : []),
     feeds: st.map((x) => ({ title: x.nav_label, url: x.feed_url })),
     kit: {
       css_url: `/static/site.css?v=${release}`,
@@ -208,7 +209,8 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       sec.more_than_one = items.length > 1;
       sec.activity = v.notes.map((n) => ({ ...n, date_short: shortDate(n.date) }));
       sec.has_activity = stream.is_feature && v.notes.length > 0;
-      sec.items = items.slice(0, 3).map((e, i) => entry(e, stream, i === 0 ? "article" : "", ctxOf(v)));
+      const ordered = streamItems(items, stream);
+      sec.items = ordered.slice(0, 3).map((e, i) => entry(e, stream, i === 0 ? "article" : "", ctxOf(v)));
       // Events: the next ones first, soonest first; past ones after, newest first.
       const evs = items.filter((e) => e.event).map((e) => entry(e, stream, "", ctxOf(v)));
       sec.upcoming = evs.filter((e) => !e.event.is_past).sort((a, b) => String(a.event.start).localeCompare(String(b.event.start)));
@@ -216,9 +218,9 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       sec.has_upcoming = sec.upcoming.length > 0;
       sec.has_earlier = sec.earlier.length > 0;
       // Entries that aren't events, in a stream that has some: newest first.
-      sec.others = evs.length ? items.filter((e) => !e.event).map((e) => entry(e, stream, "", ctxOf(v))) : [];
+      sec.others = evs.length ? ordered.filter((e) => !e.event).map((e) => entry(e, stream, "", ctxOf(v))) : [];
       sec.has_others = sec.others.length > 0;
-      sec.all = items.map((e) => entry(e, stream, "", ctxOf(v)));
+      sec.all = ordered.map((e) => entry(e, stream, "", ctxOf(v)));
       sec.count_suffix = items.length > 3 ? ` (${items.length})` : "";
     } else if (k === "cards") {
       const groups = [...new Set(v.cards.map((c) => c.group).filter(Boolean))];
@@ -289,14 +291,14 @@ export function entryView(v: SiteView, e: Data, release: string, origin: string)
 export function archiveView(v: SiteView, streamPath: string, release: string, origin: string, tag?: string): Data | null {
   const stream = streams(v.site).find((x) => x.path === streamPath);
   if (!stream) return null;
-  let items = v.entries.filter((e) => e.stream === stream.id);
+  let items = streamItems(v.entries.filter((e) => e.stream === stream.id), stream);
   const counts = new Map<string, number>();
   for (const e of items) for (const t of e.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
   if (tag) items = items.filter((e) => (e.tags ?? []).includes(tag));
   const path = tag ? `${stream.archive_url}tags/${tag}/` : stream.archive_url;
   return {
     // Shared, the page shows its newest entry's cover, as an entry's page shows its own.
-    ...base(v, release, origin, { kind: tag ? "tag" : "archive", title: `${tag ? `#${tag} · ` : ""}${stream.nav_label} · ${v.site.title}`, path, description: stream.description || undefined, image: items.find((e) => e.cover)?.cover || undefined }),
+    ...base(v, release, origin, { kind: tag ? "tag" : "archive", title: `${tag ? `#${tag} · ` : ""}${stream.nav_label} · ${v.site.title}`, path, description: stream.description || undefined, image: v.entries.find((e) => e.stream === stream.id && (!tag || (e.tags ?? []).includes(tag)) && e.cover)?.cover || undefined }),
     stream,
     tag: tag ?? "",
     entries: items.map((e) => entry(e, stream, "", ctxOf(v))),
@@ -372,8 +374,7 @@ ${items
 export function searchIndex(v: SiteView, streamPath: string): Response | null {
   const stream = streams(v.site).find((x) => x.path === streamPath);
   if (!stream) return null;
-  const rows = v.entries
-    .filter((e) => e.stream === stream.id)
+  const rows = streamItems(v.entries.filter((e) => e.stream === stream.id), stream)
     .map((e) => ({
       t: e.title,
       s: e.summary,
@@ -401,4 +402,15 @@ export function staticFile(t: Theme, file: string, palette = ""): Response | nul
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+/** Scalar comparison, independent of host locale and JavaScript UTF-16 order. */
+export function streamItems(items: Data[], stream: Data): Data[] {
+  if (stream.sort !== "title") return items;
+  return [...items].sort((a,b) => scalarCompare(String(a.title),String(b.title)));
+}
+function scalarCompare(a: string,b: string): number {
+  const aa=Array.from(a,c=>c.codePointAt(0)!), bb=Array.from(b,c=>c.codePointAt(0)!);
+  for(let i=0;i<Math.min(aa.length,bb.length);i++) if(aa[i]!==bb[i]) return aa[i]-bb[i];
+  return aa.length-bb.length;
 }

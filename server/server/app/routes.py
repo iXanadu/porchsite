@@ -18,6 +18,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from server.spec import theme as views
+from server.spec.archive import archive_filter
 from server.spec.embed_review import embed_review
 from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
@@ -349,11 +350,19 @@ _ARCH = re.compile(r"^/([a-z][a-z0-9-]{0,29})/(?:tags/([a-z0-9-]{1,30})/)?\Z")
 
 async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     """Public pages through the site's theme, or None for the built-in look."""
-    is_public = path == "/" or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
+    is_public = path in ("/", "/archive") or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
     if not is_public:
         return None
     v = await content_view(req,cx)
     origin = origin_of(req)
+    if path in ("/archive/", "/archive") and v.site.get("archive", {}).get("enabled"):
+        try:
+            filters = archive_filter(req.query_params.multi_items())
+        except ValueError:
+            raise ApiError(400, "invalid", "Invalid archive filters.") from None
+        if path == "/archive":
+            return redirect("/archive/" + _search(req), 301, {"Cache-Control": "no-cache"})
+        return await owner_site_page(cx.db, req, builtin.all_archive_page(v, filters, origin, bool(await themes.load(cx.db, str(v.site["theme"])))))
     policy = {"sources": v.site.get("embed_sources"), "origin": origin}
     async def page(body):
         return await owner_site_page(cx.db, req, themed_html(body, sources=policy["sources"], origin=origin))

@@ -1,5 +1,6 @@
 import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
+import { archiveFilter } from "./archive";
 import * as pushWire from "./push-crypto";
 /**
  * Everything that isn't /mcp or the OAuth protocol endpoints: the public
@@ -173,12 +174,17 @@ function themedHtml(body: string, status = 200, sources?: unknown, origin = ""):
 /** Public pages through the site's theme, or null for the built-in look. */
 async function themedPage(req: Request, env: Env, path: string): Promise<Response | null> {
   const isPublic =
-    path === "/" ||
+    path === "/" || path === "/archive" ||
     /^\/(e|static)\//.test(path) ||
     /^\/[a-z][a-z0-9-]{0,29}\/((tags\/[a-z0-9-]{1,30}\/)|search\.json|feed\.xml|[a-z0-9-]{1,80}\/)?$/.test(path);
   if (!isPublic) return null;
   const v = await contentView(req,env);
   const origin = new URL(req.url).origin;
+  if ((path === "/archive/" || path === "/archive") && v.site.archive?.enabled) {
+    const filters = archiveFilter(new URL(req.url).searchParams);
+    if (path === "/archive") return new Response(null, {status:301, headers:{Location:"/archive/"+new URL(req.url).search, "Cache-Control":"no-cache"}});
+    return ownerSitePage(env.DB, req, site.allArchivePage(v,filters,origin,!!await themes.load(env.DB,String(v.site.theme))));
+  }
   const policy = {sources: v.site.embed_sources, origin};
   const page = (body: string) => ownerSitePage(env.DB, req, themedHtml(body, 200, policy.sources, origin));
   // Entry addresses before streams had paths: /e/<slug>/ moves to the entry's own.

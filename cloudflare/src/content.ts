@@ -1,3 +1,4 @@
+import { streamWrite, checkStreamSettings } from "./stream-settings";
 import { brokerWrite } from "./site-fields";
 import { storedData, sourceData, sourceWrite, migrateSources } from "./embed-storage";
 /**
@@ -216,7 +217,7 @@ async function write(
       )
       .bind(action, actor, reason, at, item.id, item.version),
   );
-  if (item.kind === "site") stmts.push(sourceWrite(db, item.version, item.data), brokerWrite(db, item.version, item.data));
+  if (item.kind === "site") stmts.push(streamWrite(db, item.version, item.data), sourceWrite(db, item.version, item.data), brokerWrite(db, item.version, item.data));
   // A changed address is remembered, so the old one can send visitors on.
   if (expected !== null && from && item.slug && from !== item.slug) {
     stmts.push(
@@ -253,13 +254,10 @@ export async function createItem(
 ): Promise<Item> {
   await migrateSources(db);
   const data = validate(kind, input);
+  if (kind === "site") checkStreamSettings(data);
   checkGuard(data);
   await checkStream(db, kind, data);
   await checkSave(db, kind, null, data, null);
-  if (kind === "site") {
-    const exists = await db.prepare("SELECT version FROM items WHERE id = ?").bind(SITE_ID).first();
-    if (exists) throw new ApiError(409, "exists", "The site item already exists. Use item_update.");
-  }
   const reqHash = await sha(JSON.stringify([kind, data]));
   if (idempotencyKey) {
     const prior = await db
@@ -272,6 +270,10 @@ export async function createItem(
       }
       return { ...JSON.parse(prior.response), replayed: true };
     }
+  }
+  if (kind === "site") {
+    const exists = await db.prepare("SELECT version FROM items WHERE id = ?").bind(SITE_ID).first();
+    if (exists) throw new ApiError(409, "exists", "The site item already exists. Use item_update.");
   }
   const k = kind as Kind;
   const id = k === "site" ? SITE_ID : newId(k);
@@ -300,6 +302,7 @@ export async function updateItem(
   const current = await getItem(db, id);
   if (current.deleted) throw new ApiError(409, "deleted", `Item ${id} is removed. Roll it back first.`);
   const [chosen, checked] = takeSlug(validate(current.kind, { ...current.data, ...patch }));
+  if (current.kind === "site") checkStreamSettings(checked);
   checkGuard(checked);
   await checkStream(db, current.kind, checked);
   await checkSave(db, current.kind, id, checked, current.kind === "card" ? String(current.data.visibility ?? "public") : null);

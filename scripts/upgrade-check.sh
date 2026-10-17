@@ -83,7 +83,7 @@ git worktree add --detach --quiet "$TMP/prev" "$SHA"
   rm -f migrations/*.sql
   cp "$ROOT"/cloudflare/migrations/*.sql migrations/
   say "Cloudflare: $PREV's tests on the new migrations ($(ls migrations | wc -l | tr -d ' ') files)"
-  if ! npx vitest run >"$TMP/cf.log" 2>&1; then
+  if ! npx vitest run --maxWorkers=4 >"$TMP/cf.log" 2>&1; then
     tail -40 "$TMP/cf.log" >&2
     die "Cloudflare: $PREV's tests fail on the new migrations"
   fi

@@ -47,6 +47,8 @@ def sitemap(v, origin, archives=True):
     for e in v.entries:
         if not e.get("external_url"):
             add(str(e["page"]), dates.get(str(e["id"]), ""))
+    if v.site.get("archive", {}).get("enabled"):
+        add("/archive/", latest(["site"] + [str(e["id"]) for e in v.entries]))
     if archives:
         groups = {}
         for e in v.entries:

@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/contract.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
-printf 'export const env = { DB: null };\nexport function waitUntil() {}\n' >"$TMP/workers.js"
+printf 'export const env = { DB: null }; export const waitUntil = () => {};\n' >"$TMP/workers.js"
 printf 'export const getMcpAuthContext = () => undefined;\n' >"$TMP/agents.js"
 (cd "$ROOT/cloudflare" && NODE_PATH="$ROOT/cloudflare/node_modules" npx esbuild "$ROOT/server/scripts/cloudflare-contract.ts" \
   --bundle --platform=node --format=esm --log-level=error \

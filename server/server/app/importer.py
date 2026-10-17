@@ -17,6 +17,7 @@ from server.spec.models import KINDS, SITE_ID
 from . import approvals, content, media
 from .db import Db
 from .errors import ApiError
+from .stream_settings import check_stream_settings
 
 MAX_FILE = 25 * 1024 * 1024
 MAX_ITEMS = 200
@@ -96,11 +97,13 @@ async def import_file(db: Db, text: str) -> dict[str, Any]:
             if it["kind"] not in KINDS:
                 raise ApiError(422, "invalid", f"kind must be one of: {', '.join(KINDS)}.")
             data = (
-                {**json.loads(site["data"]), **it["data"]}
+                {**(await content.get_item(db, SITE_ID))["data"], **it["data"]}
                 if it["kind"] == "site" and site
                 else it["data"]
             )
-            content.validate(it["kind"], data)
+            checked = content.validate(it["kind"], data)
+            if it["kind"] == "site":
+                check_stream_settings(checked)
         except ApiError as e:
             problems.append({"item": i + 1, "error": e.code, "message": e.message})
     if problems:
