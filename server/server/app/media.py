@@ -274,8 +274,8 @@ async def size_of(db: Db, name: str) -> tuple[int, int]:
 
 async def serve(db: Db, name: str, is_public: bool) -> dict[str, Any] | None:
     """GET /media/<name>: {"body": bytes, "headers": {...}}, or None. A published
-    image is cached for good (the name is the content); one only the owner may
-    see yet is never cached."""
+    image must revalidate; authenticated copies must never be stored. Access
+    and publication are checked by the route before calling this function."""
     row = await db.fetchrow("SELECT type, data FROM media WHERE name = $1", name)
     if not row:
         return None
@@ -283,9 +283,9 @@ async def serve(db: Db, name: str, is_public: bool) -> dict[str, Any] | None:
         "body": bytes(row["data"]),
         "headers": {
             "Content-Type": TYPE.get(name.split(".")[-1], row["type"]),
-            "Cache-Control": "public, max-age=31536000, immutable"
+            "Cache-Control": "no-cache, no-transform"
             if is_public
-            else "private, no-store",
+            else "private, no-store, no-transform",
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": "default-src 'none'",
         },

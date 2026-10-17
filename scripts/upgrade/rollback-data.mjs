@@ -144,7 +144,16 @@ async function seed(base) {
   response = await http.request(`/journal/${slug}/`, {}, false);
   assert.equal(response.status, 200);
   assert((await response.text()).includes('<iframe'), 'new code must actually publish an engine embed');
-  const stored = new Uint8Array(await (await http.request(picture.image, {}, false)).arrayBuffer());
+  const mediaResponse = await http.request(picture.image, {}, false);
+  const mediaTag = mediaResponse.headers.get("ETag");
+  assert.match(mediaTag, /^W\/"sha256-[a-f0-9]{64}"$/);
+  assert.equal(mediaResponse.headers.get("Cache-Control"), "no-cache, no-transform");
+  const stored = new Uint8Array(await mediaResponse.arrayBuffer());
+  for (const method of ["GET", "HEAD"]) {
+    const validated = await http.request(picture.image, {method, headers:{"If-None-Match":mediaTag}}, false);
+    assert.equal(validated.status,304,"current media revalidation");
+    assert.equal((await validated.arrayBuffer()).byteLength,0);
+  }
   assert(stored.length < Buffer.from(images['gps.jpeg'], 'base64').length, 'the stored picture must have stripped metadata');
   for (const event of [{ t: 'pv', id: 'rollback-view-0001', p: '/', k: 'home' }, { t: 'hb', id: 'rollback-view-0001', e: 30000, d: 25 }, { t: 'hb', id: 'rollback-view-0001', e: 90000, d: 100 }]) {
     const r = await http.request('/collect', { method: 'POST', headers: { 'user-agent': 'Mozilla/5.0 (rollback reader)', 'content-type': 'text/plain' }, body: JSON.stringify(event) }, false);
@@ -176,7 +185,7 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, token:access.token, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -191,6 +200,15 @@ async function checkPrevious(base, fixture, edition) {
     if (route.endsWith('/feed.xml')) assert(body.includes('<feed') && body.includes('Rollback entry'), 'previous feed must include the new entry');
     const header = response.headers.get('X-Porchsite-Release');
     if (header) assert.equal(header, release, 'must exercise the previous runtime');
+  }
+  for (const method of ["GET", "HEAD"]) {
+    const image = await http.request(fixture.picture,{method,headers:{"If-None-Match":fixture.mediaTag}},false);
+    assert.equal(image.status,200,"previous media ignores new validator and still serves published bytes");
+    const body = new Uint8Array(await image.arrayBuffer());
+    if (method === "GET") assert.deepEqual(body,fixture.imageBytes); else assert.equal(body.length,0);
+    const missing = await http.request("/media/00000000000000000000000000000000.jpg",{method,headers:{"If-None-Match":"*"}},false);
+    assert.equal(missing.status,404,"previous media miss cannot become 304");
+    assert.match(missing.headers.get("Cache-Control"),/no-store/);
   }
   let response = await http.post('/login/options', {});
   assert.equal(response.status, 200, await response.clone().text());
@@ -250,6 +268,8 @@ try {
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
       if(fixture.streamFeature){
+        const previousDefaults = (await existingCall(base,fixture.token,'site_state',{})).site_defaults;
+        const previousStreams = Object.hasOwn(previousDefaults,'archive');
         await runtime.stop(); runtime=null;
         runtime=await current();
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
@@ -260,7 +280,7 @@ try {
         await approveAt(http,fixture.pending);
         await runtime.stop();runtime=null;
         runtime=await current();
-        response=await fetch(base+'/archive/');assert.equal(response.status,404,'old approval cannot activate unseen stream extension');
+        response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
         await runtime.stop();runtime=null;
         runtime=await old();
         const edited=await existingCall(base,fixture.token,'item_update',{id:'site',version:fixture.pendingVersion,data:{title:'Rollback old edit'}});
@@ -270,10 +290,10 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
-        assert.equal(state.items[0].data.streams.length,8,'old edit retains only legacy streams');
-        assert(!state.items[0].data.archive?.enabled,'old edit does not inherit archive');
-        assert.equal((await fetch(base+'/archive/')).status,404);
-        console.log(`rollback-data: ${edition}: 9-stream return restored; old approval and old edit cannot activate extension`);
+        assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
+        assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
+        assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
+        console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }
     } catch (error) {
       failures.push(`${edition}: ${error.stack || error}`);

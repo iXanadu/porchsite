@@ -101,7 +101,7 @@ describe("private sites",()=>{
   expect(await (await f.browser.at("/review/"+request.id)).text()).toContain("This makes the site public.");
   await approvals.decide(db,request.id,{site:{decision:"approve"}},"");
   expect((await visitor.at("/")).status).toBe(200);expect(await livePrivate(db)).toBe(false);
-  expect((await visitor.at(f.picture)).headers.get("Cache-Control")).toContain("public");
+  expect((await visitor.at(f.picture)).headers.get("Cache-Control")).toBe("no-cache, no-transform");
   expect(await (await visitor.at("/robots.txt")).text()).toContain("Allow");
   const count=await db.prepare("SELECT count(*) n FROM media").first("n");
   await expect(importer.importFile(db,JSON.stringify({porchsite_import:1,items:[{kind:"site",data:{private:false}}],images:{bad:"invalid"}}))).rejects.toMatchObject({code:"invalid"});

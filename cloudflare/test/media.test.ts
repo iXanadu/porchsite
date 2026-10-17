@@ -118,8 +118,8 @@ describe("images", () => {
     const req = await approvals.request(db, who, [a.id], "");
     await approvals.decide(db, req.id, { [a.id]: { decision: "approve" } }, "");
     expect(await media.published(db, name)).toBe(true);
-    expect((await media.serve(db, name, true))?.headers.get("cache-control")).toContain("immutable");
-    expect((await media.serve(db, name, false))?.headers.get("cache-control")).toBe("private, no-store");
+    expect((await media.serve(db, name, true))?.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect((await media.serve(db, name, false))?.headers.get("cache-control")).toBe("private, no-store, no-transform");
   });
 
   it("refuses non-https image links in the schema", async () => {

@@ -1,0 +1,14 @@
+[
+  {"name":"missing", "value":null, "status":200},
+  {"name":"weak", "value":"$tag", "status":304},
+  {"name":"strong", "value":"$strong", "status":304},
+  {"name":"wildcard", "value":"*", "status":304},
+  {"name":"list", "value":"\"other\", $tag", "status":304},
+  {"name":"quoted comma", "value":"\"other,tag\", $strong", "status":304},
+  {"name":"nonmatch", "value":"W/\"different\"", "status":200},
+  {"name":"unquoted", "value":"sha256-test", "status":200},
+  {"name":"unterminated", "value":"$tag, \"broken", "status":200},
+  {"name":"trailing comma", "value":"$tag,", "status":200},
+  {"name":"wildcard list", "value":"*, $tag", "status":200},
+  {"name":"lowercase weak", "value":"w/$strong", "status":200}
+]
