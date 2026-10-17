@@ -60,7 +60,8 @@
       "canonical": "https://example.com/table/",
       "title": "Table",
       "description": "",
-      "markdown": "# Table\n\n<https://example.com/table/>\n\nNumbers\n\n| Name | Value |\n| :--- | ---: |\n| one\\|two | **3** |\n| ` a\\ `\\|`` b`c `` | [go\\|see](<https://example.com/a%7Cb>) |\n"
+      "markdown": "# Table\n\n<https://example.com/table/>\n\nNumbers\n\n| Name | Value |\n| :--- | ---: |\n| one\\|two | **3** |\n| ` a\\ `\\|`` b`c `` | [go\\|see](<https://example.com/a%7Cb>) |\n",
+      "structuredType": "CollectionPage"
     },
     {
       "name": "af_pipe_table_fallback",
@@ -68,7 +69,8 @@
       "canonical": "https://example.com/table/",
       "title": "Fallback",
       "description": "",
-      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nHeader |\n\nFirst | Second |\n"
+      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nHeader |\n\nFirst | Second |\n",
+      "structuredType": "CollectionPage"
     },
     {
       "name": "af_pipe_table_code_spaces",
@@ -76,7 +78,8 @@
       "canonical": "https://example.com/table/",
       "title": "Spaces",
       "description": "",
-      "markdown": "# Spaces\n\n<https://example.com/table/>\n\n| Code |\n| --- |\n| `  `\\|`  ` |\n"
+      "markdown": "# Spaces\n\n<https://example.com/table/>\n\n| Code |\n| --- |\n| `  `\\|`  ` |\n",
+      "structuredType": "CollectionPage"
     },
     {
       "name": "af_pipe_table_unsupported_visible_children",
@@ -84,7 +87,8 @@
       "canonical": "https://example.com/table/",
       "title": "Fallback",
       "description": "",
-      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nFirst caption Second caption\n\nHeader |\n\nValue |\n"
+      "markdown": "# Fallback\n\n<https://example.com/table/>\n\nFirst caption Second caption\n\nHeader |\n\nValue |\n",
+      "structuredType": "CollectionPage"
     }
   ],
   "accept": [
