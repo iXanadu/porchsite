@@ -48,6 +48,8 @@ export async function agentPage(req:Request,route:Route,paths:()=>Promise<string
   const copy=path+'index.md'+pageQuery(req,path);
   const link=`<${copy}>; rel="alternate"; type="text/markdown", </llms.txt>; rel="describedby"`;
   headers.set('Link',[headers.get('Link'),link].filter(Boolean).join(', '));
-  const body=(await response.text()).replace('</head>',`<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
+  let original=await response.text();
+  if(path==='/archive/'){const canonical=new URL(path+pageQuery(req,path),req.url).href.replace(/&/g,'&amp;');original=original.replace(/<link rel="canonical" href="[^"]*">/,`<link rel="canonical" href="${canonical}">`);}
+  const body=original.replace('</head>',`<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
   return new Response(body,{status:200,headers});
 }

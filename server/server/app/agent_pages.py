@@ -70,5 +70,9 @@ async def agent_page(req, route, paths, origin, not_found):
     copy = path+'index.md'+page_query(req, path)
     link = '<'+copy+'>; rel="alternate"; type="text/markdown", </llms.txt>; rel="describedby"'
     headers['link'] = ', '.join(x for x in (headers.get('link'), link) if x)
-    body = response.body.decode().replace('</head>', '<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
+    original = response.body.decode()
+    if path == '/archive/':
+        canonical = (origin+path+page_query(req, path)).replace('&', '&amp;')
+        original = re.sub(r'<link rel="canonical" href="[^"]*">', lambda _: '<link rel="canonical" href="'+canonical+'">', original, count=1)
+    body = original.replace('</head>', '<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
     return Response(body, headers=headers)

@@ -138,8 +138,9 @@ rendering; the private-content gate runs before these refusals.
 
 When enabled, append a navigation link labelled with `archive.title` after
 the ordinary section links, and include the canonical `/archive/` in the
-sitemap even when empty. Filtered URLs are not added to the sitemap; all
-archive variants use `/archive/` as their canonical URL. The archive's
+sitemap even when empty. Filtered URLs are not added to the sitemap. Public
+archive variants use the normalized filter URL as their HTML canonical,
+as specified in AF-2; the unfiltered page uses `/archive/`. The archive's
 `lastmod` is the newest site/member-entry approval date. `/archive` redirects
 to `/archive/` preserving its query. Enabling is refused with `invalid` if
 any stream id or effective path is `archive`, so an existing stream is never

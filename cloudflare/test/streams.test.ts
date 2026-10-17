@@ -100,6 +100,7 @@ it('ST-2 private archive gates before malformed queries or redirects; owner and 
   const r=await new Browser().at(path,{method,headers:{'If-None-Match':'"old"'}});expect(r.status).toBe(404);expect(r.headers.get('Location')).toBeNull();expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(await r.text()).toBe(method==='GET'?BLANK:'');
   for(const browser of [own,read]){const r=await browser.at(path,{method});expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(r.status).toBe(path==='/archive'?301:path.includes('bogus')||path.includes('script')||path.includes('unknown')?400:200);}
  }
+ for(const browser of [own,read])expect(await(await browser.at('/archive/?stream=missing')).text()).toContain(`<link rel="canonical" href="${origin}/archive/">`);
  for(const browser of [own,read,new Browser()])for(const path of ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus'])for(const method of ['GET','HEAD']){
   const r=await browser.at(path,{method,headers:{Accept:'text/markdown','If-None-Match':'*'}});expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');
   expect(r.headers.get('Content-Type')).toBe('text/html; charset=utf-8');expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
@@ -117,7 +118,9 @@ it('af_combined_archive copies preserve filters, canonical validators and map vi
  const get=(path:string,headers:Record<string,string>={},method='GET')=>handle(new Request(origin+path,{method,headers}),e);
  const query='?tag=report&stream=part-0&sort=stream',canonical='?sort=stream&stream=part-0&tag=report';
  const html=await get('/archive/'+query);expect(html.status).toBe(200);expect(html.headers.get('Link')).toContain('/archive/index.md'+canonical);
- expect(await html.text()).toContain('/archive/index.md?sort=stream&amp;stream=part-0&amp;tag=report');
+ const htmlBody=await html.text();expect(htmlBody).toContain('/archive/index.md?sort=stream&amp;stream=part-0&amp;tag=report');
+ expect(htmlBody).toContain(`<link rel="canonical" href="${origin}/archive/?sort=stream&amp;stream=part-0&amp;tag=report">`);
+ expect(await(await get('/archive/?sort=date&stream=part-0&tag=report')).text()).toContain(`<link rel="canonical" href="${origin}/archive/?stream=part-0&amp;tag=report">`);
  const md=await get('/archive/'+query,{Accept:'text/markdown'}),body=await md.text();expect(body).toContain('<'+origin+'/archive/'+canonical+'>');expect(body).toContain('First report');expect(body).not.toContain('Ninth report');expect(body).not.toContain('SECRET_DRAFT');
  const direct=await get('/archive/index.md'+canonical);expect(await direct.text()).toBe(body);expect(direct.headers.get('ETag')).toBe(md.headers.get('ETag'));
  const tag=md.headers.get('ETag')!;expect(tag).toBeTruthy();expect(html.headers.get('ETag')).not.toBe(tag);

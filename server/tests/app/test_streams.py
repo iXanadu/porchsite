@@ -352,6 +352,8 @@ async def test_st2_private_archive_gate_before_query_or_redirect_and_owner_reade
                     else 200
                 )
 
+    for browser in (own, read):
+        assert '<link rel="canonical" href="'+ORIGIN+'/archive/">' in (await browser.at('/archive/?stream=missing')).text
     for browser in (own, read, visitor):
         for path in ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus']:
             for method in ['GET','HEAD']:
@@ -376,6 +378,8 @@ async def test_af_combined_archive_filters_validators_and_map(db, http):
     html = await http.get('/archive/'+query)
     assert html.status_code == 200 and '/archive/index.md'+canonical in html.headers['link']
     assert '/archive/index.md?sort=stream&amp;stream=part-0&amp;tag=report' in html.text
+    assert '<link rel="canonical" href="'+ORIGIN+'/archive/?sort=stream&amp;stream=part-0&amp;tag=report">' in html.text
+    assert '<link rel="canonical" href="'+ORIGIN+'/archive/?stream=part-0&amp;tag=report">' in (await http.get('/archive/?sort=date&stream=part-0&tag=report')).text
     md = await http.get('/archive/'+query, headers={'Accept':'text/markdown'})
     assert '<'+ORIGIN+'/archive/'+canonical+'>' in md.text
     assert 'First report' in md.text and 'Ninth report' not in md.text and 'SECRET_DRAFT' not in md.text
