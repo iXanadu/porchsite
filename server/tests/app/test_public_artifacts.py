@@ -380,10 +380,19 @@ async def test_af_prebuild_no_owner_bytes(db,http):
     assert 'sk-owner-link' not in json.dumps(rows) and '/review' not in json.dumps(rows)
     hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
     await publish(db,hidden)
+    private_tags=set()
     for role in ['owner','reader']:
         headers={'Cookie':f'__Host-sk_{role}={role}-fixture'}
         assert (await http.get('/',headers=headers)).status_code==200
-        assert (await http.get('/index.md',headers=headers)).content==SIGN_IN.encode()
+        copy=await http.get('/index.md',headers=headers)
+        assert copy.status_code==200 and copy.headers['cache-control']=='private, no-cache, must-revalidate, no-transform'
+        tag=copy.headers['etag'];private_tags.add(tag)
+        assert tag.startswith('W/"ag-sha256-') and '/review' not in copy.text
+        assert (await http.get('/index.md',headers={**headers,'If-None-Match':tag})).status_code==304
+    assert len(private_tags)==2
+    for headers in ({},{'Authorization':'Bearer psk_unknown'},{'Authorization':'Bearer prk_unknown'},{'Cookie':'__Host-sk_owner=expired'}):
+        denied=await http.get('/index.md',headers=headers)
+        assert denied.status_code==404 and denied.text==(BLANK if 'Authorization' in headers else SIGN_IN) and 'etag' not in denied.headers
     assert await count(db)==0
 
 
