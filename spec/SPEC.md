@@ -392,7 +392,8 @@ also gets an ETag, so a still-published unchanged image can revalidate with
 a bodyless 304 instead of a full download. This replaces the long media
 lifetime; it does not change the separate AF page/feed policy.
 
-Use the AF-2 validator encoding for binary media: SHA-256 of the canonical
+Binary media keeps its body-validator encoding (public text uses AF-2
+dependency validators): SHA-256 of the canonical
 absolute media URL's UTF-8 bytes, a zero byte, the exact Content-Type's UTF-8
 bytes, a zero byte, the public Content-Signal's UTF-8 bytes (empty if media
 emits none), a zero byte, then the stored image bytes without any text
@@ -1660,8 +1661,7 @@ validators and derived artifacts never enter a shared store.
 ### AF-1 / use case 9: traffic counts by agent kind
 
 Both editions count engine-observed requests for public HTML, Markdown,
-robots, feeds, sitemap and llms.txt, including successful GET/HEAD and
-conditional 304s, by site-local calendar day and one of four kinds: search
+robots, feeds, sitemap and llms.txt, including only successful GET 200 responses, by site-local calendar day and one of four kinds: search
 crawler, training crawler, agent acting for a person, or other. Use one
 shared, versioned user-agent classification table, evaluated in memory:
 OAI-SearchBot, Claude-SearchBot and Googlebot are search; GPTBot and
@@ -1689,7 +1689,11 @@ has only legacy visit/view/engagement columns, so neither can represent
 these counts without changing existing storage semantics. Add a NEW
 `agent_traffic_daily` table with `day`, `kind`, `requests` and composite
 primary key `(day, kind)`; kind has only the four classes above, count is
-nonnegative, and increments are atomic. No new columns or values enter
+nonnegative, and flushed increments are atomic. Counts are buffered in
+process memory by day and kind only, flushed in one bounded UPSERT at most
+once per minute in background work. Process loss can lose unflushed counts;
+failed flushes retain bounded totals for retry. HEAD and 304 neither count
+nor flush. Reports disclose delayed visibility and possible loss. No new columns or values enter
 legacy analytics tables or stored content JSON. A previous runtime ignores
 the additive table and keeps its original statistics behavior.
 
@@ -1704,7 +1708,7 @@ public response; include failed increments in the coverage limitation.
 Show no advice, ranking inference or automatic prompt. Public
 pages, Markdown, JSON-LD and llms.txt never expose these counts.
 Required paired cases are `af_agent_kind_daily_counts` (each class, other,
-HEAD/304, concurrent increments and date rollover),
+exclusion of HEAD/304, concurrent buffered increments, flush failure and date rollover),
 `af_agent_kind_no_identifiers` (schema and writes contain only aggregates),
 `af_agent_kind_owner_only` (authorized report, no public/private-denial
 leak), and `af_agent_kind_parity_rollback` (same classification/report in
@@ -1751,27 +1755,27 @@ archives, tags, feeds, `/sitemap.xml` and public `/robots.txt` carry an ETag. Th
 to the new successful Markdown and llms.txt responses. Missing resources,
 redirects, errors, sign-in, review and capability URLs gain no AF validator.
 
-For a representation with canonical HTML URL `U`, Content-Type `T`,
-public Content-Signal value `S` (AF-4) and uncompressed UTF-8 bytes `B`,
-compute SHA-256 over UTF-8(`U`), one zero byte, UTF-8(`T`), one zero byte,
-UTF-8(`S`), one zero byte, then `B`. For feeds, sitemap, robots and llms.txt,
-`U` is that resource's canonical site URL. Copies and negotiated Markdown
-both use their canonical HTML URL, never the copy URL. The combined
-archive includes its normalized filters in that URL: omit empty values
-and the default date order, then serialize `sort`, `stream`, `tag` in that
-order. Equivalent filter orderings therefore share a validator; different
-filtered bodies cannot reuse one. Other existing pages retain their URL
-identity. The ETag is `W/"sha256-<64 lowercase hex digits>"`. Use the exact
-Content-Type specified for that format, including `; charset=utf-8`.
-The weak tag permits transport compression without claiming byte equality
-between content codings. Both editions produce identical representation
-bytes, Content-Type and tags at the same approved state and site origin.
-No random id, secret, request cookie, internal-only database id or draft
-revision enters a representation. Visible time-dependent content follows
-the same render clock in both editions; its next visible change expires
-prepared output and is an effective representation change. A different body or format changes its
-tag; HTML and Markdown never share a tag. The direct Markdown URL and the
-negotiated Markdown use the same bytes and tag.
+For public text representations, the ETag is `W/"dep1-<64 lowercase hex>"`.
+Compute SHA-256 over canonical JSON of the current render-dependency document,
+engine release, canonical origin/path and normalized archive query, selected
+Content-Type, approved training signal and UTC minute, as defined by PERF-1
+below. No body is rendered or hashed for a matching conditional read. One
+current-data statement must prove that the requested canonical path is still
+a public resource before any 304, including `*`. A maximum version plus count
+is insufficient: include all live identities and versions. Theme identity
+is name, version and sha256, never the package blob. Missing paths use these
+facts without liveView; existing legacy redirects retain their normal
+bounded address lookup and never become conditional successes.
+
+Direct and negotiated Markdown use the same canonical HTML URL and type,
+so their validators agree. HTML and Markdown have different types and tags.
+Both editions canonicalize keys, row order and timestamp strings identically.
+A body change must imply a changed dependency or minute; conservatively
+changing a validator without a body change is allowed. No pending body,
+credential or session value enters a public validator. This algorithm also
+applies to prepared public text copies; PUBLIC_ARTIFACTS does not select a
+second text validator algorithm. Binary media retains its separately
+specified SHA-256 body validator and private validators are unchanged.
 
 Select the representation and check access first. Then implement
 If-None-Match using the weak comparison and field grammar in
@@ -2074,10 +2078,10 @@ Eligibility is established from that same validated live view and the
 engine's canonical route rules: home, enabled combined archive, and local
 non-draft entries. It does not perform internal HTTP reachability probes.
 Both ordinary and conditional map reads use a small constant number of
-database calls independent of entry count (at most 16 with prepared artifacts
-off), one whole-live query, no template/body rendering, no media lookup and
-no per-link Markdown projection. Compute the normal AF-2 body validator from
-the bounded map text before any such expensive work; a matching GET/HEAD
+database calls independent of entry count. With prepared artifacts off, a
+matching conditional map read uses at most three statements and no whole-live
+body query; a map 200 uses at most one reader view. Neither path renders
+templates/bodies, looks up media bytes or projects per-link Markdown. Compute the AF-2 dependency validator before constructing the map text; a matching GET/HEAD
 returns the usual empty 304. No derived body or validator bypasses the fresh
 private/publication gate, and session requests remain no-store without a
 public validator. A 200-entry fixture proves the database-call ceiling for
@@ -2315,7 +2319,7 @@ on error. If current authorization/state cannot be determined, follow the
 existing failure/denial path with no-store and no validators, not a cached
 success. Corrupt or unavailable derived storage cannot break publication or
 make a private response public. Current request accounting still runs exactly
-once: UC9 classifies/counts the actual successful public GET/HEAD/304; internal
+once: UC9 classifies/counts the actual anonymous public GET 200; internal
 preparation creates no traffic count, page view or synthetic browser event.
 Do not serialize an old analytics result into an artifact.
 
@@ -2363,7 +2367,7 @@ Required named paired acceptance cases:
 | `af_prebuild_clock` | Fixed clock tests for hours/notices/events, local midnight and DST; just before/at/after expiry matches live text/tags without a content mutation. Unknown boundaries bypass storage. |
 | `af_prebuild_negotiation` | Valid and invalid Accept/query variants, equivalent filters, distinct HTML/Markdown, GET/HEAD/304, unknown parameters and deliberate key-poisoning inputs keep existing semantics and bounded keys. |
 | `af_prebuild_bounded_failure` | Concurrent fills, eviction, 256 KiB body/128-row/4 MiB limits, interruption, absent/corrupt/unavailable storage and gate failure; no truncation, stale fallback, public authorization fallback or leaked row metadata. |
-| `af_prebuild_accounting` | Warm/cold/304 each count once by current UC9 rules, authenticated/private traffic does not; preparation creates no request count or page view. |
+| `af_prebuild_accounting` | Warm/cold GET 200 count once; HEAD/304 count zero under UC9, authenticated/private traffic does not; preparation creates no request count or page view. |
 | `af_prebuild_upgrade_return` | Actual previous server runtime and archived Worker on the additive schema can approve/edit/unpublish/change privacy/theme/share cards, then return; stale rows are purged before lookup, no old 304/private copy, and published owner content/receipts/counters survive. |
 | `af_prebuild_hosted_cpu` | Reproducible before/after hosted CPU and server CPU report, complete hit-path accounting and rebuild cost; hosted evidence is identified separately from local diagnostics. |
 
@@ -2415,7 +2419,7 @@ Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
 13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap.
-14. ETag, when present, hashes only the anonymous published representation: canonical URL U, Content-Type T, the approved training signal S and body bytes B, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+14. ETag, when present, hashes only anonymous published render dependencies plus release, origin, canonical path, Content-Type, approved training signal and UTC minute, with nothing from any session, using AF-2's dependency encoding. Media retains its binary-body encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
 15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on every authenticated page (SV-PV1). Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
@@ -2469,7 +2473,7 @@ The named cases implement the corresponding numbered invariant above.
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
 | 12 | `af_authenticated_cache_bypass` | Owner/reader requests bypass shared copies and public 304s and send no-store. |
 | 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor agent copies. |
-| 14 | `af_etag_public_input` | Hash canonical URL, Content-Type, approved training signal and body bytes only, using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
+| 14 | `af_etag_public_input` | Hash current published dependencies, release, canonical URL, Content-Type, approved training signal and minute using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
 | 15 | `af_owner_then_visitor` | Owner request followed by visitor request never transfers owner decoration. |
 | 16 | `af_invalidate_before_serve` | Unpublish, private-on and card visibility invalidate copies and old tags. |
 | 17 | `af_accept_cache_separation` | Vary: Accept plus canonical direct copy; no owner bytes under either variant. |
@@ -2528,10 +2532,10 @@ the existing parity, conformance and mutation gates remain required.
 - Q2. Which consumer assistants connect to a remote MCP server with OAuth
   today, and do any need an adapter?
 
-### PERF-1: bounded public reads (proposal)
+### PERF-1: bounded public reads
 
 This amendment replaces body-derived validators on anonymous public text
-representations when prepared public copies are disabled. It does not change
+representations in both live and prepared public text. It does not change
 media validators or private principal-bound validators. Prepared copies stay
 off by default; no private body is prepared or shared.
 
@@ -2566,7 +2570,8 @@ Markdown parsing, body hashing, a prepared-copy snapshot/read/fill, or request
 accounting. It retains the corresponding Content-Type, public cache policy,
 Content-Signal, discovery Link and Vary headers. HEAD never returns a body.
 A miss builds at most one approved reader view per request and passes it to
-all page, archive and missing-page helpers. Reuse the access and training
+all page, archive and missing-page helpers. Current-data facts resolve canonical misses without
+a view; legacy address redirects keep their bounded lookup. Reuse the access and training
 results within that request; do not repeat their database queries.
 
 Structured facts and the public map take their title and optional summary
@@ -2580,8 +2585,9 @@ unapproved fields. Preserve map links, ordering and 50-link/16 KiB bounds.
 
 After the private gate, a path outside the engine's public route shapes gets
 a tiny fixed 404 without loading a reader view. This decision uses path shape,
-not a lookup of whether a slug exists. A route-shaped miss can reuse the one
-loaded view for its ordinary missing-page behavior.
+not a lookup of whether a slug exists. A canonical route-shaped miss is a 404 from the current dependency facts,
+without liveView, even with If-None-Match *. Existing aliases and historical
+address redirects are checked before declaring a miss.
 
 UC9 becomes best-effort buffered accounting of anonymous public GET 200
 responses only. HEAD and 304 no longer increment counts. Keep only day, kind
