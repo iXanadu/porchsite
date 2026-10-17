@@ -307,6 +307,24 @@ CREATE TABLE agent_traffic_daily (
 -- No backfill from approved fields: older code can approve unseen keys.
 CREATE TABLE training_approvals (version INTEGER PRIMARY KEY);
 """),
+    ("0017_public_artifacts", """
+CREATE TABLE public_artifact_state (
+ id INTEGER PRIMARY KEY,
+ generation TEXT NOT NULL DEFAULT '',
+ revision BIGINT NOT NULL DEFAULT 0,
+ preparing TEXT NOT NULL DEFAULT '',
+ prepare_until BIGINT NOT NULL DEFAULT 0
+);
+INSERT INTO public_artifact_state(id) VALUES(1);
+CREATE TABLE public_artifacts (
+ key TEXT PRIMARY KEY,
+ generation TEXT NOT NULL,
+ body TEXT NOT NULL,
+ metadata TEXT NOT NULL,
+ valid_until BIGINT NOT NULL,
+ size INTEGER NOT NULL
+);
+"""),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

@@ -221,6 +221,8 @@ async def decide(
 
 
 async def _go_live(c: Any, row: Any, at: str) -> None:
+    from .public_artifacts import invalidate
+    await invalidate(c)
     if row["deleted"]:
         await c.execute("DELETE FROM live WHERE item_id = $1", row["id"])
     else:

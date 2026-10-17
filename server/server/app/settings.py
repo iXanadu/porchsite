@@ -8,6 +8,7 @@ build (RELEASE).
                         in the database)
   PORCHSITE_SITE_URL    the site's address (optional; else the address a
                         request came in on). Assistants' tokens are bound to it.
+  PORCHSITE_PUBLIC_ARTIFACTS  opt in to prepared public copies only when exactly 1
   PORCHSITE_RELEASE     the release this is, sent on every answer (default "dev")
 """
 
@@ -21,6 +22,7 @@ class Settings:
     setup_code: str = ""
     site_url: str = ""
     release: str = "dev"
+    public_artifacts: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -29,4 +31,5 @@ class Settings:
             setup_code=os.environ.get("PORCHSITE_SETUP_CODE", ""),
             site_url=os.environ.get("PORCHSITE_SITE_URL", "").rstrip("/"),
             release=os.environ.get("PORCHSITE_RELEASE", "") or "dev",
+            public_artifacts=os.environ.get("PORCHSITE_PUBLIC_ARTIFACTS", "")=="1",
         )

@@ -52,6 +52,25 @@ So a developer can judge it:
 - **Outbound requests:** the site fetches images from links an assistant
   gives it, and reads the theme catalog at get.porchsite.dev.
 
+## Prepared public pages
+
+Public HTML, Markdown and llms.txt may use bounded prepared copies after a
+fresh live access check. Private content is never prebuilt. The Cloudflare
+binding `SITE_URL` and server setting `PORCHSITE_SITE_URL` supply the stable
+canonical origin; without a matching configured origin, rendering stays live.
+Preserve that origin when updating because assistant tokens also bind to it.
+The public cache policy remains no-cache/no-transform and conditional reads
+still revalidate at the engine. Prepared data is disposable; published owner
+content and approval remain the source of truth. Local timing is not evidence
+of hosted CPU savings; release measurement reports identify the environment.
+
+Prepared copies are off by default. An operator may opt in with
+`PUBLIC_ARTIFACTS=1` on Workers or `PORCHSITE_PUBLIC_ARTIFACTS=1` on server,
+plus the configured canonical site origin. Other flag values leave ordinary
+live rendering in place. Invalidation still runs with delivery off. The
+installer does not turn the flag on. Hosted CPU must be measured separately
+before default enablement; local process CPU is diagnostic only.
+
 ## Running it on Cloudflare by hand
 
 The [install guide](https://get.porchsite.dev/install.md) is written for an

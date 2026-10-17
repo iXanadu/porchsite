@@ -182,7 +182,7 @@ async function seed(base) {
   }
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
-  await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: receiptFeature} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
+  await call('item_update', { id: site.id, version: site.version, data: { title: 'Pending published title', ...(trainingFeature ? {ai_training_disabled: receiptFeature} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
   const pending = await call('approval_request', { ids: [site.id], note: 'Pending source fixture' });
   let batch = false;
   if (tools.includes('photo_batch_link')) {
@@ -202,7 +202,7 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, entryId:entry.id, slug, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -290,9 +290,9 @@ try {
       if (edition === 'cloudflare') {
         const dir = path.join(temp, 'worker'); mkdirSync(dir);
         const entry = path.join(dir, 'current.ts');
-        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
+        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);if(new URL(req.url).pathname==='/__rollback/artifacts')return env.DB.prepare('SELECT key,generation FROM public_artifacts').all().then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
         copyFileSync(bundle, path.join(dir, 'previous.js'));
-        const config = main => ({ name: 'rollback-fixture', main, compatibility_date: '2026-08-15', compatibility_flags: ['nodejs_compat'], d1_databases: [{ binding: 'DB', database_name: 'rollback-fixture', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: path.join(root,'cloudflare/migrations') }], kv_namespaces: [{ binding: 'OAUTH_KV', id: 'rollback-fixture' }], vars: { SETUP_CODE: setupCode } });
+        const config = main => ({ name: 'rollback-fixture', main, compatibility_date: '2026-08-15', compatibility_flags: ['nodejs_compat'], d1_databases: [{ binding: 'DB', database_name: 'rollback-fixture', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: path.join(root,'cloudflare/migrations') }], kv_namespaces: [{ binding: 'OAUTH_KV', id: 'rollback-fixture' }], vars: { SETUP_CODE: setupCode, SITE_URL: base, PUBLIC_ARTIFACTS: '1' } });
         writeFileSync(path.join(dir,'current.json'),JSON.stringify({...config(entry),define:{RELEASE:JSON.stringify('rollback-current')}}));
         writeFileSync(path.join(dir,'previous.json'),JSON.stringify({...config(path.join(dir,'previous.js')),no_bundle:true}));
         const wrangler = path.join(root,'cloudflare/node_modules/.bin/wrangler'), state = path.join(temp,'d1');
@@ -302,12 +302,15 @@ try {
       } else {
         database = command(python,[adapter,'create']); databases.add(database);
         const url = new URL(process.env.PORCHSITE_TEST_DSN); url.pathname = '/' + database;
-        const common = { PORCHSITE_DSN: url.href, PORCHSITE_SETUP_CODE: setupCode, ROLLBACK_PORT: String(port) };
+        const common = { PORCHSITE_DSN: url.href, PORCHSITE_SETUP_CODE: setupCode, PORCHSITE_SITE_URL: base, PORCHSITE_PUBLIC_ARTIFACTS: '1', ROLLBACK_PORT: String(port) };
         current = () => launch(python,[adapter,'serve-current'],{...common,PYTHONPATH:path.join(root,'server'),PORCHSITE_RELEASE:'rollback-current'},base);
         old = () => launch(python,[adapter,'serve-old'],{...common,PYTHONPATH:path.join(previous,'server'),PORCHSITE_RELEASE:release},base);
       }
       runtime = await current(); const fixture = await seed(base);
       await checkTraining(base,fixture,true);
+      const artifactProbe=await fetch(base+'/__rollback/artifacts');
+      fixture.artifactFeature=artifactProbe.status===200;
+      if(fixture.artifactFeature){const rows=await artifactProbe.json();assert((rows.results??rows).length>0,'current code warmed stored anonymous copies');}
       console.log(`rollback-data: ${edition}: seeded current features ${JSON.stringify(fixture.features)}`);
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
@@ -336,10 +339,16 @@ try {
         await checkTraining(base,fixture,true);
         await runtime.stop();runtime=null;
         runtime=await old();
+        const beforeOldPublish=await fetch(base+'/');fixture.beforeOldPublishTag=beforeOldPublish.headers.get('ETag');
         const http=await loginOwner(base,fixture);
         await approveAt(http,fixture.pending);
         await runtime.stop();runtime=null;
         runtime=await current();
+        if(fixture.artifactFeature){
+          const previousRows=await(await fetch(base+'/__rollback/artifacts')).json();assert((previousRows.results??previousRows).length>0,'old runtime left prepared rows to validate on return');
+          const fresh=await fetch(base+'/',{headers:{'If-None-Match':fixture.beforeOldPublishTag}});assert.equal(fresh.status,200,'old publication invalidates a warm prepared validator on return');
+          const freshRows=await(await fetch(base+'/__rollback/artifacts')).json();assert.notDeepEqual(freshRows,previousRows,'complete dependency digest replaces rows after actual old publication');
+        }
         response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
         const unreceipted = await checkTraining(base,fixture,previousReceipts);
         if(fixture.receiptFeature && !previousReceipts){
@@ -357,6 +366,7 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
+        if(fixture.artifactFeature){const page=await(await fetch(base+'/')).text();assert(page.includes('Rollback old edit'),'actual previous edit cannot return the prior prepared title');console.log(`rollback-data: ${edition}: prepared copies survive rollback storage but stale published dependencies cannot be delivered on return`);}
         assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
         assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
         assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
@@ -367,6 +377,42 @@ try {
           await approveAt(await loginOwner(base,fixture),new URL(requested.review_url).pathname);
           await checkTraining(base,fixture,true);
           console.log(`rollback-data: ${edition}: training receipt survives rollback; ${previousReceipts?'receipt-aware previous approval/edit preserves shown choice':'old approval/edit cannot activate unseen choice'}; fresh shown owner approval activates its own version ${fresh.version}`);
+        }
+        if(fixture.artifactFeature){
+          const entryPath=`/journal/${fixture.slug}/`;
+          const before=(await fetch(base+'/')).headers.get('ETag');
+          await runtime.stop();runtime=null;runtime=await old();
+          const owner=await loginOwner(base,fixture),review=await owner.request('/review'),reviewHTML=await review.text();
+          const csrf=/id="share-cards" hidden data-csrf="([^"]+)"/.exec(reviewHTML)?.[1];assert(csrf,'actual old card upload CSRF');
+          const jpeg=Uint8Array.from([255,216,255,192,0,17,8,2,118,4,176,...Array(64).fill(7)]);
+          const uploaded=await owner.request(`/review/cards/${fixture.entryId}?version=1`,{method:'POST',headers:{'Content-Type':'image/jpeg','X-CSRF':csrf},body:jpeg});assert.equal(uploaded.status,204,'actual old share-card write');
+          async function oldSite(data){
+            const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
+            await existingCall(base,fixture.token,'item_update',{id:'site',version:state.items[0].version,data});
+            const approval=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Rollback prepared-copy mutation'});
+            await approveAt(await loginOwner(base,fixture),new URL(approval.review_url).pathname);
+          }
+          await oldSite({theme:'local-business'});
+          await runtime.stop();runtime=null;runtime=await current();
+          const themed=await fetch(base+'/',{headers:{'If-None-Match':before}});assert.equal(themed.status,200,'actual old theme selection invalidates prepared HTML');
+          const shared=await fetch(base+entryPath),sharedBody=await shared.text();assert.match(sharedBody,/<meta property="og:image" content="http:\/\/localhost:\d+\/media\/[a-f0-9]{32}\.jpg">/,'actual old share card appears after return');
+          await fetch(base+'/index.md');await fetch(base+'/llms.txt');
+          await runtime.stop();runtime=null;runtime=await old();await oldSite({private:true});
+          await runtime.stop();runtime=null;runtime=await current();
+          for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
+            const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title>');
+            for(const header of ['ETag','Last-Modified','Link','Vary','Content-Signal'])assert(!denial.headers.has(header),'private return has no '+header);
+          }
+          const empty=await(await fetch(base+'/__rollback/artifacts')).json();assert.equal((empty.results??empty).length,0,'actual old private-on clears prepared rows without serving them');
+          await runtime.stop();runtime=null;runtime=await old();await oldSite({private:false});
+          await runtime.stop();runtime=null;runtime=await current();
+          const warm=await fetch(base+entryPath),oldTag=warm.headers.get('ETag');assert.equal(warm.status,200);await fetch(base+'/llms.txt');
+          await runtime.stop();runtime=null;runtime=await old();
+          await existingCall(base,fixture.token,'item_remove',{id:fixture.entryId,version:1});
+          const removed=await existingCall(base,fixture.token,'approval_request',{ids:[fixture.entryId],note:'Actual old unpublish'});await approveAt(await loginOwner(base,fixture),new URL(removed.review_url).pathname);
+          await runtime.stop();runtime=null;runtime=await current();
+          const missing=await fetch(base+entryPath,{headers:{'If-None-Match':oldTag}});assert.equal(missing.status,404);assert(!missing.headers.has('ETag'));assert(!(await(await fetch(base+'/llms.txt')).text()).includes(base+entryPath+'index.md'));
+          console.log(`rollback-data: ${edition}: actual old theme/share-card/private-on/public-return/unpublish invalidate prepared HTML/Markdown/map; no stale 304 or private artifact`);
         }
         console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }

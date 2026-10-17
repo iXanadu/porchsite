@@ -81,6 +81,8 @@ class App:
         finally:
             self._started = False
             await alerts.drain()
+            from .public_artifacts import drain
+            await drain()
             if self._own_pool and isinstance(self._pool, asyncpg.Pool):
                 await self._pool.close()
                 self._pool = None
@@ -96,8 +98,13 @@ class App:
         if scope["type"] != "http":
             return
         release = self.settings.release.encode("latin-1")
+        prepared=False
 
         async def send_with_release(message: Message) -> None:
+            nonlocal prepared
+            if not prepared and message['type']=='http.response.start' and 200<=message.get('status',0)<400 and scope.get('method')=='POST' and (scope.get('path','').startswith('/review') or scope.get('path')=='/mcp'):
+                prepared=True
+                routes.schedule_public(routes.Context(self.pool,self.settings.setup_code,self.provider,self.settings.site_url,self.settings.release,self.settings.public_artifacts))
             # Which release is running, on every answer.
             if message["type"] == "http.response.start":
                 headers = [
@@ -137,6 +144,7 @@ class App:
                 self.provider,
                 self.settings.site_url,
                 self.settings.release,
+                self.settings.public_artifacts,
             )
             resp = await routes.handle(req, cx)
         if req.method == "HEAD":

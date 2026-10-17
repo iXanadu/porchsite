@@ -1,3 +1,4 @@
+import { invalidation } from "./public-artifacts";
 /**
  * Share cards (SPEC §5): the picture a link to an entry shows when shared,
  * its photo with its title over it in large type. The owner's browser draws
@@ -52,10 +53,9 @@ export async function save(db: D1Database, id: string, version: number, bytes: U
   const [w, h] = size(bytes);
   if (w !== CARD_W || h !== CARD_H) throw new ApiError(422, "invalid", `A share card is ${CARD_W} x ${CARD_H} pixels.`);
   const path = await store(db, bytes, "image/jpeg", `share card ${id}`);
-  await db
+  await db.batch([...invalidation(db), db
     .prepare("INSERT INTO share_cards (item_id, version, name, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (item_id) DO UPDATE SET version = excluded.version, name = excluded.name, created_at = excluded.created_at")
-    .bind(id, version, path.slice("/media/".length), new Date().toISOString())
-    .run();
+    .bind(id, version, path.slice("/media/".length), new Date().toISOString())]);
   return path;
 }
 

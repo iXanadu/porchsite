@@ -6,6 +6,8 @@ keeps the JPEGs the browser sends back. Port of cloudflare/src/sharecards.ts
 (the same script, byte for byte).
 """
 
+from .public_artifacts import public_change
+
 from datetime import UTC, datetime
 from typing import Any
 
@@ -60,7 +62,7 @@ async def save(db: Db, id: str, version: int, data: bytes) -> str:
     if media.size(data) != (CARD_W, CARD_H):
         raise ApiError(422, "invalid", f"A share card is {CARD_W} x {CARD_H} pixels.")
     path = await media.store(db, data, "image/jpeg", f"share card {id}")
-    await db.execute(
+    await public_change(db,
         "INSERT INTO share_cards (item_id, version, name, created_at) VALUES ($1, $2, $3, $4)"
         " ON CONFLICT (item_id) DO UPDATE SET version = excluded.version, name = excluded.name,"
         " created_at = excluded.created_at",

@@ -1963,23 +1963,290 @@ This file is a convenience map, with no search-ranking claim.
 
 ### AF-7: prepare public artifacts without weakening publication
 
-HTML, Markdown, structured data, robots and map derive from the same
-approved public snapshot. Prepare once per effective published state where
-possible; both editions provide the same behavior without a host conversion
-service. Exact storage backend and performance targets require the AF-1
-baseline and a separate implementation plan; this section grants no paid
-service or deployment authority.
+Prepared lookup, delivery, filling and build-ahead are OFF by default.
+Only the operator environment value `PUBLIC_ARTIFACTS=1` (Cloudflare) or
+`PORCHSITE_PUBLIC_ARTIFACTS=1` (server), together with the pinned canonical
+`SITE_URL` / `PORCHSITE_SITE_URL`, enables them. Absent, empty and every other
+flag value keep ordinary live rendering. Requests, cookies, MCP arguments
+and public discovery never set or expose this flag. The installer pins a
+new site's known install origin without enabling prepared delivery; updates
+preserve existing origin metadata. Public requests never pin an origin.
+Invalidation remains mandatory and atomic even with delivery disabled.
+Hosted CPU is unmeasured by local diagnostics; default enablement awaits a
+separate hosted measurement and release decision.
 
-Any public preparation/cache design must include site origin, canonical
-path, representation, training choice and the complete effective published
-state, including theme/version, visible settings and the next boundary
-for time-dependent visible text. Publish, unpublish,
-delete, restore, theme change and public/private transitions invalidate the
-corresponding public artifacts. Draft changes do not. Once private mode
-commits, no request newly authorized after that commit may serve an old
-public artifact or 304; gate and generation checks precede shared storage.
-An already delivered public response cannot be recalled. No private
-prebuilding, private artifact table or per-agent cache is authorized here.
+Both editions store prepared public HTML (including its inert JSON-LD),
+Markdown and `/llms.txt`, built from the anonymous approved snapshot.
+This replaces repeat rendering, not the per-request access check. Nothing
+private is prebuilt, and no private artifact table or agent cache is added.
+The observable response contract remains AF-2..AF-6: the same bytes, tags,
+canonical addresses, negotiation, discovery, CSP and cache directives.
+
+#### Backend and scope
+
+Use a new D1 artifact table in the Cloudflare edition and the equivalent
+PostgreSQL table in the server edition. Both work with the existing install
+bindings, API-uploaded bundle and self-hosted process; no paid cache product,
+new service credential, queue service or domain change is required. Reserve
+Cloudflare migration 0023 and server migration 0017, after training receipts.
+The existing canonical-origin configuration (`SITE_URL` on the Worker,
+`PORCHSITE_SITE_URL` on server) is required for cache eligibility and must
+match the request origin. The new-site installer records its known origin;
+updates preserve it, and requests on an unconfigured or different origin keep
+today's live path. No public request pins or changes this configuration.
+The tables are disposable derived data; prior releases ignore them and
+continue operating on the additive schema. No existing migration is edited.
+
+A cache outside the engine that can return a response before the private-site
+gate is excluded. Workers Caching and the runtime Cache API are distinct:
+Cloudflare documents the former as capable of serving without executing the
+Worker, and the latter as local to the handling data center, including its
+delete operation ([Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/)).
+Neither is an authorization source or a global invalidation guarantee.
+An optional future accelerator needs the same fresh gate and snapshot checks;
+it is not part of this table implementation or a reason to weaken headers.
+
+Non-GET/HEAD methods go directly to their ordinary handler after the current
+outer access gate. They never enter artifact dispatch or repeat its gate;
+owner approval retains its fixed database-round-trip budget.
+
+Eligible stored results are anonymous successful GET representations of
+home, published local entries, stream archives, tag pages, the enabled
+combined archive, their Markdown copies, and `/llms.txt`. Include only paths
+whose ordinary anonymous HTML route succeeds, with existing filter validation
+before key formation. No redirects, errors (including 400/404/406/500),
+search JSON, feeds, sitemap, robots, static assets, media, collection endpoints,
+protocol, owner or capability paths are stored in this version. Their existing
+behavior and validators remain unchanged. Valid filtered combined archives
+may fill on demand; background preparation never enumerates filter products.
+Unknown or invalid query parameters retain the existing route behavior;
+parameters ignored by a route cannot create extra stored variants.
+
+Requests with Authorization or any owner/reader cookie present, including
+expired or revoked cookie values, bypass artifact lookup, delivery and filling.
+They use today's personalized/anonymous-projection paths and no-store policy.
+This does not bypass mandatory invalidation when an authorized mutation
+changes publication, or gate-time deletion of obsolete public rows.
+Other cookies do not enter a key or the anonymous renderer. Do not remove a
+credential to make its incoming request cache-eligible. A separate internal
+public builder takes only approved public inputs and never an owner's request.
+
+#### Snapshot identity and row format
+
+Every request first runs the current private-site/access gate against live
+state, before stored-copy lookup, representation negotiation or builders.
+Private AF paths still return the exact blank 404 for every cookie class,
+without validators, Link, Vary, Content-Signal or Age. Authorized existing
+private HTML follows its existing live no-store path and never reads or
+writes an artifact. Authorization results, positive or negative, are never
+cached. Backend errors cannot turn a failed access check into public access.
+
+For an eligible public request, obtain a consistent snapshot identity G from
+authoritative database state; never trust an isolate, process or stored row's
+last-seen generation as current. G covers the complete effective published
+state: the ordered live item/version/address/publication-time manifest;
+approved exact-version site fields, embed and stream settings and their
+receipts; effective privacy and training choice; active theme name, version
+and package digest; share-card mappings and public image metadata used in
+HTML; configured canonical origin; and engine/render-format version.
+Immutable version references can replace content bytes only where their
+immutability is already enforced. Mutable rendering dependencies must be
+included directly or by a digest maintained by all their write paths. Drafts,
+pending approvals, reader/session records and analytics never contribute.
+
+In particular, a generation counter bumped only by new code is insufficient:
+previous runtimes can publish, change a theme or write share-card mappings
+without knowing it. Fresh state observation must detect those changes after
+rollback/return too. The implementation supplies shared deterministic fixtures
+for G; both editions hash the same normalized dependency values. Embedded
+JSON is decoded and object keys are ordered before hashing, so database JSON
+whitespace and Unicode escapes do not create different G values. Snapshot
+reads must be consistent across those dependencies, with a final fresh
+comparison before a build is admitted. A mismatch retries from current state
+or uses the ordinary safe live path; it never serves a mixed snapshot.
+
+Keys contain configured canonical origin, G, engine/render format, normalized
+page address including the validated archive filter query, representation
+(HTML/Markdown/map), and the display-clock validity interval. Host and forwarded
+headers, arbitrary Accept strings, cookies, user agents, tracking query values,
+tokens and owner text cannot create variants. The key grammar comes from the
+existing route and AF negotiation rules. Limit an encoded key to 2048 UTF-8
+bytes and stored response metadata to 8 KiB; larger valid responses use the
+ordinary live path without storage. G is a SHA-256 digest of the shared
+normalized dependency encoding, not a database-local sequence.
+Canonical and direct Markdown use the same representation body and AF-2 tag;
+request-specific Vary/HEAD behavior is reconstructed on delivery.
+
+Use new `public_artifact_state` and `public_artifacts` tables. The former is a
+singleton recording the observed G and a bounded build lease; neither is an
+authorization or display-clock cache. Leases coalesce one snapshot job and
+expire after 30 seconds; jobs check a 250 ms wall budget and the current
+minute boundary before starting each next copy. An in-flight render may
+finish after that budget, but cannot admit an expired copy. Later requests
+safely fill unfinished work. A visitor fill recording G is not a completion
+marker: it must not suppress scheduled preparation of home, archive or map.
+The latter stores key, G, normalized origin/address/representation, UTF-8 body,
+Content-Type, AF-2 ETag, approved Content-Signal, a fixed allowlist of public
+response metadata and an exclusive `valid_until` UTC timestamp. No arbitrary
+response/header serialization: never store Set-Cookie, authorization data,
+Review links, CSRF, request IDs, analytics or credentials. CSP and discovery
+metadata must be from the same snapshot as the body. Never persist a 304 or
+an incomplete build. The internal key and G do not alter AF-2's ETag input.
+
+For HTML and map, store the successful anonymous body after the existing
+public-data projection; include the current JSON-LD and discovery markup in
+HTML. Build Markdown mechanically from that same approved visitor projection.
+No HTTP fetch of the site's own pages, CSS, embeds or other remote resources,
+no agent execution and no new instructions are introduced by preparation.
+Representation metadata and row bounds are validated on retrieval; an invalid
+row is deleted and treated as a miss, never repaired by serving arbitrary
+stored headers. Stored copies are never an owner-content source or import.
+
+#### Invalidation, races and display time
+
+All effective public changes clear the site artifact table and update its
+observed G in the same D1 batch or PostgreSQL transaction as the change.
+This includes publication, unpublish/removal, rollback publication, whole-site
+revert, card visibility, privacy, training receipt/choice, stream/archive
+settings, active theme install/update, and publication of share-card or image
+metadata that changes HTML. A successful owner approval remains successful
+when preparation later fails. Draft writes/imports/approval requests that do
+not change the effective public snapshot do not invalidate it. This defines
+"every change" as every change that can affect the public response.
+
+A private-on transaction deletes all public artifacts; no private replacement
+is built. Unpublish deletes the affected old copies before a subsequent
+response; use whole-site invalidation first to avoid missing cross-page
+cards, archives, map or navigation dependencies. Training changes invalidate
+all formats even if body bytes are unchanged. A change that fails or rolls
+back cannot leave a partly replaced artifact set. A failed mandatory delete
+fails that mutation atomically; it is not a best-effort post-commit purge.
+
+If fresh authoritative G differs from `public_artifact_state` (including after
+an old runtime writes), delete old rows before any stored read and install
+the observed G atomically. Previous runtimes do not serve these tables while
+rolled back; they cannot be made to perform AF-7 deletion themselves. On
+return, stale rows are discarded before use, including when the site is now
+private. This compatibility boundary never permits serving a stale artifact
+or honoring its validator. Gate-time private cleanup may delete prior public
+rows but never loads their bodies or runs a builder. If that cleanup fails,
+the private request still returns its exact blank denial, with no stored read.
+
+A builder captures G, renders in memory, then atomically rechecks the current
+public state and G before inserting. A concurrent publish/private-on, a time
+boundary or format change discards that build. Use compare-and-insert/transaction
+semantics so a late old builder cannot repopulate rows after invalidation.
+After reconstructing and validating a stored response, recheck its exclusive
+expiry and the authoritative snapshot immediately before delivery; otherwise
+delete that key and use the live renderer. This applies to warm 200 and 304
+hits as well as fills. Once a
+privacy or unpublish commit has occurred, a request newly authorized after
+that commit cannot serve an old body or 304. Already delivered or previously
+authorized in-flight public bytes cannot be recalled, as in the existing rule.
+
+Time-dependent hours, notices, events and date labels are rendering inputs.
+The current helpers observe timezone-local date and minute; both editions
+conservatively expire at the next UTC minute boundary (at most 60 seconds),
+with paired timezone/DST tests proving the display contract. A new helper
+that can change between those boundaries must supply an earlier boundary or
+bypass storage.
+A prepared row expires before the earliest point when displayed bytes can
+change in the site's timezone, including schedule endpoints and DST changes;
+never assume a UTC day is that interval. The renderer must supply that
+boundary, or decline storage for that response. As an additional bound,
+`valid_until` is no later than 300 seconds after the snapshot clock. At or
+after the boundary, no stored body or tag is reused; rebuild from the current
+clock. Tests advance clocks through each boundary without a content write.
+
+#### Build scheduling, limits and delivery
+
+After a successful public change, prepare home HTML/Markdown, unfiltered
+combined archive HTML/Markdown when enabled, `/llms.txt`, then published local
+entries in displayed order, bounded to 50 pages. Share one approved snapshot
+per build batch. No private prebuild, authenticated fetch or combinatorial
+tag/filter walk occurs. Additional eligible pages fill on demand. A cold
+request or expired row uses ordinary live rendering and may store that
+successful response after the same commit checks. No queue, cron or process
+lifetime is required for correctness; interrupted work is simply a miss.
+
+Bound a body to 256 KiB UTF-8, a site's store to 128 artifacts and 4 MiB of
+body bytes, and one background job to one coalesced snapshot. Oversized
+results still render live; storage limits never truncate a page. Stop
+preparation at the budget; evict only disposable public rows and never owner
+content. Apply bounds atomically under concurrent fills. Background work is
+bounded and cannot delay approval response indefinitely; if the request
+lifetime cannot finish it, later public requests safely fill missing rows.
+No mandatory external queue or unbounded retry is introduced.
+
+Store hits keep `public, no-cache, must-revalidate, no-transform`; never
+immutable, positive max-age, stale-while-revalidate or stale-if-error. Internal
+row lifetime does not grant an external freshness lifetime. A matching valid
+AF-2 tag returns today's empty 304, with the same public metadata. HEAD uses
+the GET status and headers with no body, after the same access/state checks.
+Direct/negotiated Markdown retain body/tag identity and existing Vary: Accept
+rules; HTML versus Markdown cannot share a representation key. No stored
+404 or prior tag may turn a private/missing/unpublished path into 304.
+
+A cache miss, eviction or artifact read/write error falls back to ordinary
+live rendering only after a successful current gate; it never serves stale
+on error. If current authorization/state cannot be determined, follow the
+existing failure/denial path with no-store and no validators, not a cached
+success. Corrupt or unavailable derived storage cannot break publication or
+make a private response public. Current request accounting still runs exactly
+once: UC9 classifies/counts the actual successful public GET/HEAD/304; internal
+preparation creates no traffic count, page view or synthetic browser event.
+Do not serialize an old analytics result into an artifact.
+
+#### CPU measurement and acceptance
+
+The goal metric is hosted engine CPU milliseconds per warm anonymous public
+hit, before versus after, with the complete gate, snapshot validation,
+conditional handling and normal UC9 accounting enabled. Measure separately
+for HTML, direct and negotiated Markdown, map, and repeat conditional 304s;
+include home, an entry, stream/tag archives and a filtered combined archive.
+Use all 12 native sample looks for byte/parity checks and a representative
+small/large synthetic published dataset for CPU. Record at least 100 warm
+requests per measured scenario in three interleaved baseline/candidate
+batches, versions/configuration, hit ratio, p50/p95 CPU, wall time, errors,
+body bytes, database queries/rows read/written, and preparation/invalidation
+CPU and writes. Separate cold fills from warm hits; report total cost at the
+measured hit ratio so rebuild work is not hidden.
+
+Cloudflare's hosted CPU metric is distinct from wall duration
+([Workers metrics](https://developers.cloudflare.com/workers/observability/metrics-and-analytics/)).
+Use the same authorized synthetic hosted test site, plan, region and request
+mix for before/after; do not deploy to an owner's site or change plan to
+obtain evidence without its normal deployment authorization. Match returned
+bodies/tags as well as metrics. Isolate measurement traffic and retain only
+aggregate timing/count evidence, not visitor identifiers or raw per-request
+user agents. For server, report process CPU on the corresponding self-hosted
+test setup too; local workerd timing is diagnostic, not hosted CPU evidence.
+If hosted CPU cannot be collected, mark the goal unmeasured rather than
+substituting latency, bytes, 304 counts or local CPU. Default enablement needs
+a repeatable warm-hit CPU reduction, no unexplained p95 regression, and all
+safety/parity checks; failed measurements require revision or an explicit
+release decision, not a claim of improvement. No search/traffic promise or
+guarantee of fewer D1 reads follows from storing rendered pages.
+
+Required named paired acceptance cases:
+
+| Case | Required proof |
+| --- | --- |
+| `af_prebuild_bytes` | Cold/live/warm HTML, JSON-LD, Markdown and map bytes, AF-2 tags and public metadata match on all 12 looks and expanded-stream samples; direct/negotiated identity and archive normalization remain exact. |
+| `af_prebuild_gate_first` | Spy on artifact reads/builders: every private AF hit/miss/Accept/HEAD/conditional and every authenticated bypass avoids them; private blank bytes/headers and authorized private HTML stay unchanged. |
+| `af_prebuild_no_owner_bytes` | Warm owner/reader/expired/revoked/Authorization then visitor, and the reverse; no Review/CSRF/session/draft bytes or headers in storage or public output; credentialed responses remain no-store without public validators/signals. |
+| `af_prebuild_dependency_matrix` | Each listed effective mutation clears old copies before use across home/entries/archives/map; drafts and analytics preserve valid copies. Include theme, share cards, training receipts and private/public transitions. |
+| `af_prebuild_publication_atomic` | Force invalidation failure: live mutation and deletion roll back together. Force build failure after commit: approved content stays live and ordinary rendering succeeds. |
+| `af_prebuild_races` | Barrier-test fills/preparation against private-on, unpublish, changed visibility, newer publish and time expiry; no late insert, old body or stale 304 after the corresponding commit/authorization point. |
+| `af_prebuild_clock` | Fixed clock tests for hours/notices/events, local midnight and DST; just before/at/after expiry matches live text/tags without a content mutation. Unknown boundaries bypass storage. |
+| `af_prebuild_negotiation` | Valid and invalid Accept/query variants, equivalent filters, distinct HTML/Markdown, GET/HEAD/304, unknown parameters and deliberate key-poisoning inputs keep existing semantics and bounded keys. |
+| `af_prebuild_bounded_failure` | Concurrent fills, eviction, 256 KiB body/128-row/4 MiB limits, interruption, absent/corrupt/unavailable storage and gate failure; no truncation, stale fallback, public authorization fallback or leaked row metadata. |
+| `af_prebuild_accounting` | Warm/cold/304 each count once by current UC9 rules, authenticated/private traffic does not; preparation creates no request count or page view. |
+| `af_prebuild_upgrade_return` | Actual previous server runtime and archived Worker on the additive schema can approve/edit/unpublish/change privacy/theme/share cards, then return; stale rows are purged before lookup, no old 304/private copy, and published owner content/receipts/counters survive. |
+| `af_prebuild_hosted_cpu` | Reproducible before/after hosted CPU and server CPU report, complete hit-path accounting and rebuild cost; hosted evidence is identified separately from local diagnostics. |
+
+The table backend implements this contract in both editions. Delivery remains
+operator opt-in; local process-CPU diagnostics are not hosted CPU evidence.
 
 ### AF-8: content is data, never agent authority
 

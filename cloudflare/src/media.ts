@@ -1,3 +1,4 @@
+import { invalidation } from "./public-artifacts";
 /**
  * Images (SPEC S7: no hotlinks). An image named by https URL in content is
  * fetched once when the item is saved, checked, stored in D1 by a hash of its
@@ -116,7 +117,7 @@ export async function store(db: D1Database, bytes: Uint8Array, type: string, sou
   if (have && !have.width) {
     // Stored before sizes were recorded: fill it in now.
     const [w, h] = size(bytes);
-    if (w) await db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ?").bind(w, h, name).run();
+    if (w) await db.batch([...invalidation(db), db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ?").bind(w, h, name)]);
   }
   if (!have) {
     const chunks = Math.max(1, Math.ceil(bytes.byteLength / CHUNK));
@@ -230,7 +231,7 @@ export async function sizeOf(db: D1Database, name: string): Promise<[number, num
   if (!r) return [0, 0];
   if (r.width) return [r.width, r.height];
   const [w, h] = size(await bytesOf(db, name));
-  if (w) await db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ?").bind(w, h, name).run();
+  if (w) await db.batch([...invalidation(db), db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ?").bind(w, h, name)]);
   return [w, h];
 }
 

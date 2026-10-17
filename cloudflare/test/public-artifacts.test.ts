@@ -1,0 +1,240 @@
+// AF-7 acceptance; paired with server/tests/app/test_public_artifacts.py.
+import {env} from 'cloudflare:workers';
+import {beforeEach,expect,it,vi} from 'vitest';
+import type {Env} from '../src/env';
+import * as content from '../src/content';
+import * as approvals from '../src/approvals';
+import * as site from '../src/site';
+import * as artifacts from '../src/public-artifacts';
+import {handle} from '../src/routes';
+import {BLANK} from '../src/privacy';
+const origin='https://site.example',actor='assistant:test',base=env as unknown as Env,e={...base,SITE_URL:origin,PUBLIC_ARTIFACTS:'1'},db=e.DB;
+beforeEach(async()=>{
+ vi.restoreAllMocks();vi.useRealTimers();
+ const rows=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();
+ for(const {name} of rows.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith('sqlite_')&&!name.startsWith('d1_'))await db.prepare(`DELETE FROM ${name}`).run();
+ await db.prepare('INSERT INTO auth_state(id) VALUES(1)').run();
+});
+async function publish(item:content.Item){await approvals.publishNow(db,[{id:item.id,version:item.version}],'',origin);}
+async function fixture(){
+ const one=await content.createItem(db,actor,'site',{title:'Prepared fixture',theme:'personal-homepage',archive:{enabled:true,title:'All pages'}},undefined);await publish(one);
+ const entry=await content.createItem(db,actor,'entry',{title:'First page',date:'2026-10-17',body:'Published body.',tags:['tag']},undefined);await publish(entry);return {one,entry};
+}
+const get=(path='/',headers:Record<string,string>={},method='GET')=>handle(new Request(origin+path,{method,headers}),e);
+async function count(){return Number(await db.prepare('SELECT count(*) AS n FROM public_artifacts').first('n'));}
+it('af_prebuild_bytes: a warm representation avoids rendering and preserves all body/tag metadata',async()=>{
+ await fixture();const first=await get(),body=await first.text(),tag=first.headers.get('ETag');expect(await count()).toBe(1);
+ const liveHead=await handle(new Request(origin+'/',{method:'HEAD'}),{...e,PUBLIC_ARTIFACTS:undefined});expect(await liveHead.text()).toBe('');expect([...liveHead.headers]).toEqual([...first.headers]);
+ const render=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('warm hit rendered');});
+ const warm=await get();expect(await warm.text()).toBe(body);expect([...warm.headers]).toEqual([...first.headers]);expect(render).not.toHaveBeenCalled();
+ const conditional=await get('/',{'If-None-Match':tag!});expect(conditional.status).toBe(304);expect(await conditional.text()).toBe('');
+ const head=await get('/',{},'HEAD');expect(head.status).toBe(200);expect(await head.text()).toBe('');expect([...head.headers]).toEqual([...first.headers]);
+});
+it('af_prebuild_negotiation: copy and negotiated bodies/tags share storage, delivery Vary stays distinct',async()=>{
+ await fixture();const direct=await get('/index.md'),body=await direct.text(),tag=direct.headers.get('ETag');expect(await count()).toBe(1);expect(direct.headers.has('Vary')).toBe(false);
+ const render=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('copy warm hit rendered');});
+ const selected=await get('/',{Accept:'text/markdown'});expect(await selected.text()).toBe(body);expect(selected.headers.get('ETag')).toBe(tag);expect(selected.headers.get('Vary')).toBe('Accept');expect(await count()).toBe(1);expect(render).not.toHaveBeenCalled();
+ render.mockRestore();const refused=await get('/',{Accept:'text/plain;q=1,text/html;q=0,text/markdown;q=0'});expect(refused.status).toBe(406);expect(await count()).toBe(1);
+});
+it('af_prebuild_dependency_matrix: public changes clear copies atomically; drafts and accounting do not',async()=>{
+ const {one}=await fixture();await get();const stamp=await artifacts.snapshot(db);
+ const draft=await content.updateItem(db,actor,'site',one.version,{title:'Changed title'});expect(await artifacts.snapshot(db)).toBe(stamp);expect(await count()).toBe(1);
+ await get();expect(await count()).toBe(1);await publish(draft);expect(await count()).toBe(0);expect(await(await get()).text()).toContain('Changed title');
+ const blocked=await content.updateItem(db,actor,'site',draft.version,{ai_training_disabled:true});await publish(blocked);expect(await count()).toBe(0);expect((await get()).headers.get('Content-Signal')).toContain('ai-train=no');
+});
+it('af_prebuild_publication_atomic: invalidation failure rolls publication back',async()=>{
+ const {one}=await fixture();await get();const draft=await content.updateItem(db,actor,'site',one.version,{title:'Must not publish'});
+ await db.prepare("CREATE TRIGGER fail_artifact_delete BEFORE DELETE ON public_artifacts BEGIN SELECT RAISE(ABORT,'artifact delete failure'); END").run();
+ try{await expect(publish(draft)).rejects.toThrow();expect(await db.prepare("SELECT version FROM live WHERE item_id='site'").first('version')).toBe(one.version);expect(await count()).toBe(1);}
+ finally{await db.prepare('DROP TRIGGER fail_artifact_delete').run();}
+});
+it('af_prebuild_gate_first: private and credentialed requests never look up prepared copies',async()=>{
+ const {one}=await fixture();await get();const cache=vi.spyOn(artifacts,'respond');
+ for(const headers of ([{Authorization:'Bearer fixture'},{Cookie:'__Host-sk_owner=expired'},{Cookie:'__Host-sk_reader=revoked'}] as Record<string,string>[])){
+  const r=await get('/',headers);expect(r.headers.get('Cache-Control')).toContain('no-store');expect(r.headers.has('ETag')).toBe(false);
+ }
+ expect(await count()).toBe(1);const privateSite=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(privateSite);expect(await count()).toBe(0);cache.mockClear();
+ for(const path of ['/','/index.md','/llms.txt','/missing/index.md'])for(const headers of ([{},{Cookie:'__Host-sk_owner=expired'},{Authorization:'Bearer fixture'}] as Record<string,string>[])){
+  const r=await get(path,{...headers,Accept:'text/markdown','If-None-Match':'*'});expect(r.status).toBe(404);expect(await r.text()).toBe(BLANK);expect(r.headers.has('ETag')).toBe(false);
+ }
+ expect(cache).not.toHaveBeenCalled();expect(await count()).toBe(0);
+});
+it('af_prebuild_races: private-on discards a builder already holding a public snapshot',async()=>{
+ const {one}=await fixture();const original=site.liveView;let entered!:()=>void,resume!:()=>void;
+ const started=new Promise<void>(r=>entered=r),barrier=new Promise<void>(r=>resume=r);let once=true;
+ const render=vi.spyOn(site,'liveView').mockImplementation(async(...args)=>{const view=await original(...args);if(once){once=false;entered();await barrier;}return view;});
+ const pending=get();await started;
+ const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);resume();
+ const response=await pending;expect(response.status).toBe(404);expect(await response.text()).toBe(BLANK);expect(await count()).toBe(0);render.mockRestore();
+});
+it('af_prebuild_clock: expired intervals are reclaimed before the next fill',async()=>{
+ await fixture();await get();await db.prepare('UPDATE public_artifacts SET valid_until=0').run();
+ const render=vi.spyOn(site,'liveView');expect((await get()).status).toBe(200);expect(render).toHaveBeenCalled();expect(await count()).toBe(1);
+ expect(artifacts.displayBoundary(Date.UTC(2026,10,1,5,59,59))).toBe(Date.UTC(2026,10,1,6));
+});
+it('af_prebuild_bounded_failure: invalid headers and absent storage fall back to safe live rendering',async()=>{
+ await fixture();const first=await get(),body=await first.text();
+ await db.prepare('UPDATE public_artifacts SET metadata=?').bind(JSON.stringify([['set-cookie','secret=1']])).run();
+ const repaired=await get();expect(await repaired.text()).toBe(body);expect(repaired.headers.has('Set-Cookie')).toBe(false);
+ // A backend outage is represented by a rejected artifact lookup, not by a failed access check.
+ await db.prepare('ALTER TABLE public_artifacts RENAME TO unavailable_artifacts').run();
+ try{expect((await get('/index.md')).status).toBe(200);}finally{await db.prepare('ALTER TABLE unavailable_artifacts RENAME TO public_artifacts').run();}
+ expect(artifacts.configuredOrigin('https://user:pass@example.com')).toBeNull();expect(artifacts.configuredOrigin('https://example.com/path')).toBeNull();
+});
+it('af_prebuild_bounded_failure: unconfigured and unrelated origins never fill storage',async()=>{
+ await fixture();const r=await handle(new Request(origin),base);expect(r.status).toBe(200);expect(await count()).toBe(0);
+ await handle(new Request('https://other.example/'),e);expect(await count()).toBe(0);
+});
+
+it('af_prebuild_accounting: bounded preparation uses anonymous rendering without synthetic traffic',async()=>{
+ await fixture();const {preparePublic}=await import('../src/routes');await preparePublic(e);expect(await count()).toBeGreaterThan(0);
+ expect(Number(await db.prepare('SELECT COALESCE(sum(requests),0) AS n FROM agent_traffic_daily').first('n'))).toBe(0);
+ await get();expect(Number(await db.prepare('SELECT sum(requests) AS n FROM agent_traffic_daily').first('n'))).toBe(1);
+});
+it('af_prebuild_bounded_failure: count limits do not truncate live responses and expired rows release the budget',async()=>{
+ await fixture();await get();const row=await db.prepare('SELECT generation,metadata,valid_until FROM public_artifacts LIMIT 1').first<any>();await db.prepare('DELETE FROM public_artifacts').run();
+ await db.batch(Array.from({length:128},(_,i)=>db.prepare('INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size) VALUES(?,?,?, ?,?,?)').bind('occupied-'+i,row.generation,'x',row.metadata,row.valid_until,1)));
+ const md=await get('/index.md');expect(md.status).toBe(200);expect((await md.text()).length).toBeGreaterThan(30);expect(await count()).toBe(128);
+ await db.prepare('UPDATE public_artifacts SET valid_until=0').run();await get('/index.md');expect(await count()).toBe(1);
+});
+it('af_prebuild_bytes: corrupted body/tag pairs are discarded rather than served',async()=>{
+ await fixture();const expected=await(await get()).text();await db.prepare("UPDATE public_artifacts SET body='CORRUPTED BODY'").run();expect(await(await get()).text()).toBe(expected);
+});
+
+it('af_prebuild_clock: DST fallback refreshes displayed hours at the exact minute boundary',async()=>{
+ const {one}=await fixture();const hours=await content.updateItem(db,actor,'site',one.version,{theme:'local-business',timezone:'America/New_York',hours:{weekly:[{day:'sun',open:'01:00',close:'01:30'}]}});await publish(hours);
+ vi.useFakeTimers({toFake:['Date']});
+ try{
+  vi.setSystemTime(new Date('2026-11-01T05:59:30Z'));const before=await get();const closed=await before.text();expect(closed).toContain('Closed now');expect(await count()).toBe(1);
+  vi.setSystemTime(new Date('2026-11-01T06:00:00Z'));const after=await get('/',{'If-None-Match':before.headers.get('ETag')!});expect(after.status).toBe(200);expect(await after.text()).toContain('Open now');expect(after.headers.get('ETag')).not.toBe(before.headers.get('ETag'));expect(await count()).toBe(1);
+ }finally{vi.useRealTimers();}
+});
+
+it('af_prebuild_bytes: shared snapshot fixtures fix the cross-edition digest encoding',async()=>{
+ const {default:cases}=await import('../../spec/fixtures/public-artifacts.json');
+ for(const c of cases)expect(await artifacts.digest(JSON.stringify([artifacts.FORMAT,'fixture','https://example.com',artifacts.normalizedState(JSON.stringify(c.state))])),c.name).toBe(c.sha256);
+});
+it('af_prebuild_bounded_failure: oversized valid bodies remain live and are never truncated or stored',async()=>{
+ await fixture();const request=new Request(origin+'/guide/large/');const body='x'.repeat(artifacts.MAX_BODY+1);
+ const {publicResponse}=await import('../src/public-http');
+ const response=await artifacts.respond(db,request,origin,'test',()=>publicResponse(db,request,new Response(body,{headers:{'Content-Type':'text/html; charset=utf-8'}})));
+ expect(response.status).toBe(200);expect(await response.text()).toBe(body);expect(await count()).toBe(0);
+});
+it('af_prebuild_gate_first: a private site cannot start public preparation',async()=>{
+ const {one}=await fixture();const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);
+ const {preparePublic}=await import('../src/routes');const render=vi.spyOn(site,'liveView');await preparePublic(e);expect(render).not.toHaveBeenCalled();expect(await count()).toBe(0);
+});
+
+it('af_prebuild_dependency_matrix: unpublish, card visibility and restore invalidate every representation',async()=>{
+ const {entry}=await fixture();const path='/journal/'+entry.slug+'/';await get(path);await get('/index.md');await get('/llms.txt');expect(await count()).toBe(3);
+ const gone=await content.removeItem(db,actor,entry.id,entry.version);expect(await count()).toBe(3);await publish(gone);expect(await count()).toBe(0);expect((await get(path)).status).toBe(404);
+ const restored=await content.restore(db,actor,gone.id,gone.version,entry.data,false,'Restore published page');await publish(restored);expect((await get(path)).status).toBe(200);
+ const card=await content.createItem(db,actor,'card',{name:'Visible label',description:'Visible detail',visibility:'public'},undefined);await publish(card);await get();
+ const hidden=await content.updateItem(db,actor,card.id,card.version,{visibility:'private'});await publish(hidden);expect(await count()).toBe(0);expect(await(await get()).text()).not.toContain('Visible label');
+});
+it('af_prebuild_dependency_matrix: share-card writes and theme replacement clear stored bodies',async()=>{
+ const {entry}=await fixture();await get();const before=await artifacts.snapshot(db);
+ const cards=await import('../src/sharecards');const jpeg=Uint8Array.from([255,216,255,192,0,17,8,2,118,4,176,...Array(64).fill(7)]);
+ await cards.save(db,entry.id,entry.version,jpeg);expect(await count()).toBe(0);expect(await artifacts.snapshot(db)).not.toBe(before);await get();
+ const {THEMES}=await import('../src/themes.gen'),themes=await import('../src/themes');const base=THEMES['personal-homepage'];
+ const pkg=JSON.stringify({...base,pages:{...base.pages,home:base.pages.home+'\n'}}),sum=await artifacts.digest(pkg);
+ await themes.install(db,'personal-homepage',actor,async url=>String(url)===themes.CATALOG_URL?Response.json({themes:[{name:'personal-homepage',package:{url:'https://catalog.example/look.json',sha256:sum}}]}):new Response(pkg));
+ expect(await count()).toBe(0);expect(await artifacts.snapshot(db)).not.toBe(before);
+});
+it('af_prebuild_bounded_failure: the byte budget refuses a fill without changing its response',async()=>{
+ await fixture();const first=await get(),body=await first.text(),row=await db.prepare('SELECT * FROM public_artifacts LIMIT 1').first<any>();await db.prepare('DELETE FROM public_artifacts').run();
+ const chunk='x'.repeat(artifacts.MAX_BODY);await db.batch(Array.from({length:16},(_,i)=>db.prepare('INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size) VALUES(?,?,?,?,?,?)').bind('large-'+i,row.generation,chunk,row.metadata,row.valid_until,artifacts.MAX_BODY)));
+ expect(await(await get()).text()).toBe(body);expect(await count()).toBe(16);
+});
+it('af_prebuild_bounded_failure: concurrent fills cannot exceed the row budget',async()=>{
+ await fixture();await get();const row=await db.prepare('SELECT * FROM public_artifacts LIMIT 1').first<any>();await db.prepare('DELETE FROM public_artifacts').run();
+ await db.batch(Array.from({length:127},(_,i)=>db.prepare('INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size) VALUES(?,?,?,?,?,?)').bind('occupied-'+i,row.generation,'x',row.metadata,row.valid_until,1)));
+ const replies=await Promise.all(['/','/index.md','/llms.txt','/journal/'].map(path=>get(path)));expect(replies.map(r=>r.status)).toEqual([200,200,200,200]);expect(await count()).toBe(128);
+});
+it('af_prebuild_bounded_failure: stored policy and discovery headers cannot be replaced by arbitrary values',async()=>{
+ await fixture();const first=await get(),body=await first.text();
+ for(const [name,value] of [['content-security-policy',"default-src *; script-src 'unsafe-inline'"],['permissions-policy','camera=*'],['link','<https://outside.example/>; rel="alternate"']]){
+  const row=await db.prepare('SELECT metadata FROM public_artifacts LIMIT 1').first<string>('metadata');const pairs=JSON.parse(row!);await db.prepare('UPDATE public_artifacts SET metadata=?').bind(JSON.stringify(pairs.map(([k,v]:string[])=>[k,k===name?value:v]))).run();
+  const repaired=await get();expect(await repaired.text()).toBe(body);expect(repaired.headers.get(name)).toBe(first.headers.get(name));
+ }
+});
+it('af_prebuild_negotiation: configured origins have identical normalized grammar',async()=>{
+ const {default:cases}=await import('../../spec/fixtures/public-artifact-origins.json');for(const c of cases)expect(artifacts.configuredOrigin(c.value),c.value).toBe(c.origin);
+});
+it('af_prebuild_bounded_failure: delivery and preparation stay off without explicit opt-in; invalidation remains active',async()=>{
+ const {one}=await fixture();const {preparePublic}=await import('../src/routes');for(const flag of [undefined,'','0','true','2']){const off={...e,PUBLIC_ARTIFACTS:flag};const response=await handle(new Request(origin+'/?PUBLIC_ARTIFACTS=1',{headers:{PUBLIC_ARTIFACTS:'1'}}),off);expect(response.status).toBe(200);await preparePublic(off);expect(await count()).toBe(0);}
+ await get();expect(await count()).toBe(1);const draft=await content.updateItem(db,actor,'site',one.version,{title:'Approved new title'});await publish(draft);expect(await count()).toBe(0);
+});
+it('af_prebuild_no_owner_bytes: valid owner/reader sessions bypass warmed copies and never contaminate them',async()=>{
+ const {one}=await fixture();const visitor=await(await get()).text();
+ const hash=async(token:string)=>btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ await db.prepare("INSERT INTO sessions(token_hash,created_at,expires_at) VALUES(?,'2026-10-17','2099-01-01')").bind(await hash('owner-fixture')).run();
+ await db.prepare("INSERT INTO readers(id,name,created_at) VALUES('reader','Reader','2026-10-17')").run();await db.prepare("INSERT INTO reader_passkeys(id,reader_id,public_key,created_at) VALUES('reader-key','reader',?,'2026-10-17')").bind(new Uint8Array([0])).run();
+ await db.prepare("INSERT INTO reader_sessions(token_hash,reader_id,credential_id,epoch,created_at,expires_at) VALUES(?,'reader','reader-key',0,'2026-10-17','2099-01-01')").bind(await hash('reader-fixture')).run();
+ for(const [token,role] of [['owner-fixture','owner'],['reader-fixture','reader']]){
+  const headers={Cookie:`__Host-sk_${role}=${token}`},html=await get('/',headers),body=await html.text();expect(html.headers.get('Cache-Control')).toContain('no-store');expect(html.headers.has('ETag')).toBe(false);expect(body.includes('sk-owner-link')).toBe(role==='owner');
+  const md=await get('/index.md',headers);expect(md.headers.has('ETag')).toBe(false);expect(await md.text()).not.toContain('/review');
+ }
+ expect(await count()).toBe(1);expect(await(await get()).text()).toBe(visitor);
+ const rows=await db.prepare('SELECT body,metadata FROM public_artifacts').all<{body:string;metadata:string}>();expect(JSON.stringify(rows.results)).not.toContain('sk-owner-link');expect(JSON.stringify(rows.results)).not.toContain('/review');
+ const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);
+ for(const role of ['owner','reader']){const cookie={Cookie:`__Host-sk_${role}=${role}-fixture`};expect((await get('/',cookie)).status).toBe(200);expect(await(await get('/index.md',cookie)).text()).toBe(BLANK);}
+ expect(await count()).toBe(0);
+});
+it('af_prebuild_races: an entry removed during rendering cannot be filled or delivered',async()=>{
+ const {entry}=await fixture();const original=site.liveView;let entered!:()=>void,resume!:()=>void;const started=new Promise<void>(r=>entered=r),barrier=new Promise<void>(r=>resume=r);let once=true;
+ vi.spyOn(site,'liveView').mockImplementation(async(...args)=>{const view=await original(...args);if(once){once=false;entered();await barrier;}return view;});
+ const pending=get('/journal/'+entry.slug+'/');await started;const gone=await content.removeItem(db,actor,entry.id,entry.version);await publish(gone);resume();const response=await pending;expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);
+});
+it('af_prebuild_clock: local midnight expires notice and event output without publishing',async()=>{
+ const {one,entry}=await fixture();const dated=await content.updateItem(db,actor,'site',one.version,{theme:'event-page',timezone:'America/New_York',notice:{text:'Until midnight only',until:'2026-11-01'}});await publish(dated);
+ const event=await content.updateItem(db,actor,entry.id,entry.version,{event:{start:'2026-11-01T23:59'}});await publish(event);
+ const {THEMES}=await import('../src/themes.gen'),themes=await import('../src/themes');const base=THEMES['event-page'];const pkg=JSON.stringify({...base,pages:{...base.pages,entry:base.pages.entry+'<span data-past="{{#entry.event.is_past}}true{{/entry.event.is_past}}{{^entry.event.is_past}}false{{/entry.event.is_past}}"></span>'}});const sum=await artifacts.digest(pkg);
+ await themes.install(db,'event-page',actor,async url=>String(url)===themes.CATALOG_URL?Response.json({themes:[{name:'event-page',package:{url:'https://catalog.example/look.json',sha256:sum}}]}):new Response(pkg));
+ vi.useFakeTimers({toFake:['Date']});try{
+  vi.setSystemTime(new Date('2026-11-02T04:59:30Z'));const before=await get('/journal/'+entry.slug+'/'),body=await before.text();expect(body).toContain('Until midnight only');expect(body).toContain('data-past="false"');expect(await count()).toBe(1);
+  vi.setSystemTime(new Date('2026-11-02T05:00:00Z'));const after=await get('/journal/'+entry.slug+'/',{'If-None-Match':before.headers.get('ETag')!}),next=await after.text();expect(after.status).toBe(200);expect(next).not.toContain('Until midnight only');expect(next).toContain('data-past="true"');expect(after.headers.get('ETag')).not.toBe(before.headers.get('ETag'));expect(await count()).toBe(1);
+ }finally{vi.useRealTimers();}
+});
+it('af_prebuild_publication_atomic: a failed post-commit builder cannot undo publication',async()=>{
+ const {one}=await fixture();const draft=await content.updateItem(db,actor,'site',one.version,{title:'Committed despite failed build'});await publish(draft);const {preparePublic}=await import('../src/routes');
+ const render=vi.spyOn(site,'liveView').mockRejectedValue(Error('build failure'));await expect(preparePublic(e)).rejects.toThrow('build failure');render.mockRestore();expect(await db.prepare("SELECT version FROM live WHERE item_id='site'").first('version')).toBe(draft.version);expect(await(await get()).text()).toContain('Committed despite failed build');
+});
+
+
+it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after the validation snapshot cannot deliver the old row',async(change)=>{
+ const {one,entry}=await fixture(),path='/journal/'+entry.slug+'/';
+ const first=await get(path);expect(first.status).toBe(200);expect(await count()).toBe(1);
+ const rendered=vi.spyOn(site,'liveView');
+ let calls=0;
+ const raced=new Proxy(db,{get(target,key){
+  if(key==='prepare')return(sql:string)=>{
+   const statement=target.prepare(sql);
+   if(sql!==`SELECT ${artifacts.SNAPSHOT} AS stamp`)return statement;
+   return new Proxy(statement,{get(t,k){
+    if(k==='first')return async(...args:any[])=>{
+     const stamp=await (t.first as any)(...args);calls++;
+     if(calls===2){
+      if(change==='private')await publish(await content.updateItem(db,actor,'site',one.version,{private:true}));
+      else if(change==='unpublish')await publish(await content.removeItem(db,actor,entry.id,entry.version));
+      else {const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));vi.spyOn(Date,'now').mockReturnValue(until+1000);}
+     }
+     return stamp;
+    };
+    const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value;
+   }});
+  };
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
+ if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(304);}
+ else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(BLANK);}
+});
+
+
+it('af_prebuild_visitor_fill: a first visitor cannot suppress build-ahead of other representations',async()=>{
+ const {entry}=await fixture();await get('/journal/'+entry.slug+'/');expect(await count()).toBe(1);
+ const paths:string[]=[];
+ await artifacts.prepare(db,origin,'test',async(req)=>{paths.push(new URL(req.url).pathname);return new Response('not stored',{status:404});},async()=>['/archive/']);
+ expect(paths).toEqual(['/','/index.md','/archive/','/archive/index.md','/llms.txt']);
+});

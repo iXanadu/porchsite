@@ -1,0 +1,12 @@
+[
+ {"value":"https://EXAMPLE.com:443/","origin":"https://example.com"},
+ {"value":"http://example.com:80","origin":"http://example.com"},
+ {"value":"https://example.com:8443","origin":"https://example.com:8443"},
+ {"value":"https://[::1]:443","origin":"https://[::1]"},
+ {"value":"https://café.example","origin":"https://xn--caf-dma.example"},
+ {"value":"https://example.com/a/..","origin":null},
+ {"value":"https://example.com/?x=1","origin":null},
+ {"value":"https://user:pass@example.com","origin":null},
+ {"value":"https://example.com:bad","origin":null},
+ {"value":"","origin":null}
+]

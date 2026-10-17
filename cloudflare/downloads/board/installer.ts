@@ -151,6 +151,19 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
     await q("INSERT INTO setup_codes (code_hash, created_at, expires_at) VALUES (?, ?, ?)", [await codeHash(code), new Date().toISOString(), expires]);
   }
 
+  // Establish the known install origin before uploading new-site metadata.
+  let sub = await cf(token, "GET", `${A}/workers/subdomain`);
+  let subdomain: string | undefined = sub.a.result?.subdomain;
+  if (!subdomain) {
+    const pick = String(input.subdomain ?? "").trim().toLowerCase();
+    if (!pick) throw new Stop("Your account has no workers.dev name yet. Pick one (it's shared by everything on your account, e.g. your name).", "subdomain");
+    if (!NAME.test(pick)) throw new Stop("A workers.dev name: lowercase letters, digits and dashes, starting with a letter.", "subdomain");
+    sub = await cf(token, "PUT", `${A}/workers/subdomain`, { subdomain: pick });
+    if (!sub.a.success) throw new Stop(`That workers.dev name didn't work: ${why(sub.a)}. Pick another.`, "subdomain");
+    subdomain = pick;
+  }
+  const url = `https://${name}.${subdomain}.workers.dev`;
+
   // 6. The site itself: the release's own file, as the guide uploads it.
   const bundle = await (await asset(env, `/v/${latest.version}/sitekeeper.js`)).blob();
   const form = new FormData();
@@ -162,9 +175,11 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
           main_module: "sitekeeper.js",
           compatibility_date: "2026-08-15",
           compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"],
+          keep_bindings: claimed ? ["plain_text"] : [],
           bindings: [
             { type: "d1", name: "DB", id: dbId },
             { type: "kv_namespace", name: "OAUTH_KV", namespace_id: kvId },
+            ...(!claimed ? [{ type: "plain_text", name: "SITE_URL", text: url }] : []),
           ],
           observability: { enabled: true },
         }),
@@ -178,19 +193,8 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   steps.push(`Site: Porchsite ${latest.version} uploaded.`);
 
   // 7. The address.
-  let sub = await cf(token, "GET", `${A}/workers/subdomain`);
-  let subdomain: string | undefined = sub.a.result?.subdomain;
-  if (!subdomain) {
-    const pick = String(input.subdomain ?? "").trim().toLowerCase();
-    if (!pick) throw new Stop("Your account has no workers.dev name yet. Pick one (it's shared by everything on your account, e.g. your name).", "subdomain");
-    if (!NAME.test(pick)) throw new Stop("A workers.dev name: lowercase letters, digits and dashes, starting with a letter.", "subdomain");
-    sub = await cf(token, "PUT", `${A}/workers/subdomain`, { subdomain: pick });
-    if (!sub.a.success) throw new Stop(`That workers.dev name didn't work: ${why(sub.a)}. Pick another.`, "subdomain");
-    subdomain = pick;
-  }
   const on = await cf(token, "POST", `${A}/workers/scripts/${name}/subdomain`, { enabled: true, previews_enabled: false });
   if (!on.a.success) throw new Stop(`Cloudflare wouldn't turn the address on: ${why(on.a)}.`);
-  const url = `https://${name}.${subdomain}.workers.dev`;
   steps.push(`Address: ${url} (a new address can take a minute or two to answer).`);
 
   return { ok: true, url, setup: code ? `${url}/setup?code=${code}` : "", claimed, release: latest.version, steps };

@@ -13,7 +13,7 @@ import type { Env } from "./env";
 import { RELEASE } from "./home";
 import { livePrivate } from "./privacy";
 import * as keys from "./keys";
-import { handle } from "./routes";
+import { handle, preparePublic } from "./routes";
 
 const providers = new Map<string, OAuthProvider<Env>>();
 
@@ -72,6 +72,7 @@ export default {
     } else {
       res = await provider(origin).fetch(req, env, ctx);
     }
+    if(req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
     // Which release is running, on every answer.
     const out = new Response(res.body, res);
     out.headers.set("X-Porchsite-Release", RELEASE);

@@ -25,6 +25,7 @@ from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from .site_fields import training_state
+from . import public_artifacts
 from .agent_pages import agent_page
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
@@ -126,12 +127,14 @@ class Context:
         provider: oauth.PgProvider,
         site_url: str = "",
         release: str = "dev",
+        public_artifacts: bool = False,
     ):
         self.db = db
         self.setup_code = setup_code
         self.provider = provider
         self.site_url = site_url
         self.release = release
+        self.public_artifacts = public_artifacts
 
 
 def origin_of(req: Request) -> str:
@@ -1454,22 +1457,23 @@ async def _json_body(req: Request) -> Any:
 
 async def handle(req: Request, cx: Context) -> Response:
     is_private,gated,response = await privacy.access(cx.db,req)
+    if is_private:
+        try:
+            await public_artifacts.clear(cx.db)
+        except Exception:
+            pass  # Cleanup failure never changes a private denial.
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
     if is_private and private_agent_path(req):
         response = privacy.blank_response()
     elif response is None:
         if is_private:
             response = await _route(get,cx)
+        elif req.method not in ('GET','HEAD'):
+            response = await _route(req,cx)
         else:
-            async def agent_paths():
-                from .agent_pages import anonymous
-                v = await content_view(anonymous(get, '/'),cx)
-                return (['/archive/'] if v.site.get('archive', {}).get('enabled') else []) + [e['page'] for s in v.site['streams'] for e in v.entries if e['stream'] == s['id'] and not e.get('external_url')]
-            response = await agent_page(get,lambda r: _route(r,cx),agent_paths,origin_of(req),lambda r: not_found_page(r,cx))
+            response = await public_artifacts.respond(cx.db,req,cx.site_url if cx.public_artifacts else '',cx.release,lambda: render_public(req,cx))
     if is_private and gated:
         response = privacy.no_store(response)
-    if not is_private:
-        response = await public_response(cx.db,req,response,origin_of(req))
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:
@@ -1940,3 +1944,29 @@ async def app_asset(req, cx, path):
             "Vary": "Cookie",
         },
     )
+
+
+async def public_paths(req,cx):
+    from .agent_pages import anonymous
+    v=await content_view(anonymous(req,'/'),cx)
+    return (['/archive/'] if v.site.get('archive',{}).get('enabled') else [])+[e['page'] for s in v.site['streams'] for e in v.entries if e['stream']==s['id'] and not e.get('external_url')]
+
+
+async def render_public(req,cx):
+    private_now,gated_now,denial=await privacy.access(cx.db,req)
+    get=Request({**req.scope,'method':'GET'},req.receive) if req.method=='HEAD' else req
+    if private_now and private_agent_path(req):
+        return privacy.blank_response()
+    if denial is not None:
+        return denial
+    if private_now:
+        return privacy.no_store(await _route(get,cx))
+    rendered=await agent_page(get,lambda r:_route(r,cx),lambda:public_paths(get,cx),origin_of(req),lambda r:not_found_page(r,cx))
+    return await public_response(cx.db,req,rendered,origin_of(req))
+
+
+def schedule_public(cx):
+    if not cx.public_artifacts or not cx.site_url:
+        return
+    req=public_artifacts.request_for(cx.site_url,'/')
+    public_artifacts.schedule(cx.db,cx.site_url,cx.release,lambda r:render_public(r,cx),lambda:public_paths(req,cx))
