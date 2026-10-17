@@ -63,11 +63,6 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
-- **AF-1** OPEN (first): measure before building. A local baseline on the
-  sample sites (bytes and headers per page type, whether repeat fetches get
-  a 304). Then an owner-readable count of traffic by kind: search
-  crawlers, training crawlers, agents acting for a person. On request
-  only, as facts.
 - **AF-7** OPEN: build-ahead for public pages (was S4-9). Hosted CPU on
   Free is about 2-3x local, so even a warm home page costs 9-14 ms. Serve
   stored copies of public pages, Markdown copies and llms.txt, cleared on

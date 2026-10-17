@@ -163,6 +163,14 @@ async function seed(base) {
   assert.equal(statistics.totals.views, 1, 'new analytics must write a view');
   assert(statistics.totals.engaged_ms > 0, 'new analytics must store cumulative engagement');
   assert.equal(statistics.pages[0].reached['100'], 100, 'new analytics must store the final scroll snapshot');
+  let agentTraffic;
+  if (statistics.agent_traffic) {
+    for (const ua of ['OAI-SearchBot', 'GPTBot', 'ChatGPT-User']) {
+      assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
+    }
+    agentTraffic = (await call('site_stats', {})).agent_traffic.daily.filter(r => r.kind !== 'other');
+    assert.equal(new Set(agentTraffic.map(r => r.kind)).size, 3, 'new daily agent kinds are populated');
+  }
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
   await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: false} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
@@ -185,7 +193,7 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, token:access.token, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -209,6 +217,12 @@ async function checkPrevious(base, fixture, edition) {
     const missing = await http.request("/media/00000000000000000000000000000000.jpg",{method,headers:{"If-None-Match":"*"}},false);
     assert.equal(missing.status,404,"previous media miss cannot become 304");
     assert.match(missing.headers.get("Cache-Control"),/no-store/);
+  }
+  if (fixture.agentTraffic) {
+    for (const ua of ['OAI-SearchBot', 'GPTBot', 'ChatGPT-User']) {
+      assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
+    }
+    fixture.previousAgentTraffic = (await existingCall(base, fixture.token, 'site_stats', {})).agent_traffic;
   }
   let response = await http.post('/login/options', {});
   assert.equal(response.status, 200, await response.clone().text());
@@ -272,6 +286,12 @@ try {
         const previousStreams = Object.hasOwn(previousDefaults,'archive');
         await runtime.stop(); runtime=null;
         runtime=await current();
+        if (fixture.agentTraffic) {
+          const returned = (await existingCall(base,fixture.token,'site_stats',{})).agent_traffic.daily.filter(r => r.kind !== 'other');
+          if (!fixture.previousAgentTraffic) assert.deepEqual(returned, fixture.agentTraffic, 'old runtime ignores daily agent counters; returning to new preserves them');
+          else for (const row of fixture.agentTraffic) assert(returned.some(r => r.day === row.day && r.kind === row.kind && r.requests >= row.requests), 'daily agent counters survive a counter-aware rollback');
+          console.log(`rollback-data: ${edition}: daily agent aggregates survive actual previous runtime and return`);
+        }
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
         assert((await response.text()).includes('Ninth stream report'),'approved ninth stream survives rollback');
         await runtime.stop();runtime=null;

@@ -1484,7 +1484,13 @@ shared, versioned user-agent classification table, evaluated in memory:
 OAI-SearchBot, Claude-SearchBot and Googlebot are search; GPTBot and
 ClaudeBot are training; ChatGPT-User and Claude-User are user-triggered.
 Unknown or ambiguous user-agent strings are other. Google-Extended is a
-robots preference token, not a separately identifiable request agent.
+robots preference token, not a separately identifiable request agent. The
+shared table is `server/server/app/agent-traffic.json` (version 1), bundled
+into the Worker and packaged with the server. Stored kind identifiers are
+`search`, `training`, `user`, `other`, in that report order. Match complete
+ASCII product tokens case-insensitively, not substrings; recognized names
+from multiple kinds are ambiguous and count as other. Empty, unknown or
+over-4096-character declarations also count as other.
 Classification is an estimate from a declared name, not verified identity;
 do not add IP verification or fetch provider data. Neither edition depends
 on Cloudflare analytics. Requests answered wholly outside the engine may
@@ -1507,7 +1513,12 @@ the additive table and keeps its original statistics behavior.
 Show day, kind and request count to the owner on request through the
 existing protected statistics surfaces, with the coverage/classification
 limits above. Counts are request counts, not unique people or verified
-agents. Show no advice, ranking inference or automatic prompt. Public
+agents. Reports use the existing statistics date range, include daily rows
+and all four kind totals, and are site-wide even when legacy content or
+campaign filters are requested: no path or campaign was stored to filter.
+State this scope explicitly. Counter failures must not change delivery of a
+public response; include failed increments in the coverage limitation.
+Show no advice, ranking inference or automatic prompt. Public
 pages, Markdown, JSON-LD and llms.txt never expose these counts.
 Required paired cases are `af_agent_kind_daily_counts` (each class, other,
 HEAD/304, concurrent increments and date rollover),
