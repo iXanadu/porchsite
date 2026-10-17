@@ -2,7 +2,7 @@
 // on the SAME database, and check public routes plus a signed passkey login.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import net from 'node:net';
@@ -345,7 +345,8 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         if(fixture.artifactFeature){
-          const previousRows=await(await fetch(base+'/__rollback/artifacts')).json();assert((previousRows.results??previousRows).length>0,'old runtime left prepared rows to validate on return');
+          const previousRows=await(await fetch(base+'/__rollback/artifacts')).json();
+          if(!existsSync(path.join(previous,'cloudflare/src/public-artifacts.ts')))assert((previousRows.results??previousRows).length>0,'artifact-unaware old runtime left prepared rows to validate on return');
           const fresh=await fetch(base+'/',{headers:{'If-None-Match':fixture.beforeOldPublishTag}});assert.equal(fresh.status,200,'old publication invalidates a warm prepared validator on return');
           const freshRows=await(await fetch(base+'/__rollback/artifacts')).json();assert.notDeepEqual(freshRows,previousRows,'complete dependency digest replaces rows after actual old publication');
         }
