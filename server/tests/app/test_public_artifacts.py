@@ -552,4 +552,4 @@ async def test_af_pipe_table_access(db,http,browser_factory):
     await publish(db,hidden)
     for method in ['GET','HEAD']:
         response=await http.request(method,path+'index.md',headers={'If-None-Match':tag})
-        assert response.status_code==404 and response.content==(BLANK.encode() if method=='GET' else b'')
+        assert response.status_code==404 and response.content==(SIGN_IN.encode() if method=='GET' else b'')

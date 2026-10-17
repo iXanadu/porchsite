@@ -258,5 +258,5 @@ it('af_pipe_table_access: published-only copies, GET/HEAD/304, negotiation and i
  await content.removeItem(db,actor,table.id,pending.version);await publish(await content.getItem(db,table.id));
  const removed=await get(path+'index.md',{'If-None-Match':tag});expect(removed.status).toBe(404);expect(removed.headers.has('ETag')).toBe(false);
  const privateSite=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(privateSite);
- for(const method of ['GET','HEAD']){const r=await get(path+'index.md',{'If-None-Match':tag},method);expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');}
+ for(const method of ['GET','HEAD']){const r=await get(path+'index.md',{'If-None-Match':tag},method);expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?SIGN_IN:'');}
 });
