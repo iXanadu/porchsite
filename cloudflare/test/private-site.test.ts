@@ -11,6 +11,7 @@ import * as site from "../src/site";
 import * as privacy from "../src/privacy";
 import { BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
+import * as ownerLink from "../src/site-owner-link";
 import worker from "../src/index";
 import { SoftKey } from "./softkey";
 const e = env as unknown as Env, db=e.DB, origin="https://site.example", who="assistant:test";
@@ -239,4 +240,36 @@ it.each(["cancel-invite","replace-recovery"])("refuses %s committed just before 
  const req=new Request(origin+path+"/verify",{method:"POST",headers:{Cookie:[...browser.jar].map(([k,v])=>`${k}=${v}`).join("; ")}});
  await expect(complete(changed,req,await key.create(options,origin))).rejects.toMatchObject({status:403});
  expect(await db.prepare("SELECT count(*) n FROM reader_passkeys").first("n")).toBe(0);expect(await db.prepare("SELECT count(*) n FROM reader_sessions").first("n")).toBe(0);expect(await db.prepare("SELECT count(*) n FROM passkeys").first("n")).toBe(1);
+});
+
+// Compare the real routed response with the engine decoration disabled, so
+// role checks, private gates, theme bytes and headers stay under test.
+it.each([false,true])("adds owner navigation only to valid owner HTML (private=%s)",async privateMode=>{
+ const f=await fixture(privateMode), r=await reader(), visitor=new Browser();
+ const paths=["/","/guide/published-guide/","/guide/","/guide/tags/guide/","/not-a-page"];
+ for(const path of paths) {
+  const baseline=vi.spyOn(ownerLink,"ownerSitePage").mockImplementation(async(_db,_req,response)=>response);
+  let prior:Response, priorReader:Response, priorVisitor:Response;
+  try {prior=await f.browser.at(path);priorReader=await r.browser.at(path);priorVisitor=await visitor.at(path);}
+  finally {baseline.mockRestore();}
+  const oldBody=await prior!.text(), shown=await f.browser.at(path), html=await shown.text();
+  expect(shown.status,path).toBe(prior!.status);
+  expect(html.replace(ownerLink.OWNER_SITE_LINK,""),path).toBe(oldBody);
+  expect(html.split(ownerLink.OWNER_SITE_LINK)).toHaveLength(2);
+  expect(html).toContain(ownerLink.OWNER_SITE_LINK+"</body>");
+  expect(shown.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
+  expect(shown.headers.get("Vary")).toMatch(/Cookie/i);
+  expect(shown.headers.has("ETag")).toBe(false);expect(shown.headers.has("Last-Modified")).toBe(false);
+  for(const [browser,old] of [[r.browser,priorReader!],[visitor,priorVisitor!]] as const) {
+   const actual=await browser.at(path);expect(actual.status).toBe(old.status);
+   expect([...actual.headers]).toEqual([...old.headers]);expect(await actual.text()).toBe(await old.text());
+  }
+  if(privateMode) await blank(await visitor.at(path));
+ }
+ for(const path of ["/guide/feed.xml","/sitemap.xml","/guide/search.json"]) {
+  expect(await (await f.browser.at(path)).text()).not.toContain(ownerLink.OWNER_SITE_LINK);
+ }
+ await db.prepare("UPDATE sessions SET expires_at='2000-01-01T00:00:00Z'").run();
+ if(privateMode) await blank(await f.browser.at("/"));
+ else expect(await (await f.browser.at("/")).text()).not.toContain(ownerLink.OWNER_SITE_LINK);
 });

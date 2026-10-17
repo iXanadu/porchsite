@@ -23,6 +23,7 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from .site_owner_link import owner_site_page
 from . import privacy, alerts
 from .alert_assets import ALERT_JS, SW_JS, ICONS
 from . import (
@@ -353,8 +354,8 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     v = await content_view(req,cx)
     origin = origin_of(req)
     policy = {"sources": v.site.get("embed_sources"), "origin": origin}
-    def page(body):
-        return themed_html(body, sources=policy["sources"], origin=origin)
+    async def page(body):
+        return await owner_site_page(cx.db, req, themed_html(body, sources=policy["sources"], origin=origin))
     # Entry addresses before streams had paths: /e/<slug>/ moves to the entry's own.
     old = _OLD.search(path)
     if old:
@@ -373,12 +374,12 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     if st:
         return _file(static_file(t, st.group(1), string(v.site.get("palette") or "")))
     if path == "/":
-        return page(render(t, "home", views.home_view(v, release, origin), policy))
+        return await page(render(t, "home", views.home_view(v, release, origin), policy))
     e = next((x for x in v.entries if x["page"] == path), None)
     if e and e.get("external_url"):
         return redirect(e["external_url"], 302)
     if e:
-        return page(render(t, "entry", views.entry_view(v, e, release, origin), policy))
+        return await page(render(t, "entry", views.entry_view(v, e, release, origin), policy))
     search = _SEARCH.search(path)
     if search:
         return _file(search_index(v, search.group(1)))
@@ -386,7 +387,7 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     if arch:
         av = views.archive_view(v, arch.group(1), release, origin, arch.group(2))
         if av:
-            return page(render(t, "tag" if arch.group(2) else "archive", av, policy))
+            return await page(render(t, "tag" if arch.group(2) else "archive", av, policy))
     return None
 
 
@@ -414,11 +415,11 @@ async def not_found_page(req: Request, cx: Context) -> Response:
         return redirect(old, 301, {"Cache-Control": "max-age=86400"})
     t = await themes.load(cx.db, str(v.site["theme"]))
     if not t:
-        return builtin.not_found(v, origin_of(req))
+        return await owner_site_page(cx.db, req, builtin.not_found(v, origin_of(req)))
     release = site.release_of(v)
-    return themed_html(
+    return await owner_site_page(cx.db, req, themed_html(
         render(t, "not_found", views.not_found_view(v, release, origin_of(req)), {"sources":v.site.get("embed_sources"),"origin":origin_of(req)}), 404, sources=v.site.get("embed_sources"), origin=origin_of(req)
-    )
+    ))
 
 
 # --- the person's phone: a one-time photo upload --------------------------------------------
@@ -1489,7 +1490,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 headers=SITEMAP_HEADERS,
             )
         if path == "/" and m == "GET":
-            return builtin.home(await content_view(req,cx), origin_of(req))
+            return await owner_site_page(cx.db, req, builtin.home(await content_view(req,cx), origin_of(req)))
         # Open to every crawler and agent. Pages that mustn't be indexed (the
         # owner's) say so themselves with noindex, which a crawler can only see
         # if it may fetch them.
@@ -1512,7 +1513,7 @@ async def _route(req: Request, cx: Context) -> Response:
         if _ENTRY.search(path) and m == "GET":
             page = builtin.entry_page(await content_view(req,cx), path, origin_of(req))
             if page:
-                return page
+                return await owner_site_page(cx.db, req, page)
 
         img = _IMG.search(path)
         if img and m == "GET":
@@ -1524,7 +1525,7 @@ async def _route(req: Request, cx: Context) -> Response:
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or builtin.not_found(await content_view(req,cx), origin_of(req))
+            return _file(shown) or await owner_site_page(cx.db, req, builtin.not_found(await content_view(req,cx), origin_of(req)))
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):

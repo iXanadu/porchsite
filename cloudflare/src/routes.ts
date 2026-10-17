@@ -1,3 +1,4 @@
+import { ownerSitePage } from "./site-owner-link";
 import * as pushWire from "./push-crypto";
 /**
  * Everything that isn't /mcp or the OAuth protocol endpoints: the public
@@ -178,7 +179,7 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   const v = await contentView(req,env);
   const origin = new URL(req.url).origin;
   const policy = {sources: v.site.embed_sources, origin};
-  const page = (body: string) => themedHtml(body, 200, policy.sources, origin);
+  const page = (body: string) => ownerSitePage(env.DB, req, themedHtml(body, 200, policy.sources, origin));
   // Entry addresses before streams had paths: /e/<slug>/ moves to the entry's own.
   const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
   if (old) {
@@ -223,9 +224,9 @@ async function notFoundPage(req: Request, env: Env): Promise<Response> {
   // An hour, not forever: a browser keeps a bare 301 for good, and a stream can move again.
   if (to) return new Response(null, { status: 301, headers: { Location: to + u.search, "Cache-Control": "max-age=3600" } });
   const name = await themes.load(env.DB, String(v.site.theme));
-  if (!name) return site.notFound(v, u.origin);
+  if (!name) return ownerSitePage(env.DB, req, site.notFound(v, u.origin));
   const release = v.updated.replace(/[^0-9A-Za-z]/g, "") || "0";
-  return themedHtml(theme.render(name, "not_found", theme.notFoundView(v, release, u.origin), {sources:v.site.embed_sources,origin:u.origin}), 404, v.site.embed_sources, u.origin);
+  return ownerSitePage(env.DB, req, themedHtml(theme.render(name, "not_found", theme.notFoundView(v, release, u.origin), {sources:v.site.embed_sources,origin:u.origin}), 404, v.site.embed_sources, u.origin));
 }
 
 // --- the person's phone: a one-time photo upload ----------------------------------
@@ -996,7 +997,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       const v = await contentView(req,env,true);
       return new Response(sitemap(v, url.origin, themes.isBuiltIn(String(v.site.theme)) || !!(await themes.load(env.DB, String(v.site.theme)))), {headers:SITEMAP_HEADERS});
     }
-    if (path === "/" && m === "GET") return site.home(await contentView(req,env), url.origin);
+    if (path === "/" && m === "GET") return ownerSitePage(env.DB, req, site.home(await contentView(req,env), url.origin));
     // Open to every crawler and agent. Pages that mustn't be indexed (the
     // owner's) say so themselves with noindex, which a crawler can only see
     // if it may fetch them.
@@ -1010,7 +1011,7 @@ async function route(req: Request, env: Env): Promise<Response> {
     }
     if (/^\/[a-z][a-z0-9-]{0,29}\/[a-z0-9-]{1,80}\/$/.test(path) && m === "GET") {
       const page = site.entryPage(await contentView(req,env), path, url.origin);
-      if (page) return page;
+      if (page) return ownerSitePage(env.DB, req, page);
     }
 
     const img = /^\/media\/([0-9a-f]{32}\.(?:jpg|png|webp))$/.exec(path);
@@ -1019,7 +1020,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       // sees unpublished ones on the review page.
       const isPublic = await media.published(env.DB, img[1]);
       const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic) : null;
-      return shown ?? site.notFound(await contentView(req,env), url.origin);
+      return shown ?? await ownerSitePage(env.DB, req, site.notFound(await contentView(req,env), url.origin));
     }
 
     const up = /^\/upload\/([A-Za-z0-9_-]{32})$/.exec(path);

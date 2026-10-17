@@ -11,6 +11,7 @@ from starlette.requests import Request
 
 from server.app import approvals, content, importer, media, owner, privacy, site
 from server.app.errors import ApiError
+from server.app import routes, site_owner_link
 
 from .conftest import TABLES
 from .softkey import SoftKey
@@ -816,3 +817,43 @@ async def test_cancel_or_replacement_committed_before_issue_refuses(db, browser_
         options = await browser.options(base + "/options", {"code": "a" * 32})
         await owner.issue_recovery_code(db, "b" * 32)
     assert (await browser.post(base + "/verify", key.create(options, ORIGIN))).status_code == 403
+
+
+@pytest.mark.parametrize("private_mode", [False, True])
+async def test_owner_navigation_preserves_other_roles(db, browser_factory, monkeypatch, private_mode):
+    browser, _, _, _, _ = await fixture(db, browser_factory, private_mode)
+    reader_browser, _, _ = await reader(db, browser_factory)
+    visitor = browser_factory()
+
+    async def unchanged(db, req, response):
+        return response
+
+    for path in ("/", "/guide/published-guide/", "/guide/", "/guide/tags/guide/", "/not-a-page"):
+        with monkeypatch.context() as patch:
+            patch.setattr(routes, "owner_site_page", unchanged)
+            prior = await browser.at(path)
+            prior_reader = await reader_browser.at(path)
+            prior_visitor = await visitor.at(path)
+        shown = await browser.at(path)
+        link = site_owner_link.OWNER_SITE_LINK
+        assert shown.status_code == prior.status_code
+        assert shown.text.replace(link, "") == prior.text
+        assert shown.text.count(link) == 1
+        assert link + "</body>" in shown.text
+        assert shown.headers["Cache-Control"] == "private, no-store, no-transform"
+        assert "cookie" in shown.headers["Vary"].lower()
+        assert "ETag" not in shown.headers and "Last-Modified" not in shown.headers
+        for client, old in ((reader_browser, prior_reader), (visitor, prior_visitor)):
+            actual = await client.at(path)
+            assert actual.status_code == old.status_code
+            assert actual.headers == old.headers
+            assert actual.content == old.content
+        if private_mode:
+            blank(await visitor.at(path))
+    for path in ("/guide/feed.xml", "/sitemap.xml", "/guide/search.json"):
+        assert site_owner_link.OWNER_SITE_LINK not in (await browser.at(path)).text
+    await db.execute("UPDATE sessions SET expires_at='2000-01-01T00:00:00Z'")
+    if private_mode:
+        blank(await browser.at("/"))
+    else:
+        assert site_owner_link.OWNER_SITE_LINK not in (await browser.at("/")).text
