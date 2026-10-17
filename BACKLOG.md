@@ -18,6 +18,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 2. The AGENT ACCESS TO PRIVATE SITES section last.
 
 ## BLOCKING
+- **BL-HTTP** IN-PROGRESS: on the Cloudflare edition every plain http://
+  request returns 500 (the OAuth provider is built from an http origin and
+  throws), about 16% of a live site's traffic. Redirect http to https first
+  in the Worker. Found 2026-10-17.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
