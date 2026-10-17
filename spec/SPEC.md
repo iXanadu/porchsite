@@ -1572,14 +1572,19 @@ ranking or citation improvement is promised.
 The live approved private flag is checked before resolving an alternate,
 constructing a view, comparing a validator, looking up a prepared response
 or following a redirect. No user-agent string, Accept value, conditional
-header, query parameter, extension or bearer token grants access.
+header, query parameter or extension grants access. A bearer token is not
+an AF credential; only a currently valid published-read AG Bearer under
+§11 grants the limited private published-read authority specified there.
 
 On a private site all new AF endpoints, including `/index.md`, entry,
 archive and tag `index.md` paths and `/llms.txt`, return the exact blank
-404 specified in §3, even for an owner or reader. A request selecting
-Markdown at an existing page URL returns that same denial. HEAD has the
-same status and security headers with no body. Denials carry no ETag,
-Last-Modified, Link, Content-Location, canonical URL, site name, Location,
+404 specified in §3 unless §11 authorizes the request with a valid AG
+Bearer or valid owner/reader session. That exception grants published
+Markdown/map copies and reader-view HTML only; AG-6 separately permits
+owner-session review negotiation. Anonymous, expired, revoked, malformed
+and unknown credentials keep the exact denial. A request selecting
+Markdown at an existing page URL follows the same gate and exception. HEAD has the same status and security headers with no body. Public anonymous AF remains
+unchanged. Denials carry no ETag, Last-Modified, Link, Content-Location, canonical URL, site name, Location,
 Age, Vary or content-specific header. If-None-Match, If-Modified-Since,
 If-Match and If-Unmodified-Since never change this to 304 or 412.
 Private robots retains its exact existing disallow-all response. Existing
@@ -2024,7 +2029,9 @@ parameters ignored by a route cannot create extra stored variants.
 
 Requests with Authorization or any owner/reader cookie present, including
 expired or revoked cookie values, bypass artifact lookup, delivery and filling.
-They use today's personalized/anonymous-projection paths and no-store policy.
+They use today's personalized/anonymous-projection paths and no-store policy,
+except for §11's authorized private published Markdown/map revalidation;
+that exception still never reads, fills or delivers an AF-7 row.
 This does not bypass mandatory invalidation when an authorized mutation
 changes publication, or gate-time deletion of obsolete public rows.
 Other cookies do not enter a key or the anonymous renderer. Do not remove a
@@ -2035,11 +2042,13 @@ public builder takes only approved public inputs and never an owner's request.
 
 Every request first runs the current private-site/access gate against live
 state, before stored-copy lookup, representation negotiation or builders.
-Private AF paths still return the exact blank 404 for every cookie class,
-without validators, Link, Vary, Content-Signal or Age. Authorized existing
-private HTML follows its existing live no-store path and never reads or
-writes an artifact. Authorization results, positive or negative, are never
-cached. Backend errors cannot turn a failed access check into public access.
+Private AF paths without a valid §11 principal still return the exact
+blank 404, without validators, Link, Vary, Content-Signal or Age. With a
+valid §11 principal, private published copies follow its private cache
+and principal-validator rules; owner review copies remain owner-only and
+no-store. Private HTML, including AG Bearer reader-view HTML, is live and
+no-store. No private response reads or writes an AF-7 artifact. Authorization
+results, positive or negative, are never cached. Backend errors cannot turn a failed access check into public access.
 
 For an eligible public request, obtain a consistent snapshot identity G from
 authoritative database state; never trust an isolate, process or stored row's
@@ -2277,7 +2286,7 @@ before the feature-specific presentation rules above.
 Gating
 1. Access check runs before live view, media lookup, Markdown/JSON-LD/llms build, ETag, Link, stored-copy lookup, or Accept negotiation.
 2. AF paths are not on the private open-path allowlist: GET/HEAD /llms.txt, GET/HEAD <page>/index.md, and page URLs with Accept: text/markdown.
-3. New private AF surfaces return exactly today's blank 404 for every cookie class (anonymous, owner, reader, expired, revoked): status, BLANK body and headers above.
+3. New private AF surfaces return exactly today's blank 404 without a valid §11 principal: status, BLANK body and headers above. Valid AG Bearer or owner/reader sessions are the §11 published-copy exception; anonymous/expired/revoked/malformed requests remain blank. Owner review copies require AG-6's valid owner session.
 4. That 404 has no ETag, Last-Modified, Link, Vary, Content-Location, or Age.
 5. Its Content-Type is text/html (charset utf-8 allowed). Never text/markdown, application/ld+json, or text/plain except private /robots.txt as in 10. Accept: text/markdown does not change this (no content-type oracle).
 6. HEAD matches GET status and those headers, empty body.
@@ -2289,18 +2298,18 @@ Gating
 Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
-13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap.
-14. ETag, when present, hashes only the anonymous published representation: canonical URL U, Content-Type T, the approved training signal S and body bytes B, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
-15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on every authenticated page (SV-PV1). Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
+13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in published Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap. AG-6 alone may show owner-authorized review prose in a no-store copy; secrets and public/published surfaces remain excluded.
+14. A public AF-2 ETag, when present, hashes only the anonymous published representation: canonical URL U, Content-Type T, the approved training signal S and body bytes B, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on authenticated HTML (SV-PV1); only §11 private published Markdown/map may use principal-bound private revalidation. Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
 
-Published-only content
-18. Markdown, JSON-LD, llms.txt, sitemap, feeds, and ETag input use the live approved view only. Drafts, pending approvals, unpublished items, and unapplied rollback versions never appear.
+Published-only content (rules 18–24 concern published representations, not AG-6 owner-session review views)
+18. Published Markdown, JSON-LD, llms.txt, sitemap, feeds, and ETag input use the live approved view only. Drafts, pending approvals, unpublished items, and unapplied rollback versions never appear there. AG-6 no-store owner review copies are outside that published projection and expose only what the same authorized owner GET shows.
 19. Private cards are absent (name, description, link, picture, badge).
 20. Mention cards: name and description only; no link, link label, or picture — same as HTML.
-21. Unpublished entries and owner/review/setup/preview/login/recover/invite/upload/mcp paths never get Markdown copies, JSON-LD, or llms.txt listings.
-22. llms.txt lists only URLs a visitor GET would 200 as HTML (home + published local entry pages). No /review, drafts, private cards, media secrets, or invite tokens.
+21. Unpublished entries and owner/review/setup/preview/login/recover/invite/upload/mcp paths never get AF Markdown copies, JSON-LD, or llms.txt listings. AG-6 alone permits no-store review negotiation after the same valid owner session; it never grants published-read keys draft authority.
+22. Public llms.txt lists only URLs an anonymous visitor GET would 200 as HTML; a §11 private map instead uses the authorized principal's published HTML 200s (home + enabled archive + published local entry pages). No /review, drafts, private cards, media secrets, or invite tokens.
 23. JSON-LD properties are existing published fields already shown on that page. No email/phone/price/beds unless already a public page field. No session or owner-only fields.
 24. Markdown of a page is the same published text the visitor HTML shows (title, date, tags, body, visible cards), not a richer dump of item JSON.
 
@@ -2311,7 +2320,7 @@ AF-8
 28. rel=alternate and rel=describedby Link targets are same-origin site URLs to that page's Markdown copy and /llms.txt. Never owner-controlled URLs.
 
 Routing
-29. <page>/index.md exists only for addresses that are a public HTML page (home /index.md, entry /stream/slug/index.md, archive/tag if those pages exist). /review/index.md, /login/index.md, /media/.../index.md, /mcp/index.md are not Markdown copies: private anonymous → blank 404; public → ordinary miss, never owner HTML as markdown.
+29. <page>/index.md exists only for real published HTML pages (public AF or an authorized §11 published-copy request) (home /index.md, entry /stream/slug/index.md, archive/tag if those pages exist). /review/index.md, /login/index.md, /media/.../index.md, /mcp/index.md are not Markdown copies: private anonymous → blank 404; public → ordinary miss, never owner HTML as markdown.
 30. On a public page, Accept: text/markdown returns the same bytes as that page's /index.md, Content-Type text/markdown; charset=utf-8, Vary: Accept. Public miss: themed HTML 404, not markdown. Private anonymous: blank HTML 404 even with that Accept (5).
 31. Both editions: identical bytes and headers for the same published site (parity includes Markdown, llms.txt, robots with the training switch, JSON-LD).
 
@@ -2325,15 +2334,17 @@ Protocol leftovers
 ### Named security acceptance cases (paired in both editions)
 
 Each row names a required implementation test, not an existing passing
-result. Run denial cases against anonymous, owner, reader, expired and
-revoked cookies; all new private AF paths are blank for every cookie class.
+result. Run denial cases against anonymous, expired, revoked, malformed
+and unknown credentials, and routes outside §11's grant. Valid AG Bearer
+and owner/reader sessions exercise §11's published-copy exceptions instead
+of the old every-cookie denial. Owner-review negotiation is AG-6 only.
 The named cases implement the corresponding numbered invariant above.
 
 | Rule | Required test name | Assertion |
 | --- | --- | --- |
 | 1 | `af_gate_before_representation` | Access precedes views, media, builds, validators, links, storage and negotiation. |
 | 2 | `af_no_private_open_paths` | AF paths never enter the private allowlist. |
-| 3 | `af_private_exact_blank` | New private AF surfaces return the existing blank 404 for every cookie class. |
+| 3 | `af_private_exact_blank` | Without a valid §11 principal, every new private AF surface keeps exact BLANK for anonymous/expired/revoked/malformed/unknown credentials; valid AG or owner/reader sessions follow the named §11 authorized-copy cases. |
 | 4 | `af_blank_no_metadata` | No validators, links, Vary, Content-Location or Age. |
 | 5 | `af_blank_html_type` | Accept never changes denial Content-Type. |
 | 6 | `af_private_head` | HEAD has GET status/security headers and empty body. |
@@ -2342,17 +2353,17 @@ The named cases implement the corresponding numbered invariant above.
 | 9 | `af_denial_lookup_spies` | All content, media, copy and builder spies remain uncalled. |
 | 10 | `af_private_robots_unchanged` | Exact disallow-all bytes/headers under every training setting. |
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
-| 12 | `af_authenticated_cache_bypass` | Owner/reader requests bypass shared copies and public 304s and send no-store. |
-| 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor agent copies. |
+| 12 | `af_authenticated_cache_bypass` | Owner/reader/AG requests bypass shared copies and public 304s; private HTML is no-store, only §11 private Markdown/map may revalidate with a principal-bound private tag. |
+| 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor published agent copies; AG-6 review copies remain valid-owner-only, secret-free and no-store. |
 | 14 | `af_etag_public_input` | Hash canonical URL, Content-Type, approved training signal and body bytes only, using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
 | 15 | `af_owner_then_visitor` | Owner request followed by visitor request never transfers owner decoration. |
 | 16 | `af_invalidate_before_serve` | Unpublish, private-on and card visibility invalidate copies and old tags. |
 | 17 | `af_accept_cache_separation` | Vary: Accept plus canonical direct copy; no owner bytes under either variant. |
-| 18 | `af_approved_only` | Draft, pending, unpublished and unapplied versions never affect artifacts. |
+| 18 | `af_approved_only` | Draft, pending, unpublished and unapplied versions never affect published artifacts; AG-6 private no-store owner review is tested separately and grants no published-key authority. |
 | 19 | `af_private_card_absent` | Every private-card field is absent from all new surfaces. |
 | 20 | `af_mention_card_projection` | Mention cards expose only displayed name and description. |
-| 21 | `af_reserved_and_unpublished_paths` | Owner/protocol/capability and unpublished paths have no copies or map entries. |
-| 22 | `af_map_links_resolve` | Every map entry corresponds to an anonymous HTML 200 and a valid copy. |
+| 21 | `af_reserved_and_unpublished_paths` | No AF copies or map entries for owner/protocol/capability or unpublished paths; AG-6 owner-session negotiation is the sole review exception and remains absent from maps. |
+| 22 | `af_map_links_resolve` | Public map entries resolve to anonymous HTML 200; §11 private map entries resolve to that valid principal's published HTML 200 and private copy. |
 | 23 | `af_jsonld_visible_fields` | Structured facts use only existing approved visible fields; paired browser tests prove inline data or the discovered same-origin twin under unchanged CSP. |
 | 24 | `af_markdown_visible_text` | Markdown omits fields and items absent from the visitor page. |
 | 25 | `af_frozen_wrappers` | Engine-authored words stay fixed across owner payload changes. |
@@ -2472,9 +2483,9 @@ Every named agent gets its own row. A new key is not a conversion of a writer
 key; revoke a writer separately if the owner wants to remove its authority.
 
 The token is disclosed once, only in the owner-authenticated creation
-response, under private no-store headers. This narrowly defined issuance
-response is the sole exception to the prohibition on tokens in HTML. It
-must not be converted to Markdown, logged, embedded in a URL, or returned by
+response, under private no-store headers. This narrowly defined
+create POST response is the sole exception to the prohibition on tokens in
+HTML. A later GET never discloses it. The token must not be converted to Markdown, logged, embedded in a URL, or returned by
 MCP. Later listings show name, scope, created, expiry and last successful
 use, never the token or hash. Refresh/back navigation cannot redisclose it.
 No exports, content imports, restore-as-draft, revisions or tool results carry
@@ -2518,6 +2529,14 @@ existing `site_state`/`site_check` behavior. For a published-read principal,
 and `search`. Initialization exposes no site content or private draft guide.
 The restricted guide describes these five capabilities as facts; it does
 not expose the drafting workflow, owner metadata or a private site dump.
+
+The restricted guide-reuse revision hashes the restricted read guide and
+scope, using SP-S3's encoding rules; a writer-guide revision is always stale
+for `published_read`. A changed/missing/foreign guide token returns the full
+restricted guide, never the writer guide. Since writer tool lists gain the
+three new read tools, implementation release notes must explain that apps
+which cache their catalog may need to reconnect or refresh tools. Existing
+writer behavior is not removed or changed.
 
 Enforce this allowlist before argument-dependent content work in **all**
 transports: Worker fast dispatch, SDK fallback, current and legacy protocol
@@ -2594,7 +2613,13 @@ as a first `pages_list` call; callers use `pages_list` for continuation.
 A valid AG key may GET/HEAD published page HTML, its `<page>/index.md`, or
 negotiate Markdown at the HTML URL, and read `/llms.txt`. Granting the same
 published HTML is necessary so every map target is a real HTML 200 for that
-principal. Its HTML uses the existing reader view, no owner Review link.
+principal. Bearer-authorized private HTML uses exactly the existing reader
+HTML bytes, without an owner Review link, and `Cache-Control: private,
+no-store, no-transform`. It sends no ETag (public AF-2 or private AG),
+Last-Modified or Content-Signal and never returns a conditional 304. It
+never looks up, fills or delivers an AF-7 row or another shared copy. Cheap
+private revalidation is limited to Markdown and the map; HTML GET/HEAD
+retains the existing reader HTML policy.
 This HTTP grant covers no owner, write, protocol, preview, raw-item, feed,
 sitemap or arbitrary media endpoint; existing passkey privileges remain as
 they are. Bearer validity never makes a draft address exist.
@@ -2747,9 +2772,20 @@ body. Unauthorized existing/missing paths are indistinguishable.
 | 24 | Actual previous runtime rejects AG at MCP/pages, writer keys still work; raw-bundle residual documented. | `ag_upgrade_return` |
 | 25 | Private-on purges public AF-7 and never prebuilds private copies. | `ag_no_shared_private_store` |
 
+Also require `ag_bearer_html_cache`: a valid AG Bearer can GET published
+HTML as 200 so every private-map HTML target resolves. Private HTML GET and
+ordinary HEAD have the same reader body/status/representation headers
+(HEAD body empty), exact private no-store policy and no public or AG
+validator, Last-Modified or Content-Signal. If-None-Match (public tag,
+AG Markdown tag or `*`) and If-Modified-Since never produce a 304. Spy on
+AF-7 lookup/fill/delivery and inspect all shared stores: none is used or
+populated by those requests. Repeat after private-on and revocation;
+revocation gives exact BLANK, even with old validators.
+
 Also require `ag_read_pagination` (bounded, complete continuation, stale and
-foreign cursors, Unicode/query parity), `ag_recovery_epoch`, and
-`ag_revocation_delivery_race`, and `ag_session_validator_partition` (stable
+foreign cursors, Unicode/query parity), `ag_recovery_epoch`,
+`ag_revocation_delivery_race`, `ag_restricted_guide_revision` (writer token
+is stale for the restricted guide), and `ag_session_validator_partition` (stable
 per-session opaque id, no credential/hash disclosure, no grant from a stale
 mapping). Test all owner/reader/agent/expired/revoked/
 anonymous combinations before and after private-on, public-on, unpublish,
