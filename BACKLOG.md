@@ -119,6 +119,11 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **AF-LL1** OPEN: /llms.txt is slow on a real Cloudflare site (1.2-1.6 s,
+  once about 6 s, versus 0.5 s for the home page) and returned one 500 on a
+  conditional request. Likely the map renders or validates every entry
+  per request; may exceed the free plan's CPU limit. Measure, then fix
+  (cheaper map build or a prepared copy). Found 2026-10-17 on a live site.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a
