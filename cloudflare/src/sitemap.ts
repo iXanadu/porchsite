@@ -2,8 +2,8 @@
 import type {SiteView} from './site';
 import {streams} from './theme';
 const xml=(value:string)=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
-export const SITEMAP_HEADERS={'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, max-age=300'};
-export const robots=(origin:string)=>`User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`;
+export const SITEMAP_HEADERS={'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, no-cache, must-revalidate, no-transform'};
+export const robots=(origin:string, disabled=false)=>`User-agent: *\nAllow: /\n${disabled ? '\n'+['GPTBot','ClaudeBot','Google-Extended'].map(name=>`User-agent: ${name}\nDisallow: /\n`).join('\n') : ''}Sitemap: ${origin}/sitemap.xml\n`;
 export function sitemap(v:SiteView,origin:string,archives=true):string {
  const dates=new Map<string,string>();
  for(const [id,at] of Object.entries(v.approved_at??{})){

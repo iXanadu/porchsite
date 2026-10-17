@@ -550,6 +550,21 @@ checked against the next one's database before it's published.
 
 To check older published photos for saved location data, run `python3 scripts/photo-location-check --site https://example.com` (add `--json` for a report of photo URLs and the pages that use them). For each flagged photo, download it and add it again with `image_add`, which strips location on add; draft replacements of its `/media/` address in every entry or other item that uses it, then send one `approval_request` listing all changed items. The old file stays in the site's history: the owner can still see it, and approving a rollback to an older item version would publish it again. Once no published item uses the old photo, the app stops serving it publicly. Anyone or any search engine that already fetched it keeps their copy; photos were served with a one-year cache lifetime. The checker only reads public pages and photos; on a private site there is nothing public to check. It has page, file, response-size and timeout limits; exit codes are 0 for clean or private, 2 for location found, and 1 for any error or incomplete scan. An error outranks a find. Nonstandard location data in JPEG APP2 is outside the checker and current stripper's coverage.
 
+### AI training and public re-checks
+
+AI training is allowed by default. To block the named training crawlers,
+propose `ai_training_disabled: true` on the site item and let the owner
+approve it. Search crawlers and agents fetching for a person stay allowed.
+The site declares the choice in robots.txt and its response headers; this
+is a preference, not a guarantee that every crawler obeys it. Private sites
+keep their existing disallow-all response and blank public pages.
+
+Public pages, feeds and sitemap support ETag re-checks: an unchanged
+representation returns 304 with no body. Owner and reader sessions keep
+private, no-store responses. Self-hosted proxies must respect these cache
+headers and bypass authenticated responses; disable host robots injection
+or content conversion that overrides the site's declaration.
+
 ### Alerts on your devices
 
 In the Home Screen app, tap Review (bottom right) to manage alerts.

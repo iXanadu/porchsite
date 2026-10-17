@@ -11,6 +11,8 @@ import * as site from "../src/site";
 import * as privacy from "../src/privacy";
 import { BLANK, livePrivate } from "../src/privacy";
 import { handle } from "../src/routes";
+import { matchesTag } from "../src/public-http";
+import validators from "../../spec/fixtures/public-validators.json";
 import * as ownerLink from "../src/site-owner-link";
 import worker from "../src/index";
 import { SoftKey } from "./softkey";
@@ -272,4 +274,50 @@ it.each([false,true])("adds owner navigation only to valid owner HTML (private=%
  await db.prepare("UPDATE sessions SET expires_at='2000-01-01T00:00:00Z'").run();
  if(privateMode) await blank(await f.browser.at("/"));
  else expect(await (await f.browser.at("/")).text()).not.toContain(ownerLink.OWNER_SITE_LINK);
+});
+
+
+it("af_etag_public_input: validator grammar is shared",()=>{
+ for(const c of validators) expect(matchesTag(c.field,'W/"sha256-test"'),c.field).toBe(c.match);
+});
+it("AF1 slice: conditional public representations never cross roles or gates",async()=>{
+ const f=await fixture(false), visitor=new Browser(), r=await reader();
+ for(const path of ["/","/guide/published-guide/","/guide/","/guide/tags/guide/","/guide/feed.xml","/sitemap.xml","/robots.txt"]) {
+  const original=await visitor.at(path), body=await original.text(), tag=original.headers.get("ETag")!;
+  expect(tag,path).toMatch(/^W\/"sha256-[a-f0-9]{64}"$/);
+  expect(original.headers.get("Cache-Control")).toBe("public, no-cache, must-revalidate, no-transform");
+  expect(original.headers.get("Content-Signal")).toBe("search=yes, ai-input=yes, ai-train=yes");
+  const unchanged=await visitor.at(path,{headers:{"If-None-Match":tag}});
+  expect(unchanged.status,path).toBe(304);expect(await unchanged.text()).toBe("");
+  expect(unchanged.headers.get("ETag")).toBe(tag);
+  const head=await visitor.at(path,{method:"HEAD",headers:{"If-None-Match":tag}});expect(head.status).toBe(304);expect(await head.text()).toBe("");
+  const weak=await visitor.at(path,{headers:{"If-None-Match":'"other", '+tag.slice(2),"If-Modified-Since":"Wed, 21 Oct 2099 07:28:00 GMT"}});expect(weak.status).toBe(304);
+  const changed=await visitor.at(path,{headers:{"If-None-Match":'"unknown"',"If-Modified-Since":"Wed, 21 Oct 2099 07:28:00 GMT"}});expect(changed.status).toBe(200);expect(await changed.text()).toBe(body);
+  for(const b of [f.browser,r.browser]) {const own=await b.at(path,{headers:{"If-None-Match":tag}});expect(own.status).toBe(200);expect(own.headers.get("Cache-Control")).toContain("no-store");expect(own.headers.has("ETag")).toBe(false);expect(own.headers.has("Content-Signal")).toBe(false);}
+  const after=await visitor.at(path);expect(await after.text()).toBe(body);expect(after.headers.get("ETag")).toBe(tag);
+ }
+ for(const path of ["/missing/","/login","/review","/index.md","/llms.txt"]) expect((await visitor.at(path)).headers.has("ETag")).toBe(false);
+ const tag=(await visitor.at("/")).headers.get("ETag"), body=await (await visitor.at("/")).text();
+ const draft=await content.updateItem(db,who,"site",f.item.version,{ai_training_disabled:true},undefined);
+ expect((await visitor.at("/")).headers.get("ETag")).toBe(tag);
+ const approval=await approvals.request(db,who,["site"],"");expect(await (await f.browser.at("/review/"+approval.id)).text()).toContain("Blocked for GPTBot");
+ await approvals.decide(db,approval.id,{site:{decision:"approve"}},"");
+ const off=await visitor.at("/");expect(await off.text()).toBe(body);expect(off.headers.get("ETag")).not.toBe(tag);expect(off.headers.get("Content-Signal")).toContain("ai-train=no");
+ const robots=await (await visitor.at("/robots.txt")).text();expect(robots).toContain("User-agent: *\nAllow: /\n");for(const bot of ["GPTBot","ClaudeBot","Google-Extended"])expect(robots).toContain(`User-agent: ${bot}\nDisallow: /`);
+ for(const table of ["items","revisions","live"]) {const key=table==="items"?"id":"item_id";for(const row of (await db.prepare(`SELECT data FROM ${table} WHERE ${key}='site'`).all<{data:string}>()).results)expect(JSON.parse(row.data)).not.toHaveProperty("ai_training_disabled");}
+ const allowed=await content.updateItem(db,who,"site",draft.version,{ai_training_disabled:false},undefined);await publish([allowed.id]);
+ expect((await visitor.at("/")).headers.get("ETag")).toBe(tag);
+ const enabling=await content.updateItem(db,who,"site",allowed.version,{private:true},undefined);await publish([enabling.id]);
+ for(const path of ["/","/guide/published-guide/","/guide/feed.xml","/sitemap.xml","/index.md","/llms.txt"])for(const method of ["GET","HEAD"]) {const denied=await visitor.at(path,{method,headers:{"If-None-Match":tag!,"If-Match":'"other"',"If-Modified-Since":"Wed, 21 Oct 2099 07:28:00 GMT","If-Unmodified-Since":"Wed, 01 Jan 2020 00:00:00 GMT"}});expect(denied.status).toBe(404);expect(denied.headers.has("ETag")).toBe(false);expect(denied.headers.has("Content-Signal")).toBe(false);expect(await denied.text()).toBe(method==="HEAD"?"":BLANK);}
+ expect(await (await visitor.at("/robots.txt")).text()).toBe("User-agent: *\nDisallow: /\n");
+});
+
+
+it("af_gate_before_representation: new private agent surfaces are blank for every role",async()=>{
+ const f=await fixture(),r=await reader(),visitor=new Browser();
+ const view=vi.spyOn(site,"liveView").mockImplementation(async()=>{throw Error("View before AF denial");});
+ try {for(const b of [f.browser,r.browser,visitor])for(const path of ["/index.md","/index.md/","/guide/published-guide/index.md","/missing/index.md","/llms.txt","/index.jsonld","/","/guide/published-guide/"]) {
+  await blank(await b.at(path,{headers:{Accept:"text/markdown","If-None-Match":"*"}}));
+  const head=await b.at(path,{method:"HEAD",headers:{Accept:"text/markdown"}});expect(head.status).toBe(404);expect(await head.text()).toBe("");expect(head.headers.has("Vary")).toBe(false);
+ }expect(view).not.toHaveBeenCalled();}finally{view.mockRestore();}
 });

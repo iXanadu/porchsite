@@ -47,7 +47,7 @@ async def test_renders_every_page_from_content_with_nothing_unapproved(db, http)
     await publish(db, [site_item["id"], j1["id"], j2["id"], w1["id"], c1["id"], c2["id"], n1["id"]])
 
     r = await http.get("/")
-    assert r.headers["cache-control"] == "no-cache"
+    assert r.headers["cache-control"] == "public, no-cache, must-revalidate, no-transform"
     assert "default-src 'none'" in r.headers["content-security-policy"]
     assert r.headers["x-porchsite-release"] == "test"
     home = r.text

@@ -23,6 +23,7 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
 from . import privacy, alerts
 from .alert_assets import ALERT_JS, SW_JS, ICONS
@@ -1434,10 +1435,14 @@ async def _json_body(req: Request) -> Any:
 async def handle(req: Request, cx: Context) -> Response:
     is_private,gated,response = await privacy.access(cx.db,req)
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
-    if response is None:
+    if is_private and private_agent_path(req):
+        response = privacy.blank_response()
+    elif response is None:
         response = await _route(get,cx)
     if is_private and gated:
         response = privacy.no_store(response)
+    if not is_private:
+        response = await public_response(cx.db,req,response,origin_of(req))
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:

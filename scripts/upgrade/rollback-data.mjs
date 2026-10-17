@@ -120,9 +120,11 @@ async function seed(base) {
     return JSON.parse(result.content[0].text);
   }
   const tools = (await rpc('tools/list', {})).tools.map(t => t.name);
-  const brokerFeature = Object.hasOwn((await call('site_state', {})).site_defaults, 'broker');
+  const defaults = (await call('site_state', {})).site_defaults;
+  const brokerFeature = Object.hasOwn(defaults, 'broker');
+  const trainingFeature = Object.hasOwn(defaults, 'ai_training_disabled');
   const picture = await call('image_add', { data: images['gps.jpeg'] });
-  const site = await call('item_create', { kind: 'site', data: { title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], timezone: 'UTC' } });
+  const site = await call('item_create', { kind: 'site', data: { ...(trainingFeature ? {ai_training_disabled: true} : {}), title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], timezone: 'UTC' } });
   if (brokerFeature) assert.equal((await call('site_state', {ids:[site.id]})).items[0].data.broker, 'Rollback Brokerage');
   const entry = await call('item_create', { kind: 'entry', data: { title: 'Rollback entry', date: '2026-10-15', tags: ['rollback'], cover: picture.image, cover_alt: 'Synthetic fixture', body: 'Rollback content.\n\n!embed[Demo](https://youtu.be/M7lc1UVf-VE)' } });
   const approval = await call('approval_request', { ids: [site.id, entry.id], note: 'Rollback fixture' });
@@ -150,7 +152,7 @@ async function seed(base) {
   assert.equal(statistics.pages[0].reached['100'], 100, 'new analytics must store the final scroll snapshot');
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
-  await call('item_update', { id: site.id, version: site.version, data: { ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
+  await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: false} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
   const pending = await call('approval_request', { ids: [site.id], note: 'Pending source fixture' });
   let batch = false;
   if (tools.includes('photo_batch_link')) {
@@ -169,7 +171,7 @@ async function seed(base) {
     assert.equal((await call('photo_batch_status', { id: link.id })).status, 'done');
     batch = true;
   }
-  return { key, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, trainingChoice: trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
