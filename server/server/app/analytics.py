@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from server.spec.jsutil import add_days, local, u16slice, url_host
 
+from .agent_traffic import traffic_report
 from .content import site_data
 from .db import Db, iso, transaction
 
@@ -417,6 +418,7 @@ async def stats(
     )
 
     return {
+        "agent_traffic": await traffic_report(db,start,end),
         "range": {"start": start, "end": end},
         "filter": {
             "content_id": content_id,
@@ -428,7 +430,7 @@ async def stats(
             "A visit = one visitor on one day (visitors are not linked across days). "
             "Engaged time counts only while the page is visible and the reader is active. "
             f"Bounce = under {BOUNCE_MS // 1000} s engaged, or one page with no scroll "
-            "past 25%. The owner, bots and test runs are not counted. "
+            "past 25%. Visitor statistics exclude the owner, bots and test runs. "
             "Time on page and scroll can lag up to a minute while someone is still reading. "
             "Browser or connection delays can make that longer. "
             "If the final message is lost, recorded time and scroll can be lower."

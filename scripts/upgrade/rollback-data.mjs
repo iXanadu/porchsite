@@ -120,12 +120,15 @@ async function seed(base) {
     return JSON.parse(result.content[0].text);
   }
   const tools = (await rpc('tools/list', {})).tools.map(t => t.name);
-  const defaults = (await call('site_state', {})).site_defaults;
+  const initialState = await call('site_state', {});
+  const defaults = initialState.site_defaults;
+  const receiptFeature = Object.hasOwn(initialState, 'training_choice');
   const brokerFeature = Object.hasOwn(defaults, 'broker');
   const streamFeature = Object.hasOwn(defaults, 'archive');
+  const trainingFeature = Object.hasOwn(defaults, 'ai_training_disabled');
   const streamSettings = streamFeature ? {streams:[{id:'journal',title:'Rollback journal',sort:'title'},...Array.from({length:8},(_,i)=>({id:`stream-${i+1}`,title:`Rollback stream ${i+1}`}))], sections:['stream-8','journal'],archive:{enabled:true,title:'Rollback archive'}} : {};
   const picture = await call('image_add', { data: images['gps.jpeg'] });
-  const site = await call('item_create', { kind: 'site', data: { title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], ...streamSettings, timezone: 'UTC' } });
+  const site = await call('item_create', { kind: 'site', data: { ...(trainingFeature ? {ai_training_disabled: true} : {}), title: 'Rollback fixture', ...(brokerFeature ? {broker: 'Rollback Brokerage'} : {}), theme: 'personal-homepage', embed_sources: ['https://www.youtube-nocookie.com'], sections: ['journal'], ...streamSettings, timezone: 'UTC' } });
   if (brokerFeature) assert.equal((await call('site_state', {ids:[site.id]})).items[0].data.broker, 'Rollback Brokerage');
   const entry = await call('item_create', { kind: 'entry', data: { title: 'Rollback entry', date: '2026-10-15', tags: ['rollback'], cover: picture.image, cover_alt: 'Synthetic fixture', body: 'Rollback content.\n\n!embed[Demo](https://youtu.be/M7lc1UVf-VE)' } });
   let ninth;
@@ -143,7 +146,16 @@ async function seed(base) {
   response = await http.request(`/journal/${slug}/`, {}, false);
   assert.equal(response.status, 200);
   assert((await response.text()).includes('<iframe'), 'new code must actually publish an engine embed');
-  const stored = new Uint8Array(await (await http.request(picture.image, {}, false)).arrayBuffer());
+  const mediaResponse = await http.request(picture.image, {}, false);
+  const mediaTag = mediaResponse.headers.get("ETag");
+  assert.match(mediaTag, /^W\/"sha256-[a-f0-9]{64}"$/);
+  assert.equal(mediaResponse.headers.get("Cache-Control"), "no-cache, no-transform");
+  const stored = new Uint8Array(await mediaResponse.arrayBuffer());
+  for (const method of ["GET", "HEAD"]) {
+    const validated = await http.request(picture.image, {method, headers:{"If-None-Match":mediaTag}}, false);
+    assert.equal(validated.status,304,"current media revalidation");
+    assert.equal((await validated.arrayBuffer()).byteLength,0);
+  }
   assert(stored.length < Buffer.from(images['gps.jpeg'], 'base64').length, 'the stored picture must have stripped metadata');
   for (const event of [{ t: 'pv', id: 'rollback-view-0001', p: '/', k: 'home' }, { t: 'hb', id: 'rollback-view-0001', e: 30000, d: 25 }, { t: 'hb', id: 'rollback-view-0001', e: 90000, d: 100 }]) {
     const r = await http.request('/collect', { method: 'POST', headers: { 'user-agent': 'Mozilla/5.0 (rollback reader)', 'content-type': 'text/plain' }, body: JSON.stringify(event) }, false);
@@ -153,9 +165,17 @@ async function seed(base) {
   assert.equal(statistics.totals.views, 1, 'new analytics must write a view');
   assert(statistics.totals.engaged_ms > 0, 'new analytics must store cumulative engagement');
   assert.equal(statistics.pages[0].reached['100'], 100, 'new analytics must store the final scroll snapshot');
+  let agentTraffic;
+  if (statistics.agent_traffic) {
+    for (const ua of ['OAI-SearchBot', 'GPTBot', 'ChatGPT-User']) {
+      assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
+    }
+    agentTraffic = (await call('site_stats', {})).agent_traffic.daily.filter(r => r.kind !== 'other');
+    assert.equal(new Set(agentTraffic.map(r => r.kind)).size, 3, 'new daily agent kinds are populated');
+  }
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
-  await call('item_update', { id: site.id, version: site.version, data: { ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
+  await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: receiptFeature} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
   const pending = await call('approval_request', { ids: [site.id], note: 'Pending source fixture' });
   let batch = false;
   if (tools.includes('photo_batch_link')) {
@@ -175,7 +195,7 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, token:access.token, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
@@ -191,6 +211,21 @@ async function checkPrevious(base, fixture, edition) {
     const header = response.headers.get('X-Porchsite-Release');
     if (header) assert.equal(header, release, 'must exercise the previous runtime');
   }
+  for (const method of ["GET", "HEAD"]) {
+    const image = await http.request(fixture.picture,{method,headers:{"If-None-Match":fixture.mediaTag}},false);
+    assert.equal(image.status,200,"previous media ignores new validator and still serves published bytes");
+    const body = new Uint8Array(await image.arrayBuffer());
+    if (method === "GET") assert.deepEqual(body,fixture.imageBytes); else assert.equal(body.length,0);
+    const missing = await http.request("/media/00000000000000000000000000000000.jpg",{method,headers:{"If-None-Match":"*"}},false);
+    assert.equal(missing.status,404,"previous media miss cannot become 304");
+    assert.match(missing.headers.get("Cache-Control"),/no-store/);
+  }
+  if (fixture.agentTraffic) {
+    for (const ua of ['OAI-SearchBot', 'GPTBot', 'ChatGPT-User']) {
+      assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
+    }
+    fixture.previousAgentTraffic = (await existingCall(base, fixture.token, 'site_stats', {})).agent_traffic;
+  }
   let response = await http.post('/login/options', {});
   assert.equal(response.status, 200, await response.clone().text());
   response = await http.post('/login/verify', await fixture.key.get((await response.json()).options, base));
@@ -201,6 +236,16 @@ async function checkPrevious(base, fixture, edition) {
   assert.equal(response.status, 200, 'previous owner must be able to review the new pending item');
   assert.equal(failures.length, 0, `${edition} previous runtime failed after current feature writes: ${failures.join('; ')}`);
   console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
+}
+
+async function checkTraining(base, fixture, disabled) {
+  if (!fixture.receiptFeature) return;
+  const state = await existingCall(base,fixture.token,'site_state',{ids:['site']});
+  assert.equal(state.training_choice.effective_disabled,disabled,'only a receipted live version may disable training after runtime return');
+  const page = await fetch(base+'/'), robots = await (await fetch(base+'/robots.txt')).text();
+  assert.equal(page.headers.get('Content-Signal'),`search=yes, ai-input=yes, ai-train=${disabled?'no':'yes'}`);
+  assert.equal(robots.includes('User-agent: GPTBot'),disabled);
+  return state;
 }
 
 async function loginOwner(base,fixture){
@@ -245,21 +290,38 @@ try {
         old = () => launch(python,[adapter,'serve-old'],{...common,PYTHONPATH:path.join(previous,'server'),PORCHSITE_RELEASE:release},base);
       }
       runtime = await current(); const fixture = await seed(base);
+      await checkTraining(base,fixture,true);
       console.log(`rollback-data: ${edition}: seeded current features ${JSON.stringify(fixture.features)}`);
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
       if(fixture.streamFeature){
+        const previousDefaults = (await existingCall(base,fixture.token,'site_state',{})).site_defaults;
+        const previousStreams = Object.hasOwn(previousDefaults,'archive');
         await runtime.stop(); runtime=null;
         runtime=await current();
+        if (fixture.agentTraffic) {
+          const returned = (await existingCall(base,fixture.token,'site_stats',{})).agent_traffic.daily.filter(r => r.kind !== 'other');
+          if (!fixture.previousAgentTraffic) assert.deepEqual(returned, fixture.agentTraffic, 'old runtime ignores daily agent counters; returning to new preserves them');
+          else for (const row of fixture.agentTraffic) assert(returned.some(r => r.day === row.day && r.kind === row.kind && r.requests >= row.requests), 'daily agent counters survive a counter-aware rollback');
+          console.log(`rollback-data: ${edition}: daily agent aggregates survive actual previous runtime and return`);
+        }
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
         assert((await response.text()).includes('Ninth stream report'),'approved ninth stream survives rollback');
+        await checkTraining(base,fixture,true);
         await runtime.stop();runtime=null;
         runtime=await old();
         const http=await loginOwner(base,fixture);
         await approveAt(http,fixture.pending);
         await runtime.stop();runtime=null;
         runtime=await current();
-        response=await fetch(base+'/archive/');assert.equal(response.status,404,'old approval cannot activate unseen stream extension');
+        response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
+        const unreceipted = await checkTraining(base,fixture,false);
+        if(fixture.receiptFeature){
+          assert.equal(unreceipted.training_choice.proposed_disabled,true,'actual old approval leaves the unseen true field intact');
+          assert.equal(unreceipted.training_choice.needs_publication,true);
+          const owner=await loginOwner(base,fixture),review=await owner.request('/review');
+          assert((await review.text()).includes('AI training is currently allowed. Training-off is proposed;'));
+        }
         await runtime.stop();runtime=null;
         runtime=await old();
         const edited=await existingCall(base,fixture.token,'item_update',{id:'site',version:fixture.pendingVersion,data:{title:'Rollback old edit'}});
@@ -269,10 +331,18 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
-        assert.equal(state.items[0].data.streams.length,8,'old edit retains only legacy streams');
-        assert(!state.items[0].data.archive?.enabled,'old edit does not inherit archive');
-        assert.equal((await fetch(base+'/archive/')).status,404);
-        console.log(`rollback-data: ${edition}: 9-stream return restored; old approval and old edit cannot activate extension`);
+        assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
+        assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
+        assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
+        await checkTraining(base,fixture,false);
+        if(fixture.receiptFeature){
+          const fresh=await existingCall(base,fixture.token,'item_update',{id:'site',version:edited.version,data:{ai_training_disabled:true}});
+          const requested=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Show the training choice for current-code owner approval'});
+          await approveAt(await loginOwner(base,fixture),new URL(requested.review_url).pathname);
+          await checkTraining(base,fixture,true);
+          console.log(`rollback-data: ${edition}: training receipt survives untouched rollback; actual old approval and edit cannot activate unseen choice; fresh shown owner approval activates its own version ${fresh.version}`);
+        }
+        console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }
     } catch (error) {
       failures.push(`${edition}: ${error.stack || error}`);

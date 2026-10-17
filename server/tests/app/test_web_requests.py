@@ -57,4 +57,4 @@ async def test_robots(http):
         r.text
         == f"User-agent: *\nAllow: /\nSitemap: {str(r.url).removesuffix('/robots.txt')}/sitemap.xml\n"
     )
-    assert r.headers["cache-control"] == "public, max-age=3600"
+    assert r.headers["cache-control"] == "public, no-cache, must-revalidate, no-transform"

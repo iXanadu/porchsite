@@ -295,6 +295,18 @@ CREATE TABLE site_stream_settings (
  approved INTEGER NOT NULL DEFAULT 0
 );
 """),
+    ("0015_agent_traffic_daily", """
+CREATE TABLE agent_traffic_daily (
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('search', 'training', 'user', 'other')),
+  requests BIGINT NOT NULL DEFAULT 0 CHECK (requests >= 0),
+  PRIMARY KEY (day, kind)
+);
+"""),
+    ("0016_training_approvals", """
+-- No backfill from approved fields: older code can approve unseen keys.
+CREATE TABLE training_approvals (version INTEGER PRIMARY KEY);
+"""),
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

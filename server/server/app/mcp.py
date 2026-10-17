@@ -23,6 +23,7 @@ from server.spec.embed_url import EMBED_ADVICE, EMBED_SYNTAX
 from server.spec.embeds import embed_notes
 
 from . import alerts
+from .site_fields import training_state
 from . import privacy
 from . import (
     analytics,
@@ -308,7 +309,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "site_stats",
-            "description": "Who reads the site: first-party visitor numbers, nothing that identifies a person; the owner, bots and test runs aren't counted. Returns `totals` (visits: one visitor on one day; views; engaged time; the typical visit; bounce_rate; multi_page_rate), `daily`, `pages` (per address: readers, typical and mean engaged time, how far down they read, landings, bounce_rate, exits), `sources` and `referring_domains`, and `tagged` (links you shared with ?src=<where>&p=<post> on the end), and `earlier` (past 90 days only the counts are kept: visits and views by month, newest first; the whole site only). Narrow to the visits that read one item with content_id, or that came from one tagged link with src and post.",
+            "description": "Who reads the site: first-party visitor numbers, nothing that identifies a person; visitor statistics exclude the owner, bots and test runs. Also returns agent_traffic: site-wide daily anonymous public request counts and totals by estimated agent kind, with coverage and classification limits; content and campaign filters do not apply to these counts. Returns `totals` (visits: one visitor on one day; views; engaged time; the typical visit; bounce_rate; multi_page_rate), `daily`, `pages` (per address: readers, typical and mean engaged time, how far down they read, landings, bounce_rate, exits), `sources` and `referring_domains`, and `tagged` (links you shared with ?src=<where>&p=<post> on the end), and `earlier` (past 90 days only the counts are kept: visits and views by month, newest first; the whole site only). Narrow to the visits that read one item with content_id, or that came from one tagged link with src and post.",
             "inputSchema": _obj(
                 {
                     "days": {
@@ -580,6 +581,7 @@ async def _call(
                 "kinds": kind_guide(),
                 "fields": field_guide(),
                 "site_defaults": content.validate("site", {}),
+                "training_choice": await training_state(db),
                 "release": release,
                 "update": await privacy.with_rollback(db,release,await updates.check(db, release)),
             }

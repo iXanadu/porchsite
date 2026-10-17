@@ -13,15 +13,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AF-2..AF-8 and UC9, built in slices on branch `af-integration` (kept off
-   main until their release, because INSTALL.md and llms.txt are read raw
-   from main). Then ST-1..ST-3, rebased onto AF, with AF handling for
-   /archive/. Then SV-PV2 (media header). AG-* last.
+1. AF-2..AF-8 and UC9 on `af-integration`, incorporating the released
+   ST-1..ST-3 archive. Keep AF off main until its release because INSTALL.md
+   and llms.txt are read raw from main. SV-PV2 (media header) is next;
+   AG-* last.
 
 ## BLOCKING
-- **MC-1** IN-PROGRESS: mention cards show more than name and description
-  on public pages (badge, group, subtitle, period, price, tags) in both
-  editions; the spec allows name and description only. Fixed in AF Slice2.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
@@ -66,38 +63,12 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
-- **AF-1** OPEN (first): measure before building. A local baseline on the
-  sample sites (bytes and headers per page type, whether repeat fetches get
-  a 304). Then an owner-readable count of traffic by kind: search
-  crawlers, training crawlers, agents acting for a person. On request
-  only, as facts.
-- **AF-2** OPEN: cheap re-checks. ETag and a conditional 304 on public
-  pages, entries, archives, tags, feeds and the sitemap, identical in both
-  editions. Pages send no validator today.
-- **AF-3** OPEN: a light copy of every public page. Markdown at
-  `<page>/index.md`, advertised by `rel="alternate" type="text/markdown"` in
-  the page and a Link header; `Accept: text/markdown` on the page URL
-  returns the same with `Vary: Accept`; ETag/304 on both.
-- **AF-4** OPEN: AI-training switch, allowed by default. robots.txt always
-  allows search crawlers and user-triggered agents; training crawlers are
-  disallowed only when the owner switches training off. The site states
-  the choice itself, whatever a host default says.
-- **AF-5** OPEN: schema.org JSON-LD in every look, from existing fields
-  only, matching what the page shows (was AI-2, Listing and Local business
-  only). Structured listing facts (price, beds) would need fields stored
-  where the previous release never reads them (see S4-11).
-- **AF-6** OPEN: a short `/llms.txt` per site (title, summary, key pages
-  pointing at the Markdown copies), with `Link: </llms.txt>; rel="describedby"`.
-  Low value, low cost; not sold as an SEO feature.
 - **AF-7** OPEN: build-ahead for public pages (was S4-9). Hosted CPU on
   Free is about 2-3x local, so even a warm home page costs 9-14 ms. Serve
   stored copies of public pages, Markdown copies and llms.txt, cleared on
   every change; Workers Caching first, the site's own table if that can't
   be switched on through the API upload, and the server edition's
   equivalent. Also takes page views off the free plan's daily read limit.
-- **AF-8** OPEN: anything published for agents (Markdown, JSON-LD,
-  llms.txt) comes only from the owner's approved content and never carries
-  instructions aimed at agents. A spec rule plus tests.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos
   without alt text, embeds without a caption, pages without a description,
   heading order). Facts, never advice.
@@ -153,17 +124,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   "Term: meaning" lists until then.
 
 ## DEGRADING
-- **AF-C1** OPEN: an older release approving a version written by newer
-  code approves every site_fields key, so it can switch on the AI-training
-  choice without showing it (same class as the broker fields). Needs the
-  receipt pattern private mode uses. Found in AF Slice1 review, 2026-10-17.
-- **SV-PV2** OPEN: a caching reverse proxy in front of a server-edition
-  site keeps serving /media files the site no longer publishes: the site
-  sends `public, max-age=31536000, immutable`. Deploy guidance now disables
-  proxy media caching and stale responses, bypasses both session cookies
-  and requires purging old copies. Remaining: review and implement a
-  shorter origin media header in both editions, coordinated with AF cache
-  invalidation. Found 2026-10-16.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,

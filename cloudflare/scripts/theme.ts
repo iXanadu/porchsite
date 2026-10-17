@@ -2,6 +2,8 @@
 //   npm run theme:preview <name>   render the sample site and open it
 //   npm run theme:check <name>     check the rules, render every page, take previews
 //   node scripts/theme.mjs raw <name> <themes> <outdir> [now]   the sample's pages, unmodified
+import { structuredBlock } from '../src/structured-data';
+import { markdownDocument } from '../src/agent-markdown';
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -85,6 +87,11 @@ function main() {
     const v=sampleView(loadTheme(name) as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8")), now);
     v.approved_at=Object.fromEntries(['site',...v.entries.map(e=>String(e.id)),...v.cards.map(e=>String(e.id)),...v.notes.map(e=>String(e.id))].map((id,i)=>[id,new Date(now.getTime()-i*86400000).toISOString()]));
     pages['sitemap.xml']=sitemap(v,'https://example.com');pages['robots.txt']=robots('https://example.com');
+    for(const [p,html] of Object.entries(pages))if(p.endsWith('index.html')) {
+      const canonical='https://example.com/'+p.slice(0,-10);
+      pages[p]=html.replace('</head>',structuredBlock(html,canonical)+'</head>');
+      pages[p.slice(0,-10)+'index.md']=markdownDocument(html,canonical).markdown;
+    }
     for (const [p, html] of Object.entries(pages)) {
       mkdirSync(join(dir, p, ".."), { recursive: true });
       writeFileSync(join(dir, p), html);

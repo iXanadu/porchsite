@@ -17,6 +17,7 @@ type Data = Record<string, unknown>;
 
 /** Plain words for the fields a person sees on the review page. */
 export const LABELS: Record<string, string> = {
+  ai_training_disabled: "AI training",
   title: "Name", tagline: "Headline", intro: "Intro", description: "Description for search and shared links", about: "About",
   hero: "Main picture", logo: "Mark (and browser icon)", share_image: "Picture for shared links", hero_caption: "Line under the masthead",
   theme: "Look", palette: "Colours", links: "Menu", buttons: "Buttons", streams: "Sections", archive: "All-stream archive", sections: "Order of the home page",
@@ -41,6 +42,7 @@ export function labelFor(kind: string, k: string): string {
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
 
 function plainValue(k: string, v: unknown): Raw | string {
+  if (k === "ai_training_disabled") return v === true ? "Blocked for GPTBot, ClaudeBot and Google-Extended" : "Allowed";
   if (k === "streams" && Array.isArray(v)) return v.map(entryName).join(" · ");
   if (k === "archive" && v && typeof v === "object") {const a=v as Data; return `${a.enabled ? "On" : "Off"} · ${String(a.title ?? "All entries")}`;}
   if (typeof v === "string") {
@@ -184,7 +186,8 @@ function changeRow(kind: string, k: string, old: unknown, now: unknown): Raw {
   const label = labelFor(kind, k);
   let value: Raw;
   const isList = (v: unknown) => Array.isArray(v) || (v !== null && typeof v === "object");
-  if (isList(old) || isList(now)) value = listChange(old, now);
+  if (k === "ai_training_disabled") value = html`<div class="value"><span class="old">${plainValue(k, old)}</span> → ${plainValue(k, now)}</div>`;
+  else if (isList(old) || isList(now)) value = listChange(old, now);
   else if ((typeof old === "string" && media.LOCAL.test(old)) || (typeof now === "string" && media.LOCAL.test(now))) {
     value = html`<div class="value">${thumb(String(old ?? ""))} → ${thumb(String(now ?? ""))}</div>`;
   } else {

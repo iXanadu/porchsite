@@ -535,6 +535,7 @@ class NoteData(_Model):
 # Keep its existing field order, shared with the Cloudflare field guide.
 SiteInput = create_model(
     "SiteInput",
+    ai_training_disabled=(Bool, Field(default=False, description="Block GPTBot, ClaudeBot and Google-Extended training use; search and user-triggered agents stay allowed; only owner approval changes this")),
     private=(Bool, Field(default=False, description="Require an owner or invited reader passkey to read published pages; only owner approval changes this")),
     broker=(text(_max(160)), Field(default="", description="plain-text brokerage line; Listing footer only; owner approval required")),
     __base__=_Model,

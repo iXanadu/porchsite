@@ -305,6 +305,7 @@ export const NoteData = z
   .strict();
 
 const SiteInput = z.object({
+    ai_training_disabled: z.boolean().default(false).describe("Block GPTBot, ClaudeBot and Google-Extended training use; search and user-triggered agents stay allowed; only owner approval changes this"),
     private: z.boolean().default(false).describe("Require an owner or invited reader passkey to read published pages; only owner approval changes this"),
     broker: z.string().max(160).default("").describe("plain-text brokerage line; Listing footer only; owner approval required"),
     embed_sources: z.array(z.string().max(2000)).max(20).default([]).describe("approved HTTPS player origins; adding or removing one requires owner approval"),

@@ -77,6 +77,26 @@ for look in "${looks[@]}"; do
   fi
 done
 
+# Conditional binary media uses identical bytes, header fields and weak validators.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/media-parity.ts --bundle --platform=node --outfile="$TMP/media.cjs" --log-level=error && node "$TMP/media.cjs") >"$TMP/media-cf.json" \
+  || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/media_parity.py" >"$TMP/media-py.json" \
+  || ! cmp -s "$TMP/media-cf.json" "$TMP/media-py.json"; then
+  echo "✗ conditional media responses differ"
+  bad=$((bad + 1))
+else
+  echo "✓ conditional media: binary types, GET/HEAD, validators and session isolation identical"
+fi
+
+# UC9 classification and aggregate reports share one versioned table.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/agent-traffic-parity.ts --bundle --platform=node --outfile="$TMP/traffic.cjs" --log-level=error && node "$TMP/traffic.cjs") >"$TMP/traffic-cf.json" \
+  || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/agent_traffic_parity.py" >"$TMP/traffic-py.json" \
+  || ! cmp -s "$TMP/traffic-cf.json" "$TMP/traffic-py.json"; then
+  echo "✗ agent traffic classification/report differs"
+  bad=$((bad + 1))
+else
+  echo "✓ agent traffic: classification, aggregate report and owner HTML identical"
+fi
+
 # The tool handlers run in their native runtimes, on the same persisted rows.
 # Keep every answer field; sort JSON object keys only, preserving array order.
 if ! (cd "$ROOT/cloudflare" && node scripts/tool-parity.mjs "$TMP/tools-cf" "${looks[@]}") >"$TMP/tools.cf.log" 2>&1; then

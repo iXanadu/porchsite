@@ -24,7 +24,7 @@ async def test_shows_the_mark_uses_it_as_the_icon_and_shares_the_share_picture(d
     r = await http.get(m)
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/jpeg"
-    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert r.headers["cache-control"] == "no-cache, no-transform"
 
 
 async def test_an_unpublished_image_is_only_the_owners(db, http):
@@ -34,4 +34,4 @@ async def test_an_unpublished_image_is_only_the_owners(db, http):
     assert "Not found" in hidden.text or "Nothing here." in hidden.text
     mine = await http.get(m, cookies=await signed_in(db))
     assert mine.status_code == 200
-    assert mine.headers["cache-control"] == "private, no-store"
+    assert mine.headers["cache-control"] == "private, no-store, no-transform"

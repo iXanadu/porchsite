@@ -1,3 +1,7 @@
+import * as agentTraffic from "./agent-traffic";
+import { trainingState } from "./site-fields";
+import { agentPage } from './agent-pages';
+import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
 import { archiveFilter } from "./archive";
 import * as pushWire from "./push-crypto";
@@ -26,6 +30,7 @@ import * as importer from "./importer";
 import * as keys from "./keys";
 import { esc, html, markdown, nonce, type Raw, raw, respond } from "./html";
 import * as media from "./media";
+import { conditionalMedia, mediaSession } from "./media-http";
 import * as owner from "./owner";
 import * as privacy from "./privacy";
 import { dateString } from "./date-format";
@@ -294,6 +299,11 @@ async function importPage(req: Request, error = "", problems: string[] = []): Pr
   );
 }
 
+async function trainingNotice(db: D1Database): Promise<Raw> {
+  const state = await trainingState(db);
+  return state.needs_publication ? html`<p class="warn">${state.note}</p>` : raw("");
+}
+
 async function reviewIndex(env: Env, req: Request): Promise<Response> {
   await alerts.opened(env.DB,req);
   const devices=await alerts.devices(env.DB), device=devices.find(d=>d.id===alerts.cookie(req));
@@ -306,7 +316,7 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     )}<span class="go">${a.items.some((i) => i.status === "pending") ? "Review and decide →" : "See details →"}</span></a>`;
   return ownerPage(
     "Review",
-    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
+    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${await trainingNotice(env.DB)}${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
@@ -387,7 +397,7 @@ ${it.status === "pending"
   return ownerPage(
     "Review changes",
     html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
-${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
+${await trainingNotice(env.DB)}${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
 ${raised.map((r) => html`<p class="warn">${raiseLine(r)}</p>`)}
 ${pending ? html`<p>${sentence} Nothing changes until you approve. Look first:</p><p><a class="button" href="/review/${a.id}/preview">See the site as it will look</a></p>` : ""}
 <form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}">
@@ -705,7 +715,7 @@ async function statsPage(env: Env, req: Request): Promise<Response> {
     "Stats",
     html`<h1>Who's reading</h1>
 <div class="ranges">${RANGES.map(([k, label]) => html`<a class="range${k === days ? " on" : ""}" href="/review/stats?days=${k}">${label}</a>`)}</div>
-<p class="meta">${s.range.start} to ${s.range.end} · you, bots and test runs aren't counted</p>
+<p class="meta">${s.range.start} to ${s.range.end} · visitor statistics exclude you, bots and test runs</p>
 <p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">${tile(String(t.visits), "visitors")}${tile(String(t.views), "pages read")}${tile(duration(t.median_visit_engaged_ms), "typical stay")}${tile(`${whole(t.bounce_rate)}%`, "left right away")}</div>
 ${t.visits ? html`<p class="meta">${whole(t.multi_page_rate)}% read more than one page. A visitor is one person on one day.</p>` : ""}
@@ -714,6 +724,7 @@ ${s.daily.length > 1
       (d: any) => html`<div class="bar-row"><span class="bar-label">${d.day.slice(5)}</span><span class="bar"><span style="width:${peak ? whole((100 * d.visits) / peak) : 0}%"></span></span><span class="bar-num">${d.visits}</span></div>`,
     )}</div>`
   : ""}
+${raw(agentTraffic.trafficHTML(s.agent_traffic))}
 <h2 class="sub">What they read</h2>
 ${s.pages.length
   ? s.pages.map(
@@ -963,9 +974,19 @@ const BEACON_HEADERS = { "Content-Type": "text/javascript; charset=utf-8", "Cach
 export async function handle(req: Request, env: Env): Promise<Response> {
   const access = await privacy.access(env.DB,req);
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
-  let res = access.response ?? await route(get,env);
+  let res:Response;
+  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse();
+  else if(access.response)res=access.response;
+  else if(access.isPrivate)res=await route(get,env);
+  else res=await agentPage(get,r=>route(r,env),async()=>{
+    const v=await contentView(new Request(get.url),env);
+    return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>
+      v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
+  },r=>notFoundPage(r,env));
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
+  if (!access.isPrivate) res = await publicResponse(env.DB,req,res);
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
+  if (!access.isPrivate) await agentTraffic.observe(env.DB,req,res).catch(()=>{});
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }
@@ -1025,8 +1046,11 @@ async function route(req: Request, env: Env): Promise<Response> {
       // Nothing is public before the owner's yes, images included; the owner
       // sees unpublished ones on the review page.
       const isPublic = await media.published(env.DB, img[1]);
-      const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic) : null;
-      return shown ?? await ownerSitePage(env.DB, req, site.notFound(await contentView(req,env), url.origin));
+      const anonymous = !mediaSession(req);
+      const shown = isPublic || (await owner.signedIn(env.DB, req)) ? await media.serve(env.DB, img[1], isPublic && anonymous) : null;
+      if (shown) return isPublic && anonymous ? conditionalMedia(req, shown, url.origin + path) : shown;
+      const missing = await ownerSitePage(env.DB, req, site.notFound(await contentView(req,env), url.origin));
+      return mediaSession(req) ? privacy.noStore(missing) : missing;
     }
 
     const up = /^\/upload\/([A-Za-z0-9_-]{32})$/.exec(path);

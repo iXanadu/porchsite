@@ -1,0 +1,26 @@
+{
+  "agents": [
+    {"ua":"Mozilla/5.0 (compatible; OAI-SearchBot/1.0)","kind":"search"},
+    {"ua":"Claude-SearchBot/1.0","kind":"search"},
+    {"ua":"Googlebot/2.1","kind":"search"},
+    {"ua":"GPTBot/1.0","kind":"training"},
+    {"ua":"ClaudeBot/1.0","kind":"training"},
+    {"ua":"ChatGPT-User/1.0","kind":"user"},
+    {"ua":"Claude-User/1.0","kind":"user"},
+    {"ua":"gPtBoT/1.0","kind":"training"},
+    {"ua":"Google-Extended","kind":"other"},
+    {"ua":"notGPTBot/1.0","kind":"other"},
+    {"ua":"GPTBot-lookalike/1.0","kind":"other"},
+    {"ua":"GPTBot/1.0 ChatGPT-User/1.0","kind":"other"},
+    {"ua":"GPTBot/1.0 ClaudeBot/1.0","kind":"training"},
+    {"ua":"Mozilla/5.0","kind":"other"},
+    {"ua":"","kind":"other"}
+  ],
+  "rows": [
+    {"day":"2026-10-17","kind":"training","requests":5},
+    {"day":"2026-10-16","kind":"user","requests":3},
+    {"day":"2026-10-17","kind":"search","requests":8},
+    {"day":"2026-10-17","kind":"other","requests":1},
+    {"day":"2026-10-01","kind":"other","requests":99}
+  ]
+}

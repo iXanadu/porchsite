@@ -97,17 +97,18 @@ does not provide isolation. Preserve private/no-store/no-transform and
 security headers. Never serve stale content, including when the origin
 returns 404, times out or is refreshing a response in the background.
 
-Do not cache `/media/` longer than pages. Current public photos carry a
-one-year immutable header even though removing their last published
-reference makes their origin URL unavailable. Disable proxy media caching
-and override media responses to `private, no-store, no-transform` until the
-engine changes that policy. Purge old copies you operate after unpublishing
-photos or changing privacy. This cannot revoke files already downloaded or
-erase a browser's still-fresh old one-year copy. The deploy guide includes
-an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
-After an origin update, remove the interim media override only when every
-intervening cache honors revalidation and has stale reuse disabled. Keep
-cookie bypass, 404 passthrough and purge requirements in place.
+Do not cache `/media/` longer than pages. Public photos send
+`no-cache, no-transform` with an ETag: every reuse revalidates, unchanged
+published photos can return 304, and removed photos return 404 before any
+validator check. Signed-in media is private/no-store with no validators.
+Earlier releases used a one-year immutable header. Keep the conservative
+proxy override `private, no-store, no-transform` during upgrades and
+rollbacks, and remove it only after verifying the new origin policy and
+every intermediary's revalidation and stale-off behavior. Keep cookie
+bypass, 404 passthrough and purge requirements in place. Purge operated
+caches after unpublishing photos or changing privacy. This cannot revoke
+downloaded files or a browser's still-fresh old one-year copy. The deploy
+guide includes an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
 
 ## Update policy
 
@@ -161,6 +162,30 @@ To check older published photos for saved location data, run `python3 scripts/ph
   machine). Other ways of running it (a bare Python install, another web
   server, a managed database) can work, but aren't documented or supported.
 - One owner per site; approvals need that owner's passkey.
+
+### AI training and public re-checks
+
+AI training is allowed by default. To block the named training crawlers,
+propose `ai_training_disabled: true` on the site item and let the owner
+approve it. Search crawlers and agents fetching for a person stay allowed.
+The site declares the choice in robots.txt and its response headers; this
+is a preference, not a guarantee that every crawler obeys it. Private sites
+keep their existing disallow-all response and blank public pages.
+
+Public pages, feeds and sitemap support ETag re-checks: an unchanged
+representation returns 304 with no body. Owner and reader sessions keep
+private, no-store responses. Self-hosted proxies must respect these cache
+headers and bypass authenticated responses; disable host robots injection
+or content conversion that overrides the site's declaration.
+
+Public HTML pages advertise a Markdown copy at their address plus `index.md`
+(for example, `/notes/example/index.md`). An explicit `Accept: text/markdown`
+also selects that copy at the HTML address; proxies must honor `Vary: Accept`.
+`/llms.txt` provides a bounded map of the home page and published local entries.
+Public HTML also carries inert schema.org page data from the visible
+approved title and description, under the existing script policy.
+Copies use the text the look displays; private sites expose none of these
+new paths, including to signed-in owners and readers.
 
 ### Alerts on your devices
 

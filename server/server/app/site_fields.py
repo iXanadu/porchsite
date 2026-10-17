@@ -23,7 +23,28 @@ async def fields_approval(db, version):
 
     await db.execute("INSERT INTO private_approvals (version) SELECT f.version FROM site_fields f JOIN live l ON l.version = f.version AND l.item_id = 'site' WHERE f.version = $1 AND f.key = 'private' AND f.approved = 1 ON CONFLICT DO NOTHING",version)
 
+    await db.execute("INSERT INTO training_approvals (version) SELECT f.version FROM site_fields f JOIN live l ON l.version = f.version AND l.item_id = 'site' WHERE f.version = $1 AND f.key = 'ai_training_disabled' AND f.value = 'true' AND f.approved = 1 ON CONFLICT DO NOTHING", version)
+
 
 async def private_data(db, version, live):
     row = await db.fetchrow("SELECT value,approved FROM site_fields WHERE version = $1 AND key = 'private'",version)
     return bool(row and json.loads(row["value"]) is True and (not live or (row["approved"] and await db.fetchrow("SELECT 1 FROM private_approvals WHERE version = $1",version))))
+
+
+async def training_data(db, version, live):
+    row = await db.fetchrow("SELECT value,approved FROM site_fields WHERE version = $1 AND key = 'ai_training_disabled'",version)
+    return bool(row and json.loads(row["value"]) is True and (not live or (row["approved"] and await db.fetchrow("SELECT 1 FROM training_approvals a JOIN live l ON l.version = a.version AND l.item_id = 'site' WHERE a.version = $1", version))))
+
+
+TRAINING_NOTE = "AI training is currently allowed. Training-off is proposed; publish a fresh site version with this choice to activate it."
+
+
+async def training_state(db):
+    """Protected state only; never part of published site data."""
+    current = await db.fetchrow("SELECT version FROM items WHERE id = 'site' AND deleted = FALSE")
+    live = await db.fetchrow("SELECT version FROM live WHERE item_id = 'site'")
+    proposed = bool(current and await training_data(db, current["version"], False))
+    effective = bool(live and await training_data(db, live["version"], True))
+    return {"proposed_disabled": proposed, "effective_disabled": effective,
+            "needs_publication": proposed and not effective,
+            "note": TRAINING_NOTE if proposed and not effective else ""}

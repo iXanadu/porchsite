@@ -24,8 +24,12 @@ from server.spec.embeds import PERMISSIONS, frame_csp
 from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
+from .site_fields import training_state
+from .agent_pages import agent_page
+from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
-from . import privacy, alerts
+from . import privacy, alerts, agent_traffic
+from .media_http import conditional_media, media_session
 from .alert_assets import ALERT_JS, SW_JS, ICONS
 from . import (
     analytics,
@@ -516,6 +520,11 @@ async def import_page(req: Request, error: str = "", problems: list[str] | None 
 _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
+async def _training_notice(db):
+    state = await training_state(db)
+    return f'<p class="warn">{esc(state["note"])}</p>' if state["needs_publication"] else ""
+
+
 async def review_index(req: Request, cx: Context) -> Response:
     await alerts.opened(cx.db, req)
     device = next((d for d in await alerts.devices(cx.db) if d["id"] == alerts.cookie(req)), {})
@@ -543,7 +552,7 @@ async def review_index(req: Request, cx: Context) -> Response:
     decided = "".join(row(a) for a in done) if done else '<p class="meta">Nothing yet.</p>'
     return owner_page(
         "Review",
-        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
+        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{await _training_notice(cx.db)}{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
@@ -662,7 +671,8 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
         else ""
     )
     raised = await visibility.raises(cx.db, waiting)
-    embed_warn = await _embed_review_for(cx.db, embed_changes, origin_of(req))
+    embed_warn = await _training_notice(cx.db)
+    embed_warn += await _embed_review_for(cx.db, embed_changes, origin_of(req))
     embed_warn += await _private_review_warning(cx.db, embed_changes)
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
@@ -1104,11 +1114,12 @@ async def stats_page(req: Request, cx: Context) -> Response:
         "Stats",
         f"""<h1>Who's reading</h1>
 <div class="ranges">{ranges}</div>
-<p class="meta">{esc(s["range"]["start"])} to {esc(s["range"]["end"])} · you, bots and test runs aren't counted</p>
+<p class="meta">{esc(s["range"]["start"])} to {esc(s["range"]["end"])} · visitor statistics exclude you, bots and test runs</p>
 <p class="meta">Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.</p>
 <div class="stats">{tiles}</div>
 {multi}
 {by_day}
+{agent_traffic.traffic_html(s["agent_traffic"])}
 <h2 class="sub">What they read</h2>
 {pages}
 {sources}
@@ -1338,7 +1349,8 @@ async def history_page(req: Request, cx: Context) -> Response:
 async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Response:
     p = await history.plan(cx.db, id)
     plan = p["changes"]
-    embed_warn = await _embed_review_for(cx.db, plan, origin_of(req))
+    embed_warn = await _training_notice(cx.db)
+    embed_warn += await _embed_review_for(cx.db, plan, origin_of(req))
     embed_warn += await _private_review_warning(cx.db, plan)
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:
@@ -1443,14 +1455,30 @@ async def _json_body(req: Request) -> Any:
 async def handle(req: Request, cx: Context) -> Response:
     is_private,gated,response = await privacy.access(cx.db,req)
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
-    if response is None:
-        response = await _route(get,cx)
+    if is_private and private_agent_path(req):
+        response = privacy.blank_response()
+    elif response is None:
+        if is_private:
+            response = await _route(get,cx)
+        else:
+            async def agent_paths():
+                from .agent_pages import anonymous
+                v = await content_view(anonymous(get, '/'),cx)
+                return (['/archive/'] if v.site.get('archive', {}).get('enabled') else []) + [e['page'] for s in v.site['streams'] for e in v.entries if e['stream'] == s['id'] and not e.get('external_url')]
+            response = await agent_page(get,lambda r: _route(r,cx),agent_paths,origin_of(req),lambda r: not_found_page(r,cx))
     if is_private and gated:
         response = privacy.no_store(response)
+    if not is_private:
+        response = await public_response(cx.db,req,response,origin_of(req))
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:
             response.headers["Cache-Control"]="no-store"
+    if not is_private:
+        try:
+            await agent_traffic.observe(cx.db,req,response)
+        except Exception:
+            pass  # Accounting failure never changes content delivery.
     if req.method == "HEAD":
         response.body = b""
     return response
@@ -1530,11 +1558,15 @@ async def _route(req: Request, cx: Context) -> Response:
             # sees unpublished ones on the review page.
             is_public = await media.published(cx.db, img.group(1))
             shown = (
-                await media.serve(cx.db, img.group(1), is_public)
+                await media.serve(cx.db, img.group(1), is_public and not media_session(req))
                 if is_public or await owner.signed_in(cx.db, req)
                 else None
             )
-            return _file(shown) or await owner_site_page(cx.db, req, builtin.not_found(await content_view(req,cx), origin_of(req)))
+            if shown:
+                response = _file(shown)
+                return conditional_media(req, response, origin_of(req) + path) if is_public and not media_session(req) else response
+            missing = await owner_site_page(cx.db, req, builtin.not_found(await content_view(req,cx), origin_of(req)))
+            return privacy.no_store(missing) if media_session(req) else missing
 
         up = _UPLOAD.search(path)
         if up and m in ("GET", "POST"):

@@ -141,8 +141,8 @@ async def test_an_image_is_public_only_once_a_published_item_uses_it(db):
     req = await approvals.request(db, who, [a["id"]], "")
     await approvals.decide(db, req["id"], {a["id"]: {"decision": "approve"}}, "")
     assert await media.published(db, name) is True
-    assert "immutable" in (await media.serve(db, name, True))["headers"]["Cache-Control"]
-    assert (await media.serve(db, name, False))["headers"]["Cache-Control"] == "private, no-store"
+    assert (await media.serve(db, name, True))["headers"]["Cache-Control"] == "no-cache, no-transform"
+    assert (await media.serve(db, name, False))["headers"]["Cache-Control"] == "private, no-store, no-transform"
 
 
 async def test_refuses_non_https_image_links_in_the_schema(db):
