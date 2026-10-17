@@ -119,6 +119,11 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
+  filter check accepts a decoded trailing newline in tag/stream (JS `$`)
+  where the server edition refuses it, so the two editions answer a
+  malformed filter differently. Not an access issue. Anchor the check to
+  the exact end in both editions, with a paired test. Found 2026-10-17.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,
