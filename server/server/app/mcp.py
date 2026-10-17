@@ -39,7 +39,8 @@ from . import (
 )
 from .db import Db, dumps
 from .errors import ApiError
-from .fields import field_guide, kind_guide
+from .fields import kind_guide
+from .site_guide import fixed_guide, with_guide
 from .home import HOME
 from .photo_advice import PHOTO_ADVICE
 
@@ -71,13 +72,6 @@ NEXT = (
 )
 IMAGE_ADD_DESCRIPTION = "For picture files you hold: give exactly one of data (one base64 picture, existing image/width/height response) or images (1 to 8 base64 pictures, response images:[{image,width,height},...] in input order). JPEG, PNG or WebP, at most 8 MB each and 8 MB decoded total. Every file is sniffed and stored by hash; all succeed or none are stored. Duplicates repeat in the answer and are stored once. Nothing shows publicly until the owner approves an item that uses it. Put each image path in an image field with an alt description. photo_upload_link still takes one file." + " " + PHOTO_ADVICE
 CHECK_DESCRIPTION = "Check proposed changes before approval. Default: ok, broken internal links and empty_sections, without rendering pages. Unapproved embed sources appear as non-failing embed_notes. Send deep: true once before approval on a new site or look change. It also checks rendered reachability (unreachable). A stop at 200 addresses or 10000 links returns crawl, ok: false and unreachable: []. Deep is heavy and can exceed Cloudflare Free CPU limits on big sites."
-STATES = {
-    "live": "published, and the current version is what visitors see",
-    "changed": "published, with a newer version that isn't approved yet",
-    "new": "never published",
-    "removal staged": "published, and removed here; the removal waits for approval",
-    "removed": "removed and not published",
-}
 
 # --- the tools' input schemas, as zod writes them ----------------------------------------
 
@@ -105,8 +99,8 @@ def _tools() -> list[dict[str, Any]]:
     return [
         {
             "name": "site_state",
-            "description": "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. All top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url.",
-            "inputSchema": _obj({"full": {"type": "boolean"}, "ids": {"type": "array", "items": {"type": "string"}}}),
+            "description": "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. Without a guide argument, all top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url. Opt in with guide: {} to receive the four fixed blocks plus guide {revision,included}. Retain all four blocks in this site/login conversation, then send guide: {known_revision: revision}; a match omits only states/kinds/fields/site_defaults (included:false), while stale or unknown revisions return them all (included:true). Items, release and update are always current. If you do not hold the matching guide, request guide: {} before interpreting it; ids: [] is a no-item handshake. Errors have no guide metadata. Against older code, use a normal full answer without guide metadata, or retry once without an unsupported guide argument.",
+            "inputSchema": _obj({"full": {"type": "boolean"}, "ids": {"type": "array", "items": {"type": "string"}}, "guide": {"type":"object", "properties":{"known_revision":{"type":"string","minLength":1,"maxLength":128,"pattern":r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\s\S])"}},"additionalProperties":False}}),
             "annotations": read_only,
         },
         {
@@ -422,6 +416,16 @@ def _check(schema: dict[str, Any], v: Any, path: list[str], issues: list[str]) -
         if "maxItems" in schema and len(v) > schema["maxItems"]:
             bad(f"Too big: expected array to have <={schema['maxItems']} items")
         return [_check(schema["items"], x, [*path, str(i)], issues) for i, x in enumerate(v)]
+    if t == "object" and "properties" in schema:
+        if not isinstance(v, dict):
+            bad(f"Invalid input: expected object, received {_received(v)}")
+            return v
+        props = schema["properties"]
+        out = {k: _check(props[k], x, [*path, k], issues) for k, x in v.items() if k in props}
+        extra = [k for k in v if k not in props]
+        if extra and schema.get("additionalProperties") is False:
+            bad(("Unrecognized key: " if len(extra) == 1 else "Unrecognized keys: ") + ", ".join(f'"{k}"' for k in extra))
+        return out
     if t == "object":
         if not isinstance(v, dict):
             bad(f"Invalid input: expected record, received {_received(v)}")
@@ -439,7 +443,7 @@ def parse_args(name: str, args: dict[str, Any] | None) -> tuple[dict[str, Any], 
     out: dict[str, Any] = {}
     issues: list[str] = []
     for key, prop in schema["properties"].items():
-        if key not in args or args[key] is None and key not in required and "default" not in prop and name not in ("image_add", "site_check"):
+        if key not in args or args[key] is None and key not in required and "default" not in prop and name not in ("image_add", "site_check") and not (name == "site_state" and key == "guide"):
             if "default" in prop:
                 out[key] = prop["default"]
             elif key in required:
@@ -575,16 +579,14 @@ async def _call(
     if name == "site_state":
 
         async def site_state() -> Any:
-            return {
+            state = {
                 "items": await state_items(db, a.get("full", False), a.get("ids")),
-                "states": STATES,
-                "kinds": kind_guide(),
-                "fields": field_guide(),
-                "site_defaults": content.validate("site", {}),
+                **fixed_guide(),
                 "training_choice": await training_state(db),
                 "release": release,
                 "update": await privacy.with_rollback(db,release,await updates.check(db, release)),
             }
+            return with_guide(state, a.get("guide"))
 
         return await _run(site_state)
 

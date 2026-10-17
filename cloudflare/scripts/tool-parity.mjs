@@ -14,6 +14,9 @@ if (run.status !== 0) {
   process.stderr.write((run.stdout ?? "") + (run.stderr ?? ""));
   process.exit(1);
 }
+for(const line of (run.stdout??"").split("\n")){
+ const at=line.indexOf("GUIDE_SAMPLE_BYTES ");if(at>=0)console.log(line.slice(at));
+}
 const count = readdirSync(output).filter(name => name.endsWith(".json")).length;
 const regressions = JSON.parse(readFileSync("../spec/tool-parity-cases.json", "utf8")).length;
 if (count !== looks.length + regressions) throw new Error(`missing tool output: got ${count}, expected ${looks.length + regressions}`);

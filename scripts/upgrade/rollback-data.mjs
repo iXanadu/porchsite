@@ -173,6 +173,13 @@ async function seed(base) {
     agentTraffic = (await call('site_stats', {})).agent_traffic.daily.filter(r => r.kind !== 'other');
     assert.equal(new Set(agentTraffic.map(r => r.kind)).size, 3, 'new daily agent kinds are populated');
   }
+  const guideHandshake = await call('site_state', {ids:[],guide:{}});
+  const guideRevision = guideHandshake.guide?.revision;
+  if(guideRevision){
+    assert.equal(guideHandshake.guide.included,true);
+    const compact=await call('site_state',{ids:[],guide:{known_revision:guideRevision}});
+    assert.equal(compact.guide.included,false);assert(!Object.hasOwn(compact,'fields'));
+  }
   // Keep a second, unapproved source version too: the old owner UI must be
   // able to read current drafts/history without parsing a new JSON field.
   await call('item_update', { id: site.id, version: site.version, data: { ...(trainingFeature ? {ai_training_disabled: receiptFeature} : {}), ...(brokerFeature ? {broker: 'Pending Brokerage'} : {}), embed_sources: ['https://www.youtube-nocookie.com', 'https://my.matterport.com'] } });
@@ -195,15 +202,16 @@ async function seed(base) {
     batch = true;
   }
   if(streamFeature){const archive=await http.request('/archive/',{},false);assert.equal(archive.status,200);assert((await archive.text()).includes('Ninth stream report'));}
-  return { key, token:access.token, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
+  return { key, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
   const http = client(base);
   const failures = [];
+  let previousMediaTag;
   for (const route of fixture.paths) {
     const response = await http.request(route, {}, false), bytes = new Uint8Array(await response.arrayBuffer()), body = new TextDecoder().decode(bytes);
     if (response.status !== 200) { failures.push(`${route}: HTTP ${response.status}`); continue; }
-    if (route === fixture.picture) assert.deepEqual(bytes, fixture.imageBytes, 'previous media bytes must equal the newly stored stripped picture');
+    if (route === fixture.picture) {assert.deepEqual(bytes, fixture.imageBytes, 'previous media bytes must equal the newly stored stripped picture');previousMediaTag=response.headers.get('ETag');}
     if (route === '/' || route === '/journal/' || route.includes('/tags/') || route === fixture.paths[3]) {
       assert(body.includes('<html') && body.includes('Rollback'), `${edition} previous ${route}: missing populated HTML`);
     }
@@ -213,9 +221,10 @@ async function checkPrevious(base, fixture, edition) {
   }
   for (const method of ["GET", "HEAD"]) {
     const image = await http.request(fixture.picture,{method,headers:{"If-None-Match":fixture.mediaTag}},false);
-    assert.equal(image.status,200,"previous media ignores new validator and still serves published bytes");
+    const expected = previousMediaTag === fixture.mediaTag ? 304 : 200;
+    assert.equal(image.status,expected,"previous media honors its own validator or serves the stored bytes");
     const body = new Uint8Array(await image.arrayBuffer());
-    if (method === "GET") assert.deepEqual(body,fixture.imageBytes); else assert.equal(body.length,0);
+    if (method === "GET" && expected === 200) assert.deepEqual(body,fixture.imageBytes); else assert.equal(body.length,0);
     const missing = await http.request("/media/00000000000000000000000000000000.jpg",{method,headers:{"If-None-Match":"*"}},false);
     assert.equal(missing.status,404,"previous media miss cannot become 304");
     assert.match(missing.headers.get("Cache-Control"),/no-store/);
@@ -225,6 +234,14 @@ async function checkPrevious(base, fixture, edition) {
       assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
     }
     fixture.previousAgentTraffic = (await existingCall(base, fixture.token, 'site_stats', {})).agent_traffic;
+  }
+  if(fixture.guideRevision){
+    let old;
+    try{old=await existingCall(base,fixture.token,'site_state',{ids:[],guide:{known_revision:fixture.guideRevision}});}
+    catch{old=await existingCall(base,fixture.token,'site_state',{ids:[]});}
+    const included=!old.guide || old.guide.included;
+    if(old.guide)assert.equal(old.guide.included,old.guide.revision!==fixture.guideRevision);
+    for(const key of ['states','kinds','fields','site_defaults'])assert.equal(Object.hasOwn(old,key),!!included,'previous guide fallback keeps full blocks unless it understands the matching token');
   }
   let response = await http.post('/login/options', {});
   assert.equal(response.status, 200, await response.clone().text());
@@ -295,7 +312,9 @@ try {
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
       if(fixture.streamFeature){
-        const previousDefaults = (await existingCall(base,fixture.token,'site_state',{})).site_defaults;
+        const previousState = await existingCall(base,fixture.token,'site_state',{});
+        const previousDefaults = previousState.site_defaults;
+        const previousReceipts = Object.hasOwn(previousState,'training_choice');
         const previousStreams = Object.hasOwn(previousDefaults,'archive');
         await runtime.stop(); runtime=null;
         runtime=await current();
@@ -304,6 +323,13 @@ try {
           if (!fixture.previousAgentTraffic) assert.deepEqual(returned, fixture.agentTraffic, 'old runtime ignores daily agent counters; returning to new preserves them');
           else for (const row of fixture.agentTraffic) assert(returned.some(r => r.day === row.day && r.kind === row.kind && r.requests >= row.requests), 'daily agent counters survive a counter-aware rollback');
           console.log(`rollback-data: ${edition}: daily agent aggregates survive actual previous runtime and return`);
+        }
+        if(fixture.guideRevision){
+          const returned=await existingCall(base,fixture.token,'site_state',{ids:[],guide:{known_revision:fixture.guideRevision}});
+          assert.deepEqual(returned.guide,{revision:fixture.guideRevision,included:false});assert(!Object.hasOwn(returned,'fields'));
+          const stale=await existingCall(base,fixture.token,'site_state',{ids:[],guide:{known_revision:'rollback-older-guide'}});
+          assert.equal(stale.guide.included,true);assert(Object.hasOwn(stale,'fields'));
+          console.log(`rollback-data: ${edition}: actual previous full-guide fallback and return-to-new conditional guide PASS`);
         }
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
         assert((await response.text()).includes('Ninth stream report'),'approved ninth stream survives rollback');
@@ -315,8 +341,8 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
-        const unreceipted = await checkTraining(base,fixture,false);
-        if(fixture.receiptFeature){
+        const unreceipted = await checkTraining(base,fixture,previousReceipts);
+        if(fixture.receiptFeature && !previousReceipts){
           assert.equal(unreceipted.training_choice.proposed_disabled,true,'actual old approval leaves the unseen true field intact');
           assert.equal(unreceipted.training_choice.needs_publication,true);
           const owner=await loginOwner(base,fixture),review=await owner.request('/review');
@@ -334,13 +360,13 @@ try {
         assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
         assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
         assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
-        await checkTraining(base,fixture,false);
+        await checkTraining(base,fixture,previousReceipts);
         if(fixture.receiptFeature){
           const fresh=await existingCall(base,fixture.token,'item_update',{id:'site',version:edited.version,data:{ai_training_disabled:true}});
           const requested=await existingCall(base,fixture.token,'approval_request',{ids:['site'],note:'Show the training choice for current-code owner approval'});
           await approveAt(await loginOwner(base,fixture),new URL(requested.review_url).pathname);
           await checkTraining(base,fixture,true);
-          console.log(`rollback-data: ${edition}: training receipt survives untouched rollback; actual old approval and edit cannot activate unseen choice; fresh shown owner approval activates its own version ${fresh.version}`);
+          console.log(`rollback-data: ${edition}: training receipt survives rollback; ${previousReceipts?'receipt-aware previous approval/edit preserves shown choice':'old approval/edit cannot activate unseen choice'}; fresh shown owner approval activates its own version ${fresh.version}`);
         }
         console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }

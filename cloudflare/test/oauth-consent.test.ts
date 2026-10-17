@@ -74,6 +74,11 @@ describe("connecting an assistant", () => {
     const ok = await call(`Bearer ${t.access_token}`, "https://site.example");
     expect(ok.status).toBe(200);
     expect(await ok.text()).toContain('"serverInfo"');
+    const guide = await go("/mcp", {method:"POST",headers:{Authorization:`Bearer ${t.access_token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"site_state",arguments:{ids:[],guide:{}}}})});
+    expect(guide.status).toBe(200);
+    const payload=await guide.json() as any;
+    expect(JSON.parse(payload.result.content[0].text).guide).toMatchObject({included:true});
+
   });
 });
 
