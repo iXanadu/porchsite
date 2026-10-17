@@ -244,9 +244,10 @@ it.each(["cancel-invite","replace-recovery"])("refuses %s committed just before 
 
 // Compare the real routed response with the engine decoration disabled, so
 // role checks, private gates, theme bytes and headers stay under test.
-it.each([false,true])("adds owner navigation only to valid owner HTML (private=%s)",async privateMode=>{
+it.each([false,true])("adds owner navigation only to valid owner HTML including combined archive (private=%s)",async privateMode=>{
  const f=await fixture(privateMode), r=await reader(), visitor=new Browser();
- const paths=["/","/guide/published-guide/","/guide/","/guide/tags/guide/","/not-a-page"];
+ await content.updateItem(db,who,"site",f.item.version,{archive:{enabled:true}});await publish(["site"]);
+ const paths=["/","/guide/published-guide/","/guide/","/guide/tags/guide/","/not-a-page","/archive/","/archive/?sort=stream"];
  for(const path of paths) {
   const baseline=vi.spyOn(ownerLink,"ownerSitePage").mockImplementation(async(_db,_req,response)=>response);
   let prior:Response, priorReader:Response, priorVisitor:Response;

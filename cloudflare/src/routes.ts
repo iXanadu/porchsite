@@ -182,7 +182,7 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   if ((path === "/archive/" || path === "/archive") && v.site.archive?.enabled) {
     const filters = archiveFilter(new URL(req.url).searchParams);
     if (path === "/archive") return new Response(null, {status:301, headers:{Location:"/archive/"+new URL(req.url).search, "Cache-Control":"no-cache"}});
-    return site.allArchivePage(v,filters,origin,!!await themes.load(env.DB,String(v.site.theme)));
+    return ownerSitePage(env.DB, req, site.allArchivePage(v,filters,origin,!!await themes.load(env.DB,String(v.site.theme))));
   }
   const policy = {sources: v.site.embed_sources, origin};
   const page = (body: string) => ownerSitePage(env.DB, req, themedHtml(body, 200, policy.sources, origin));

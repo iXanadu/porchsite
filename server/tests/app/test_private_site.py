@@ -820,15 +820,17 @@ async def test_cancel_or_replacement_committed_before_issue_refuses(db, browser_
 
 
 @pytest.mark.parametrize("private_mode", [False, True])
-async def test_owner_navigation_preserves_other_roles(db, browser_factory, monkeypatch, private_mode):
-    browser, _, _, _, _ = await fixture(db, browser_factory, private_mode)
+async def test_owner_navigation_including_combined_archive_preserves_other_roles(db, browser_factory, monkeypatch, private_mode):
+    browser, _, item, _, _ = await fixture(db, browser_factory, private_mode)
+    await content.update_item(db, WHO, "site", item["version"], {"archive": {"enabled": True}})
+    await publish(db, ["site"])
     reader_browser, _, _ = await reader(db, browser_factory)
     visitor = browser_factory()
 
     async def unchanged(db, req, response):
         return response
 
-    for path in ("/", "/guide/published-guide/", "/guide/", "/guide/tags/guide/", "/not-a-page"):
+    for path in ("/", "/guide/published-guide/", "/guide/", "/guide/tags/guide/", "/not-a-page", "/archive/", "/archive/?sort=stream"):
         with monkeypatch.context() as patch:
             patch.setattr(routes, "owner_site_page", unchanged)
             prior = await browser.at(path)

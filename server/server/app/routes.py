@@ -361,7 +361,7 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
             raise ApiError(400, "invalid", "Invalid archive filters.") from None
         if path == "/archive":
             return redirect("/archive/" + _search(req), 301, {"Cache-Control": "no-cache"})
-        return builtin.all_archive_page(v, filters, origin, bool(await themes.load(cx.db, str(v.site["theme"]))))
+        return await owner_site_page(cx.db, req, builtin.all_archive_page(v, filters, origin, bool(await themes.load(cx.db, str(v.site["theme"])))))
     policy = {"sources": v.site.get("embed_sources"), "origin": origin}
     async def page(body):
         return await owner_site_page(cx.db, req, themed_html(body, sources=policy["sources"], origin=origin))
