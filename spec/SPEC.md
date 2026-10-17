@@ -1243,6 +1243,48 @@ is private, no-store, no-transform, with no validators. An invalid owner
 cookie does not authorize anything. Private and personalized response bytes,
 validators and derived artifacts never enter a shared store.
 
+### AF-1 / use case 9: traffic counts by agent kind
+
+Both editions count engine-observed requests for public HTML, Markdown,
+robots, feeds, sitemap and llms.txt, including successful GET/HEAD and
+conditional 304s, by site-local calendar day and one of four kinds: search
+crawler, training crawler, agent acting for a person, or other. Use one
+shared, versioned user-agent classification table, evaluated in memory:
+OAI-SearchBot, Claude-SearchBot and Googlebot are search; GPTBot and
+ClaudeBot are training; ChatGPT-User and Claude-User are user-triggered.
+Unknown or ambiguous user-agent strings are other. Google-Extended is a
+robots preference token, not a separately identifiable request agent.
+Classification is an estimate from a declared name, not verified identity;
+do not add IP verification or fetch provider data. Neither edition depends
+on Cloudflare analytics. Requests answered wholly outside the engine may
+be absent; report this coverage limit, not a claimed total of all visitors.
+Private sites, authenticated requests, owner/protocol/capability paths and
+failed/missing public resources do not contribute. Check access before
+counting; private denials never create a traffic row.
+
+Store counts and dates only: no IP, raw user-agent, visitor identifier,
+path, referrer, token, event timestamp, request id or per-request/per-visitor
+row. Existing pageviews require visitor-level fields and analytics_daily
+has only legacy visit/view/engagement columns, so neither can represent
+these counts without changing existing storage semantics. Add a NEW
+`agent_traffic_daily` table with `day`, `kind`, `requests` and composite
+primary key `(day, kind)`; kind has only the four classes above, count is
+nonnegative, and increments are atomic. No new columns or values enter
+legacy analytics tables or stored content JSON. A previous runtime ignores
+the additive table and keeps its original statistics behavior.
+
+Show day, kind and request count to the owner on request through the
+existing protected statistics surfaces, with the coverage/classification
+limits above. Counts are request counts, not unique people or verified
+agents. Show no advice, ranking inference or automatic prompt. Public
+pages, Markdown, JSON-LD and llms.txt never expose these counts.
+Required paired cases are `af_agent_kind_daily_counts` (each class, other,
+HEAD/304, concurrent increments and date rollover),
+`af_agent_kind_no_identifiers` (schema and writes contain only aggregates),
+`af_agent_kind_owner_only` (authorized report, no public/private-denial
+leak), and `af_agent_kind_parity_rollback` (same classification/report in
+both editions; previous-release tests pass on the additive schema).
+
 ### AF-2: validators and conditional reads
 
 Successful anonymous GET and HEAD for home, on-site entries, stream
@@ -1492,7 +1534,7 @@ Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
 13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap.
-14. ETag, when present, hashes only the anonymous published bytes of that representation (URL + Content-Type). Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+14. ETag, when present, hashes only the anonymous published representation: canonical URL, Content-Type, the approved training signal and body bytes, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
 15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on every authenticated page (SV-PV1). Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
@@ -1546,7 +1588,7 @@ The named cases implement the corresponding numbered invariant above.
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
 | 12 | `af_authenticated_cache_bypass` | Owner/reader requests bypass shared copies and public 304s and send no-store. |
 | 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor agent copies. |
-| 14 | `af_etag_public_input` | Hash inputs are public only; owner/visitor validators cannot cross roles. |
+| 14 | `af_etag_public_input` | Hash canonical URL, Content-Type, approved training signal and body bytes only, using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
 | 15 | `af_owner_then_visitor` | Owner request followed by visitor request never transfers owner decoration. |
 | 16 | `af_invalidate_before_serve` | Unpublish, private-on and card visibility invalidate copies and old tags. |
 | 17 | `af_accept_cache_separation` | Vary: Accept plus canonical direct copy; no owner bytes under either variant. |
