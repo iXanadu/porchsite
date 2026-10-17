@@ -1524,6 +1524,50 @@ AF-4 training switch
 Protocol leftovers
 34. /.well-known/porchsite-release, OAuth metadata, /login, /mcp stay as today: no site content, no llms listing of private pages.
 
+### Named security acceptance cases (paired in both editions)
+
+Each row names a required implementation test, not an existing passing
+result. Run denial cases against anonymous, owner, reader, expired and
+revoked cookies; all new private AF paths are blank for every cookie class.
+The named cases implement the corresponding numbered invariant above.
+
+| Rule | Required test name | Assertion |
+| --- | --- | --- |
+| 1 | `af_gate_before_representation` | Access precedes views, media, builds, validators, links, storage and negotiation. |
+| 2 | `af_no_private_open_paths` | AF paths never enter the private allowlist. |
+| 3 | `af_private_exact_blank` | New private AF surfaces return the existing blank 404 for every cookie class. |
+| 4 | `af_blank_no_metadata` | No validators, links, Vary, Content-Location or Age. |
+| 5 | `af_blank_html_type` | Accept never changes denial Content-Type. |
+| 6 | `af_private_head` | HEAD has GET status/security headers and empty body. |
+| 7 | `af_private_conditionals` | All four conditional fields preserve the denial. |
+| 8 | `af_private_hit_miss_identity` | Existing and missing copy paths have identical blank bytes. |
+| 9 | `af_denial_lookup_spies` | All content, media, copy and builder spies remain uncalled. |
+| 10 | `af_private_robots_unchanged` | Exact disallow-all bytes/headers under every training setting. |
+| 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
+| 12 | `af_authenticated_cache_bypass` | Owner/reader requests bypass shared copies and public 304s and send no-store. |
+| 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor agent copies. |
+| 14 | `af_etag_public_input` | Hash inputs are public only; owner/visitor validators cannot cross roles. |
+| 15 | `af_owner_then_visitor` | Owner request followed by visitor request never transfers owner decoration. |
+| 16 | `af_invalidate_before_serve` | Unpublish, private-on and card visibility invalidate copies and old tags. |
+| 17 | `af_accept_cache_separation` | Vary: Accept plus canonical direct copy; no owner bytes under either variant. |
+| 18 | `af_approved_only` | Draft, pending, unpublished and unapplied versions never affect artifacts. |
+| 19 | `af_private_card_absent` | Every private-card field is absent from all new surfaces. |
+| 20 | `af_mention_card_projection` | Mention cards expose only displayed name and description. |
+| 21 | `af_reserved_and_unpublished_paths` | Owner/protocol/capability and unpublished paths have no copies or map entries. |
+| 22 | `af_map_links_resolve` | Every map entry corresponds to an anonymous HTML 200 and a valid copy. |
+| 23 | `af_jsonld_visible_fields` | Structured facts use only existing approved fields shown on the page. |
+| 24 | `af_markdown_visible_text` | Markdown omits fields and items absent from the visitor page. |
+| 25 | `af_frozen_wrappers` | Engine-authored words stay fixed across owner payload changes. |
+| 26 | `af_no_imperative_interpolation` | Owner data never enters engine-authored instruction language. |
+| 27 | `af_injection_payload_matrix` | Payload matrix preserves JSON data boundaries and content guards without new instructions. |
+| 28 | `af_generated_link_origins` | Alternate and describedby target only generated same-origin paths. |
+| 29 | `af_copy_route_matrix` | Copies exist only for real pages; reserved and missing paths remain misses. |
+| 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public misses stay themed HTML 404. |
+| 31 | `af_cross_edition_http_parity` | Bytes and headers match for every new representation and training setting. |
+| 32 | `af_public_robots_choices` | Default unchanged; off adds training-only denial groups. |
+| 33 | `af_training_additive_approval` | Exact-version field; absent/false allowed; legacy JSON unchanged; private ignores it. |
+| 34 | `af_protocol_routes_unchanged` | Release, OAuth, sign-in and MCP behavior stays unchanged. |
+
 ### Compatibility and paired acceptance
 
 Until implementation and all acceptance gates pass, this proposed section
