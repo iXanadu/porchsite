@@ -81,6 +81,8 @@ class App:
         finally:
             self._started = False
             await alerts.drain()
+            from . import agent_traffic
+            await agent_traffic.drain(self.pool)
             from .public_artifacts import drain
             await drain()
             if self._own_pool and isinstance(self._pool, asyncpg.Pool):

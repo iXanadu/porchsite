@@ -83,7 +83,9 @@ async def test_prints_a_product_page_from_content(db, http):
     assert "Everything else." in (await http.get("/pages/")).text
     missing = await http.get("/nowhere/")
     assert missing.status_code == 404
-    assert 'class="dateline"' in missing.text
+    assert missing.text == '<!doctype html><title>Not found</title>'
+    assert missing.headers['cache-control'] == 'no-store'
+    assert 'etag' not in missing.headers
     assert ".numbers-rail" in (await http.get("/static/site.css")).text
     # Without a photo, the follow link is words only.
     assert (

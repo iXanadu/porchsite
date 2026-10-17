@@ -10,12 +10,17 @@ const at = (path: string) => handle(new Request(`https://site.example${path}`), 
 
 describe("built-in look beacon", () => {
   it("loads the beacon on its pages and lets it post to this site only", async () => {
-    for (const [path, kind] of [["/", "home"], ["/nothing-here/", "notfound"]]) {
+    for (const [path, kind] of [["/", "home"]]) {
       const r = await at(path);
       const page = await r.text();
       expect(page).toContain(`<body data-kind="${kind}" data-id="">`);
       expect(page).toContain('<script src="/static/a.js" defer></script></body>');
       expect(r.headers.get("Content-Security-Policy")).toContain("script-src 'self'; connect-src 'self'");
     }
+    const missing=await at('/nothing-here/');
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).toBe('<!doctype html><title>Not found</title>');
+    expect(missing.headers.get('Cache-Control')).toBe('no-store');
+    expect(missing.headers.has('ETag')).toBe(false);
   });
 });

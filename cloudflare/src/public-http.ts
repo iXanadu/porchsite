@@ -31,18 +31,18 @@ export function matchesTag(value: string | null, tag: string): boolean {
   if (!/^[ \t]*(?:W\/)?"[\x21\x23-\x7e\x80-\xff]*"[ \t]*(?:,[ \t]*(?:W\/)?"[\x21\x23-\x7e\x80-\xff]*"[ \t]*)*$/.test(value)) return false;
   return [...value.matchAll(/(?:W\/)?"[^"]*"/g)].some(m => m[0].replace(/^W\//, '') === tag.replace(/^W\//, ''));
 }
-export async function publicResponse(db: D1Database, req: Request, response: Response): Promise<Response> {
+export async function publicResponse(db: D1Database, req: Request, response: Response, stamp?:{tag:string;disabled:boolean}): Promise<Response> {
   const url = new URL(req.url), path = url.pathname;
   if (!['GET','HEAD'].includes(req.method) || response.status !== 200 || !(publicPath(path) || path==='/llms.txt' || markdownPath(path))) return response;
   const type = response.headers.get('Content-Type') ?? '';
   if (!['text/markdown; charset=utf-8', 'text/html; charset=utf-8', 'text/plain; charset=utf-8', 'application/atom+xml; charset=utf-8', 'application/xml; charset=utf-8'].includes(type)) return response;
   if (sessionRequest(req)) return noStore(path === '/robots.txt'
     ? new Response(robots(url.origin, await trainingDisabled(db)), response) : response);
-  const disabled = await trainingDisabled(db), signal = trainingSignal(disabled);
+  // A validator requires the caller's current resource proof. Never fall back to a body tag.
+  if (!stamp) return noStore(response);
+  const disabled = stamp.disabled, signal = trainingSignal(disabled);
   const body = path === '/robots.txt' ? robots(url.origin, disabled) : await response.text();
-  const input = `${url.origin}${markdownPath(path)??path}${pageQuery(req,markdownPath(path)??path)}\0${type}\0${signal}\0${body}`;
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input)));
-  const tag = `W/"sha256-${[...digest].map(n=>n.toString(16).padStart(2,'0')).join('')}"`;
+  const tag = stamp.tag;
   const headers = new Headers(response.headers);
   headers.set('Cache-Control', PUBLIC_CACHE); headers.set('Content-Signal', signal); headers.set('ETag', tag);
   headers.delete('Last-Modified'); headers.delete('Content-Length');

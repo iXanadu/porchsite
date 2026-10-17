@@ -1,6 +1,8 @@
 """Aggregate-only request accounting; identifiers are never written or logged."""
 
 import json
+import asyncio
+import time
 import re
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -34,8 +36,8 @@ def agent_kind(ua):
 
 def countable(req, response):
     if (
-        req.method not in ("GET", "HEAD")
-        or response.status_code not in (200, 304)
+        req.method != "GET"
+        or response.status_code != 200
         or session_request(req)
     ):
         return False
@@ -55,18 +57,82 @@ def utc_now():
     return datetime.now(UTC)
 
 
-async def observe(db, req, response, now=None):
-    if not countable(req, response):
+_BUFFERS={}
+_TASKS=set()
+
+def buffer(db):
+    key=getattr(db,'db',db)
+    if key not in _BUFFERS:
+        _BUFFERS[key]=dict(pending={},last=float('-inf'),flight=None)
+    return _BUFFERS[key]
+
+def reset(db):
+    _BUFFERS.pop(getattr(db,'db',db),None)
+
+def add(state,key,count):
+    state['pending'][key]=state['pending'].get(key,0)+count
+    while len(state['pending'])>8:
+        del state['pending'][next(iter(state['pending']))]
+
+async def flush(db,now=None):
+    now=time.time()*1000 if now is None else now
+    state=buffer(db)
+    if state['flight'] is not None:
+        await state['flight']
         return
-    raw = await db.fetchval("SELECT data FROM live WHERE item_id = 'site'")
-    timezone = (json.loads(raw).get("timezone") or "UTC") if raw else "UTC"
-    day = local(now or utc_now(), timezone).date().isoformat()
-    kind = agent_kind(req.headers.get("user-agent", ""))
-    await db.execute(
-        "INSERT INTO agent_traffic_daily (day, kind, requests) VALUES ($1, $2, 1) ON CONFLICT (day, kind) DO UPDATE SET requests = agent_traffic_daily.requests + 1",
-        day,
-        kind,
-    )
+    if not state['pending'] or now-state['last']<60000:
+        return
+    rows=list(state['pending'].items())
+    state['pending'].clear()
+    state['last']=now
+    async def work():
+        try:
+            args=[]
+            for (day,kind),count in rows:
+                args.extend([day,kind,count])
+            values=','.join('('+','.join('$'+str(i+j) for j in range(3))+')' for i in range(1,len(args)+1,3))
+            await db.execute('INSERT INTO agent_traffic_daily(day,kind,requests) VALUES '+values+' ON CONFLICT(day,kind) DO UPDATE SET requests=agent_traffic_daily.requests+excluded.requests',*args)
+        except Exception:
+            for key,count in rows:
+                add(state,key,count)
+    state['flight']=asyncio.create_task(work())
+    try:
+        await state['flight']
+    finally:
+        state['flight']=None
+
+async def observe(db,req,response,now=None,timezone=None):
+    if not countable(req,response):
+        return
+    if timezone is None:
+        raw=await db.fetchval("SELECT data FROM live WHERE item_id = 'site'")
+        timezone=(json.loads(raw).get('timezone') or 'UTC') if raw else 'UTC'
+    now=now or utc_now()
+    day=local(now,timezone).date().isoformat()
+    add(buffer(db),(day,agent_kind(req.headers.get('user-agent',''))),1)
+    await flush(db,now.timestamp()*1000)
+
+def schedule(work):
+    async def guarded():
+        try:
+            await work
+        except Exception:
+            pass  # Accounting must never change delivery.
+    task=asyncio.create_task(guarded())
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
+
+
+async def settle(db):
+    if _TASKS:
+        await asyncio.gather(*list(_TASKS),return_exceptions=True)
+    state=_BUFFERS.get(getattr(db,'db',db))
+    if state and state['flight'] is not None:
+        await state['flight']
+
+async def drain(db):
+    await settle(db)
+    reset(db)
 
 
 def format_traffic(rows, start, end):
@@ -98,12 +164,19 @@ def format_traffic(rows, start, end):
 
 
 async def traffic_report(db, start, end):
+    await settle(db)
+    state=buffer(db)
+    if state['flight'] is not None:
+        await state['flight']
     rows = await db.fetch(
         "SELECT day, kind, requests FROM agent_traffic_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, kind",
         start,
         end,
     )
-    return format_traffic(rows, start, end)
+    merged={(r["day"],r["kind"]):int(r["requests"]) for r in rows}
+    for key,count in state["pending"].items():
+        merged[key]=merged.get(key,0)+count
+    return format_traffic([dict(day=day,kind=kind,requests=count) for (day,kind),count in merged.items()],start,end)
 
 
 def traffic_html(report):

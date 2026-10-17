@@ -18,20 +18,29 @@ export function agentKind(ua: string): AgentKind {
   return kinds.size === 1 ? [...kinds][0] : "other";
 }
 export function countable(req: Request, response: Response): boolean {
-  if (!["GET", "HEAD"].includes(req.method) || ![200,304].includes(response.status) || sessionRequest(req)) return false;
+  if (req.method!=="GET" || response.status!==200 || sessionRequest(req)) return false;
   const path = new URL(req.url).pathname;
   if (/^\/(?:review|login|setup|recover|invite|passkey|upload|authorize|oauth|mcp|static|alerts|collect|health|\.well-known)(?:\/|$)/.test(path)) return false;
   return (publicPath(path) || !!markdownPath(path) || path === "/llms.txt") && types.has(response.headers.get("Content-Type") ?? "");
 }
-export async function observe(db: D1Database, req: Request, response: Response, now = new Date()): Promise<void> {
-  if (!countable(req, response)) return;
-  const row = await db.prepare("SELECT data FROM live WHERE item_id = 'site'").first<{data:string}>();
-  const tz = row ? String(JSON.parse(row.data).timezone || "UTC") : "UTC";
-  const parts = dateFormatter({year:"numeric",month:"2-digit",day:"2-digit"},tz).formatToParts(now);
-  const part = (name: string) => parts.find(p=>p.type===name)!.value;
-  const day = `${part("year")}-${part("month")}-${part("day")}`;
-  const kind = agentKind(req.headers.get("User-Agent") ?? "");
-  await db.prepare("INSERT INTO agent_traffic_daily (day, kind, requests) VALUES (?, ?, 1) ON CONFLICT (day, kind) DO UPDATE SET requests = agent_traffic_daily.requests + 1").bind(day,kind).run();
+type BufferState={pending:Map<string,number>;last:number;flight?:Promise<void>};
+const buffers=new WeakMap<D1Database,BufferState>();
+function buffer(db:D1Database){let state=buffers.get(db);if(!state){state={pending:new Map(),last:-Infinity};buffers.set(db,state);}return state;}
+export function reset(db:D1Database){buffers.delete(db);}
+function add(state:BufferState,key:string,count:number){state.pending.set(key,(state.pending.get(key)??0)+count);while(state.pending.size>8)state.pending.delete(state.pending.keys().next().value!);}
+export async function flush(db:D1Database,now=Date.now()):Promise<void>{
+ const state=buffer(db);if(state.flight)return state.flight;if(!state.pending.size||now-state.last<60000)return;
+ const rows=[...state.pending];state.pending.clear();state.last=now;
+ const work=async()=>{try{const values=rows.map(()=>'(?, ?, ?)').join(',');await db.prepare(`INSERT INTO agent_traffic_daily(day,kind,requests) VALUES ${values} ON CONFLICT(day,kind) DO UPDATE SET requests=agent_traffic_daily.requests+excluded.requests`).bind(...rows.flatMap(([key,count])=>[...key.split('\0'),count])).run();}catch{for(const [key,count]of rows)add(state,key,count);}};
+ state.flight=work();try{await state.flight;}finally{state.flight=undefined;}
+}
+export async function observe(db:D1Database,req:Request,response:Response,now=new Date(),timezone?:string):Promise<void>{
+ if(!countable(req,response))return;
+ if(timezone===undefined){const row=await db.prepare("SELECT data FROM live WHERE item_id = 'site'").first<{data:string}>();timezone=row?String(JSON.parse(row.data).timezone||'UTC'):'UTC';}
+ const parts=dateFormatter({year:'numeric',month:'2-digit',day:'2-digit'},timezone).formatToParts(now),part=(name:string)=>parts.find(p=>p.type===name)!.value;
+ const day=`${part('year')}-${part('month')}-${part('day')}`;
+ add(buffer(db),day+'\0'+agentKind(req.headers.get('User-Agent')??''),1);
+ await flush(db,now.getTime());
 }
 export function formatTraffic(rows: TrafficRow[], start: string, end: string) {
   const order = table.kinds.map(k=>k.id);
@@ -39,8 +48,11 @@ export function formatTraffic(rows: TrafficRow[], start: string, end: string) {
   return {classification_version:table.version,range:{start,end},daily,totals:table.kinds.map(k=>({kind:k.id,label:k.label,requests:daily.filter(r=>r.kind===k.id).reduce((sum,r)=>sum+r.requests,0)})),coverage:table.coverage,classification:table.classification,scope:table.scope};
 }
 export async function trafficReport(db: D1Database, start: string, end: string) {
-  const {results} = await db.prepare("SELECT day, kind, requests FROM agent_traffic_daily WHERE day BETWEEN ? AND ? ORDER BY day, kind").bind(start,end).all<TrafficRow>();
-  return formatTraffic(results,start,end);
+  const state=buffer(db);await state.flight;
+  const {results}=await db.prepare("SELECT day, kind, requests FROM agent_traffic_daily WHERE day BETWEEN ? AND ? ORDER BY day, kind").bind(start,end).all<TrafficRow>();
+  const merged=new Map(results.map(r=>[r.day+'\0'+r.kind,Number(r.requests)]));
+  for(const [key,count]of state.pending)merged.set(key,(merged.get(key)??0)+count);
+  return formatTraffic([...merged].map(([key,requests])=>{const [day,kind]=key.split('\0');return {day,kind:kind as AgentKind,requests};}),start,end);
 }
 
 /** Owner-requested facts only; the labels and limitations come from the shared table. */

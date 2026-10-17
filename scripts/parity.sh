@@ -62,6 +62,15 @@ if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/markdown-parity.ts --bundle -
 else
   echo "✓ Markdown: shared source cases and light copies identical"
 fi
+# Public dependency validators use the same normalized current-data document.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/public-read-parity.ts --bundle --platform=node --outfile="$TMP/public-read.cjs" --log-level=error && node "$TMP/public-read.cjs") >"$TMP/public-read-cf.json" \
+ || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/public_read_parity.py" >"$TMP/public-read-py.json" \
+ || ! cmp -s "$TMP/public-read-cf.json" "$TMP/public-read-py.json"; then
+ echo "✗ public dependency validators differ"
+ bad=$((bad + 1))
+else
+ echo "✓ public dependency validators identical"
+fi
 for look in "${looks[@]}"; do
   cf="$TMP/cf/$look" py="$TMP/py/$look"
   if ! (cd "$ROOT/cloudflare" && node "$TMP/theme.cjs" raw "$look" "$ROOT/themes" "$cf" "$NOW") >"$TMP/$look.cf.log" 2>&1; then

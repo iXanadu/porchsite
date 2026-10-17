@@ -25,8 +25,11 @@ from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from .site_fields import training_state
-from . import public_artifacts
+from . import public_artifacts, public_read
+from copy import copy
+from .public_http import session_request,public_path,markdown_path
 from .agent_pages import agent_page
+from .agent_map import map_pages, map_response
 from .public_http import public_response, private_agent_path
 from .site_owner_link import owner_site_page
 from . import privacy, alerts, agent_traffic
@@ -408,6 +411,17 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
 
 
 async def content_view(req, cx, discovery=False):
+    state=getattr(cx,'_read',None)
+    if state is not None and not state['private']:
+        if state.get('denied'):
+            raise privacy.PrivateContentDenied()
+        if 'view' not in state:
+            view=await site.live_view(cx.db,discovery=discovery)
+            if view.site.get('private'):
+                state['denied']=True
+                raise privacy.PrivateContentDenied()
+            state['view']=view
+        return state['view']
     await privacy.require_content(cx.db,req)
     return await site.live_view(cx.db,discovery=discovery)
 
@@ -1456,7 +1470,9 @@ async def _json_body(req: Request) -> Any:
 
 
 async def handle(req: Request, cx: Context) -> Response:
+    cx=copy(cx)
     is_private,gated,response = await privacy.access(cx.db,req)
+    cx._read=dict(private=is_private,gated=gated,response=response)
     if is_private:
         try:
             await public_artifacts.clear(cx.db)
@@ -1471,18 +1487,18 @@ async def handle(req: Request, cx: Context) -> Response:
         elif req.method not in ('GET','HEAD'):
             response = await _route(req,cx)
         else:
-            response = await public_artifacts.respond(cx.db,req,cx.site_url if cx.public_artifacts else '',cx.release,lambda: render_public(req,cx))
+            response = public_read.missing() if not session_request(req) and public_read.unshaped(req.url.path) else await fast_public(req,cx)
     if is_private and gated:
         response = privacy.no_store(response)
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:
             response.headers["Cache-Control"]="no-store"
-    if not is_private:
-        try:
-            await agent_traffic.observe(cx.db,req,response)
-        except Exception:
-            pass  # Accounting failure never changes content delivery.
+    if not is_private and agent_traffic.countable(req,response):
+        zone=cx._read.get('zone')
+        if zone is None:
+            zone=(await content_view(get,cx)).site.get('timezone') or 'UTC'
+        agent_traffic.schedule(agent_traffic.observe(cx.db,req,response,timezone=zone))
     if req.method == "HEAD":
         response.body = b""
     return response
@@ -1952,8 +1968,52 @@ async def public_paths(req,cx):
     return (['/archive/'] if v.site.get('archive',{}).get('enabled') else [])+[e['page'] for s in v.site['streams'] for e in v.entries if e['stream']==s['id'] and not e.get('external_url')]
 
 
+async def fast_public(req,cx):
+    if not session_request(req) and public_read.candidate(req.url.path):
+        try:
+            f=await public_read.facts(cx.db)
+            if f['private']:
+                return privacy.blank_response(req)
+            c=public_read.choice(req,f)
+            if c is None:
+                missing=await public_read.miss(req,f,cx.db)
+                if missing is not None:
+                    return missing
+            if c:
+                now=public_read.time.time()*1000
+                tag=public_read.tag(f,req,c,cx.release,now)
+                hit=public_read.conditional(req,f,c,tag)
+                if hit is not None:
+                    current=await public_read.facts(cx.db)
+                    if current['private']:
+                        return privacy.blank_response(req)
+                    if current['rows']==f['rows'] and int(public_read.time.time()*1000//60000)==int(now//60000):
+                        return hit
+                    f=current
+                    c=public_read.choice(req,f)
+                    if not c:
+                        missing=await public_read.miss(req,f,cx.db)
+                        return missing if missing is not None else public_read.missing()
+                    tag=public_read.tag(f,req,c,cx.release)
+                cx._read['fast']=dict(tag=tag,disabled=f['disabled'])
+            cx._read['zone']=f['site'].get('timezone') or 'UTC'
+        except ApiError as error:
+            return owner_page("Problem",f"<h1>Something's wrong</h1><p>{esc(error.message)}</p>",status=error.status)
+    return await public_artifacts.respond(cx.db,req,cx.site_url,cx.release,lambda:render_public(req,cx)) if cx.public_artifacts else await render_public(req,cx)
+
+
 async def render_public(req,cx):
-    private_now,gated_now,denial=await privacy.access(cx.db,req)
+    if not hasattr(cx,'_read'):
+        cx=copy(cx)
+        access=await privacy.access(cx.db,req)
+        cx._read=dict(private=access[0],gated=access[1],response=access[2])
+        if not access[0] and not session_request(req):
+            f=await public_read.facts(cx.db)
+            c=public_read.choice(req,f)
+            if c:
+                cx._read['fast']=dict(tag=public_read.tag(f,req,c,cx.release),disabled=f['disabled'])
+    state=getattr(cx,'_read',None)
+    private_now,gated_now,denial=(state['private'],state['gated'],state['response']) if state is not None else await privacy.access(cx.db,req)
     get=Request({**req.scope,'method':'GET'},req.receive) if req.method=='HEAD' else req
     if private_now and private_agent_path(req):
         return privacy.blank_response(req)
@@ -1961,8 +2021,35 @@ async def render_public(req,cx):
         return denial
     if private_now:
         return privacy.no_store(await _route(get,cx))
-    rendered=await agent_page(get,lambda r:_route(r,cx),lambda:public_paths(get,cx),origin_of(req),lambda r:not_found_page(r,cx))
-    return await public_response(cx.db,req,rendered,origin_of(req))
+    async def reading_map():
+        from .agent_pages import anonymous
+        return map_response(map_pages(await content_view(anonymous(get,'/'),cx,True)),origin_of(req))
+    try:
+        rendered=await agent_page(get,lambda r:_route(r,cx),reading_map,origin_of(req),lambda r:not_found_page(r,cx),lambda:content_view(get,cx))
+    except privacy.PrivateContentDenied:
+        return privacy.blank_response(req)
+    stamp=getattr(cx,'_read',{}).get('fast')
+    if stamp is not None and rendered.status_code==200:
+        try:
+            f=await public_read.facts(cx.db)
+            if f['private']:
+                return privacy.blank_response(req)
+            c=public_read.choice(req,f)
+            if not c:
+                missing=await public_read.miss(req,f,cx.db)
+                return missing if missing is not None else public_read.missing()
+            fresh_tag=public_read.tag(f,req,c,cx.release)
+            if fresh_tag!=stamp['tag']:
+                state=cx._read
+                if not state.get('retries'):
+                    state['retries']=1
+                    state.pop('view',None)
+                    state['fast']=dict(tag=fresh_tag,disabled=f['disabled'])
+                    return await render_public(req,cx)
+                return privacy.no_store(rendered)
+        except Exception:
+            return privacy.blank_response(req)
+    return await public_response(cx.db,req,rendered,origin_of(req),stamp)
 
 
 def schedule_public(cx):
