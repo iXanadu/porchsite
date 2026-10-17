@@ -56,3 +56,28 @@ for (const [ua,touch,label] of [
  const page=browser({saved:false,subscribed:false,ua,touch});await ready(page);await page.click();
  assert.equal(JSON.parse(page.calls.find(c=>c.path.endsWith('/subscribe')).options.body).label,label);
 });
+
+test("notification click navigates an existing login window and focuses the returned client",async()=>{
+ const calls=[];
+ const next={focus:async()=>calls.push('focus new')};
+ const sw=serviceWorker([{url:'https://site.example/login?next=/review',navigate:async url=>{calls.push(url);return next;},focus:async()=>{throw Error('old client must not be focused');}}]);
+ await sw.click();assert.deepEqual(calls,[message.url,'focus new']);assert.deepEqual(sw.opened,[]);
+});
+test("notification click prefers a focused same-origin window",async()=>{
+ const calls=[];
+ const client=url=>({url,navigate:async target=>{calls.push(url);assert.equal(target,message.url);return {focus:async()=>calls.push('focus')};}});
+ const sw=serviceWorker([client('https://site.example/first'),{...client('https://other.example/review'),focused:true},{...client('https://site.example/review/request'),focused:true}]);
+ await sw.click();assert.deepEqual(calls,['https://site.example/review/request','focus']);assert.deepEqual(sw.opened,[]);
+});
+test("notification click opens a window when only other origins are available",async()=>{
+ const sw=serviceWorker([{url:'https://other.example/review',focused:true,navigate:async()=>{throw Error('must not use other origin');}}]);
+ await sw.click();assert.deepEqual(sw.opened,[message.url]);
+});
+for(const failure of ['navigate throws','navigate null','focus throws'])test(`notification click falls back when ${failure}`,async()=>{
+ const sw=serviceWorker([{url:'https://site.example/login?next=/review',navigate:async()=>{if(failure==='navigate throws')throw Error('navigation failed');return failure==='navigate null'?null:{focus:async()=>{throw Error('focus failed');}};}}]);
+ await sw.click();assert.deepEqual(sw.opened,[message.url]);
+});
+test("notification click falls back if an exact review window cannot be focused",async()=>{
+ const sw=serviceWorker([{url:message.url,focus:async()=>{throw Error('focus failed');}}]);
+ await sw.click();assert.deepEqual(sw.opened,[message.url]);
+});

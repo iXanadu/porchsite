@@ -942,8 +942,10 @@ push and notification clicks only: no fetch interception, offline page
 cache, imported scripts or background content fetch. Validate the incoming
 payload shape, display its fixed message and site title, and constrain click
 navigation to this service worker's origin and exact `/review` path. Focus
-an existing review window or open that URL; never approve, submit a form,
-or mark a request decided. Omit notification grouping/tag fields and push
+a same-origin window, preferring a focused one: navigate it to `/review`
+if needed, then focus the returned client. If no such window exists or
+navigation/focus fails, open that URL in a new window. Never approve, submit
+a form or mark a request decided. Omit notification grouping/tag fields and push
 Topic/collapse identifiers: none may encode a request id, item, count or
 other content. Notification icons, if used, are bundled generic icons, not
 content-dependent fetches. Revocation does not remove an already displayed
