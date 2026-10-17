@@ -7,6 +7,7 @@
  * so a fresh workers.dev deploy works with no configuration.
  */
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import { mcpOriginRejection } from "./mcp-origin";
 import { toolTransport } from "./tool-transport";
 import type { Env } from "./env";
 import { RELEASE } from "./home";
@@ -53,7 +54,10 @@ export default {
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;
     const bearer = /^Bearer[\t ]+(psk_[A-Za-z0-9_-]+)$/i.exec(req.headers.get("Authorization") ?? "");
-    if (u.pathname === "/mcp" && bearer) {
+    const rejected = u.pathname === "/mcp" ? mcpOriginRejection(req, origin) : undefined;
+    if (rejected) {
+      res = rejected;
+    } else if (u.pathname === "/mcp" && bearer) {
       // An assistant key (keys.ts) instead of an OAuth token: the same tools.
       const who = await keys.lookup(env.DB, bearer[1]);
       if (!who) {
