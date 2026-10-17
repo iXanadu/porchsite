@@ -83,6 +83,29 @@ passkey: owners never need a terminal, a settings file or a code to type.
 The assistant connects at `https://<domain>/mcp`. A `check` admin command
 reports whether the database, schema, looks and settings are sound.
 
+### A reverse proxy must preserve access checks
+
+The supplied Caddy setup has no response cache. Keep shared caching off for
+the entire site if you add a proxy or CDN. Before enabling private mode,
+disable it and purge previously public pages, feeds, search indexes,
+sitemaps, media and redirects at every cache you operate. Otherwise a proxy
+can answer from its old public copy without asking Porchsite.
+
+Bypass cache reads **and writes** for both `__Host-sk_owner` and
+`__Host-sk_reader`; forward those cookies unchanged. `Vary: Cookie` alone
+does not provide isolation. Preserve private/no-store/no-transform and
+security headers. Never serve stale content, including when the origin
+returns 404, times out or is refreshing a response in the background.
+
+Do not cache `/media/` longer than pages. Current public photos carry a
+one-year immutable header even though removing their last published
+reference makes their origin URL unavailable. Disable proxy media caching
+and override media responses to `private, no-store, no-transform` until the
+engine changes that policy. Purge old copies you operate after unpublishing
+photos or changing privacy. This cannot revoke files already downloaded or
+erase a browser's still-fresh old one-year copy. The deploy guide includes
+an [example Nginx configuration and local verification steps](https://github.com/iXanadu/porchsite/blob/main/deploy/compose/README.md#reverse-proxies-and-caches).
+
 ## Update policy
 
 No site updates itself; the owner decides. The site checks latest.json once

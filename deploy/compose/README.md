@@ -154,6 +154,85 @@ them (every release is tested against the next one's schema before it is
 published). Don't restore the dump unless data itself is damaged:
 restoring loses everything written since.
 
+## Reverse proxies and caches
+
+The supplied Caddy configuration passes requests through without a response
+cache. Keep that behavior if another proxy or CDN sits in front of it.
+Before turning private mode on, disable shared caching for the site's whole
+hostname and purge existing copies, including `/media/`, feeds, search and
+sitemaps. A cached public response can otherwise answer without reaching
+the app's private-site check.
+
+Requests carrying either `__Host-sk_owner` or `__Host-sk_reader` must bypass
+both cache reads and cache writes. Forward both cookies unchanged. Do not
+use `Vary: Cookie` alone or cache signed-in pages by a shared URL. Preserve
+the app's `private, no-store, no-transform`, `Set-Cookie`, status and security
+headers. Do not replace an origin 404 with a cached success, even during an
+upstream failure or a background refresh; disable serve-stale entirely.
+
+Current releases send public photos with
+`public, max-age=31536000, immutable`. Their bytes have stable names, but
+their permission to be public can change. A proxy must not keep `/media/`
+longer than pages. Disable its media cache and override that long browser
+lifetime with `private, no-store, no-transform` at the outermost proxy until
+the engine's media policy changes. This override affects future responses;
+it cannot erase a browser's already-fresh one-year copy. Purge all caches
+you operate after removing a published picture, replacing location-bearing
+photos, or changing privacy. Revoke old cached redirects too. Do not claim
+that a shorter lifetime or an origin 404 recalls earlier downloads.
+
+For an existing Nginx TLS server, this example disables shared response
+caching, bypasses both session cookies explicitly, and prevents new media
+copies being stored. The `map` belongs in the enclosing `http` block; the
+other directives belong in this site's existing `server` block. Replace
+the example upstream with the app's **private** address. If using a host
+port, bind it to loopback only; the Compose setup publishes no app port.
+Do not expose the app directly: it trusts its proxy's forwarding headers.
+
+```nginx
+# http context
+map $http_cookie $porchsite_session {
+    default 0;
+    "~(?:^|;[[:space:]]*)(?:__Host-sk_owner|__Host-sk_reader)=" 1;
+}
+
+# Inside the site's existing HTTPS server (certificates omitted).
+proxy_cache off;
+proxy_cache_bypass $porchsite_session $http_authorization;
+proxy_no_cache $porchsite_session $http_authorization;
+proxy_cache_use_stale off;
+proxy_cache_background_update off;
+proxy_intercept_errors off;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-For $remote_addr;
+
+location / {
+    proxy_pass http://127.0.0.1:8000;
+}
+location /media/ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Expires;
+    add_header Cache-Control "private, no-store, no-transform" always;
+}
+```
+
+Audit all matching locations and every proxy/CDN layer: a separate image
+location or a provider's "cache everything" rule can override this example.
+Do not configure `proxy_ignore_headers` to ignore Cache-Control, Set-Cookie
+or Vary. Reload only after `nginx -t` succeeds. The directive semantics are
+documented in the [Nginx proxy module](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
+
+Verify with disposable local content before using private mode: fetch a
+published photo through the proxy, unpublish its last reference, then fetch
+that same URL again. An anonymous request must get the origin's 404, with
+no old image body. After turning private on, all formerly public content
+URLs must return the blank private 404 even with conditional headers.
+Signed-in owner and reader requests must each reach the app; a following
+anonymous request must never reuse their response. Check both GET and HEAD,
+and check the proxy/CDN's cache logs; an `Age` header alone is not proof.
+
 ## Back up
 
 Everything is in the database. Dump it to a file, and copy the file off the
