@@ -117,7 +117,7 @@ in a shared cache or shared place; anonymous visitors see no change.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.
-- **MD-1** OPEN (medium): pipe tables (GitHub style) in the Markdown
+- **MD-1** IN-PROGRESS (spec first): pipe tables (GitHub style) in the Markdown
   renderer, both editions, proven identical. Playbook reference pages use
   "Term: meaning" lists until then.
 

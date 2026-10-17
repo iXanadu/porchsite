@@ -127,8 +127,12 @@ No script, template or theme choice substitutes for the access gate.
   the edition produced that HTML itself (rendered Markdown, safe; the
   dialect is in SPEC.md §3). It can hold `<h1>` to `<h6>`, `<p>`, `<br>`,
   `<ul>`/`<ol>` (nested; `<ol start>`), `<blockquote>`, `<hr>`,
-  `<pre><code>`, `<code>`, `<em>`, `<strong>`, `<a>` and `<img>`, so a look
-  styles all of them.
+  `<pre><code>`, `<code>`, `<em>`, `<strong>`, `<a>`, `<img>`, and pipe
+  tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th scope="col">`, `<td>`,
+  with optional fixed `align`), so a look
+  styles all of them. Pipe tables have an engine-owned `.md-table` wrapper
+  with horizontal scrolling and `tabindex="0"`, plus fixed table spacing;
+  looks may add table styling but must retain narrow-screen usability.
 - **Scripts only from the kit or `static/`,** by `<script src>`, never
   inline. Pages are served with a Content-Security-Policy that blocks the
   rest.

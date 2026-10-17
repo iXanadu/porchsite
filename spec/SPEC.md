@@ -239,6 +239,38 @@ one small dialect both editions render to the same bytes. The cases in
   starts a numbered list there (`1999. A good year.` stays text); inside a
   list item any number does. A list with a blank line between its items
   wraps each item's text in `<p>`.
+- Pipe tables (MD-1): a single header line containing an unescaped `|`,
+  immediately followed by a delimiter line with the same number of cells.
+  Each delimiter cell is one or more `-` with an optional `:` at either
+  end: left, right, or both for centered alignment. Boundary pipes are
+  optional; ASCII space/tab padding is removed. A backslash-escaped pipe
+  stays in its cell, including within inline code; unescaped pipes split
+  cells even within code. Ordinary inline Markdown is parsed in each cell.
+  Data rows continue to a blank line or another block. Short rows gain
+  empty cells; extra cells are ignored. A header-only table has no body.
+  This is the core [GFM table syntax](https://github.github.com/gfm/#tables-extension-),
+  within this engine's existing block and inline dialect.
+  Tables may begin at a block boundary or interrupt a paragraph when the
+  next two lines form a valid header/delimiter pair. Fenced and indented
+  code keep precedence. Quotes and list items support tables after their
+  normal container prefixes are stripped. A standalone engine block ends
+  a top-level table and is emitted once; cells never expand engine embeds.
+  Header cells render as `<th scope="col">`; data cells use `<td>`, with
+  `align="left|center|right"` only for explicit column alignment. The
+  engine emits `<table><thead><tr>...` and optional `<tbody>` rows, within
+  `<div class="md-table" tabindex="0" style="max-width:100%;overflow-x:auto">`.
+  The table has `style="border-spacing:0.75em 0.35em"`. These fixed styles
+  provide spacing and keyboard-reachable horizontal scrolling on narrow
+  screens without changing a look or accepting authored styles.
+  Recognition is limited to 64 columns; a wider candidate stays ordinary
+  Markdown. A document, including all nested containers, may generate at
+  most 4,096 table cells, including headers and padded empty cells. A
+  header that does not fit remains ordinary Markdown. Before a body row
+  would exceed the remaining budget, close the table and resume ordinary
+  block parsing at that row. No source is truncated or rejected. The
+  splitter and recognition are linear in the input being examined; no
+  delimiter or padding can cause unbounded generated output. Shared cases
+  prove the grammar, boundaries, escaping, limits and exact bytes.
 - Inline: `*em*` / `_em_`, `**strong**` / `__strong__` (underscores inside
   a word, as in `snake_case`, stay as they are), `` `code` ``, links
   `[text](address "optional title")`, images `![alt](/media/…)`, and a
@@ -1646,6 +1678,40 @@ HEAD/304, concurrent increments and date rollover),
 `af_agent_kind_owner_only` (authorized report, no public/private-denial
 leak), and `af_agent_kind_parity_rollback` (same classification/report in
 both editions; previous-release tests pass on the additive schema).
+
+#### MD-1: tables in the light Markdown copy
+
+The copy continues to derive only from the rendered approved visitor HTML,
+never raw item bodies. A visible simple table with one all-`th` header row,
+rectangular visible data rows, no spans or nested tables, and at most the
+renderer limits becomes a GFM pipe table with a delimiter row. Preserve
+header/data order and explicit left/center/right alignment. A caption, if
+present, stays before it. A hidden row or cell contributes no text.
+Non-rectangular, spanned, nested or unsupported authored tables keep the
+existing mechanical text fallback; do not invent a header or discard
+visible cells to force them into a pipe table.
+
+Cells retain escaped visible text, emphasis, safe links and image alt
+references. Escape literal pipe separators, encode a literal pipe in a
+link/image URL as `%7C`, and flatten a cell's line breaks to spaces so one
+row stays on one line. A code span containing pipes is split into code
+spans around escaped plain pipe characters: its visible code text,
+including literal backslashes and backticks, must survive a Markdown
+round trip. Never double-escape an already escaped text pipe. Ordinary
+code outside a table is unchanged. Generated raw HTML, executable markup,
+owner navigation, private/draft data and agent instructions remain absent.
+
+Required paired cases are `md_pipe_tables` (shared exact-HTML examples),
+`md_pipe_table_bounds` (64-column and shared 4,096-cell limits),
+`af_pipe_table_roundtrip` (header/body structure, code/pipe/backslash/link
+text, alignment and literal HTML through the copy), and
+`af_pipe_table_access` (published-only, private blank gate, owner isolation,
+GET/HEAD/304 and direct/negotiated copy identity). Test inline text and code
+with an independent parser as well as cross-edition parity. Prepared
+public copies follow the existing release/dependency identity and access
+checks: new rendering must not reuse a previous engine's prepared bytes.
+No new item field, schema, tool, auth path or release floor is needed.
+Rolling back renders pipe syntax as the previous dialect's ordinary text.
 
 ### AF-2: validators and conditional reads
 
