@@ -2507,13 +2507,12 @@ then the ordinary release gates. The compatibility rule remains additive.
 
 The first implementation slice provides AG-1/AG-3 credentials, owner
 issuance/revocation and the reduced MCP authority boundary in both editions.
-Only published-only `site_state` and `site_check` are registered in this
-slice; the five-name allowlist reserves `page_get`, `pages_list` and `search`
-for AG-2 and cannot dispatch them to drafting handlers. The restricted
-listing is bounded to 20 rows; its continuation is completed with AG-2.
-AG-4/AG-5 private HTTP grants and AG-6 owner review copies remain pending:
-this slice preserves the existing private HTTP denials. This is an
-implementation checkpoint, not a complete AG release or acceptance claim.
+The second slice provides AG-2 in both editions: all five published-read
+tools are registered, with the bounded listing, search and shared continuation
+contract below. Writer connections gain the three read tools while retaining
+their existing drafting behavior. AG-4/AG-5 private HTTP grants and AG-6 owner
+review copies remain pending: this checkpoint preserves the existing private
+HTTP denials. It is not a complete AG release or acceptance claim.
 
 Anything an agent can already reach is made easier to read. Friendliness
 never grants additional authority. There is no separate agent mode and no
@@ -2682,8 +2681,10 @@ refusals without a content lookup. No new body/metadata instruction preamble
 is added; owner prose remains data under AF-8.
 
 Listings/search default to 20 rows, maximum 50; query is 1–200 Unicode scalar
-values after trimming, normalized by NFC then lowercase, whitespace-separated
-AND terms. Compare text after the same NFC/lowercase normalization in both
+values after trimming Unicode White_Space, normalized by Unicode 15.1 NFC
+then default lowercase (including contextual final sigma, without locale),
+whitespace-separated AND terms. Both editions use the same packaged Unicode
+table, including on runtimes with newer Unicode data. Compare text after the same NFC/lowercase normalization in both
 editions. Order results by normalized canonical path (UTF-8 byte order), not
 locale, database collation or score. `stream` and `tag` have the existing
 published route grammar. `since` is an RFC3339 UTC timestamp and selects
@@ -2710,6 +2711,14 @@ refused. More than the maximum rows is represented by `next_cursor`, never
 an unmarked partial answer. No private cursor or body is persisted by the
 engine. Restricted `site_state` uses the same default 20-row bound and cursor
 as a first `pages_list` call; callers use `pages_list` for continuation.
+
+Each result is rendered from one reader snapshot. Recheck its visible
+publication/theme dependencies before returning; crossing a display-clock
+minute while preparing a listing refuses with `cursor_stale`. A single-page
+read retries one changed snapshot, then refuses with `content_changed` if
+it changes again. Revocation is still rechecked by the outer tool boundary
+immediately before protected return. These checks do not store a private body
+or extend authorization across requests.
 
 ### AG-4 and AG-5: HTTP Markdown and the private map
 

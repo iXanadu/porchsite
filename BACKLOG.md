@@ -83,8 +83,6 @@ the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-2** IN-PROGRESS (spec §11): bounded page_get/pages_list/search and
-  published-only site_state/site_check; enforce reduced tools in all transports.
 - **AG-4** IN-PROGRESS (spec §11): valid owner/reader sessions or header-only
   Bearer keys read private Markdown; principal-bound ETags, private revalidation,
   no shared storage; invalid/anonymous stays exact blank 404.

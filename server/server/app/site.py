@@ -91,8 +91,10 @@ async def proposed_view(
     site_row = rows.get(SITE_ID)
     site = validate("site", await source_data(db, SITE_ID, site_row["version"], site_row["data"], not any(c["id"] == SITE_ID for c in changes)) if site_row else {})
     v = view(site, [r for r in rows.values() if r["kind"] != "site"])
+    visible = {SITE_ID, *(e["id"] for e in v.entries), *(c["id"] for c in v.cards), *(n["id"] for n in v.notes)}
+    visible_rows = {identifier: row for identifier, row in rows.items() if identifier in visible}
+    v.approved_at = {identifier: r["published_at"] for identifier, r in visible_rows.items()}
     if discovery:
-        v.approved_at = {identifier: r["published_at"] for identifier, r in rows.items()}
         return v  # XML needs no share cards, image sizes or display-clock formatting.
     v.share_cards = {
         c["item_id"]: f"/media/{c['name']}"
@@ -102,7 +104,7 @@ async def proposed_view(
     hero = LOCAL.search(str(site.get("hero")))
     if hero:
         v.hero_size = await size_of(db, hero.group(1))
-    last = max((r["published_at"] for r in rows.values()), default="")
+    last = max((r["published_at"] for r in visible_rows.values()), default="")
     if last:
         v.updated = _updated(last, str(site.get("timezone") or "UTC"))
     return v

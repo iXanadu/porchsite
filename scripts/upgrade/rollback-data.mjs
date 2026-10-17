@@ -213,11 +213,17 @@ async function seed(base) {
     const revoked=/prk_[A-Za-z0-9_-]{32}/.exec(revokeHTML)?.[0];assert(revoked);
     const readId=/<h2>Published reader revoked<\/h2>[\s\S]*?name="revoke_read_key" value="([^"]+)"/.exec(revokeHTML)?.[1];assert(readId);
     await form({revoke_read_key:readId});agentReadKeys={active,revoked};
+    if(tools.includes('page_get')){
+      const page=await existingCall(base,active,'page_get',{path:'/'});assert.equal(page.path,'/');assert(!page.markdown.includes('Pending published title'),'read tools never see pending site title');
+      const listing=await existingCall(base,active,'pages_list',{limit:1});assert.equal(listing.pages.length,1);assert(listing.next_cursor);
+      const search=await existingCall(base,active,'search',{query:'Rollback'});assert(search.results.length>0);
+      agentReadKeys.readTools=true;
+    }
   }
   return { key, agentReadKeys, entryId:entry.id, slug, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
 async function checkPrevious(base, fixture, edition) {
-  if(fixture.agentReadKeys){for(const token of Object.values(fixture.agentReadKeys))await rejectedReadKey(base,token);}
+  if(fixture.agentReadKeys){for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await rejectedReadKey(base,token);}
 
   const http = client(base);
   const failures = [];
@@ -425,7 +431,7 @@ try {
           const shared=await fetch(base+entryPath),sharedBody=await shared.text();assert.match(sharedBody,/<meta property="og:image" content="http:\/\/localhost:\d+\/media\/[a-f0-9]{32}\.jpg">/,'actual old share card appears after return');
           await fetch(base+'/index.md');await fetch(base+'/llms.txt');
           await runtime.stop();runtime=null;runtime=await old();await oldSite({private:true});
-          if(fixture.agentReadKeys)for(const token of Object.values(fixture.agentReadKeys))await blankReadKey(base,token);
+          if(fixture.agentReadKeys)for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await blankReadKey(base,token);
           await runtime.stop();runtime=null;runtime=await current();
           for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
             const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>');
@@ -445,6 +451,12 @@ try {
         console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
         if(fixture.agentReadKeys){
           const state=await existingCall(base,fixture.agentReadKeys.active,'site_state',{});assert.equal(state.scope,'published_read');
+          if(fixture.agentReadKeys.readTools){
+            const page=await existingCall(base,fixture.agentReadKeys.active,'page_get',{path:'/'});assert.equal(page.path,'/');assert(page.markdown.includes('Rollback old edit'),'current reader tool sees actual old approved edit');
+            const listing=await existingCall(base,fixture.agentReadKeys.active,'pages_list',{});assert(listing.pages.some(p=>p.path==='/'));
+            const search=await existingCall(base,fixture.agentReadKeys.active,'search',{query:'Rollback'});assert(search.results.some(p=>p.path==='/'));
+            console.log(`rollback-data: ${edition}: published page/list/search tools survive actual old-runtime roundtrip and use current approved content`);
+          }
           await rejectedReadKey(base,fixture.agentReadKeys.revoked);
           const currentSite=await existingCall(base,fixture.token,'site_state',{ids:['site']});
           await existingCall(base,fixture.token,'item_update',{id:'site',version:currentSite.items[0].version,data:{private:true}});
@@ -455,7 +467,7 @@ try {
           const options=await recovery.post('/recover/options',{code:'rollback-local-recovery-code-at-least-32-bytes'});assert.equal(options.status,200);
           const restored=await recovery.post('/recover/verify',await replacement.create((await options.json()).options,base));assert.equal(restored.status,200,'actual previous runtime owner recovery');
           await runtime.stop();runtime=null;runtime=await current();
-          for(const token of Object.values(fixture.agentReadKeys)){await rejectedReadKey(base,token);await blankReadKey(base,token);}
+          for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked]){await rejectedReadKey(base,token);await blankReadKey(base,token);}
           console.log(`rollback-data: ${edition}: new read prefix rejected by actual old runtime; revoke survives return; actual old owner recovery invalidates read keys by epoch`);
         }
 
