@@ -1,6 +1,7 @@
 /** Public data twins. The caller must run the private-site gate first. */
+import { structuredBlock } from './structured-data';
 import { markdownDocument, mdText } from './agent-markdown';
-import { markdownPath, pagePath, pageQuery, representation } from './public-http';
+import { markdownPath, pagePath, pageQuery, representation, sessionRequest } from './public-http';
 type Route=(req:Request)=>Promise<Response>;
 const MD={'Content-Type':'text/markdown; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Link':'</llms.txt>; rel="describedby"'};
 const anonymous=(req:Request,path:string,preserveQuery=false)=>{const url=new URL(path,req.url);if(preserveQuery&&path==='/archive/')url.search=new URL(req.url).search;return new Request(url,{method:'GET'});};
@@ -50,6 +51,9 @@ export async function agentPage(req:Request,route:Route,paths:()=>Promise<string
   headers.set('Link',[headers.get('Link'),link].filter(Boolean).join(', '));
   let original=await response.text();
   if(path==='/archive/'){const canonical=new URL(path+pageQuery(req,path),req.url).href.replace(/&/g,'&amp;');original=original.replace(/<link rel="canonical" href="[^"]*">/,`<link rel="canonical" href="${canonical}">`);}
-  const body=original.replace('</head>',`<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
+  let visitorHTML=original;
+  if(sessionRequest(req)){const visitor=await route(anonymous(req,path,true));if(!isHTML(visitor))return visitor;visitorHTML=await visitor.text();}
+  const data=structuredBlock(visitorHTML,new URL(path+pageQuery(req,path),req.url).href);
+  const body=original.replace('</head>',`${data}<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
   return new Response(body,{status:200,headers});
 }

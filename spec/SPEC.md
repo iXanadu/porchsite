@@ -1715,7 +1715,10 @@ cookie class. A browser test must prove discovery and fetching under the
 unchanged CSP if that fallback is chosen. The implementation selects the
 same strategy in both editions and records which path the paired tests
 prove; it never falls back by relaxing CSP. JSON object key order and array
-order are deterministic and identical in both editions.
+order are deterministic and identical in both editions. The implementation
+uses the inline inert data block, with the paired browser acceptance case
+`af_jsonld_visible_fields` proving its presence and parsing under the
+unchanged delivered CSP; no public JSON-LD twin is introduced.
 
 ### AF-6: a short public map
 
