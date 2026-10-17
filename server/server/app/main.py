@@ -97,14 +97,9 @@ class App:
             return
         if scope["type"] != "http":
             return
-        # Redirect before OAuth, access checks, database work or body reads.
+        # TLS and HTTP-to-HTTPS redirects belong to the reverse proxy.
+        # Its upstream request can be HTTP with the site's public Host.
         req = Request(scope, receive)
-        host = req.url.hostname or ""
-        loopback = host in ("localhost", "::1") or bool(re.fullmatch(r"127(?:\.[0-9]{1,3}){3}", host) and all(int(x) <= 255 for x in host.split(".")))
-        if req.url.scheme == "http" and not loopback:
-            response = Response(None, status_code=301, headers={"Location":str(req.url.replace(scheme="https")), "Cache-Control":"no-store"})
-            await response(scope, receive, send)
-            return
         release = self.settings.release.encode("latin-1")
         prepared=False
 
