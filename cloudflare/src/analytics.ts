@@ -374,7 +374,7 @@ export async function stats(db: D1Database, q: StatsQuery = {}): Promise<Record<
     agent_traffic: await trafficReport(db,start,end),
     range: { start, end },
     filter: { content_id: q.content_id ?? null, src: q.src ?? null, post: q.post ?? null, include_test: includeTest },
-    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. The owner, bots and test runs are not counted. Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.`,
+    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. Visitor statistics exclude the owner, bots and test runs. Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.`,
     totals: {
       visits: all.length,
       views: sum(all.map((v) => v.pages)),

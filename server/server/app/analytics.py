@@ -430,7 +430,7 @@ async def stats(
             "A visit = one visitor on one day (visitors are not linked across days). "
             "Engaged time counts only while the page is visible and the reader is active. "
             f"Bounce = under {BOUNCE_MS // 1000} s engaged, or one page with no scroll "
-            "past 25%. The owner, bots and test runs are not counted. "
+            "past 25%. Visitor statistics exclude the owner, bots and test runs. "
             "Time on page and scroll can lag up to a minute while someone is still reading. "
             "Browser or connection delays can make that longer. "
             "If the final message is lost, recorded time and scroll can be lower."
