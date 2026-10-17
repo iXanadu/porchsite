@@ -63,7 +63,7 @@ Found building a single-property listing site on the live release.
 ## AGENT ACCESS (owner's request, 2026-10-17: "make sites easy for agents to read")
 People read a site through passkeys; agents can't and shouldn't use passkeys.
 Three audiences, each with its own door. The owner's own records
-stays the truth; a site is a view, so agents read the site only when they
+stay the truth; a site is a view, so agents read the site only when they
 need what people see.
 - **AG-1** OPEN (first): read-only assistant keys. At /review/assistants the
   owner ticks "Read only" when making a key. The key may call site_state,
