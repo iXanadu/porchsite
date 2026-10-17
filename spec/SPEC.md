@@ -2395,6 +2395,410 @@ shared stores directly for private/personalized bytes and assert access
 precedes all content/artifact lookups. Prior-release upgrade/rollback and
 the existing parity, conformance and mutation gates remain required.
 
+## 11. Agent access to private sites (proposed; implementation pending)
+
+This section specifies AG-1 through AG-6 in both editions. It is a proposal,
+not a claim that the released engine accepts these credentials or serves
+these copies. Implementation requires paired tests, security and code review,
+then the ordinary release gates. The compatibility rule remains additive.
+
+Anything an agent can already reach is made easier to read. Friendliness
+never grants additional authority. There is no separate agent mode and no
+second approval of agent representations. The approved content remains the
+source; light copies are mechanical views of it. This covers the business
+requirements for a holder of a valid login to read private content and keep
+its own private copy (UC5), unchanged anonymous denials (UC6), and one owner
+approval (UC11). The same behavior works without any hosting-provider service.
+
+### Authority and the relationship to §10
+
+Published-only keys, reader passkeys and owner passkeys are distinct
+principals. Existing OAuth connections and `psk_` assistant keys retain their
+existing MCP drafting authority; they do not acquire private HTTP or owner
+session authority from AG. An owner session is not an MCP credential.
+
+| Principal | Published page HTML and light copies on a private site | Owner review light copies | MCP |
+| --- | --- | --- | --- |
+| No valid credential | Existing blank denial | Existing denial | Existing HTTP 401 |
+| New published-only key | Published pages and private map only | Never | Five published-only read tools |
+| Valid reader passkey session | Same published pages as existing reader HTML | Existing reader refusal | Not a credential |
+| Valid owner passkey session | Published view, without owner decorations in copies | Existing authorized owner GET pages | Not a credential |
+| Existing writer key or OAuth token alone | No new HTTP authority | Never | Existing tools, plus the new published read tools |
+
+On a private site AG explicitly replaces §10's blanket denial of new
+Markdown/map paths **only** for those valid published-read principals. It
+also permits their principal-bound private validators as described below.
+All anonymous/expired/revoked/invalid denials, private robots bytes, public
+anonymous representations, AF-7 public-store exclusion, and owner HTML
+no-store behavior remain normative. AG-6 is a separate, owner-session-only
+exception to the §10 exclusion of review Markdown; it never enters the
+published projection, discovery map, or public JSON-LD.
+
+Validate the live principal before content lookup, route-existence tests,
+negotiation, Markdown/map building, validators, discovery or any derived
+store. HTTP credential selection is deterministic: a present Authorization
+header must be one valid AG Bearer; it cannot fall back to a cookie or combine
+with cookie authority. Without Authorization, validate the existing owner
+session, then reader session. Invalid/duplicate/malformed Authorization or
+credentials supplied in query/path/cookie never become a grant. Existing
+request-origin/Host protections still apply; a request cannot pin an origin
+or gain authority through Host or forwarded headers.
+
+### AG-1 and AG-3: one published-only key type
+
+Fold the read-only assistant and trusted agent reader into one capability,
+`published_read`. On `/review/assistants`, the signed-in owner chooses
+"Read only — published pages" when creating a named key. Existing drafting
+key creation stays distinct and unchanged. Name the scope in the listing;
+never suggest that a published-read key can draft or approve. Creating or
+revoking access uses the existing owner session, CSRF and same-origin checks,
+not a content approval request. No MCP tool can mint, broaden, rotate or
+revoke these credentials.
+
+Use NEW `agent_read_keys` and `agent_read_key_events` tables. Do not add a
+scope flag to `assistant_keys`, insert a read key in that table, or reuse
+its `psk_` prefix: older runtimes would interpret it as a drafting credential.
+Use the distinct `prk_` prefix followed by 24 cryptographically random bytes
+in unpadded base64url form (192 bits of entropy). The identifier is an
+independent opaque id, never the secret or its hash.
+
+`agent_read_keys` holds `id` (primary key), `name`, `key_hash` (unique lowercase
+SHA-256 of the entire token), `created_at`, `expires_at`, `last_used_at`
+(nullable), `revoked_at` (nullable), and the existing `owner_epoch` at issue.
+The scope is fixed by table and prefix, not mutable caller data. Lifetime is
+90 days from issue; there is no refresh token. Use existing UTC timestamp
+conventions. Names use the current assistant-key name validation and escaping.
+Every named agent gets its own row. A new key is not a conversion of a writer
+key; revoke a writer separately if the owner wants to remove its authority.
+
+The token is disclosed once, only in the owner-authenticated creation
+response, under private no-store headers. This narrowly defined issuance
+response is the sole exception to the prohibition on tokens in HTML. It
+must not be converted to Markdown, logged, embedded in a URL, or returned by
+MCP. Later listings show name, scope, created, expiry and last successful
+use, never the token or hash. Refresh/back navigation cannot redisclose it.
+No exports, content imports, restore-as-draft, revisions or tool results carry
+credential or audit rows. Content import cannot plant an access grant.
+
+Send the token only as `Authorization: Bearer <token>` over HTTPS outside
+existing localhost test allowances ([RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1)).
+Never accept it from a URL, query, fragment, cookie, MCP argument or Referer.
+Never propagate it into Location, Link, canonical URLs, page text, error
+messages, analytics, public discovery or outbound requests. Redact
+Authorization and key-issuance responses in diagnostics. Do not fetch remote
+resources with the credential.
+
+Every request and every MCP tool invocation performs a live hash lookup:
+matching prefix/hash, `revoked_at IS NULL`, `expires_at > now`, and issued
+owner epoch equal to current owner epoch. Do not cache a grant in an MCP
+connection, session, transport props, process, KV or derived table. Recheck
+before returning protected bytes or 304 after awaited rendering; an auth
+lookup failure fails closed. Successful use may update `last_used_at`; it
+is owner-only metadata and not a content or artifact dependency. Recovery
+that changes the owner epoch invalidates old AG keys even if an older
+runtime performed that recovery and did not know the new tables.
+
+Revocation sets `revoked_at` and appends one event in the **same** owner POST
+transaction/batch. Failure of either write rolls both back. Audit rows hold
+only event id, UTC time, owner actor identifier, key id, escaped name snapshot
+and event kind (`created` or `revoked`); no token/hash, IP, user agent, path,
+page body or per-read log. A repeated revoke is idempotent and creates no
+second event. The owner can see the revocation history on the assistants
+page. Revocation takes effect at the next authorization check, including
+calls on an already-open MCP connection. A stalled operation must recheck
+before returning bytes or a conditional success; already delivered bytes or
+an agent's own retained copy cannot be recalled.
+
+### AG-2: small published read tools
+
+Add `page_get`, `pages_list` and `search` to the normal tool catalog. Existing
+writer keys and OAuth connections retain all existing tools and their
+existing `site_state`/`site_check` behavior. For a published-read principal,
+`tools/list` contains only `site_state`, `site_check`, `page_get`, `pages_list`
+and `search`. Initialization exposes no site content or private draft guide.
+The restricted guide describes these five capabilities as facts; it does
+not expose the drafting workflow, owner metadata or a private site dump.
+
+Enforce this allowlist before argument-dependent content work in **all**
+transports: Worker fast dispatch, SDK fallback, current and legacy protocol
+versions, JSON and SSE, and server dispatch. Direct calls to an unlisted
+known tool are denied exactly like unauthorized/invalid-tool calls, not
+silently forwarded to the writer handler. Every mutating, draft-reading,
+history, stats, image, import, approval, theme and owner tool is denied.
+Read-only declarations/annotations and a filtered tool list alone are not
+an authorization mechanism. Refusal changes no content, approval, credential,
+media or artifact row. MCP transport responses carrying restricted content
+are private, no-store, no-transform; existing Origin/authentication behavior
+and no-content HTTP 401 for an invalid Bearer remain in place.
+
+All five tools use only the current live approved **reader** projection,
+with private cards absent and mention cards limited to name and description.
+Never derive it by fetching drafts and deleting a few fields. Published
+fields use the same exact-version approval/receipt rules as HTML. Never
+return pending versions, history, approval notes/ids/URLs, owner names,
+CSRF/session data, assistant key metadata, stats, unpublished entries or an
+unapplied rollback. A live entry with a pending newer version returns only
+the live version. A missing private site item does not reveal drafts.
+
+| Tool | Inputs and result |
+| --- | --- |
+| `page_get(path)` | A same-site published page, `{path, canonical_url, title, date?, tags, markdown}`. Markdown is the same title/date/tags/visible body as its reader HTML, using AF-3's mechanical converter and wrappers. |
+| `pages_list(stream?, tag?, since?, cursor?, limit?)` | `{pages:[{path,title,changed_at}], next_cursor}` over published local entry pages, plus home and enabled archives when no entry filter is supplied. No external entry URL is fetched or treated as a local page. |
+| `search(query, cursor?, limit?)` | `{results:[{path,title,excerpt}], next_cursor}` from the same authorized published corpus; substring terms must all match title or visible text, case-insensitively, with no stemming/ranking claim. Excerpts are at most 240 Unicode scalar values of owner text. |
+| `site_state(full?, ids?, guide?)` with a published-read key | A restricted `{scope:"published_read", site:{title}, pages:[{path,title,changed_at}], next_cursor, guide?}` using the bounded listing below. `full:true` or `ids` is refused before any draft lookup; it never invokes the writer state loader. The fixed guide is the restricted read guide, with the existing guide-reuse contract. |
+| `site_check(deep?)` with a published-read key | The existing quick/deep result shape over the live approved graph only; missing draft targets are ordinary missing published links. Existing crawl limits and incomplete-crawl reporting apply. No live mutation, remote fetch, drafts or owner routes. |
+
+`path` is an absolute-path reference beginning with one `/`, not a URL,
+network-path reference, traversal, fragment, credential, encoded slash or
+backslash. Resolve only AF page routes and validated archive filters; direct
+Markdown input normalizes to the corresponding HTML path. Reject duplicate,
+unknown and invalid filters, as AF does. No arbitrary HTTP fetch, media read,
+filesystem path, owner route, preview or MCP URL is performed. Unknown,
+unpublished or owner `page_get` paths give a bounded `not_found` tool result,
+not an anonymous BLANK response or a draft dump. Input errors are tool
+refusals without a content lookup. No new body/metadata instruction preamble
+is added; owner prose remains data under AF-8.
+
+Listings/search default to 20 rows, maximum 50; query is 1–200 Unicode scalar
+values after trimming, normalized by NFC then lowercase, whitespace-separated
+AND terms. Compare text after the same NFC/lowercase normalization in both
+editions. Order results by normalized canonical path (UTF-8 byte order), not
+locale, database collation or score. `stream` and `tag` have the existing
+published route grammar. `since` is an RFC3339 UTC timestamp and selects
+`changed_at > since`; timestamps are facts, not access grants.
+
+For an entry, `changed_at` is the maximum existing UTC `published_at` of its
+live version and live site dependencies, plus the active installed theme's
+`installed_at` when present. For home/archive/tag listings use the maximum
+of reader-visible live publication times and that theme installation time.
+Invisible private-card rows are never timestamp or listing inputs. It is a
+publication/change date, not the date in the owner's prose; validators remain
+the authoritative representation-change check (media metadata repairs need
+not invent publication timestamps).
+
+Pagination uses a versioned base64url JSON cursor containing last path,
+query/filter digest and a digest of the current reader-visible listing and
+search corpus (not hidden raw rows). Cap encoded
+cursor input at 2048 bytes; parse strictly. Bind it to the current principal
+id and scope with an engine-computed digest. A cursor never authorizes a
+read, contains a credential, or bypasses fresh filtering. If the published
+digest changed, return `cursor_stale` and require a fresh first page; do not
+silently skip/duplicate rows across snapshots. Malformed/foreign cursors are
+refused. More than the maximum rows is represented by `next_cursor`, never
+an unmarked partial answer. No private cursor or body is persisted by the
+engine. Restricted `site_state` uses the same default 20-row bound and cursor
+as a first `pages_list` call; callers use `pages_list` for continuation.
+
+### AG-4 and AG-5: HTTP Markdown and the private map
+
+A valid AG key may GET/HEAD published page HTML, its `<page>/index.md`, or
+negotiate Markdown at the HTML URL, and read `/llms.txt`. Granting the same
+published HTML is necessary so every map target is a real HTML 200 for that
+principal. Its HTML uses the existing reader view, no owner Review link.
+This HTTP grant covers no owner, write, protocol, preview, raw-item, feed,
+sitemap or arbitrary media endpoint; existing passkey privileges remain as
+they are. Bearer validity never makes a draft address exist.
+
+Valid owner and reader sessions can read the same private page copies and
+map without a new toggle, credential or approval. Owner-page copies still
+use the published reader projection: no Review link, owner navigation,
+CSRF/session labels or richer private-card fields. Direct/negotiated body
+and tag identity, Accept grammar, 406 behavior after successful access,
+canonical archive filters, safe Markdown URLs and discovery bounds follow
+AF-3/AF-6/AF-8. GET and ordinary HEAD have the same status and representation
+headers, including correct UTF-8 Content-Length when present; HEAD has no
+body. Private published misses are ordinary authorized misses, no-store
+and without a validator. Missing/unpublished addresses do not return draft
+bytes or distinguish draft existence.
+
+The private map contains only URLs this same principal can GET as published
+HTML 200, using the existing home/archive/local-entry order and 50-link,
+16-KiB complete-line limits. No review, draft, token, per-agent identifier
+or credential-bearing link is listed. The map is itself private. Private
+robots stays exactly `User-agent: *\nDisallow: /\n`, no Sitemap, no validator
+or map discovery. Ordinary anonymous feeds/sitemaps remain gated as before.
+
+Successful **private published light** responses (Markdown/map, not owner
+review) use exactly `Cache-Control: private, no-cache, must-revalidate,
+no-transform`. This permits only the agent's own private cache, with online
+revalidation before reuse, never a shared cache ([RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html)).
+They have `X-Robots-Tag: noindex`, existing restrictive Markdown CSP, no
+Content-Signal, Last-Modified, Age, public freshness, stale-if-error,
+stale-while-revalidate, immutable, CDN override or Set-Cookie. Negotiated
+URLs vary on Accept; direct copy URLs do not. Vary may additionally name
+Authorization and Cookie as a private-cache partition hint, but never as
+the protection against shared storage. A reader/owner's ordinary private
+HTML remains private, no-store, no-transform.
+
+Private validators use `W/"ag-sha256-<lowercase SHA-256 hex>"`. Hash UTF-8
+of the compact JSON array `["ag-private/1", kind, id, epoch, U, T, G, B]`:
+all members are strings, epoch is decimal, U is the validated canonical URL,
+T is Content-Type, B is the body, and G is SHA-256 of UTF-8 compact JSON
+`[U,T,B]` for the current approved reader representation. Hidden fields,
+private cards, owner metadata and raw database revisions are not validator
+inputs. The internal concurrency guard may inspect authoritative state but
+is not exposed as a validator. Use the AF shared UTF-8 JSON string
+encoding/fixtures in both editions.
+No raw credential, hash of the secret, name or session cookie enters the
+ETag or body. Bind owner/reader tags to the individual valid session id,
+not just the role. Bind a key tag to its individual key id and epoch.
+Where existing session records lack an independent opaque id, add NEW
+`agent_read_session_ids(kind, session_hash, id)` metadata with primary key
+(kind, session_hash) and unique random id. Only a successfully validated
+existing session may create this mapping atomically; reread after a
+concurrent insert. It is not a session, auth grant, body store or auth cache.
+Never accept it instead of current session/epoch/passkey validation. Keep
+the opaque id stable for that session and remove expired/revoked mappings
+without weakening the original session's checks. Old sessions do not gain
+privileges from a mapping; old runtimes ignore the table.
+Do not reuse public AF-2 tags or a validator belonging to another principal.
+Direct and negotiated Markdown use the same normalized HTML canonical URL.
+
+Authenticate and recheck current authorization/content dependencies before
+conditional evaluation and immediately before returning a protected body
+or 304. Use AF-2's If-None-Match grammar/precedence for GET/HEAD; a matching
+private tag returns an empty 304 with the same private cache policy and
+discovery metadata. A foreign/public tag returns the current 200, never
+304; a revoked or expired credential returns BLANK regardless of all
+conditionals. Do not treat If-Modified-Since as authority or add writes
+through If-Match/If-Unmodified-Since. Removal, content changes, privacy
+transitions, session revocation or key revocation invalidate the relevant
+successful check before reuse. No origin-side private response table is
+created: render private views in request memory and let the authorized
+agent hold its own private copy. No bytes, hashes, URLs or copies of private
+content enter AF-7, Cache API, Workers Caching, KV, a service worker, static
+prebuild or a new shared artifact table. Private-on still atomically clears
+public AF-7 rows; flags on/off never change this gate.
+
+Public anonymous HTML/Markdown/map/JSON-LD/ETags keep §10. Any credentialed
+public-site request still bypasses AF-7 lookup/fill/delivery and retains the
+existing no-store policy without public validators; AG private caching is
+not a default-on public-cache change. Private traffic and internal views
+never become UC9 public-agent counters or per-page analytics events.
+
+### AG-6: authorized owner review copies
+
+An agent already holding a valid **owner passkey session** may request
+`Accept: text/markdown` on an existing owner-authorized GET `/review` or
+`/review/...` page that successfully renders review HTML. Run the same
+`requireOwner` and all page-specific checks first. Do not add unauthenticated
+`/review/index.md` aliases, new draft endpoints or a way to exchange a key
+for owner cookies. Bearer grants, reader sessions, OAuth and writer keys
+never authorize these copies. Reader requests retain the existing 303 to
+`/`; anonymous private requests retain BLANK. Public-site anonymous owner
+routes retain their existing sign-in refusal, not a new Markdown page.
+
+Build a mechanical read view of that owner's visible page: title, status,
+visible item changes, notes and existing visible prose. No hidden inputs,
+CSRF, cookies, bearer material, passkey challenges, invitation/recovery
+secrets, key-issuance tokens, scripts, actionable forms or new instructions.
+Do not fetch a proposed external link. Denials, redirects, non-HTML routes,
+POST action responses and the token-issuance response are never converted.
+A non-owner cannot infer draft existence via negotiation or timing.
+
+Review copies always use `Cache-Control: private, no-store, no-transform`,
+`X-Robots-Tag: noindex`, restrictive Markdown CSP and `Vary: Accept`; no
+ETag, Last-Modified, public discovery Link, map entry or shared/persistent
+copy. A conditional request cannot turn an owner action or review read
+into a 304 bypass. Existing HTML actions and CSRF protections stay exactly
+as they are. This read view adds no approval buttons, automatic approval,
+second approval request, agent mode or duplicate revision. The one owner
+publication creates the published page and all its read representations.
+
+### Normative security invariants and named paired tests
+
+Every rule below is normative in both editions. BLANK is the existing
+private 404: `<!doctype html><meta name="robots" content="noindex"><title></title>`
+with the existing private no-store/no-transform headers, noindex and blank
+CSP, HTML Content-Type, no Location, ETag, Last-Modified, Link, Vary,
+Content-Location, Age or WWW-Authenticate. HEAD has those headers and no
+body. Unauthorized existing/missing paths are indistinguishable.
+
+| Rule | Invariant | Named paired case |
+| --- | --- | --- |
+| P1 | Friendliness never widens access; anonymous/expired/revoked/malformed/unknown credentials keep the prior private denial. | `ag_private_blank_without_principal` |
+| P2 | No agent mode or second approval; published light copies use the live approved projection. | `ag_approve_once` |
+| P3 | No private content in a shared cache/store, log, feed, sitemap or anonymous map; no new private artifact table. | `ag_no_shared_private_store` |
+| P4 | New table and non-psk prefix; older runtimes reject read keys, never draft with them. | `ag_key_prefix_new_table` |
+| P5 | Live gate and credential lookup every request/call, no cached grants; revoke denies the next request. | `ag_revoke_immediate` |
+| 1 | Existing psk writer capabilities stay unchanged. | `ag_writer_unchanged` |
+| 2 | Owner-only issue, one disclosure, SHA-256 only, named separate row, 90-day lifetime. | `ag_key_issue_once` |
+| 3 | Hash/revoked/expiry/epoch live lookup; misses equal; last use owner-only. | `ag_key_lookup_live` |
+| 4 | Secret only in Bearer header and one owner issuance display, never URLs, redirects, discovery, tools, errors or logs. | `ag_bearer_header_only` |
+| 5 | AG-1/AG-3 share published_read, with no owner/draft/session authority. | `ag_read_principal_unified` |
+| 6 | Passkey sessions are not MCP keys or AG rows; rollback cannot convert principals. | `ag_principal_types_separate` |
+| 7 | MCP keeps authentication and no-content invalid-Bearer HTTP 401. | `ag_mcp_auth_unchanged` |
+| 8 | Exactly five reduced tools; list and direct calls enforce before dispatch on every transport; denied writes change nothing. | `ag_tools_enforced` |
+| 9 | All reduced projections omit drafts/history/stats/private cards/review data/secrets; mentions only name+description. | `ag_published_only_projection` |
+| 10 | page_get matches published reader text; authorized misses do not reveal drafts or owner routes. | `ag_page_get_reader_identity` |
+| 11 | Full writer keys/OAuth preserve their existing tool set and behavior. | `ag_writer_unchanged` |
+| 12 | Gate precedes view/media/builders/ETag/Link/AF-7/negotiation. | `ag_private_blank_without_principal` |
+| 13 | Invalid principals receive exact BLANK on every new private path, GET/HEAD/all conditionals; no builders or stored reads. | `ag_private_blank_without_principal` |
+| 14 | Valid AG or owner/reader sessions get published private Markdown/map; never owner-only bytes. | `ag_private_markdown_authorized` |
+| 15 | Private cache policy, principal-bound validators, no AF-7; foreign/public/revoked tags never authorize 304. | `ag_etag_not_shared` |
+| 16 | No URL/query/path key or Host/auto-pin authorization. | `ag_bearer_header_only` |
+| 17 | Private map lists only this principal's published HTML-200 pages; anonymous gets BLANK. | `ag_private_map_scope` |
+| 18 | Public anonymous AF unchanged, Bearer/public session never fills AF-7. | `ag_public_unchanged` |
+| 19 | Existing requireOwner guards review; reader refusal unchanged; published keys never read review/drafts/notes. | `ag_review_not_published_only` |
+| 20 | Owner-session review copies stay no-store; no second approval. | `ag_owner_review_markdown` |
+| 21 | Revoke and event atomic; next lookup and a stalled returning call revalidate. | `ag_revoke_immediate` |
+| 22 | Owner-only named listings and revocation audit contain time/actor/id/name, no secrets or bodies. | `ag_key_audit_atomic` |
+| 23 | Additive new tables; old code ignores them; return never resurrects revoke. | `ag_upgrade_return` |
+| 24 | Actual previous runtime rejects AG at MCP/pages, writer keys still work; raw-bundle residual documented. | `ag_upgrade_return` |
+| 25 | Private-on purges public AF-7 and never prebuilds private copies. | `ag_no_shared_private_store` |
+
+Also require `ag_read_pagination` (bounded, complete continuation, stale and
+foreign cursors, Unicode/query parity), `ag_recovery_epoch`, and
+`ag_revocation_delivery_race`, and `ag_session_validator_partition` (stable
+per-session opaque id, no credential/hash disclosure, no grant from a stale
+mapping). Test all owner/reader/agent/expired/revoked/
+anonymous combinations before and after private-on, public-on, unpublish,
+republish and recovery. Spy on all content builders and storage boundaries.
+Read tools cannot mutate content, change approval status or acquire owner
+capabilities. Deliberate instruction-like owner text remains inert data;
+AF-8 URL, script-escape and prose/layout oracles continue to apply.
+
+### Compatibility, migration and implementation acceptance
+
+Reserve CF `0024_agent_read_keys.sql` and PG migration `0018` after AF-7's
+0023/0017, subject to checking the landed base before implementation. All three
+new tables are additive; migrations start empty with no credential backfill,
+no conversion of old rows and no change to old token lookup. Do not modify
+historical migration bytes. Previous runtimes remain runnable on the new
+schema, ignoring these tables. Preserve revocation events/rows across an
+ordinary binary rollback and return; content restore/import never grants
+or revives a credential. Restoring an old database snapshot is a distinct
+operator recovery action and cannot be advertised as preserving later
+revocations.
+
+Run actual released `2026.10.17-6312f5a` server and checksum-verified archived
+Worker on the additive schema. Exercise new keys against initialize,
+tools/list, forbidden direct calls and HTTP paths while rolled back:
+AG MCP 401 and private pages BLANK, never drafting or reading review. Verify
+existing writer keys still work. Revoke under new code, roll back and return;
+revoke remains effective. Repeat owner recovery under the old runtime;
+old-epoch AG keys remain denied on return. Existing publication, receipts,
+stream settings, counters, public prepared copies and guide reuse survive.
+
+Document the existing dashboard/raw-bundle C3 residual (§4): a hosting
+account can bypass the supported downgrade check or restore an older
+private-unaware binary/database. AG cannot prevent that operator action;
+it must not claim private-content confidentiality against it. Distinct
+prefix/table prevents *AG credentials* from gaining old writer authority;
+it does not repair arbitrary historical private-unaware code or erase
+already delivered private copies.
+
+Implementation acceptance includes all named paired cases, full native
+12-look/public and private HTML/Markdown/map parity, full MCP transcript
+parity including SDK fallback/fast forms, migration and actual-runtime
+upgrade checks, conformance/mutations, and owner/reader/agent browser checks.
+Compare denial bytes/headers with the released private baseline; compare
+published copies with the authorized reader HTML, including table/prose
+conversion when MD-1 is available. Inspect real shared artifact rows and
+request logs for private content/secrets. Measure bytes and conditional
+rechecks without promising traffic, ranking or CPU improvements. AF-7H,
+public default enablement and other backlog work are outside this proposal.
+
 ## Open questions
 
 - Q1. Answered: yes. An assistant installs the Cloudflare edition into a

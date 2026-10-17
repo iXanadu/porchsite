@@ -13,9 +13,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order)
-1. AF-7H: hosted measurement, then decide whether prepared copies go on by
-   default.
-2. The AGENT ACCESS TO PRIVATE SITES section last.
+1. AG-1..AG-6: private agent access, spec and security review first.
+2. AF-7H: hosted measurement when authorized, before any default enablement.
 
 ## BLOCKING
 
@@ -76,36 +75,29 @@ security invariants written before the spec.
 Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
-## AGENT ACCESS TO PRIVATE SITES (LAST, after the public work)
-People read a private site through passkeys; agents can't and shouldn't.
+## AGENT ACCESS TO PRIVATE SITES (after the public work)
+People sign in through passkeys. Agents holding a valid session can read
+the same authorized light copies; others use published-only Bearer keys.
 Use: the owner's own agents read the private playbook to check it matches
 the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-1** OPEN: read-only assistant keys. At /review/assistants the owner
-  ticks "Read only" when making a key, with a "published pages only" scope
-  (never drafts, history or stats) for checking agents. The key may call
-  site_state, site_check and the AG-2 tools, and nothing that drafts.
-  Listed with last use; one key per agent. Both editions; security review
-  first. Today every key can also draft.
-- **AG-2** OPEN: lighter read tools over /mcp: `page_get(path)` (one
-  published page as Markdown with title, date, tags and canonical URL),
-  `pages_list(stream?, tag?, since?)` (paths, titles, change dates) and
-  `search(query)`. site_state returns the whole site at once.
-- **AG-3** OPEN: agent readers for agents the owner trusts that aren't the
-  owner's own: a named published-only key in a NEW table, apart from
-  assistant keys and reader passkeys; revoking is immediate and logged.
-  May fold into AG-1's published-only scope.
-- **AG-4** OPEN: AF-3's Markdown copies on a private site with
-  `Authorization: Bearer <AG-1 or AG-3 key>` (never in the URL); `private`
-  caching with an ETag for that agent only; without a key, the same blank
-  404.
-- **AG-5** OPEN: on a private site, llms.txt sits behind the gate too;
-  anonymous agents learn nothing beyond the blank page.
-- **AG-6** OPEN: owner review pages give a signed-in agent the same light
-  versions, protected like any other private data; no separate owner
-  review step (the owner approves content once).
+- **AG-1** IN-PROGRESS (spec §11): owner-minted published-only keys in a
+  new table and prefix that old runtimes reject; named, 90-day, revocable,
+  last-use listing and atomic revocation audit. Existing drafting keys stay.
+- **AG-2** IN-PROGRESS (spec §11): bounded page_get/pages_list/search and
+  published-only site_state/site_check; enforce reduced tools in all transports.
+- **AG-3** IN-PROGRESS (folded into AG-1, spec §11): trusted external readers
+  use the same published-only key type, with no draft or owner authority.
+- **AG-4** IN-PROGRESS (spec §11): valid owner/reader sessions or header-only
+  Bearer keys read private Markdown; principal-bound ETags, private revalidation,
+  no shared storage; invalid/anonymous stays exact blank 404.
+- **AG-5** IN-PROGRESS (spec §11): private llms.txt behind the same live gate,
+  listing only published pages that principal can read; anonymous stays blank.
+- **AG-6** IN-PROGRESS (spec §11): existing owner-authorized GET review pages
+  negotiate no-store light copies with the same owner session. No key/reader
+  grant, duplicate content approval or separate agent mode.
 
 ## OWNER REQUESTS (2026-10-16)
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
