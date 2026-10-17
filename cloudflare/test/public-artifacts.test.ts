@@ -8,6 +8,7 @@ import * as site from '../src/site';
 import * as artifacts from '../src/public-artifacts';
 import {handle} from '../src/routes';
 import {BLANK,SIGN_IN} from '../src/privacy';
+import {SoftKey} from './softkey';
 const origin='https://site.example',actor='assistant:test',base=env as unknown as Env,e={...base,SITE_URL:origin,PUBLIC_ARTIFACTS:'1'},db=e.DB;
 beforeEach(async()=>{
  vi.restoreAllMocks();vi.useRealTimers();
@@ -237,4 +238,25 @@ it('af_prebuild_visitor_fill: a first visitor cannot suppress build-ahead of oth
  const paths:string[]=[];
  await artifacts.prepare(db,origin,'test',async(req)=>{paths.push(new URL(req.url).pathname);return new Response('not stored',{status:404});},async()=>['/archive/']);
  expect(paths).toEqual(['/','/index.md','/archive/','/archive/index.md','/llms.txt']);
+});
+
+it('af_pipe_table_access: published-only copies, GET/HEAD/304, negotiation and immediate private/removal gate',async()=>{
+ const {one,entry}=await fixture();
+ const table=await content.updateItem(db,actor,entry.id,entry.version,{body:'| Public | Value |\n| :-- | --: |\n| visible\\|cell | **12** |'});await publish(table);
+ const stream=(one.data.streams as {id:string;path:string}[])[0],path='/'+(stream.path||stream.id)+'/'+table.slug+'/';
+ const html=await get(path);expect(html.status).toBe(200);expect(await html.text()).toContain('<th scope="col" align="left">Public</th>');
+ const direct=await get(path+'index.md'),body=await direct.text(),tag=direct.headers.get('ETag')!;expect(body).toContain('| :--- | ---: |');expect(body).toContain('visible\\|cell');
+ const negotiated=await get(path,{Accept:'text/markdown'});expect(await negotiated.text()).toBe(body);expect(negotiated.headers.get('ETag')).toBe(tag);
+ for(const method of ['GET','HEAD']){const r=await get(path+'index.md',{'If-None-Match':tag},method);expect(r.status).toBe(304);expect(await r.text()).toBe('');}
+ class Browser{jar=new Map<string,string>();async at(path:string,init:RequestInit={}){const r=await handle(new Request(origin+path,{...init,headers:{...(init.headers as Record<string,string>),Cookie:[...this.jar].map(([k,v])=>`${k}=${v}`).join('; ')}}),e);for(const h of r.headers.getSetCookie()){const m=/^([^=;]+)=([^;]*)/.exec(h);if(m)this.jar.set(m[1],m[2]);}return r;}post(path:string,body:any={}){return this.at(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}async options(path:string,body:any={}){return(await(await this.post(path,body)).json() as any).options;}}
+ const own=new Browser(),key=await SoftKey.make();expect((await own.post('/setup/verify',await key.create(await own.options('/setup/options',{code:e.SETUP_CODE,name:'owner'}),origin))).status).toBe(200);
+ const ownerCopy=await own.at(path+'index.md');expect(await ownerCopy.text()).toBe(body);expect(ownerCopy.headers.get('Cache-Control')).toContain('no-store');expect(ownerCopy.headers.has('ETag')).toBe(false);expect(body).not.toContain('Review');
+ const pending=await content.updateItem(db,actor,table.id,table.version,{body:'| SECRET_PENDING | H |\n| - | - |'});expect(await(await get(path+'index.md')).text()).toBe(body);
+ for(const headers of ([{Cookie:'__Host-sk_owner=invalid'},{Cookie:'__Host-sk_reader=invalid'},{Authorization:'Bearer invalid'}] as Record<string,string>[])){
+  const response=await get(path+'index.md',headers);expect(response.headers.get('Cache-Control')).toContain('no-store');expect(response.headers.has('ETag')).toBe(false);expect(await response.text()).not.toContain('SECRET_PENDING');
+ }
+ await content.removeItem(db,actor,table.id,pending.version);await publish(await content.getItem(db,table.id));
+ const removed=await get(path+'index.md',{'If-None-Match':tag});expect(removed.status).toBe(404);expect(removed.headers.has('ETag')).toBe(false);
+ const privateSite=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(privateSite);
+ for(const method of ['GET','HEAD']){const r=await get(path+'index.md',{'If-None-Match':tag},method);expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');}
 });
