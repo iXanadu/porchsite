@@ -15,6 +15,10 @@ the same bytes (`scripts/parity.sh`).
 Use Docker Compose: [`deploy/compose/README.md`](../deploy/compose/README.md)
 sets up the app, PostgreSQL and HTTPS on one machine.
 
+The reverse proxy terminates TLS and redirects external HTTP to HTTPS. The
+application accepts plain HTTP upstream requests with the public Host header;
+it does not redirect by scheme. Keep the upstream port private to the proxy.
+
 ## Develop
 
 Python 3.13, then:
