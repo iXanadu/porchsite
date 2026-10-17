@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kinds": [
+    {"id": "search", "label": "Search crawler"},
+    {"id": "training", "label": "Training crawler"},
+    {"id": "user", "label": "Agent acting for a person"},
+    {"id": "other", "label": "Other"}
+  ],
+  "agents": [
+    {"token": "OAI-SearchBot", "kind": "search"},
+    {"token": "Claude-SearchBot", "kind": "search"},
+    {"token": "Googlebot", "kind": "search"},
+    {"token": "GPTBot", "kind": "training"},
+    {"token": "ClaudeBot", "kind": "training"},
+    {"token": "ChatGPT-User", "kind": "user"},
+    {"token": "Claude-User", "kind": "user"}
+  ],
+  "coverage": "Only successful anonymous public requests observed by the engine are counted. Requests served elsewhere or failed counter writes may be absent. Counts are requests, not unique people.",
+  "classification": "Kinds are estimates from declared user-agent names, not verified agent identities.",
+  "scope": "Whole site; content and campaign filters do not apply."
+}
