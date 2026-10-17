@@ -1,3 +1,4 @@
+from . import private_agent
 from . import read_keys
 """Everything that isn't /mcp or the OAuth protocol endpoints: the public
 site, and the owner's pages (setup, sign-in, review, connecting an
@@ -355,12 +356,12 @@ _SEARCH = re.compile(r"^/([a-z][a-z0-9-]{0,29})/search\.json\Z")
 _ARCH = re.compile(r"^/([a-z][a-z0-9-]{0,29})/(?:tags/([a-z0-9-]{1,30})/)?\Z")
 
 
-async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
+async def themed_page(req: Request, cx: Context, path: str, grant=None) -> Response | None:
     """Public pages through the site's theme, or None for the built-in look."""
     is_public = path in ("/", "/archive") or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
     if not is_public:
         return None
-    v = await content_view(req,cx)
+    v = await content_view(req,cx,grant=grant)
     origin = origin_of(req)
     if path in ("/archive/", "/archive") and v.site.get("archive", {}).get("enabled"):
         try:
@@ -408,14 +409,15 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     return None
 
 
-async def content_view(req, cx, discovery=False):
-    await privacy.require_content(cx.db,req)
+async def content_view(req, cx, discovery=False, grant=None):
+    if grant:await grant()
+    else:await privacy.require_content(cx.db,req)
     return await site.live_view(cx.db,discovery=discovery)
 
 
-async def not_found_page(req: Request, cx: Context) -> Response:
+async def not_found_page(req: Request, cx: Context, grant=None) -> Response:
     """The 404 page, in the site's theme when it has one."""
-    v = await content_view(req,cx)
+    v = await content_view(req,cx,grant=grant)
     path = _path(req)
     to = (
         builtin.redirect_for(v, path)
@@ -1471,8 +1473,12 @@ async def handle(req: Request, cx: Context) -> Response:
         except Exception:
             pass  # Cleanup failure never changes a private denial.
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
-    if is_private and private_agent_path(req):
+    agent=await private_agent.respond(cx.db,req,lambda r,g:render_private_agent(r,cx,g),origin_of(req)) if is_private and gated and req.url.path!='/robots.txt' else None
+    if agent is not None:
+        response=agent
+    elif is_private and private_agent_path(req):
         response = privacy.blank_response(req)
+
     elif response is None:
         if is_private:
             response = await _route(get,cx)
@@ -1480,7 +1486,7 @@ async def handle(req: Request, cx: Context) -> Response:
             response = await _route(req,cx)
         else:
             response = await public_artifacts.respond(cx.db,req,cx.site_url if cx.public_artifacts else '',cx.release,lambda: render_public(req,cx))
-    if is_private and gated:
+    if is_private and gated and response.headers.get("Cache-Control")!=private_agent.PRIVATE_LIGHT:
         response = privacy.no_store(response)
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
@@ -1956,6 +1962,31 @@ async def app_asset(req, cx, path):
         },
     )
 
+
+async def reader_page(req,cx,grant):
+    try:
+        await grant()
+        path=req.url.path
+        themed=await themed_page(req,cx,path,grant)
+        if themed is not None:return themed
+        view=await content_view(req,cx,grant=grant);origin=origin_of(req)
+        if path=='/':return builtin.home(view,origin)
+        entry=builtin.entry_page(view,path,origin)
+        if entry is not None:return entry
+        return await not_found_page(req,cx,grant)
+    except ApiError as error:
+        return owner_page("Problem",f"<h1>Something&#39;s wrong</h1><p>{esc(error.message)}</p>",status=error.status)
+
+async def render_private_agent(req,cx,grant):
+    from .agent_pages import anonymous
+    from .public_http import representation
+    async def read(r):return await reader_page(anonymous(r,r.url.path,True),cx,grant)
+    path=req.url.path
+    if path!='/llms.txt' and not path.endswith('/index.md') and representation(req.headers.get('Accept'))=='html':return await read(req)
+    async def paths():
+        v=await content_view(req,cx,grant=grant)
+        return (['/archive/'] if v.site.get('archive',{}).get('enabled') else [])+[e['page'] for s in v.site['streams'] for e in v.entries if e['stream']==s['id'] and not e.get('external_url')]
+    return await agent_page(req,read,paths,origin_of(req),lambda r:not_found_page(anonymous(r,r.url.path,True),cx,grant))
 
 async def public_paths(req,cx):
     from .agent_pages import anonymous

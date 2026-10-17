@@ -1,9 +1,10 @@
+import * as privateAgent from './private-agent';
 import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
 import { agentPage } from './agent-pages';
-import { publicResponse, privateAgentPath } from "./public-http";
+import { publicResponse, privateAgentPath, representation as representationForPrivate } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
 import { archiveFilter } from "./archive";
 import * as pushWire from "./push-crypto";
@@ -178,13 +179,13 @@ function themedHtml(body: string, status = 200, sources?: unknown, origin = ""):
 }
 
 /** Public pages through the site's theme, or null for the built-in look. */
-async function themedPage(req: Request, env: Env, path: string): Promise<Response | null> {
+async function themedPage(req: Request, env: Env, path: string, grant?:()=>Promise<void>): Promise<Response | null> {
   const isPublic =
     path === "/" || path === "/archive" ||
     /^\/(e|static)\//.test(path) ||
     /^\/[a-z][a-z0-9-]{0,29}\/((tags\/[a-z0-9-]{1,30}\/)|search\.json|feed\.xml|[a-z0-9-]{1,80}\/)?$/.test(path);
   if (!isPublic) return null;
-  const v = await contentView(req,env);
+  const v = await contentView(req,env,false,grant);
   const origin = new URL(req.url).origin;
   if ((path === "/archive/" || path === "/archive") && v.site.archive?.enabled) {
     const filters = archiveFilter(new URL(req.url).searchParams);
@@ -221,14 +222,14 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   return null;
 }
 
-async function contentView(req: Request, env: Env, discovery = false) {
-  await privacy.requireContent(env.DB,req);
+async function contentView(req: Request, env: Env, discovery = false, grant?:()=>Promise<void>) {
+  if(grant)await grant();else await privacy.requireContent(env.DB,req);
   return site.liveView(env.DB,discovery);
 }
 
 /** The 404 page, in the site's theme when it has one. */
-async function notFoundPage(req: Request, env: Env): Promise<Response> {
-  const v = await contentView(req,env);
+async function notFoundPage(req: Request, env: Env, grant?:()=>Promise<void>): Promise<Response> {
+  const v = await contentView(req,env,false,grant);
   const u = new URL(req.url);
   const to =
     req.method === "GET"
@@ -982,12 +983,15 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
-  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse(req);
+  const agent=access.isPrivate&&access.gated&&new URL(req.url).pathname!=='/robots.txt'?await privateAgent.respond(env.DB,req,(r,g)=>renderPrivateAgent(r,env,g)):null;
+  if(agent)res=agent;
+  else if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse(req);
+
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
   else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
   else res=await publicArtifacts.respond(env.DB,req,env.PUBLIC_ARTIFACTS==='1'?env.SITE_URL:undefined,RELEASE,()=>renderPublic(req,env));
-  if (access.isPrivate && access.gated) res = privacy.noStore(res);
+  if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
   if (!access.isPrivate) await agentTraffic.observe(env.DB,req,res).catch(()=>{});
@@ -995,6 +999,26 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   return res;
 }
 
+/** Internal reader projection; the closure checks the original credential. */
+async function readerPage(req:Request,env:Env,grant:()=>Promise<void>):Promise<Response>{
+ try{
+ await grant();
+ const path=new URL(req.url).pathname;
+ const themed=await themedPage(req,env,path,grant);if(themed)return themed;
+ const view=await contentView(req,env,false,grant),origin=new URL(req.url).origin;
+ if(path==='/')return site.home(view,origin);
+ const entry=site.entryPage(view,path,origin);if(entry)return entry;
+ return await notFoundPage(req,env,grant);
+ }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
+}
+async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):Promise<Response>{
+ const path=new URL(req.url).pathname,read=(r:Request)=>readerPage(new Request(r.url,{method:'GET'}),env,grant);
+ if(path!=='/llms.txt'&&!/\/index\.md$/.test(path)&&representationForPrivate(req.headers.get('Accept'))==='html')return read(req);
+ return agentPage(req,read,async()=>{
+  const v=await contentView(req,env,false,grant);
+  return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
+ },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
+}
 /** Anonymous renderer used by both requests and internal build-ahead. */
 async function publicPaths(req:Request,env:Env):Promise<string[]> {
  const v=await contentView(new Request(new URL('/',req.url)),env);

@@ -2539,7 +2539,7 @@ session authority from AG. An owner session is not an MCP credential.
 
 | Principal | Published page HTML and light copies on a private site | Owner review light copies | MCP |
 | --- | --- | --- | --- |
-| No valid credential | Existing blank denial | Existing denial | Existing HTTP 401 |
+| No valid credential | Request-appropriate §3 denial | Existing denial | Existing HTTP 401 |
 | New published-only key | Published pages and private map only | Never | Five published-only read tools |
 | Valid reader passkey session | Same published pages as existing reader HTML | Existing reader refusal | Not a credential |
 | Valid owner passkey session | Published view, without owner decorations in copies | Existing authorized owner GET pages | Not a credential |
@@ -2852,12 +2852,15 @@ publication creates the published page and all its read representations.
 
 ### Normative security invariants and named paired tests
 
-Every rule below is normative in both editions. BLANK is the existing
-private 404: `<!doctype html><meta name="robots" content="noindex"><title></title>`
-with the existing private no-store/no-transform headers, noindex and blank
-CSP, HTML Content-Type, no Location, ETag, Last-Modified, Link, Vary,
-Content-Location, Age or WWW-Authenticate. HEAD has those headers and no
-body. Unauthorized existing/missing paths are indistinguishable.
+Every rule below is normative in both editions. Denial references, including
+BLANK, mean the request-appropriate §3 private 404. PV-6 supplies its fixed
+111-byte Sign in document for denied GET/HEAD without Authorization; any
+Authorization header retains the exact 68-byte legacy BLANK. Neither path
+reflects the requested URL or grants authority. Both retain private
+no-store/no-transform, noindex, the denial CSP, HTML Content-Type and no
+Location, ETag, Last-Modified, Link, Vary, Content-Location, Age or
+WWW-Authenticate. HEAD has GET headers and no body. Unauthorized existing
+and missing paths are indistinguishable within each header class.
 
 | Rule | Invariant | Named paired case |
 | --- | --- | --- |
