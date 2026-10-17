@@ -17,10 +17,13 @@ Two editions implement it, both in this repository:
 This folder (`spec/`) holds the contract, the conformance check and the
 template format. Both editions follow it; neither defines it.
 
-Before protocol construction, content/access lookup or routing, both editions
-answer every non-loopback HTTP request with an empty 301 to the same URL on
+Before protocol construction, content/access lookup or routing, the Worker
+answers every non-loopback HTTP request with an empty 301 to the same URL on
 HTTPS and `Cache-Control: no-store` (all methods, paths and query strings).
 Loopback development (`localhost`, IPv4 127/8 and IPv6 ::1) remains HTTP-capable.
+The server edition requires its reverse proxy to terminate TLS and redirect
+external HTTP to HTTPS. The application does not redirect by request scheme:
+plain HTTP upstream requests with the site's public Host must keep working.
 
 `scripts/parity.sh` compares every look's rendered sample pages and its
 `site_check` and `site_state` answers in both editions. Tool comparisons
