@@ -141,6 +141,9 @@ function toolSchema<T extends z.ZodType>(schema: T): T {
 }
 const INPUT_SCHEMAS = {
   site_state: toolSchema(z.object({ full: z.boolean().optional(), ids: z.array(z.string()).optional(), guide: z.strictObject({ known_revision: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\s\S])/).optional() }).optional() })),
+  page_get: toolSchema(z.object({path:z.string()})),
+  pages_list: toolSchema(z.object({stream:z.string().optional(),tag:z.string().optional(),since:z.string().optional(),cursor:z.string().max(2048).optional(),limit:z.number().int().min(1).max(50).optional()})),
+  search: toolSchema(z.object({query:z.string(),cursor:z.string().max(2048).optional(),limit:z.number().int().min(1).max(50).optional()})),
   item_create: toolSchema(z.object({
         kind: z.enum(KINDS as [string, ...string[]]),
         data: z.record(z.string(), z.unknown()),
@@ -206,6 +209,9 @@ export const TOOL_DEFINITIONS = {
       inputSchema: INPUT_SCHEMAS.site_state,
       annotations: { readOnlyHint: true },
     },
+  page_get: {description:'Read one approved local page as Markdown and visible title/date/tags. Use a same-site absolute path or its index.md copy; no drafts, owner routes, media or external fetch.',inputSchema:INPUT_SCHEMAS.page_get,annotations:{readOnlyHint:true}},
+  pages_list: {description:'List approved local entry pages, plus home and enabled archives without entry filters. Default 20, maximum 50; continue with next_cursor. A stale cursor requires a fresh first page.',inputSchema:INPUT_SCHEMAS.pages_list,annotations:{readOnlyHint:true}},
+  search: {description:'Search approved page titles and visible text with whitespace-separated AND terms, NFC then lowercase, without ranking claims. Query is 1 to 200 Unicode scalar values after trimming. Default 20, maximum 50; excerpts are at most 240 scalar values.',inputSchema:INPUT_SCHEMAS.search,annotations:{readOnlyHint:true}},
   item_create: {
       description: `Create an item; nothing is public until the owner approves. Kinds: ${Object.entries(KIND_GUIDE)
         .map(([k, v]) => `${k}: ${v}`)
@@ -325,7 +331,7 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
       try {
         await readKeys.authorize(db,props,name);
         if(!readKeys.restricted(props))return await handler(args);
-        const value=name==='site_state'?await publishedRead.state(db,args,props):name==='site_check'?await publishedRead.check(db,args,String(props.origin??'')):null;
+        const value=name==='site_state'?await publishedRead.state(db,args,props):name==='site_check'?await publishedRead.check(db,args,String(props.origin??'')):name==='page_get'?await publishedRead.pageGet(db,args,props):name==='pages_list'?await publishedRead.pagesList(db,args,props):name==='search'?await publishedRead.search(db,args,props):null;
         if(value===null)throw new ApiError(403,'unauthorized','This read tool is not available.');
         await readKeys.used(db,props);
         return ok(value);
@@ -346,6 +352,10 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
         update: await privacy.withRollback(db,RELEASE,await update.check((env as unknown as Env).OAUTH_KV)),
       }, guide)),
   );
+
+  server.registerTool('page_get',TOOL_DEFINITIONS.page_get,async(args)=>run(()=>publishedRead.pageGet(db,args,toolProps())));
+  server.registerTool('pages_list',TOOL_DEFINITIONS.pages_list,async(args)=>run(()=>publishedRead.pagesList(db,args,toolProps())));
+  server.registerTool('search',TOOL_DEFINITIONS.search,async(args)=>run(()=>publishedRead.search(db,args,toolProps())));
 
   server.registerTool(
     "item_create",

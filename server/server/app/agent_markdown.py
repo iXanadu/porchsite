@@ -102,6 +102,23 @@ def agent_url(value, base):
         return ''
 
 
+def visible_document_text(source):
+    """Search uses the same visible document, never markup or hidden URLs."""
+    tree = Tree(source).root
+    body = find(tree, 'body') or tree
+    main = find(body, 'main') or body
+    blocks = set('address article aside blockquote br caption dd div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main ol p pre section table td th tr ul'.split())
+    def read(n):
+        if hidden(n):
+            return ''
+        if n['tag'] == 'img':
+            return inline_text(n['attrs'].get('alt', ''))
+        value = n['text']+children(n, read)
+        return ' '+value+' ' if n['tag'] in blocks else value
+    footer = find(body, 'footer')
+    return inline_text(read(main)+(' '+read(footer) if footer and not find(main, 'footer') else ''))
+
+
 def markdown_document(source, canonical):
     tree = Tree(source).root
     body = find(tree, 'body') or tree
