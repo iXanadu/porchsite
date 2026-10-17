@@ -10,7 +10,7 @@ import type { SiteView } from "./site";
 import { streams, homeView, archiveView, entryView, render } from "./theme";
 import { THEMES } from "./themes.gen";
 import { ALIASES, type Theme } from "./themes";
-import { home, entryPage, redirectFor } from "./site";
+import { allArchivePage, home, entryPage, redirectFor } from "./site";
 
 type Data = Record<string, any>;
 interface CrawlLimit { limit: "pages" | "links"; max_pages: number; max_links: number; pages: number; links: number }
@@ -47,6 +47,7 @@ export function checkSite(v: SiteView, media: Set<string>): { ok: boolean; broke
   const s = v.site;
   const st = streams(s);
   const pages = new Set(FIXED);
+  if (s.archive?.enabled) pages.add("/archive/");
   for (const x of st) {
     pages.add(x.archive_url);
     pages.add(x.feed_url);
@@ -138,7 +139,9 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
     const e = v.entries.find((e) => e.page === path);
     if (e?.external_url) { reached.add(new URL(e.external_url, base).href); continue; }
     let body: string | null = null;
-    if (t) {
+    if (path === "/archive/" && v.site.archive?.enabled) {
+      body = await allArchivePage(v,{sort:"date",tag:"",stream:""},base.origin,!!t).text();
+    } else if (t) {
       if (path === "/") body = render(t, "home", marked(homeView(v, "check", base.origin)));
       else if (e) body = render(t, "entry", marked(entryView(v, e, "check", base.origin)));
       else {

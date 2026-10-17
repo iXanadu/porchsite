@@ -254,3 +254,15 @@ python -m server.app.cli recovery-link --origin https://example.com
 The code is random and stored only as a hash with an expiry. A new link
 invalidates the previous link. Hosting-account access already grants control
 of the site; recovery does not protect against a compromised hosting account.
+
+### Rolling back stream settings
+
+A release from before expanded streams reads at most the first eight
+streams and twelve home sections. It has no all-stream archive or title
+sorting. Entries in later streams use its first-stream fallback, which may
+change their grouping and addresses until newer code returns. The full
+settings and their history stay in the database. An edit made with older
+code creates a version with only the settings that code understands;
+newer code does not silently restore omitted settings into that version.
+This does not change the private-site minimum release or its rollback
+warning.

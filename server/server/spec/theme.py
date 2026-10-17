@@ -59,6 +59,7 @@ def streams(site: Data) -> list[Data]:
         out.append(
             {
                 "id": s["id"],
+                "sort": s.get("sort", "date"),
                 "anchor": s["anchor"] or s["id"],
                 "title": s["title"],
                 "byline": s["byline"],
@@ -217,6 +218,8 @@ def base(v: SiteView, release: str, origin: str, meta: Data) -> Data:
                 "label": s["nav_label"] if s else _q(named.get(k), k),
             }
         )
+    if v.site.get("archive", {}).get("enabled"):
+        nav.append({"href": "/archive/", "label": v.site["archive"]["title"]})
     image = meta.get("image")
     has_hero = bool(v.site["hero"])
     return {
@@ -303,8 +306,9 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             sec["more_than_one"] = len(items) > 1
             sec["activity"] = [{**n, "date_short": short_date(n["date"])} for n in v.notes]
             sec["has_activity"] = stream["is_feature"] and len(v.notes) > 0
+            ordered = stream_items(items, stream)
             sec["items"] = [
-                entry(e, stream, "article" if i == 0 else "", ctx) for i, e in enumerate(items[:3])
+                entry(e, stream, "article" if i == 0 else "", ctx) for i, e in enumerate(ordered[:3])
             ]
             # Events: the next ones first, soonest first; past ones after, newest first.
             evs = [entry(e, stream, "", ctx) for e in items if e.get("event")]
@@ -321,10 +325,10 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             sec["has_earlier"] = len(sec["earlier"]) > 0
             # Entries that aren't events, in a stream that has some: newest first.
             sec["others"] = (
-                [entry(e, stream, "", ctx) for e in items if not e.get("event")] if evs else []
+                [entry(e, stream, "", ctx) for e in ordered if not e.get("event")] if evs else []
             )
             sec["has_others"] = len(sec["others"]) > 0
-            sec["all"] = [entry(e, stream, "", ctx) for e in items]
+            sec["all"] = [entry(e, stream, "", ctx) for e in ordered]
             sec["count_suffix"] = f" ({len(items)})" if len(items) > 3 else ""
         elif k == "cards":
             groups = list(dict.fromkeys(c.get("group") for c in v.cards if c.get("group")))
@@ -448,7 +452,7 @@ def archive_view(
     stream = next((x for x in streams(v.site) if x["path"] == stream_path), None)
     if not stream:
         return None
-    items = [e for e in v.entries if e["stream"] == stream["id"]]
+    items = stream_items([e for e in v.entries if e["stream"] == stream["id"]], stream)
     counts: dict[str, int] = {}
     for e in items:
         for t in _q(e.get("tags"), []):
@@ -463,7 +467,7 @@ def archive_view(
         "path": path,
         "description": stream["description"] or None,
         # Shared, the page shows its newest entry's cover, as an entry's page shows its own.
-        "image": next((e["cover"] for e in items if e.get("cover")), None),
+        "image": next((e["cover"] for e in v.entries if e["stream"] == stream["id"] and (not tag or tag in (e.get("tags") or [])) and e.get("cover")), None),
     }
     ctx = _ctx(v)
     # [...counts].sort(): each [name, count] pair compared as the string "name,count".
@@ -527,3 +531,8 @@ def render(name: str, page: str, view: Data, root: Path = THEMES) -> str:
     if heading_ids or body_h1_as_h2:
         view = heading_bodies(view, heading_ids, body_h1_as_h2)
     return finish_embeds(writer.render(pages[page], view, partials), view=view)
+
+
+def stream_items(items, stream):
+    """Stable scalar title order over the chronological view; feeds stay dated."""
+    return sorted(items, key=lambda e: e["title"]) if stream.get("sort") == "title" else items

@@ -327,6 +327,7 @@ class Stream(_Model):
     feed_subtitle: opt_line(160) = ""
     see_also_label: opt_line(80) = ""
     all_label: opt_line(60) = ""
+    sort: Literal["date", "title"] = "date"
     dated_addresses: Bool = True
 
 
@@ -371,6 +372,11 @@ Strings = create_model(
 )
 
 
+class ArchiveSettings(_Model):
+    enabled: Bool = False
+    title: line(60) = "All entries"
+
+
 class SiteData(_Model):
     """Every word on the site that isn't an entry, card or note."""
 
@@ -412,8 +418,9 @@ class SiteData(_Model):
     cta2_label: opt_line(60) = ""
     cta2_link: OptLink = ""
     streams: list_of(
-        Stream, lo=1, hi=8, unique="each stream id at most once", key=lambda x: x.id
+        Stream, lo=1, hi=64, unique="each stream id at most once", key=lambda x: x.id
     ) = Field(default_factory=_default_streams)
+    archive: ArchiveSettings = Field(default_factory=ArchiveSettings)
     cards_title: line(60) = "Projects"
     cards_nav: opt_line(30) = ""
     cards_anchor: opt_line(30) = ""
@@ -421,7 +428,7 @@ class SiteData(_Model):
     about_title: line(60) = "About"
     sections: list_of(
         text(_regex(r"^[a-z][a-z0-9-]{0,29}\Z", "a stream id, or cards, notes, about")),
-        hi=12,
+        hi=68,
         unique="each section at most once",
     ) = Field(default_factory=lambda: ["entries", "cards", "notes", "about"])
     card_groups: list_of(

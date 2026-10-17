@@ -131,7 +131,7 @@ describe("images", () => {
 describe("streams", () => {
   it("an old site item's entries heading becomes its first stream", () => {
     const s = content.validate("site", { entries_title: "The diary" });
-    expect(s.streams).toEqual([{ id: "journal", title: "The diary", byline: "", layout: "list", link_label: "", intro: "", author: "", nav_label: "", path: "", anchor: "", description: "", feed_subtitle: "", see_also_label: "", all_label: "", dated_addresses: true }]);
+    expect(s.streams).toEqual([{ id: "journal", title: "The diary", byline: "", layout: "list", link_label: "", intro: "", author: "", nav_label: "", path: "", anchor: "", description: "", feed_subtitle: "", see_also_label: "", all_label: "", dated_addresses: true, sort: "date" }]);
   });
 
   it("refuses sections and entries that name no stream", async () => {

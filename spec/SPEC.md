@@ -112,7 +112,9 @@ owner approval. It adds `/archive/`, an archive of every approved, non-draft
 entry across all configured streams, including streams omitted from the
 home sections. External entries have their usual outgoing links. Cards and
 notes are excluded. Each result identifies its stream by its configured
-title and links to that stream's archive. There are no entry bodies or
+title and links to that stream's archive. When the selected look is missing
+or uses the built-in fallback without individual stream archives, that link
+is `/archive/?stream=<id>` instead. There are no entry bodies or
 embedded players on this page: titles, dates, summaries, stream labels and
 tags are enough to choose an entry.
 

@@ -25,6 +25,7 @@ from .db import Db, dumps, now, transaction
 from .embed_storage import migrate_sources, source_data, stored_data
 from .errors import ApiError
 from .guard import check_guard
+from .stream_settings import check_stream_settings, stream_write
 from .visibility import check_save
 
 Item = dict[str, Any]
@@ -267,6 +268,7 @@ async def _write(
                     item["version"],
                 )
                 if item["kind"] == "site":
+                    await stream_write(c, item["version"], item["data"])
                     await c.execute("INSERT INTO site_embed_sources (version,sources) VALUES ($1,$2)", item["version"], dumps(item["data"].get("embed_sources", [])))
                     if item["data"].get("private"):
                         await c.execute("INSERT INTO site_fields (version,key,value) VALUES ($1,'private','true')",item["version"])
@@ -319,12 +321,11 @@ async def create_item(
 ) -> Item:
     await migrate_sources(db)
     data = validate(kind, input)
+    if kind == "site":
+        check_stream_settings(data)
     check_guard(data)
     await _check_stream(db, kind, data)
     await check_save(db, kind, None, data, None)
-    if kind == "site":
-        if await db.fetchrow("SELECT version FROM items WHERE id = $1", SITE_ID):
-            raise ApiError(409, "exists", "The site item already exists. Use item_update.")
     req_hash = _sha(dumps([kind, data]))
     if idempotency_key:
         prior = await db.fetchrow(
@@ -340,6 +341,9 @@ async def create_item(
                     "This idempotency key was used for a different request.",
                 )
             return {**json.loads(prior["response"]), "replayed": True}
+    if kind == "site":
+        if await db.fetchrow("SELECT version FROM items WHERE id = $1", SITE_ID):
+            raise ApiError(409, "exists", "The site item already exists. Use item_update.")
     id = SITE_ID if kind == "site" else _new_id(kind)
     # After the replay check, so a retried create doesn't fetch its images again.
     chosen, rest = _take_slug(data)
@@ -388,6 +392,8 @@ async def update_item(
     if current["deleted"]:
         raise ApiError(409, "deleted", f"Item {id} is removed. Roll it back first.")
     chosen, checked = _take_slug(validate(current["kind"], {**current["data"], **patch}))
+    if current["kind"] == "site":
+        check_stream_settings(checked)
     check_guard(checked)
     await _check_stream(db, current["kind"], checked)
     await check_save(db, current["kind"], id, checked, _vis_before(current))

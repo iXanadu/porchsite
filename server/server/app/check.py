@@ -45,6 +45,8 @@ def check_site(v: SiteView, media: set[str]) -> Data:
     s = v.site
     st = streams(s)
     pages = set(FIXED)
+    if s.get("archive", {}).get("enabled"):
+        pages.add("/archive/")
     for x in st:
         pages.add(x["archive_url"])
         pages.add(x["feed_url"])
@@ -236,7 +238,9 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
             reached.add(_address(e["external_url"], origin))
             continue
         body = None
-        if t:
+        if path == "/archive/" and v.site.get("archive", {}).get("enabled"):
+            body = builtin.all_archive_page(v, {"sort": "date", "tag": "", "stream": ""}, origin, bool(t)).body.decode("utf-8")
+        elif t:
             if path == "/":
                 body = render(t, "home", marked(views.home_view(v, "check", origin)))
             elif e:

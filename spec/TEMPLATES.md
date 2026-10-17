@@ -281,7 +281,9 @@ chronological. Tags and result metadata retain their existing meanings.
 is an engine page, not another stream or a required template. Its common
 responsive shell shows the site's branding, a Home link, title, a GET form
 for tag/stream filters and date/stream grouping, and dated summaries with
-stream labels and links. It has no full bodies or players. Its controls
+stream labels and links. Without individual stream archive pages, a stream
+label links to `/archive/?stream=<id>` instead of a missing page. It has no
+full bodies or players. Its controls
 work without JavaScript. The engine owns this page in every look, including
 installed looks and the built-in fallback; no theme package format changes
 or template upgrades are necessary. The existing `archive.mustache` and

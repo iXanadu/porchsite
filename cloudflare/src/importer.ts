@@ -1,3 +1,4 @@
+import { checkStreamSettings } from "./stream-settings";
 /**
  * Importing content from a file (SPEC §5): for an assistant that can't reach
  * the site at all. It writes one JSON file; the owner uploads it at
@@ -71,11 +72,13 @@ export async function importFile(db: D1Database, text: string): Promise<{ approv
   const items = (file.items as Record<string, any>[]).map((it) => ({ kind: String(it?.kind ?? ""), data: swap(it?.data ?? {}, paths, missing) as Record<string, unknown> }));
   if (missing.size) throw new ApiError(422, "invalid", `The file names images it doesn't include: ${[...missing].join(", ")}.`);
   const site = await db.prepare("SELECT version, data FROM items WHERE id = ?").bind(SITE_ID).first<{ version: number; data: string }>();
+  const logicalSite = site ? (await getItem(db, SITE_ID)).data : null;
   const problems: { item: number; error: string; message: string }[] = [];
   items.forEach((it, i) => {
     try {
       if (!KINDS.includes(it.kind as never)) throw new ApiError(422, "invalid", `kind must be one of: ${KINDS.join(", ")}.`);
-      validate(it.kind, it.kind === "site" && site ? { ...JSON.parse(site.data), ...it.data } : it.data);
+      const checked = validate(it.kind, it.kind === "site" && site ? { ...logicalSite, ...it.data } : it.data);
+      if (it.kind === "site") checkStreamSettings(checked);
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
       problems.push({ item: i + 1, error: e.code, message: e.message });

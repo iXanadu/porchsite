@@ -286,3 +286,15 @@ Run inside the app container: `docker compose exec app python -m server.app.cli 
   `PORCHSITE_HTTPS_PORT` in `.env` move Caddy, but automatic certificates
   then need another proxy in front. Set `PORCHSITE_SITE_URL` if the site's
   address isn't `https://<domain>`.
+
+### Rolling back stream settings
+
+A release from before expanded streams reads at most the first eight
+streams and twelve home sections. It has no all-stream archive or title
+sorting. Entries in later streams use its first-stream fallback, which may
+change their grouping and addresses until newer code returns. The full
+settings and their history stay in the database. An edit made with older
+code creates a version with only the settings that code understands;
+newer code does not silently restore omitted settings into that version.
+This does not change the private-site minimum release or its rollback
+warning.
