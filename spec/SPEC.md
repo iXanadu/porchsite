@@ -1524,7 +1524,12 @@ public Content-Signal value `S` (AF-4) and uncompressed UTF-8 bytes `B`,
 compute SHA-256 over UTF-8(`U`), one zero byte, UTF-8(`T`), one zero byte,
 UTF-8(`S`), one zero byte, then `B`. For feeds, sitemap, robots and llms.txt,
 `U` is that resource's canonical site URL. Copies and negotiated Markdown
-both use their canonical HTML URL, never the copy URL. The ETag is `W/"sha256-<64 lowercase hex digits>"`. Use the exact
+both use their canonical HTML URL, never the copy URL. The combined
+archive includes its normalized filters in that URL: omit empty values
+and the default date order, then serialize `sort`, `stream`, `tag` in that
+order. Equivalent filter orderings therefore share a validator; different
+filtered bodies cannot reuse one. Other existing pages retain their URL
+identity. The ETag is `W/"sha256-<64 lowercase hex digits>"`. Use the exact
 Content-Type specified for that format, including `; charset=utf-8`.
 The weak tag permits transport compression without claiming byte equality
 between content codings. Both editions produce identical representation
@@ -1580,6 +1585,12 @@ page advertises its existing copy through an engine-inserted
 and `Link: </notes/example/index.md>; rel="alternate"; type="text/markdown"`
 for the example entry above. The copy path is generated from the canonical
 same-site path, not owner text. Looks do not invent or override these links.
+
+The combined `/archive/` page and `/archive/index.md` preserve the same
+validated stream, tag and ordering filters in the projected content,
+canonical URL and alternate links. Invalid or duplicate filters keep the
+existing 400, without AF validators. Disabling the archive removes its
+copy and map entry; a previous validator cannot produce 304 for a miss.
 
 At a canonical HTML page URL, an explicit acceptable `text/markdown`
 media range selects Markdown when its effective quality is positive and
@@ -1714,9 +1725,10 @@ Markdown copies with their visible page titles and summaries. No synthetic
 summary is written when the owner supplied none. The title is one line;
 descriptions and list labels are escaped data, never agent directions.
 
-List home first, then published local entry pages in displayed stream and
-entry order. Only pages whose anonymous canonical HTML GET returns 200
-may be listed. Archive and tag copies remain discoverable through page
+List home first, then the enabled combined `/archive/` page, then published
+local entry pages in displayed stream and entry order. List only the
+unfiltered archive, never one map row per filter combination. Only pages whose anonymous canonical HTML GET returns 200
+may be listed. Stream archive and tag copies remain discoverable through page
 links, but are not additional map entries in this version. Deduplicate paths;
 include only successfully generated same-site copies. Limit the map to
 16 KiB UTF-8 and 50 links, whichever comes first, cutting only at complete

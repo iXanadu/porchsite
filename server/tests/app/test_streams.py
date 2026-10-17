@@ -351,3 +351,55 @@ async def test_st2_private_archive_gate_before_query_or_redirect_and_owner_reade
                     if any(t in path for t in ("bogus", "script", "unknown"))
                     else 200
                 )
+
+    for browser in (own, read, visitor):
+        for path in ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus']:
+            for method in ['GET','HEAD']:
+                r = await browser.at(path,method=method,headers={'Accept':'text/markdown','If-None-Match':'*'})
+                assert r.status_code == 404 and r.content == (b'' if method == 'HEAD' else b'<!doctype html><meta name="robots" content="noindex"><title></title>')
+                assert r.headers['content-type'] == 'text/html; charset=utf-8'
+                assert r.headers['cache-control'] == 'private, no-store, no-transform'
+                assert not any(h in r.headers for h in ['etag','last-modified','link','vary','content-signal','location'])
+
+
+async def test_af_combined_archive_filters_validators_and_map(db, http):
+    await content.create_item(db, ACTOR, 'site', {'title':'Archive site','theme':'personal-homepage','ai_training_disabled':True,'streams':streams(),'sections':['entries'],'archive':{'enabled':True,'title':'All reports'}}, None)
+    one = await content.create_item(db, ACTOR, 'entry', {'stream':'part-0','title':'First report','date':'2026-10-17','summary':'First summary','tags':['report']}, None)
+    nine = await content.create_item(db, ACTOR, 'entry', {'stream':'part-8','title':'Ninth report','date':'2026-10-16','summary':'Ninth summary','tags':['other']}, None)
+    await content.create_item(db, ACTOR, 'entry', {'stream':'part-8','title':'SECRET_DRAFT','date':'2026-10-18'}, None)
+    await publish(db, ['site',one['id'],nine['id']])
+    live = await content.site_data(db, True)
+    assert len(live['streams']) == 9 and live['ai_training_disabled'] is True
+    assert 'ai_training_disabled' not in await db.fetchval("SELECT data FROM live WHERE item_id='site'")
+    query = '?tag=report&stream=part-0&sort=stream'
+    canonical = '?sort=stream&stream=part-0&tag=report'
+    html = await http.get('/archive/'+query)
+    assert html.status_code == 200 and '/archive/index.md'+canonical in html.headers['link']
+    assert '/archive/index.md?sort=stream&amp;stream=part-0&amp;tag=report' in html.text
+    md = await http.get('/archive/'+query, headers={'Accept':'text/markdown'})
+    assert '<'+ORIGIN+'/archive/'+canonical+'>' in md.text
+    assert 'First report' in md.text and 'Ninth report' not in md.text and 'SECRET_DRAFT' not in md.text
+    direct = await http.get('/archive/index.md'+canonical)
+    assert direct.text == md.text and direct.headers['etag'] == md.headers['etag']
+    tag = md.headers['etag']
+    assert html.headers['etag'] != tag
+    for path in ['/archive/'+query, '/archive/index.md'+canonical]:
+        for method in ['GET','HEAD']:
+            r = await http.request(method,path,headers={'Accept':'text/markdown','If-None-Match':tag})
+            assert r.status_code == 304 and r.content == b''
+    other = await http.get('/archive/index.md?stream=part-8')
+    assert 'Ninth report' in other.text and other.headers['etag'] != tag
+    for headers in [{'Cookie':'__Host-sk_owner=expired'},{'Cookie':'__Host-sk_reader=revoked'},{'Authorization':'Bearer invalid'}]:
+        r = await http.get('/archive/index.md'+canonical,headers=headers)
+        assert r.text == md.text and 'etag' not in r.headers
+        assert r.headers['cache-control'] == 'private, no-store, no-transform'
+    for query in ['?unknown=1','?sort=date&sort=stream','?tag=%3Cscript%3E']:
+        r = await http.get('/archive/index.md'+query)
+        assert r.status_code == 400 and 'etag' not in r.headers
+    text = (await http.get('/llms.txt')).text
+    assert text.index('/index.md') < text.index('/archive/index.md') and 'SECRET_DRAFT' not in text
+    await content.update_item(db, ACTOR, 'site', 1, {'archive':{'enabled':False}})
+    await publish(db, ['site'])
+    missing = await http.get('/archive/index.md'+canonical,headers={'If-None-Match':tag})
+    assert missing.status_code == 404 and 'etag' not in missing.headers
+    assert '/archive/index.md' not in (await http.get('/llms.txt')).text

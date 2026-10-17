@@ -100,4 +100,32 @@ it('ST-2 private archive gates before malformed queries or redirects; owner and 
   const r=await new Browser().at(path,{method,headers:{'If-None-Match':'"old"'}});expect(r.status).toBe(404);expect(r.headers.get('Location')).toBeNull();expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(await r.text()).toBe(method==='GET'?BLANK:'');
   for(const browser of [own,read]){const r=await browser.at(path,{method});expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');expect(r.status).toBe(path==='/archive'?301:path.includes('bogus')||path.includes('script')||path.includes('unknown')?400:200);}
  }
+ for(const browser of [own,read,new Browser()])for(const path of ['/archive/?sort=bogus','/archive/index.md?tag=report','/archive/index.md?sort=bogus'])for(const method of ['GET','HEAD']){
+  const r=await browser.at(path,{method,headers:{Accept:'text/markdown','If-None-Match':'*'}});expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?BLANK:'');
+  expect(r.headers.get('Content-Type')).toBe('text/html; charset=utf-8');expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
+  for(const h of ['ETag','Last-Modified','Link','Vary','Content-Signal','Location'])expect(r.headers.get(h)).toBeNull();
+ }
+});
+
+it('af_combined_archive copies preserve filters, canonical validators and map visibility',async()=>{
+ await content.createItem(db,actor,'site',{title:'Archive site',theme:'personal-homepage',ai_training_disabled:true,streams:streams(),sections:['entries'],archive:{enabled:true,title:'All reports'}},undefined);
+ const one=await content.createItem(db,actor,'entry',{stream:'part-0',title:'First report',date:'2026-10-17',summary:'First summary',tags:['report']},undefined);
+ const nine=await content.createItem(db,actor,'entry',{stream:'part-8',title:'Ninth report',date:'2026-10-16',summary:'Ninth summary',tags:['other']},undefined);
+ await content.createItem(db,actor,'entry',{stream:'part-8',title:'SECRET_DRAFT',date:'2026-10-18'},undefined);
+ await publish(['site',one.id,nine.id]);
+ const live=await content.siteData(db,true);expect(live.streams).toHaveLength(9);expect(live.ai_training_disabled).toBe(true);expect(await db.prepare("SELECT data FROM live WHERE item_id='site'").first('data')).not.toContain('ai_training_disabled');
+ const get=(path:string,headers:Record<string,string>={},method='GET')=>handle(new Request(origin+path,{method,headers}),e);
+ const query='?tag=report&stream=part-0&sort=stream',canonical='?sort=stream&stream=part-0&tag=report';
+ const html=await get('/archive/'+query);expect(html.status).toBe(200);expect(html.headers.get('Link')).toContain('/archive/index.md'+canonical);
+ expect(await html.text()).toContain('/archive/index.md?sort=stream&amp;stream=part-0&amp;tag=report');
+ const md=await get('/archive/'+query,{Accept:'text/markdown'}),body=await md.text();expect(body).toContain('<'+origin+'/archive/'+canonical+'>');expect(body).toContain('First report');expect(body).not.toContain('Ninth report');expect(body).not.toContain('SECRET_DRAFT');
+ const direct=await get('/archive/index.md'+canonical);expect(await direct.text()).toBe(body);expect(direct.headers.get('ETag')).toBe(md.headers.get('ETag'));
+ const tag=md.headers.get('ETag')!;expect(tag).toBeTruthy();expect(html.headers.get('ETag')).not.toBe(tag);
+ for(const path of ['/archive/'+query,'/archive/index.md'+canonical])for(const method of ['GET','HEAD']){const r=await get(path,{Accept:'text/markdown','If-None-Match':tag},method);expect(r.status).toBe(304);expect(await r.text()).toBe('');}
+ const other=await get('/archive/index.md?stream=part-8');expect(await other.text()).toContain('Ninth report');expect(other.headers.get('ETag')).not.toBe(tag);
+ for(const headers of [{Cookie:'__Host-sk_owner=expired'},{Cookie:'__Host-sk_reader=revoked'},{Authorization:'Bearer invalid'}] as Record<string,string>[]){const r=await get('/archive/index.md'+canonical,headers);expect(await r.text()).toBe(body);expect(r.headers.get('ETag')).toBeNull();expect(r.headers.get('Cache-Control')).toBe('private, no-store, no-transform');}
+ for(const query of ['?unknown=1','?sort=date&sort=stream','?tag=%3Cscript%3E']){const r=await get('/archive/index.md'+query);expect(r.status).toBe(400);expect(r.headers.get('ETag')).toBeNull();}
+ const map=await(await get('/llms.txt')).text();expect(map.indexOf('/index.md')).toBeLessThan(map.indexOf('/archive/index.md'));expect(map).toContain('/archive/index.md');expect(map).not.toContain('SECRET_DRAFT');
+ await content.updateItem(db,actor,'site',1,{archive:{enabled:false}});await publish(['site']);
+ const missing=await get('/archive/index.md'+canonical,{'If-None-Match':tag});expect(missing.status).toBe(404);expect(missing.headers.get('ETag')).toBeNull();expect(await(await get('/llms.txt')).text()).not.toContain('/archive/index.md');
 });

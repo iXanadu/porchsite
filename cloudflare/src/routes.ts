@@ -971,8 +971,8 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   else if(access.isPrivate)res=await route(get,env);
   else res=await agentPage(get,r=>route(r,env),async()=>{
     const v=await contentView(new Request(get.url),env);
-    return (v.site.streams as {id:string}[]).flatMap(s=>
-      v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)));
+    return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>
+      v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
   },r=>notFoundPage(r,env));
   if (access.isPrivate && access.gated) res = privacy.noStore(res);
   if (!access.isPrivate) res = await publicResponse(env.DB,req,res);

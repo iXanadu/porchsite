@@ -2,6 +2,8 @@
 import hashlib
 import json
 import re
+from urllib.parse import urlencode
+from server.spec.archive import archive_filter
 
 from starlette.responses import Response
 from server.spec.sitemap import robots
@@ -17,6 +19,14 @@ def training_signal(disabled):
 def public_path(path):
     return path in ('/', '/robots.txt', '/sitemap.xml') or bool(re.fullmatch(
         r'/[a-z][a-z0-9-]{0,29}/(?:[a-z0-9-]{1,80}/|tags/[a-z0-9-]{1,30}/|feed\.xml)?', path))
+
+
+def page_query(req, path):
+    if path != '/archive/':
+        return ''
+    filters = archive_filter(req.query_params.multi_items())
+    pairs = [(key, filters[key]) for key in ('sort', 'stream', 'tag') if filters[key] and not (key == 'sort' and filters[key] == 'date')]
+    return '?'+urlencode(pairs) if pairs else ''
 
 
 def session_request(req):
@@ -56,7 +66,7 @@ async def public_response(db, req, response, origin):
     disabled = await training_disabled(db)
     signal = training_signal(disabled)
     body = robots(origin, disabled).encode('utf-8') if path == '/robots.txt' else response.body
-    payload = (origin + (markdown_path(path) or path) + '\0' + content_type + '\0' + signal + '\0').encode('utf-8') + body
+    payload = (origin + (markdown_path(path) or path) + page_query(req, markdown_path(path) or path) + '\0' + content_type + '\0' + signal + '\0').encode('utf-8') + body
     tag = 'W/"sha256-' + hashlib.sha256(payload).hexdigest() + '"'
     headers = dict(response.headers)
     headers.update({'cache-control': PUBLIC_CACHE, 'content-signal': signal, 'etag': tag})

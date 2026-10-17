@@ -1,9 +1,9 @@
 /** Public data twins. The caller must run the private-site gate first. */
 import { markdownDocument, mdText } from './agent-markdown';
-import { markdownPath, pagePath, representation } from './public-http';
+import { markdownPath, pagePath, pageQuery, representation } from './public-http';
 type Route=(req:Request)=>Promise<Response>;
 const MD={'Content-Type':'text/markdown; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Link':'</llms.txt>; rel="describedby"'};
-const anonymous=(req:Request,path:string)=>new Request(new URL(path,req.url),{method:'GET'});
+const anonymous=(req:Request,path:string,preserveQuery=false)=>{const url=new URL(path,req.url);if(preserveQuery&&path==='/archive/')url.search=new URL(req.url).search;return new Request(url,{method:'GET'});};
 const isHTML=(r:Response)=>r.status===200&&r.headers.get('Content-Type')==='text/html; charset=utf-8';
 export async function agentPage(req:Request,route:Route,paths:()=>Promise<string[]>,notFound:Route):Promise<Response> {
   const path=new URL(req.url).pathname;
@@ -29,9 +29,10 @@ export async function agentPage(req:Request,route:Route,paths:()=>Promise<string
   const base=markdownPath(path);
   if(base || /\/index\.md\/?$/.test(path)) {
     if(!base)return notFound(req);
-    const response=await route(anonymous(req,base));
+    const response=await route(anonymous(req,base,true));
+    if(base==='/archive/'&&response.status===400)return response;
     if(!isHTML(response))return notFound(req);
-    return new Response(markdownDocument(await response.text(),new URL(base,req.url).href).markdown,{headers:MD});
+    return new Response(markdownDocument(await response.text(),new URL(base+pageQuery(req,base),req.url).href).markdown,{headers:MD});
   }
   const response=await route(req);
   if(!pagePath(path)||!isHTML(response))return response;
@@ -40,13 +41,13 @@ export async function agentPage(req:Request,route:Route,paths:()=>Promise<string
   const vary=headers.get('Vary');headers.set('Vary',vary?`${vary}, Accept`:'Accept');headers.delete('Content-Length');
   if(selected===null)return new Response(null,{status:406,headers:{'Vary':'Accept','Cache-Control':'private, no-store, no-transform'}});
   if(selected==='markdown') {
-    const visitor=await route(anonymous(req,path));
+    const visitor=await route(anonymous(req,path,true));
     if(!isHTML(visitor))return visitor;
-    return new Response(markdownDocument(await visitor.text(),new URL(path,req.url).href).markdown,{headers:{...MD,Vary:headers.get('Vary')!}});
+    return new Response(markdownDocument(await visitor.text(),new URL(path+pageQuery(req,path),req.url).href).markdown,{headers:{...MD,Vary:headers.get('Vary')!}});
   }
-  const copy=path+'index.md';
+  const copy=path+'index.md'+pageQuery(req,path);
   const link=`<${copy}>; rel="alternate"; type="text/markdown", </llms.txt>; rel="describedby"`;
   headers.set('Link',[headers.get('Link'),link].filter(Boolean).join(', '));
-  const body=(await response.text()).replace('</head>',`<link rel="alternate" type="text/markdown" href="${copy}"></head>`);
+  const body=(await response.text()).replace('</head>',`<link rel="alternate" type="text/markdown" href="${copy.replace(/&/g,'&amp;')}"></head>`);
   return new Response(body,{status:200,headers});
 }

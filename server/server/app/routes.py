@@ -1454,7 +1454,7 @@ async def handle(req: Request, cx: Context) -> Response:
             async def agent_paths():
                 from .agent_pages import anonymous
                 v = await content_view(anonymous(get, '/'),cx)
-                return [e['page'] for s in v.site['streams'] for e in v.entries if e['stream'] == s['id'] and not e.get('external_url')]
+                return (['/archive/'] if v.site.get('archive', {}).get('enabled') else []) + [e['page'] for s in v.site['streams'] for e in v.entries if e['stream'] == s['id'] and not e.get('external_url')]
             response = await agent_page(get,lambda r: _route(r,cx),agent_paths,origin_of(req),lambda r: not_found_page(r,cx))
     if is_private and gated:
         response = privacy.no_store(response)

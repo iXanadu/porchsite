@@ -3,13 +3,13 @@ import re
 from starlette.requests import Request
 from starlette.responses import Response
 from .agent_markdown import markdown_document, md_text
-from .public_http import markdown_path, page_path, representation
+from .public_http import markdown_path, page_path, page_query, representation
 
 MD = {'Content-Type': 'text/markdown; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; base-uri 'none'; frame-ancestors 'none'", 'Link': '</llms.txt>; rel="describedby"'}
 
 
-def anonymous(req, path):
-    return Request({**req.scope, 'method': 'GET', 'path': path, 'raw_path': path.encode(), 'query_string': b'', 'headers': [(k,v) for k,v in req.scope['headers'] if k.lower() == b'host']})
+def anonymous(req, path, preserve_query=False):
+    return Request({**req.scope, 'method': 'GET', 'path': path, 'raw_path': path.encode(), 'query_string': req.scope['query_string'] if preserve_query and path == '/archive/' else b'', 'headers': [(k,v) for k,v in req.scope['headers'] if k.lower() == b'host']})
 
 
 def is_html(response):
@@ -47,10 +47,12 @@ async def agent_page(req, route, paths, origin, not_found):
     if base or re.search(r'/index\.md/?$', path):
         if not base:
             return await not_found(req)
-        response = await route(anonymous(req, base))
+        response = await route(anonymous(req, base, True))
+        if base == '/archive/' and response.status_code == 400:
+            return response
         if not is_html(response):
             return await not_found(req)
-        return Response(markdown_document(response.body.decode(), origin+base)['markdown'], headers=MD)
+        return Response(markdown_document(response.body.decode(), origin+base+page_query(req, base))['markdown'], headers=MD)
     response = await route(req)
     if not page_path(path) or not is_html(response):
         return response
@@ -61,12 +63,12 @@ async def agent_page(req, route, paths, origin, not_found):
     if selected is None:
         return Response(None, status_code=406, headers={'Vary': 'Accept', 'Cache-Control': 'private, no-store, no-transform'})
     if selected == 'markdown':
-        visitor = await route(anonymous(req, path))
+        visitor = await route(anonymous(req, path, True))
         if not is_html(visitor):
             return visitor
-        return Response(markdown_document(visitor.body.decode(), origin+path)['markdown'], headers={**MD, 'Vary': headers['vary']})
-    copy = path+'index.md'
+        return Response(markdown_document(visitor.body.decode(), origin+path+page_query(req, path))['markdown'], headers={**MD, 'Vary': headers['vary']})
+    copy = path+'index.md'+page_query(req, path)
     link = '<'+copy+'>; rel="alternate"; type="text/markdown", </llms.txt>; rel="describedby"'
     headers['link'] = ', '.join(x for x in (headers.get('link'), link) if x)
-    body = response.body.decode().replace('</head>', '<link rel="alternate" type="text/markdown" href="'+copy+'"></head>', 1)
+    body = response.body.decode().replace('</head>', '<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
     return Response(body, headers=headers)

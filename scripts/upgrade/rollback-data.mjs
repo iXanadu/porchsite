@@ -250,6 +250,8 @@ try {
       await runtime.stop(); runtime = null;
       runtime = await old(); await checkPrevious(base,fixture,edition);
       if(fixture.streamFeature){
+        const previousDefaults = (await existingCall(base,fixture.token,'site_state',{})).site_defaults;
+        const previousStreams = Object.hasOwn(previousDefaults,'archive');
         await runtime.stop(); runtime=null;
         runtime=await current();
         let response=await fetch(base+'/archive/');assert.equal(response.status,200,'return to new code restores approved archive');
@@ -260,7 +262,7 @@ try {
         await approveAt(http,fixture.pending);
         await runtime.stop();runtime=null;
         runtime=await current();
-        response=await fetch(base+'/archive/');assert.equal(response.status,404,'old approval cannot activate unseen stream extension');
+        response=await fetch(base+'/archive/');assert.equal(response.status,previousStreams ? 200 : 404,'only a stream-aware previous runtime may approve the extension');
         await runtime.stop();runtime=null;
         runtime=await old();
         const edited=await existingCall(base,fixture.token,'item_update',{id:'site',version:fixture.pendingVersion,data:{title:'Rollback old edit'}});
@@ -270,10 +272,10 @@ try {
         await runtime.stop();runtime=null;
         runtime=await current();
         const state=await existingCall(base,fixture.token,'site_state',{ids:['site']});
-        assert.equal(state.items[0].data.streams.length,8,'old edit retains only legacy streams');
-        assert(!state.items[0].data.archive?.enabled,'old edit does not inherit archive');
-        assert.equal((await fetch(base+'/archive/')).status,404);
-        console.log(`rollback-data: ${edition}: 9-stream return restored; old approval and old edit cannot activate extension`);
+        assert.equal(state.items[0].data.streams.length,previousStreams ? 9 : 8,'stream-aware previous edits preserve the extension; unaware edits only retain legacy streams');
+        assert.equal(!!state.items[0].data.archive?.enabled,previousStreams,'unaware old edits cannot inherit archive');
+        assert.equal((await fetch(base+'/archive/')).status,previousStreams ? 200 : 404);
+        console.log(`rollback-data: ${edition}: 9-stream return restored; ${previousStreams ? 'stream-aware previous approval/edit preserves settings' : 'old approval and old edit cannot activate extension'}`);
       }
     } catch (error) {
       failures.push(`${edition}: ${error.stack || error}`);
