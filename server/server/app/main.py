@@ -18,6 +18,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import asyncpg
+from ada_url import URL
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
@@ -213,6 +214,11 @@ class App:
     async def _mcp(self, req: Request, scope: Scope, receive: Receive, send: Send) -> None:
         """/mcp, for an assistant holding an access token bound to this site."""
         origin = self.origin(req)
+        if not _mcp_origin_allowed(req, origin):
+            await _cors(Response("Invalid Origin header", status_code=403))(
+                scope, receive, send
+            )
+            return
         if req.method == "OPTIONS":
             await _cors(Response(None, status_code=204, headers={"Content-Length": "0"}))(
                 scope, receive, send
@@ -252,6 +258,26 @@ class App:
             return
         inner: dict[str, Any] = {**scope, "porchsite.props": props}
         await self.sessions.handle_request(inner, receive, send)
+
+
+def _mcp_origin_allowed(req: Request, site: str) -> bool:
+    values = req.headers.getlist("origin")
+    if not values:
+        return True
+    value = values[0].strip(" \t")
+    if (
+        len(values) != 1
+        or value.endswith(":")
+        or not re.fullmatch(r"https?://[^/?#@\s\\,%]+", value, re.I)
+    ):
+        return False
+    try:
+        actual, expected = URL(value), URL(site)
+        if expected.hostname.startswith("www."):
+            expected.hostname = expected.hostname[4:]
+        return actual.origin == expected.origin
+    except ValueError:
+        return False
 
 
 def _cors(resp: Response) -> Response:

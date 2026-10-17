@@ -62,14 +62,16 @@ describe("connecting an assistant", () => {
     const t = (await tok.json()) as { access_token: string; token_type: string; scope: string };
     expect(t.token_type.toLowerCase()).toBe("bearer");
 
-    const call = (auth: string) =>
+    const call = (auth: string, origin?: string) =>
       go("/mcp", {
         method: "POST",
-        headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+        headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(origin === undefined ? {} : {Origin:origin}) },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "0" } } }),
       });
     expect((await call("Bearer nope")).status).toBe(401);
-    const ok = await call(`Bearer ${t.access_token}`);
+    expect((await call(`Bearer ${t.access_token}`, "https://other.example")).status).toBe(403);
+    expect((await call(`Bearer ${t.access_token}`)).status).toBe(200);
+    const ok = await call(`Bearer ${t.access_token}`, "https://site.example");
     expect(ok.status).toBe(200);
     expect(await ok.text()).toContain('"serverInfo"');
   });

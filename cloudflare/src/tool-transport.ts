@@ -1,4 +1,5 @@
 /** Fast dispatch for proven legacy forms; every other request uses the original handler. */
+import { MCP_CORS as cors } from "./mcp-origin";
 import { originalMcp } from "./mcp-original";
 import { createToolHandlers, INSTRUCTIONS, TOOL_DEFINITIONS } from "./mcp";
 import type { Env } from "./env";
@@ -18,13 +19,7 @@ const checks = new Map(Object.entries(TOOL_DEFINITIONS).map(([name, definition])
   return [name, check] as const;
 }));
 const versions = new Set(["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"]);
-const cors = {
-  "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Expose-Headers": "mcp-session-id",
-  "Access-Control-Max-Age": "86400",
-};
+
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const only = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key));
 

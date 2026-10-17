@@ -582,6 +582,16 @@ On a new site, if site_state lists no site item, call item_create with kind: "si
 
 One MCP endpoint per site, at `/mcp`, behind OAuth 2.1 (with Client ID
 Metadata Documents, and Dynamic Client Registration for older clients).
+On `/mcp`, an absent `Origin` header keeps the existing behaviour. A present
+header must be one HTTP(S) origin (no userinfo, path, query or fragment)
+equal to this site's configured origin, or the request origin when none is
+configured, following the existing `www`-to-bare redirect. Compare scheme,
+case-insensitive host and effective port; default ports are equivalent.
+Refuse every other origin, including `null`, empty and malformed values,
+with 403. This is an Origin check, not authentication: the existing bearer
+token and Host checks still apply. OAuth endpoints, including `/authorize`
+and `/oauth/*`, keep their existing behaviour.
+
 If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an
 **assistant key** instead: the owner makes one on `/review/assistants`

@@ -44,10 +44,6 @@ Found building a single-property listing site on the live release.
   shapes proven byte-identical to the SDK on a shared fixture set. The
   server edition has no fast path; add one only if its timings call for it.
   No reconnect.
-- **MCP-1** OPEN: /mcp refuses every request carrying an Origin header,
-  even the site's own (`403 Invalid Origin`), so browser-hosted assistant
-  apps can't connect. Keep DNS-rebinding protection but accept the site's
-  own origin (and decide on others). Both editions. Found 2026-10-16.
 - **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run

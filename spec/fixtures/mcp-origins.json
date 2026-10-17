@@ -1,0 +1,112 @@
+[
+  {
+    "name": "no Origin",
+    "origin": null,
+    "status": 200
+  },
+  {
+    "name": "own Origin",
+    "origin": "https://site.example",
+    "status": 200
+  },
+  {
+    "name": "host case",
+    "origin": "https://SITE.EXAMPLE",
+    "status": 200
+  },
+  {
+    "name": "default port",
+    "origin": "https://site.example:443",
+    "status": 200
+  },
+  {
+    "name": "different origin",
+    "origin": "https://other.example",
+    "status": 403
+  },
+  {
+    "name": "null",
+    "origin": "null",
+    "status": 403
+  },
+  {
+    "name": "malformed",
+    "origin": "not an origin",
+    "status": 403
+  },
+  {
+    "name": "empty",
+    "origin": "",
+    "status": 403
+  },
+  {
+    "name": "different scheme",
+    "origin": "http://site.example",
+    "status": 403
+  },
+  {
+    "name": "different port",
+    "origin": "https://site.example:444",
+    "status": 403
+  },
+  {
+    "name": "userinfo",
+    "origin": "https://owner@example.com",
+    "status": 403
+  },
+  {
+    "name": "empty userinfo",
+    "origin": "https://@site.example",
+    "status": 403
+  },
+  {
+    "name": "path",
+    "origin": "https://site.example/path",
+    "status": 403
+  },
+  {
+    "name": "trailing slash",
+    "origin": "https://site.example/",
+    "status": 403
+  },
+  {
+    "name": "query",
+    "origin": "https://site.example?x=1",
+    "status": 403
+  },
+  {
+    "name": "fragment",
+    "origin": "https://site.example#x",
+    "status": 403
+  },
+  {
+    "name": "www is another origin",
+    "origin": "https://www.site.example",
+    "status": 403
+  },
+  {
+    "name": "localhost is another origin",
+    "origin": "http://localhost",
+    "status": 403
+  },
+  {
+    "name": "suffix confusion",
+    "origin": "https://site.example.other.example",
+    "status": 403
+  },
+  {
+    "name": "multiple origins",
+    "origin": "https://site.example https://other.example",
+    "status": 403
+  },
+  {
+    "name": "escaped host",
+    "origin": "https://%73ite.example",
+    "status": 403
+  },
+  {
+    "name": "empty port",
+    "origin": "https://site.example:",
+    "status": 403
+  }
+]

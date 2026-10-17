@@ -1,6 +1,7 @@
-/** Original SDK handler and JSON-only adapter, retained verbatim. */
+/** Original SDK handler and JSON-only adapter, with a same-origin browser boundary. */
 import { createMcpHandler } from "agents/mcp/server";
 import { createServer } from "./mcp";
+import { mcpOriginRejection } from "./mcp-origin";
 import type { Env } from "./env";
 
 const streamed = createMcpHandler(createServer, { route: "/mcp" });
@@ -11,6 +12,16 @@ const streamed = createMcpHandler(createServer, { route: "/mcp" });
  * message is unwrapped here.
  */
 async function mcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const rejected = mcpOriginRejection(req, (env as Env & { SITE_URL?: string }).SITE_URL || req.url);
+  if (rejected) return rejected;
+  if (req.headers.has("Origin")) {
+    // Our stricter scheme/host/port check already accepted this Origin.
+    // The SDK's hostname-only defaults cannot express it. Remove only the
+    // accepted header for MCP; leave its Host/DNS-rebinding checks intact.
+    const headers = new Headers(req.headers);
+    headers.delete("Origin");
+    req = new Request(req, { headers });
+  }
   const accept = req.headers.get("Accept") ?? "";
   if (req.method !== "POST" || accept.includes("text/event-stream")) return streamed(req, env, ctx);
   const headers = new Headers(req.headers);
