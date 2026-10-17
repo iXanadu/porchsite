@@ -12,6 +12,12 @@
 Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
+## NOW (sprint 2026-10-17, in order)
+1. **S4-4R** IN-PROGRESS: release S4-4 (approval alerts, all 8 device
+   steps passed) with an owner-only Review link on every site page (the
+   Home Screen app has no address bar). Visitors and readers byte-identical.
+2. **MCP-1**, then AF-1..AF-8 (spec first), then ST-1..ST-3. AG-* last.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
@@ -28,13 +34,6 @@ Found building a single-property listing site on the live release.
   approves: no preview it can open. Design with security (a short-lived
   read-only preview for the assistant).
 
-- **S4-9** OPEN: Build-ahead for public pages (the stage 3 goal that
-  tuning couldn't reach: hosted CPU on Free is about 2-3x local, so even a
-  warm home page costs 9-14 ms). Serve stored copies of public pages and
-  clear them on every change; Cloudflare Workers Caching first (stored
-  hits use no CPU), the site's own table if that can't be switched on
-  through the API upload. Also takes page views off the free plan's daily
-  database-read limit. Owner decides after the plan.
 - **S4-10** OPEN (designed 2026-10-16): most newer-format requests already
   take the Cloudflare fast path; the SDK still handles the 2026-07-28 format
   and requests with extras (_meta, initialize capabilities, ping,
@@ -60,61 +59,93 @@ Found building a single-property listing site on the live release.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
   custom GPT, Meta AI's skills), then a run with each.
 
-## AGENT ACCESS (owner's request, 2026-10-17: "make sites easy for agents to read")
-People read a site through passkeys; agents can't and shouldn't use passkeys.
-Three audiences, each with its own door. The owner's own records
-stay the truth; a site is a view, so agents read the site only when they
-need what people see.
-- **AG-1** OPEN (first): read-only assistant keys. At /review/assistants the
-  owner ticks "Read only" when making a key. The key may call site_state,
-  site_check and the new read tools (AG-2), and nothing that drafts. Listed
-  with last use; one key per agent, so access is attributable and revocable.
-  Both editions; security review first. Today every key can also draft.
-- **AG-2** OPEN: lighter read tools over /mcp: `page_get(path)` (one
-  published page as Markdown with its title, date, tags and canonical URL),
-  `pages_list(stream?, tag?, since?)` (paths and titles), and
-  `search(query)` (published text, ranked). site_state returns the whole
-  site at once, which is heavy for an agent that wants one page.
-- **AG-3** OPEN: agent readers, the agent counterpart of reader passkeys.
-  The owner issues a named key that sees PUBLISHED pages only (never
-  drafts, history or stats), for agents the owner trusts that aren't the
-  owner's own (a teammate's assistant, a family member's). Revoking it works
-  like revoking a reader: immediate, and logged. Keys live in a NEW table,
-  apart from assistant keys and reader passkeys.
-- **AG-4** OPEN: plain-HTTP reading for agents that don't speak MCP:
-  `GET <page>` with `Accept: text/markdown`, or `<page>/index.md`, returns
-  that page as Markdown. On a public site it's open, like the HTML. On a
-  private site it needs `Authorization: Bearer <AG-1 or AG-3 key>` in the
-  header (never in the URL); without it, the same blank 404. It shares the
-  stored Markdown copies of AI-4 and the build-ahead of S4-9.
-- **AG-5** OPEN: discovery. /llms.txt (AI-4) says what the site is and how
-  an agent reads it: the Markdown pages, the feeds, and that /mcp exists for
-  assistants with a key. On a private site, llms.txt sits behind the gate
-  too; anonymous agents learn nothing beyond the blank page.
-Order: AG-1, then AG-2, then AG-3, with AG-4 and AG-5 alongside AI-4. AI-2
-(JSON-LD) and AI-3 (AI-reader facts in site_check) belong to this effort
-too.
-
-## AI READERS AND ASSISTANT GUIDANCE (owner's request, 2026-10-15; after the Listing look)
-- **AI-2** OPEN: JSON-LD for the Listing and Local business looks, from
-  existing fields only; built and stored with build-ahead (S4-9), never per
-  request. Structured listing facts (price, beds) would need fields stored
+## AGENT-FRIENDLY PUBLIC SITES (owner's business case, 2026-10-17)
+Goal: every site is easy, quick and cheap for AI agents to read, on either
+edition, without exposing anything an agent shouldn't see. Rules: nothing
+may depend on Cloudflare (each item passes on both editions); friendliness
+never widens access (on a private site every new path returns today's blank
+404); no traffic or ranking claims to owners, only "cheaper and easier for
+agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
+security invariants written before the spec.
+- **AF-1** OPEN (first): measure before building. A local baseline on the
+  sample sites (bytes and headers per page type, whether repeat fetches get
+  a 304). Then an owner-readable count of traffic by kind: search
+  crawlers, training crawlers, agents acting for a person. On request
+  only, as facts.
+- **AF-2** OPEN: cheap re-checks. ETag and a conditional 304 on public
+  pages, entries, archives, tags, feeds and the sitemap, identical in both
+  editions. Pages send no validator today.
+- **AF-3** OPEN: a light copy of every public page. Markdown at
+  `<page>/index.md`, advertised by `rel="alternate" type="text/markdown"` in
+  the page and a Link header; `Accept: text/markdown` on the page URL
+  returns the same with `Vary: Accept`; ETag/304 on both.
+- **AF-4** OPEN: AI-training switch, allowed by default. robots.txt always
+  allows search crawlers and user-triggered agents; training crawlers are
+  disallowed only when the owner switches training off. The site states
+  the choice itself, whatever a host default says.
+- **AF-5** OPEN: schema.org JSON-LD in every look, from existing fields
+  only, matching what the page shows (was AI-2, Listing and Local business
+  only). Structured listing facts (price, beds) would need fields stored
   where the previous release never reads them (see S4-11).
+- **AF-6** OPEN: a short `/llms.txt` per site (title, summary, key pages
+  pointing at the Markdown copies), with `Link: </llms.txt>; rel="describedby"`.
+  Low value, low cost; not sold as an SEO feature.
+- **AF-7** OPEN: build-ahead for public pages (was S4-9). Hosted CPU on
+  Free is about 2-3x local, so even a warm home page costs 9-14 ms. Serve
+  stored copies of public pages, Markdown copies and llms.txt, cleared on
+  every change; Workers Caching first, the site's own table if that can't
+  be switched on through the API upload, and the server edition's
+  equivalent. Also takes page views off the free plan's daily read limit.
+- **AF-8** OPEN: anything published for agents (Markdown, JSON-LD,
+  llms.txt) comes only from the owner's approved content and never carries
+  instructions aimed at agents. A spec rule plus tests.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos
   without alt text, embeds without a caption, pages without a description,
   heading order). Facts, never advice.
-- **AI-4** OPEN: per-site `/llms.txt` and a stored Markdown copy of each
-  page, built with build-ahead (S4-9).
 - **AI-5** OPEN (decided 2026-10-16: capability facts only, no coaching;
   Porchsite stays passive): a short block in the tool descriptions saying
   what Porchsite builds, which look suits whom and how approval works.
+Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
+crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
+
+## AGENT ACCESS TO PRIVATE SITES (LAST, after the public work)
+People read a private site through passkeys; agents can't and shouldn't.
+Use: the owner's own agents read the private playbook to check it matches
+the owner's records (the records are the truth; agents read, they never
+write there). Any agent holding access gets the same light versions
+cheaply and may keep its own private copy; nothing private is ever stored
+in a shared cache or shared place; anonymous visitors see no change.
+- **AG-1** OPEN: read-only assistant keys. At /review/assistants the owner
+  ticks "Read only" when making a key, with a "published pages only" scope
+  (never drafts, history or stats) for checking agents. The key may call
+  site_state, site_check and the AG-2 tools, and nothing that drafts.
+  Listed with last use; one key per agent. Both editions; security review
+  first. Today every key can also draft.
+- **AG-2** OPEN: lighter read tools over /mcp: `page_get(path)` (one
+  published page as Markdown with title, date, tags and canonical URL),
+  `pages_list(stream?, tag?, since?)` (paths, titles, change dates) and
+  `search(query)`. site_state returns the whole site at once.
+- **AG-3** OPEN: agent readers for agents the owner trusts that aren't the
+  owner's own: a named published-only key in a NEW table, apart from
+  assistant keys and reader passkeys; revoking is immediate and logged.
+  May fold into AG-1's published-only scope.
+- **AG-4** OPEN: AF-3's Markdown copies on a private site with
+  `Authorization: Bearer <AG-1 or AG-3 key>` (never in the URL); `private`
+  caching with an ETag for that agent only; without a key, the same blank
+  404.
+- **AG-5** OPEN: on a private site, llms.txt sits behind the gate too;
+  anonymous agents learn nothing beyond the blank page.
+- **AG-6** OPEN: owner review pages give a signed-in agent the same light
+  versions, protected like any other private data; no separate owner
+  review step (the owner approves content once).
 
 ## OWNER REQUESTS (2026-10-16)
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
   one private playbook), one "<Project> reports" stream per project, no
-  expiry, weekly batch approval; PMs file drafts at wrap-up (admin owns the
-  shared wrap-up step). No new engine code. A separate reports site was
-  tried and removed the same day.
+  expiry, weekly batch approval. Changed 2026-10-17: all updates to the
+  playbook go through the owner's one always-on assistant; PMs send their
+  report there instead of filing drafts, so no per-PM write key. No new
+  engine code.
 - **ST-1** OPEN (medium): a site allows at most 8 streams (`streams`
   max 8 in both editions' models). The fleet playbook wanted 9 guide Parts
   plus a report stream per project and had to merge them. Raising the cap
@@ -123,6 +154,11 @@ too.
   Needs the additive pattern (extra streams outside the legacy JSON, or a
   release floor like private mode) and an upgrade-check case. Found
   2026-10-16.
+- **ST-2** OPEN: one archive of all entries by date across streams,
+  filterable by tag (for reports sortable by project or by date as a
+  reader's choice). Found 2026-10-17.
+- **ST-3** OPEN: a stream chooses its sort order (date or title).
+  Found 2026-10-17.
 - **PB-2** OPEN (when needed): playbook look option to show the latest N
   entries per stream on the contents page, with an "All →" link, so report
   diaries don't crowd the home page.
