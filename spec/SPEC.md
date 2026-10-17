@@ -2534,8 +2534,9 @@ The restricted guide-reuse revision hashes the restricted read guide and
 scope, using SP-S3's encoding rules; a writer-guide revision is always stale
 for `published_read`. A changed/missing/foreign guide token returns the full
 restricted guide, never the writer guide. Since writer tool lists gain the
-three new read tools, implementation release notes must explain that apps
-which cache their catalog may need to reconnect or refresh tools. Existing
+three new read tools, the implementation changelog entry must set
+`reconnect: true` and explain that apps which cache their catalog need to
+reconnect or refresh tools. Existing
 writer behavior is not removed or changed.
 
 Enforce this allowlist before argument-dependent content work in **all**
@@ -2772,8 +2773,12 @@ body. Unauthorized existing/missing paths are indistinguishable.
 | 24 | Actual previous runtime rejects AG at MCP/pages, writer keys still work; raw-bundle residual documented. | `ag_upgrade_return` |
 | 25 | Private-on purges public AF-7 and never prebuilds private copies. | `ag_no_shared_private_store` |
 
-Also require `ag_bearer_html_cache`: a valid AG Bearer can GET published
-HTML as 200 so every private-map HTML target resolves. Private HTML GET and
+Also require `ag_bearer_html_published`: a valid AG Bearer GET of each
+private-map HTML target returns published reader HTML 200, including enabled
+archives and validated filters. Unknown/unpublished paths are authorized
+misses, never drafts; review/protocol paths remain denied.
+
+Also require `ag_bearer_html_cache`: private HTML GET and
 ordinary HEAD have the same reader body/status/representation headers
 (HEAD body empty), exact private no-store policy and no public or AG
 validator, Last-Modified or Content-Signal. If-None-Match (public tag,
