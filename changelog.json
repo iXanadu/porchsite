@@ -2,6 +2,23 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.17-81b4584",
+      "date": "2026-10-17",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0019_approval_alerts.sql"
+      ],
+      "changes": [
+        "New, off until you turn it on: an alert on your phone or computer when your assistant sends something for your approval. Turn it on in Review, once per device.",
+        "Alerts are a nudge, not a guarantee. Phones and browsers can delay or drop them. Your assistant still sends you the link.",
+        "On iPhone, alerts need iOS 16.4 or later and a Home Screen install: Share → Add to Home Screen → open from the icon → turn alerts on.",
+        "The Home Screen app now starts at sign-in, then Review, so it works on a private site too, and tapping an alert opens Review in the window you already have open.",
+        "When you're signed in, every page of your site shows a Review button at the bottom, because the Home Screen app has no address bar. Visitors and readers never see it.",
+        "Assistant apps that run in a browser can now connect to your site. Other websites still can't."
+      ]
+    },
+    {
       "release": "2026.10.16-83c9731",
       "date": "2026-10-16",
       "security": false,
