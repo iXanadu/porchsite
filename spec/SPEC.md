@@ -1446,7 +1446,21 @@ inline script is permitted. JSON-escape all strings and escape `<`, `>`,
 `&` and U+2028/U+2029 so `</script>` in content cannot escape the data block.
 Do not weaken script-src, add unsafe-inline or open network destinations.
 This is a narrowly specified engine data block; the template rule against
-inline executable scripts remains intact. JSON object key order and array
+inline executable scripts remains intact. The inline data block must work
+under the current `script-src 'self'` without weakening it; a browser test
+must prove this on the actual delivered page. If the inline block does not
+work under that policy, both editions instead serve the same JSON-LD bytes
+at `<page>/index.jsonld` (`/index.jsonld` for home), with Content-Type
+`application/ld+json; charset=utf-8` and nosniff. The HTML page links that
+generated same-origin twin with `<link rel="alternate"
+type="application/ld+json" href="<twin path>">` and the corresponding Link
+header. The twin is available only for a real public HTML page and follows
+the identical gate, session/cache isolation, ETag/304 and invalidation rules
+as Markdown copies; private requests return the exact blank 404 for every
+cookie class. A browser test must prove discovery and fetching under the
+unchanged CSP if that fallback is chosen. The implementation selects the
+same strategy in both editions and records which path the paired tests
+prove; it never falls back by relaxing CSP. JSON object key order and array
 order are deterministic and identical in both editions.
 
 ### AF-6: a short public map
@@ -1521,7 +1535,7 @@ before the feature-specific presentation rules above.
 Gating
 1. Access check runs before live view, media lookup, Markdown/JSON-LD/llms build, ETag, Link, stored-copy lookup, or Accept negotiation.
 2. AF paths are not on the private open-path allowlist: GET/HEAD /llms.txt, GET/HEAD <page>/index.md, and page URLs with Accept: text/markdown.
-3. Anonymous private gated GET is exactly today's blank 404 (status, BLANK body, headers above).
+3. New private AF surfaces return exactly today's blank 404 for every cookie class (anonymous, owner, reader, expired, revoked): status, BLANK body and headers above.
 4. That 404 has no ETag, Last-Modified, Link, Vary, Content-Location, or Age.
 5. Its Content-Type is text/html (charset utf-8 allowed). Never text/markdown, application/ld+json, or text/plain except private /robots.txt as in 10. Accept: text/markdown does not change this (no content-type oracle).
 6. HEAD matches GET status and those headers, empty body.
@@ -1534,7 +1548,7 @@ Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
 13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap.
-14. ETag, when present, hashes only the anonymous published representation: canonical URL, Content-Type, the approved training signal and body bytes, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+14. ETag, when present, hashes only the anonymous published representation: canonical URL U, Content-Type T, the approved training signal S and body bytes B, with nothing from any session, using AF-2's exact encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
 15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on every authenticated page (SV-PV1). Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
@@ -1597,7 +1611,7 @@ The named cases implement the corresponding numbered invariant above.
 | 20 | `af_mention_card_projection` | Mention cards expose only displayed name and description. |
 | 21 | `af_reserved_and_unpublished_paths` | Owner/protocol/capability and unpublished paths have no copies or map entries. |
 | 22 | `af_map_links_resolve` | Every map entry corresponds to an anonymous HTML 200 and a valid copy. |
-| 23 | `af_jsonld_visible_fields` | Structured facts use only existing approved fields shown on the page. |
+| 23 | `af_jsonld_visible_fields` | Structured facts use only existing approved visible fields; paired browser tests prove inline data or the discovered same-origin twin under unchanged CSP. |
 | 24 | `af_markdown_visible_text` | Markdown omits fields and items absent from the visitor page. |
 | 25 | `af_frozen_wrappers` | Engine-authored words stay fixed across owner payload changes. |
 | 26 | `af_no_imperative_interpolation` | Owner data never enters engine-authored instruction language. |
