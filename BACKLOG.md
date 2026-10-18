@@ -90,6 +90,13 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **PAR-1-C1** OPEN: the server edition sends `Content-Length: 0` on the
+  /mcp OPTIONS 204; the HTTP standard (RFC 9110 §8.6) says a 204 must not
+  carry Content-Length. The Cloudflare edition's runtime strips it. The
+  preflight constant and the shared fixture set 0 explicitly, which hid the
+  difference. Fix: drop it from the constant and the fixture, and prove it's
+  absent on the wire in both editions. Status, body, CORS and auth are
+  correct. Found 2026-10-18 in PAR-1 acceptance.
 - **PAR-1** OPEN: on /mcp, a bad bearer key gets a 401 without a
   WWW-Authenticate header on the Cloudflare edition; the server edition
   sends one (realm, resource_metadata, error="invalid_token", scope). A
