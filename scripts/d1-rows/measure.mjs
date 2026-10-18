@@ -3,17 +3,21 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { CLOCK, ORIGIN, COMPATIBILITY, HEADERS, hash } from './fixtures.mjs';
 import { FORMAT, BUDGETS, REQUESTS, validate } from './record.mjs';
+import {WRITE_MANIFEST} from './write-fixtures.mjs';
+import {measureWrites} from './write-measure.mjs';
+import {instrument} from './instrument.mjs';
 
 export async function measure({ root, out, bundle, migrations, corpus, source, inputs, Miniflare, convertV4MiniflareOptions }) {
   fs.mkdirSync(out, { recursive: true });
   fs.copyFileSync(bundle, path.join(out, 'application.js'));
   for (const file of ['harness.mjs', 'observer.mjs']) fs.copyFileSync(path.join(root, 'scripts/d1-rows', file), path.join(out, file));
   fs.writeFileSync(path.join(out, 'clock.mjs'), `const NativeDate=Date;globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[${JSON.stringify(CLOCK)}]));}static now(){return ${Date.parse(CLOCK)};}};\n`);
-  const record = { format: FORMAT, inputs_sha256: inputs, source_sha256: source, artifact_sha256: hash(fs.readFileSync(bundle)), budgets: BUDGETS, sites: corpus.map(site => site.name), cells: {} };
+  const instrumentation=await instrument(root,out);
+  const record = { format: FORMAT, operations: WRITE_MANIFEST, instrumentation, inputs_sha256: inputs, source_sha256: source, artifact_sha256: hash(fs.readFileSync(bundle)), budgets: BUDGETS, sites: corpus.map(site => site.name), cells: {} };
   for (const site of corpus) {
     const identity = new Map();
     for (const mode of ['off', 'on']) {
-      const modules = ['harness.mjs','clock.mjs','observer.mjs','application.js'].map(file => ({type:'ESModule',path:path.join(out,file)}));
+      const modules = ['harness.mjs','clock.mjs','observer.mjs','application.js','application-measured.js','native-workers.mjs','wait-scope.mjs'].map(file => ({type:'ESModule',path:path.join(out,file)}));
       const mf = new Miniflare(convertV4MiniflareOptions({ rootPath: out, modules, modulesRoot: out, ...COMPATIBILITY, d1Databases: ['DB'], kvNamespaces: ['OAUTH_KV'], bindings: { SITE_URL: ORIGIN, PUBLIC_ARTIFACTS: mode === 'on' ? '1' : '', PUBLIC_RESPONSES: '' }, outboundService: () => new Response(null, { status: 502 }) }));
       try {
         await mf.ready;
@@ -58,5 +62,6 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
       } finally { await mf.dispose(); }
     }
   }
+  Object.assign(record.cells,await measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions}));
   return validate(record);
 }

@@ -68,12 +68,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    save. A hosted D1 probe decides; if hosted counts trigger rows too, the
    trigger design is not viable on the Cloudflare edition as specified.
 
-5. **GATE-2a** OPEN (found 2026-10-18 shipping AN-1): the rows gate
+5. **GATE-2a** IN-PROGRESS (frozen for independent review; found 2026-10-18 shipping AN-1): the rows gate
    measures page requests only, so writes on the visitor beacon
    (`POST /collect`) and on owner actions (approvals, imports) are not
    measured. AN-1's +1 write per recorded view passed the gate unseen;
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
+
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
