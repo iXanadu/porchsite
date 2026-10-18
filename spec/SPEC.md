@@ -6523,9 +6523,15 @@ Primary references checked 2026-10-18:
 This replaces the separate pair0 execution before the initial facts with
 ONE current primary-consistent statement that returns both the complete
 initial dependency relation and its epoch-qualified witness from the same
-SQL snapshot. It changes only the ordinary anonymous path with both
-prepared-copy delivery and response-cache reuse OFF. The independent late
-pair1 execution and the epoch-repair/installation contract remain required.
+SQL snapshot. The transport applies to the ordinary anonymous path with
+both prepared-copy delivery and response-cache reuse OFF, and to eligible
+anonymous conditional requests with prepared-copy delivery ON and response
+reuse OFF under the conditional amendment. Those ON conditionals use the
+same initial snapshot and independent late pair as OFF, including attempts
+whose validator later misses. No-validator ON keeps its original facts
+path; response reuse, private and session paths remain excluded. The ON
+pair never authorizes HIT/MISS/admission body delivery. The independent
+late pair1 execution and epoch-repair/installation contract remain required.
 
 The approved complete FACTS_SQL relation remains intact inside this new
 initial transport statement: same dependency expressions, tables, joins,
