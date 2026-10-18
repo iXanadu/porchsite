@@ -13,9 +13,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
-1. Measure the hosted first build after PERF-5 (5 database reads instead
-   of 11). Cold renders were about 17 ms typical on the free plan's 10 ms
-   budget before it.
+1. **PERF-6** OPEN: a cold public page still costs about 17-23 ms of CPU
+   (typical, hosted, measured 2026-10-18 after PERF-5) against the free
+   plan's 10 ms; repeat visits answered "not changed" are about 5 ms. Find
+   where the time goes stage by stage, then cut the biggest costs.
 2. PERF-4: reuse a rendered public page for every visitor in a location
    while nothing on it has changed.
 
