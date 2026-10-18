@@ -589,3 +589,173 @@ async def test_af_time_storage_cap(db,http,monkeypatch):
     now=until+1
     hit=await http.get('/',headers={'If-None-Match':tag})
     assert hit.status_code==304 and hit.headers['etag']==tag
+
+async def test_af_thin_hit_budget(db,monkeypatch):
+    from unittest.mock import AsyncMock
+    from server.app import routes
+    from .test_agent_map import Count,request
+    await fixture(db)
+    async with db.acquire() as conn:
+        counted=Count(conn);cx=routes.Context(counted,'',None,site_url=ORIGIN,public_artifacts=True)
+        first=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
+        body,tag=first.body,first.headers['etag']
+        load=AsyncMock(wraps=site.live_view);facts=AsyncMock(wraps=public_read.facts);snap=AsyncMock(wraps=artifacts.snapshot)
+        monkeypatch.setattr(site,'live_view',load);monkeypatch.setattr(public_read,'facts',facts);monkeypatch.setattr(artifacts,'snapshot',snap)
+        for method in ('GET','HEAD'):
+            counted.calls.clear();facts.reset_mock();load.reset_mock()
+            r=await routes.handle(request('/',method=method),cx);await agent_traffic.settle(counted)
+            assert r.status_code==200 and r.body==(b'' if method=='HEAD' else body)
+            assert len(counted.calls)==3 and sum('LEFT JOIN public_artifacts' in q for q in counted.calls)==1
+            assert facts.await_count==1 and load.await_count==0 and snap.await_count==0
+        counted.calls.clear()
+        conditional=await routes.handle(request('/',headers={'If-None-Match':tag}),cx)
+        assert conditional.status_code==304 and len(counted.calls)==3 and not any('LEFT JOIN public_artifacts' in q for q in counted.calls)
+        await db.execute('DELETE FROM public_artifacts');counted.calls.clear();facts.reset_mock();load.reset_mock()
+        miss=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
+        assert miss.body==body and load.await_count==1 and facts.await_count==2 and snap.await_count==0
+        writes=[q for q in counted.calls if q.lstrip().upper().startswith(('INSERT','DELETE','UPDATE')) or 'INSERT INTO public_artifacts' in q]
+        assert len(counted.calls)-len(writes)<=6 and len([q for q in writes if not q.startswith('INSERT INTO agent_traffic_daily')])==2 and len(counted.calls)<=9
+
+async def test_af_thin_hit_old_runtime(db,http,monkeypatch):
+    await fixture(db)
+    first=await http.get('/');old=await db.fetchrow('SELECT generation,revision FROM public_artifact_state')
+    await db.execute("UPDATE live SET data=jsonb_set(data::jsonb,'{title}','\"Old runtime publication\"'::jsonb)::text WHERE item_id='site'")
+    from server.app import routes
+    from .test_agent_map import Count,request
+    async with db.acquire() as conn:
+        counted=Count(conn);cx=routes.Context(counted,'',None,site_url=ORIGIN,public_artifacts=True)
+        async def refuse(*args,**kwargs):
+            pytest.fail('thin path called SNAPSHOT')
+        monkeypatch.setattr(artifacts,'snapshot',refuse)
+        r=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
+        assert b'Old runtime publication' in r.body and r.headers['etag']!=first.headers['etag']
+        assert 'DELETE FROM public_artifacts' in counted.calls and not any('LEFT JOIN public_artifacts' in q for q in counted.calls)
+        assert await db.fetchval('SELECT generation FROM public_artifact_state')!=old['generation']
+
+@pytest.mark.parametrize('change',['private','unpublish','theme','title'])
+async def test_af_thin_hit_races(db,http,monkeypatch,change):
+    one,entry=await fixture(db);path='/journal/'+entry['slug']+'/'
+    await http.get(path);original=public_read.facts;once=True
+    async def raced(*args,**kwargs):
+        nonlocal once
+        f=await original(*args,**kwargs)
+        if once:
+            once=False
+            if change=='private':
+                await db.execute("INSERT INTO site_fields(version,key,value,approved)VALUES($1,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1",one['version'])
+                await db.execute('INSERT INTO private_approvals(version)VALUES($1) ON CONFLICT DO NOTHING',one['version'])
+            elif change=='unpublish':
+                await db.execute('DELETE FROM live WHERE item_id=$1',entry['id'])
+            else:
+                await db.execute("UPDATE live SET data=jsonb_set(data::jsonb,ARRAY[$1::text],$2::jsonb)::text WHERE item_id='site'",'theme' if change=='theme' else 'title',json.dumps('local-business' if change=='theme' else 'New approved title'))
+        return f
+    monkeypatch.setattr(public_read,'facts',raced)
+    r=await http.get(path)
+    if change in ('private','unpublish'):
+        assert r.status_code==404 and 'etag' not in r.headers
+        if change=='private': assert r.text==SIGN_IN
+    else:
+        assert r.status_code==200
+        if change=='title': assert 'New approved title' in r.text
+
+async def test_af_thin_hit_duplicate_tuple(db,http):
+    await fixture(db);await http.get('/')
+    f=await public_read.facts(db,True);row=await db.fetchrow('SELECT key,generation FROM public_artifacts LIMIT 1')
+    raw=[r[:] for r in f['raw']];assert len(raw)>2;raw[0]=raw[1]
+    result=await db.fetchrow(artifacts.proof_sql()+''' SELECT p.ok,a.body FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=$3 AND a.generation=$2''',json.dumps(raw),row['generation'],row['key'])
+    assert not result['ok'] and result['body'] is None
+
+async def test_af_thin_miss_lease(db):
+    from starlette.responses import Response
+    await fixture(db)
+    started,resume=asyncio.Event(),asyncio.Event()
+    first=True
+    async def render(req):
+        nonlocal first
+        if first:
+            first=False;started.set();await resume.wait()
+        return Response('not stored',status_code=404)
+    async def paths(): return []
+    job=asyncio.create_task(artifacts.prepare(db,ORIGIN,'test',render,paths))
+    await started.wait()
+    token=await db.fetchval('SELECT preparing FROM public_artifact_state WHERE id=1');assert token
+    competing=False
+    async def other(req):
+        nonlocal competing
+        competing=True
+        return Response('not stored',status_code=404)
+    await artifacts.prepare(db,ORIGIN,'test',other,paths)
+    assert not competing and await db.fetchval('SELECT preparing FROM public_artifact_state WHERE id=1')==token
+    resume.set();await job
+    assert await db.fetchval('SELECT preparing FROM public_artifact_state WHERE id=1')==''
+
+async def test_af_thin_miss_admission_race(db,http,monkeypatch):
+    await fixture(db);original=public_read.facts;calls=0
+    async def raced(*args,**kwargs):
+        nonlocal calls
+        f=await original(*args,**kwargs);calls+=1
+        if calls==2:
+            await db.execute("UPDATE live SET data=jsonb_set(data::jsonb,'{title}','\"Admission race title\"'::jsonb)::text WHERE item_id='site'")
+        return f
+    monkeypatch.setattr(public_read,'facts',raced)
+    r=await http.get('/')
+    assert r.status_code==200 and 'Admission race title' in r.text and await count(db)==0
+
+def test_af_thin_generation_encoding():
+    from pathlib import Path
+    cases=json.loads((Path(__file__).resolve().parents[3]/'spec/fixtures/public-artifacts-thin.json').read_text())
+    for c in cases:
+        assert artifacts.generation(dict(rows=c['rows'],generation='not-authority',revision=99),'fixture','https://example.com')==c['sha256'],c['name']
+
+async def test_af_thin_hit_query_plan(db,http):
+    await fixture(db);await http.get('/')
+    f=await public_read.facts(db,True);row=await db.fetchrow('SELECT key,generation FROM public_artifacts LIMIT 1')
+    sql=artifacts.proof_sql()+''' SELECT p.ok,a.key FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=$3 AND a.generation=$2'''
+    args=(json.dumps(f['raw']),row['generation'],row['key'])
+    before=await db.fetchrow(sql,*args)
+    await db.execute("INSERT INTO media(name,type,size,data,created_at) SELECT lpad(to_hex(n),32,'0')||'.png','image/png',1,decode('00','hex'),'2026-10-18' FROM generate_series(1,500) n")
+    after=await db.fetchrow(sql,*args)
+    assert dict(after)==dict(before) and after['ok']
+    plan=json.loads(await db.fetchval('EXPLAIN (ANALYZE,FORMAT JSON) '+sql,*args))
+    def nodes(node):
+        yield node
+        for p in node.get('Plans',[]): yield from nodes(p)
+    image_nodes=[p for p in nodes(plan[0]['Plan']) if p.get('Relation Name')=='media']
+    assert all(p['Actual Rows']==0 for p in image_nodes)
+    print(json.dumps({'case':'af_thin_hit_budget','unused_images':500,'image_access':[{k:p.get(k) for k in ['Node Type','Index Name','Actual Rows','Actual Loops']} for p in image_nodes]}))
+
+async def test_af_thin_state_outage(db,http,monkeypatch):
+    from unittest.mock import Mock
+    one,_=await fixture(db);first=await http.get('/')
+    await db.execute('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state')
+    try:
+        lookup=Mock(wraps=artifacts.proof_sql);monkeypatch.setattr(artifacts,'proof_sql',lookup)
+        live=await http.get('/')
+        assert live.status_code==200 and live.content==first.content and not lookup.called
+        await db.execute("INSERT INTO site_fields(version,key,value,approved)VALUES($1,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1",one['version'])
+        await db.execute('INSERT INTO private_approvals(version)VALUES($1) ON CONFLICT DO NOTHING',one['version'])
+        denied=await http.get('/')
+        assert denied.status_code==404 and denied.text==SIGN_IN and 'etag' not in denied.headers and not lookup.called
+    finally:
+        await db.execute('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state')
+
+async def test_af_thin_fill_clock_race(db,monkeypatch):
+    from datetime import datetime,UTC
+    from server.app import routes
+    from .test_agent_map import request
+    one,_=await fixture(db)
+    await publish(db,await content.update_item(db,ACTOR,'site',one['version'],dict(theme='event-page',timezone='UTC',notice=dict(text='Only before midnight',until='2026-11-01'))))
+    before=datetime(2026,11,1,23,59,30,tzinfo=UTC).timestamp();after=datetime(2026,11,2,tzinfo=UTC).timestamp()
+    monkeypatch.setattr(artifacts.time,'time',lambda:before)
+    cx=routes.Context(db,'',None,site_url=ORIGIN,release='time-race',public_artifacts=False)
+    req=request('/');old_tag=''
+    async def render():
+        nonlocal old_tag
+        r=await routes.handle(req,cx)
+        assert b'Only before midnight' in r.body
+        old_tag=r.headers['etag'];monkeypatch.setattr(artifacts.time,'time',lambda:after)
+        return r
+    async def refresh(): return await routes.handle(req,cx)
+    r=await artifacts.respond(db,req,ORIGIN,'time-race',render,refresh=refresh)
+    await agent_traffic.settle(db)
+    assert r.status_code==200 and b'Only before midnight' not in r.body and r.headers['etag']!=old_tag and await count(db)==0

@@ -20,8 +20,10 @@ facts2(category,ident,value) AS (SELECT 'theme',name,json_array(version,sha256) 
  UNION ALL SELECT 'media',name,json_array(width,height) FROM media WHERE name=(SELECT CASE WHEN ${LOCAL_HERO_SQL} THEN substr(json_extract(data,'$.hero'),8) ELSE NULL END FROM live WHERE item_id='site')
 )
 SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) ORDER BY category,ident`;
-type Row={category:string;ident:string;value:string};
-export type Facts={rows:unknown[];site:Record<string,any>;entries:{id:string;slug:string;stream:string;streamId:string;page:string;external:string;endpoint?:string;tags:string[]}[];hasSite:boolean;themed:boolean;disabled:boolean;private:boolean};
+export type Row={category:string;ident:string;value:string;generation?:string|null;revision?:number|null};
+export const FACTS_STATE_SQL=`SELECT f.*,(SELECT generation FROM public_artifact_state WHERE id=1) AS generation,(SELECT revision FROM public_artifact_state WHERE id=1) AS revision FROM (${FACTS_SQL}) f`;
+
+export type Facts={raw?:string[][];generation?:string|null;revision?:number|null;rows:unknown[];site:Record<string,any>;entries:{id:string;slug:string;stream:string;streamId:string;page:string;external:string;endpoint?:string;tags:string[]}[];hasSite:boolean;themed:boolean;disabled:boolean;private:boolean};
 const ordered=(v:any):any=>Array.isArray(v)?v.map(ordered):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordered(v[k])])):v;
 export function decode(rows:Row[]):Facts{
  const data=rows.map(r=>[r.category,r.ident,JSON.parse(r.value)] as [string,string,any[]]);
@@ -47,7 +49,14 @@ export function viewProof(f:Facts):ApprovedView|undefined {
  if(!live?.[8]||!f.site)return undefined;
  return {siteVersion:live[2],rawSite:live[8],site:approvedSourceData(live[8],rows),siteRows:rows.filter(r=>r[0]==='live'&&r[1]==='site'||['field','embed','streams','private','training'].includes(r[0])),shares:rows.filter(r=>r[0]==='share').map(([,id,v])=>({id,version:v[0],name:v[1]}))};
 }
-export async function facts(db:D1Database){return decode((await db.prepare(FACTS_SQL).all<Row>()).results);}
+export async function facts(db:D1Database,artifacts=false):Promise<Facts>{
+ if(!artifacts)return decode((await db.prepare(FACTS_SQL).all<Row>()).results);
+ let rows:Row[];
+ try{rows=(await db.prepare(FACTS_STATE_SQL).all<Row>()).results;}
+ catch{return decode((await db.prepare(FACTS_SQL).all<Row>()).results);}
+ return {...decode(rows),raw:rows.map(r=>[r.category,r.ident,r.value]),generation:rows[0]?.generation,revision:rows[0]?.revision};
+}
+
 export type Choice={base:string;query:string;type:string;kind:'html'|'markdown'|'map'|'plain'|'xml'|'feed';direct:boolean};
 export function choice(req:Request,f:Facts):Choice|null{
  if(sessionRequest(req)||!['GET','HEAD'].includes(req.method))return null;

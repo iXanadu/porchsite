@@ -2180,7 +2180,7 @@ async def public_paths(req,cx):
 async def fast_public(req,cx):
     if not session_request(req) and public_read.candidate(req.url.path):
         try:
-            f=await public_read.facts(cx.db)
+            f=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db)
             if f['private']:
                 return privacy.blank_response(req)
             c=public_read.choice(req,f)
@@ -2193,7 +2193,7 @@ async def fast_public(req,cx):
                 tag=public_read.tag(f,req,c,cx.release,now)
                 hit=public_read.conditional(req,f,c,tag)
                 if hit is not None:
-                    current=await public_read.facts(cx.db)
+                    current=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db)
                     if current['private']:
                         return privacy.blank_response(req)
                     if current['rows']==f['rows'] and public_time.valid(public_time.plan(f,c,now)):
@@ -2207,10 +2207,16 @@ async def fast_public(req,cx):
                     tag=public_read.tag(f,req,c,cx.release,now)
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
                 cx._read['approved']=public_read.view_proof(f) if tag else None
+                cx._read['artifact']=dict(facts=f,choice=c,tag=tag,now=now)
             cx._read['zone']=f['site'].get('timezone') or 'UTC'
         except ApiError as error:
             return owner_page("Problem",f"<h1>Something's wrong</h1><p>{esc(error.message)}</p>",status=error.status)
-    return await public_artifacts.respond(cx.db,req,cx.site_url,cx.release,lambda:render_public(req,cx)) if cx.public_artifacts else await render_public(req,cx)
+    async def refresh():
+        fresh=copy(cx)
+        if hasattr(fresh,'_read'):
+            delattr(fresh,'_read')
+        return await render_public(req,fresh)
+    return await public_artifacts.respond(cx.db,req,cx.site_url,cx.release,lambda:render_public(req,cx),cx._read.get('artifact'),refresh) if cx.public_artifacts else await render_public(req,cx)
 
 
 async def render_public(req,cx):

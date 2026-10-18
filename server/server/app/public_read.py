@@ -23,6 +23,8 @@ facts2(category,ident,value) AS (SELECT 'theme',name,json_build_array(version,sh
 )
 SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) AS dependency_facts ORDER BY category COLLATE "C",ident COLLATE "C"'''
 
+FACTS_STATE_SQL = f"SELECT f.*,(SELECT generation FROM public_artifact_state WHERE id=1) AS generation,(SELECT revision FROM public_artifact_state WHERE id=1) AS revision FROM ({FACTS_SQL}) f"
+
 def decode(rows):
     data=[[r['category'],r['ident'],json.loads(r['value'])] for r in rows]
     for kind,ident,value in data:
@@ -63,8 +65,15 @@ def view_proof(f):
         return None
     return dict(site_version=live[2],raw_site=live[8],site=approved_source_data(live[8],rows),site_rows=[r for r in rows if (r[0]=='live' and r[1]=='site') or r[0] in ('field','embed','streams','private','training')],shares=[dict(item_id=ident,version=v[0],name=v[1]) for kind,ident,v in rows if kind=='share'])
 
-async def facts(db):
-    return decode(await db.fetch(FACTS_SQL))
+async def facts(db, artifacts=False):
+    if not artifacts:
+        return decode(await db.fetch(FACTS_SQL))
+    try:
+        rows=await db.fetch(FACTS_STATE_SQL)
+    except Exception:
+        return decode(await db.fetch(FACTS_SQL))
+    return {**decode(rows),'raw':[[r['category'],r['ident'],r['value']] for r in rows],'generation':rows[0].get('generation') if rows else None,'revision':rows[0].get('revision') if rows else None}
+
 
 def checked_query(req,base):
     try:
