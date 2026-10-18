@@ -38,13 +38,20 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    still all over 10 ms. Largest shares: checking and decoding site data
    25%, building the page 15%, memory clean-up 10%. A 500-entry
    event-heavy site costs about 57 ms. Cuts to measure, every check kept:
-   - **PERF-7a** OPEN: the decode repeats scans, sorting and conversions
-     within one already-validated read; do each once.
+   - **PERF-7a** HELD (failed): the decode repeats scans and copies
+     within one read. The scans and sorts are small and fixed-size; not
+     copying already-ordered lists (branch 8513d21) made 500-entry sites
+     8-12 ms SLOWER. Not shipped; do not retry without a new design.
    - **PERF-7b** OPEN: on event-heavy pages, building each event's display
      data dominates; reuse per-request presentation where the inputs are
      identical.
    - **PERF-7c** OPEN: the database result wrapping allocates more than
      needed; audit before changing.
+- **PERF-8** OPEN: hosted "not changed" (304) replies on porchsite.dev
+  measured about 2.5-4 ms higher per request after 2026.10.18-2fa1d88
+  (about 8-9 ms vs 5 ms), steady across requests, with database work
+  unchanged. A local warm comparison found no difference. A back-to-back
+  hosted A/B against 05970b3 decides whether it is real.
 3. **PERF-4b** HELD: the cost of storing a page on a first visit when
    PERF-4 is on (about 8 ms locally). Reusing the bytes already built
    (branch c596b06, all checks pass) saved only about 0.4 ms, mixed. Since
