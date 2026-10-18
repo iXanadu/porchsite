@@ -13,6 +13,9 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
-1. Agent access to private sites (A, B and C accepted; merging with PERF-1).
-2. PERF-2 (lazy entry Markdown) and PERF-3 (image sizing off GET): the
+1. PERF-2 (lazy entry Markdown) and PERF-3 (image sizing off GET): the
    remaining CPU on a first page render.
+2. AG-6: owner review pages give a signed-in agent the same light
+   versions, protected like any other private data (the last part of
+   agent access to private sites; keys, read tools and private pages
+   over HTTP shipped).
