@@ -90,6 +90,12 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **PAR-1-C3** OPEN: the OAuth endpoints' CORS differs by edition. The
+  Cloudflare edition (the SDK's helper) sends no CORS headers without an
+  Origin and reflects a supplied Origin; the server edition always sends
+  `Access-Control-Allow-Origin: *`. The spec doesn't say which is right.
+  Pin one rule in the spec (metadata, token, registration), make both
+  match, and check it on the wire. Found 2026-10-18 in PAR-1-C2 acceptance.
 - **PAR-1-C2** OPEN: the server edition's OAuth protocol preflight still
   explicitly sets Content-Length zero on 204 (metadata, token and client
   registration endpoints). Remove it and prove actual HTTP omission in
