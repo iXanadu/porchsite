@@ -61,12 +61,15 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    750 a day). Find what scales with entries on the ordinary read path and
    cut it, measured under GATE-2. Until then, prepared copies are a
    small-site setting.
-   PERF-9a (trigger-maintained change counter, specs 84df93e + 0413180,
-   both reviews passed) HELD 2026-10-18: locally a trigger's write raises
-   D1's meta.changes, so every earlier release, the rollback target
-   included, would report a false version conflict after a successful
-   save. A hosted D1 probe decides; if hosted counts trigger rows too, the
-   trigger design is not viable on the Cloudflare edition as specified.
+   PERF-9a IN-PROGRESS: the exact items dependency trigger preserves
+   strict update counts on older runtimes. Full current suites, paired
+   privacy mutations and expanded row measurements pass; ordinary reads
+   on the 200-entry fixture fall to 1,304/1,303/875, with matching
+   conditionals identical for copies ON/OFF. Approvals and imports write
+   more, and stale copy validators read more; both costs require the
+   visible release justification. Actual installer atomicity across all
+   deployment paths, latest-release compatibility, CPU and independent
+   acceptance remain required before release.
 
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
@@ -105,11 +108,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
-- **PERF-9a-VALIDATION** BLOCKED: conditional witness parity and retargeted
-  privacy controls pass the full suites before integration. Revalidate the
-  combined current tree and remeasure against the newest published archive;
-  installer atomicity, CPU and independent acceptance remain required.
-  Do not release on the earlier source or row records alone.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
