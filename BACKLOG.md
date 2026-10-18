@@ -90,7 +90,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PAR-1-C1** OPEN: the server edition sends `Content-Length: 0` on the
+- **PAR-1-C1** IN-PROGRESS: the server edition sends `Content-Length: 0` on the
   /mcp OPTIONS 204; the HTTP standard (RFC 9110 §8.6) says a 204 must not
   carry Content-Length. The Cloudflare edition's runtime strips it. The
   preflight constant and the shared fixture set 0 explicitly, which hid the
