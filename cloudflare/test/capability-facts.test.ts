@@ -5,6 +5,7 @@ import * as keys from '../src/keys';
 import * as read from '../src/read-keys';
 import type {Env} from '../src/env';
 import facts from '../../spec/fixtures/capability-facts.json';
+import costs from '../../spec/fixtures/cost-facts.json';
 import contract from '../../server/tests/app/cloudflare_tools.json';
 const e=env as unknown as Env,db=e.DB,origin='https://site.example';
 const ctx={waitUntil(){},passThroughOnException(){}} as unknown as ExecutionContext;
@@ -23,7 +24,7 @@ it.each([false,true])('ai5 exact bounded prefix is the sole writer catalog delta
  const {token}=await keys.create(db,'Fixture');const init=(await rpc(token,'initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}},fallback)).result;
  expect(init.instructions).toBe(facts.previous_instructions);
  const tools=(await rpc(token,'tools/list',{},fallback)).result.tools;
- const prefix=facts.prefix+'\n\n';expect(new TextEncoder().encode(prefix).length).toBe(facts.prefix_bytes);expect(facts.prefix_bytes).toBeLessThanOrEqual(facts.max_prefix_bytes);
+ const original=facts.prefix+'\n\n';expect(new TextEncoder().encode(original).length).toBe(facts.prefix_bytes);const prefix=original+costs.text+'\n\n';expect(new TextEncoder().encode(costs.text).length).toBe(costs.text_bytes);expect(new TextEncoder().encode(prefix).length).toBe(costs.combined_prefix_bytes);expect(costs.combined_prefix_bytes-facts.prefix_bytes).toBe(costs.catalog_delta_bytes);expect(costs.combined_prefix_bytes).toBeLessThanOrEqual(facts.max_prefix_bytes);
  const theme=tools.find((t:any)=>t.name==='theme_list');expect(theme.description).toBe(prefix+facts.previous_description);
  expect(tools.filter((t:any)=>t.description.includes(facts.prefix))).toHaveLength(1);
  theme.description=facts.previous_description;expect(await hash({instructions:init.instructions,tools})).toBe(facts.previous_catalog_sha256);

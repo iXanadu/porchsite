@@ -1,3 +1,4 @@
+import {dailyOwnerAuthorized,optionalD1} from './daily-limit';
 import {plan as timePlan,valid as timeValid} from './public-time';
 import * as ownerReview from './owner-review';
 import {markdownDocument} from './agent-markdown';
@@ -135,7 +136,7 @@ function safeNext(next: string | null): string {
 }
 
 async function requireOwner(req: Request, env: Env): Promise<Response | null> {
-  if (await owner.signedIn(env.DB, req)) return null;
+  if (await owner.signedIn(env.DB, req)) {dailyOwnerAuthorized();return null;}
   if (await owner.readerSignedIn(env.DB, req)) return new Response(null,{status:303,headers:{Location:"/"}});
   const u = new URL(req.url);
   if (!(await owner.hasOwner(env.DB))) return Response.redirect(`${u.origin}/setup`, 303);
@@ -1236,7 +1237,7 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   env={...env};
   const access = await privacy.access(env.DB,req);
   readStates.set(env,{access});
-  if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
+  if(access.isPrivate)await optionalD1(()=>publicArtifacts.clear(env.DB)).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
   const agent=access.isPrivate&&access.gated&&new URL(req.url).pathname!=='/robots.txt'?await privateAgent.respond(env.DB,req,(r,g)=>renderPrivateAgent(r,env,g)):null;
@@ -1251,7 +1252,7 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
-  if(!access.isPrivate&&!readStates.get(env)?.responseHit&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
+  if(!access.isPrivate&&!readStates.get(env)?.responseHit&&agentTraffic.countable(req,res)){const work=optionalD1(async()=>agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC'))).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }

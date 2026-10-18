@@ -1,3 +1,4 @@
+import {dailyRequest,optionalD1} from './daily-limit';
 import {withPreviewRequest,skipPublicPreparation} from './preview-auth';
 /**
  * The Worker. OAuthProvider owns the OAuth protocol endpoints and guards
@@ -47,7 +48,7 @@ function provider(origin: string): OAuthProvider<Env> {
 }
 
 export default {
-  fetch(req:Request,env:Env,ctx:ExecutionContext){const u=new URL(req.url);return u.pathname==='/mcp'?withPreviewRequest(req,env,()=>fetchRequest(req,env,ctx,u)):fetchRequest(req,env,ctx,u);},
+  fetch(req:Request,env:Env,ctx:ExecutionContext){return dailyRequest(req,env.DB,db=>{env={...env,DB:db};const u=new URL(req.url);return u.pathname==='/mcp'?withPreviewRequest(req,env,()=>fetchRequest(req,env,ctx,u)):fetchRequest(req,env,ctx,u);});},
 } satisfies ExportedHandler<Env & { SITE_URL?: string }>;
 async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx: ExecutionContext,u:URL) {
     // One address per site: a passkey works only where it was made, so
@@ -95,7 +96,7 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
     }
     // The OAuth library validates tokens; this resource owns refusal headers.
     if (u.pathname === "/mcp" && res.status === 401) res = mcpRefusal(origin, !!bearer, undefined, res);
-    if(!skipPublicPreparation()&&req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
+    if(!skipPublicPreparation()&&req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(optionalD1(()=>preparePublic(env)).catch(()=>{}));
     if(u.pathname==='/mcp'&&bearer?.startsWith(readKeys.PREFIX)){
       res=new Response(res.body,res);res.headers.set('Cache-Control','private, no-store, no-transform');
     }

@@ -91,6 +91,15 @@ function check(file, version) {
   }
   const before = tools(prev.release.split("-")[1]);
   const now = tools(null);
+  // A cached description matters even when no tool name changed.
+  let previousCatalog;
+  try { previousCatalog = execFileSync("git", ["show", `${prev.release.split("-")[1]}:server/tests/app/cloudflare_tools.json`], {encoding:"utf8",stdio:["ignore","pipe","ignore"]}); } catch { /* Older archives predate the paired contract. */ }
+  if (previousCatalog !== undefined) {
+    const currentCatalog = readFileSync("../server/tests/app/cloudflare_tools.json", "utf8");
+    if (JSON.stringify(JSON.parse(previousCatalog)) !== JSON.stringify(JSON.parse(currentCatalog)) && !entry.reconnect) {
+      fail(`${version}: tool discovery changed since ${prev.release}: set reconnect to true`);
+    }
+  }
   if (JSON.stringify(before) !== JSON.stringify(now) && !entry.reconnect) {
     const gone = before.filter((t) => !now.includes(t));
     const come = now.filter((t) => !before.includes(t));
