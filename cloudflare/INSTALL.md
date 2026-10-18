@@ -25,7 +25,7 @@ Before any Cloudflare API call, say this to your person:
 >
 > - Workers and D1 on the free plan have no usage bill. If your sites get more visits in a day than it allows (shared across all your sites on that account; how many visits depends on the site and other account use), they show errors until midnight UTC; nothing is charged.
 > - Cloudflare's Workers paid plan removes those daily usage limits, but bills for what's used with no way to set a spending cap.
-> - You can also run Porchsite on your own server for a flat fee.
+> - You can also run Porchsite on your own server for a flat fee, about $5 a month for a small server.
 >
 > I won't upgrade your plan, add payment or turn on a paid feature unless you ask me to, and I'll ask you separately first.
 
