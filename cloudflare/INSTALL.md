@@ -149,12 +149,34 @@ Keep `result.id` as `KV`. Already exists? List them
 
 ## 5. Setup code
 
-Make a random code of at least 16 letters and digits. Call it `CODE`. Your
-person never types it: in step 8 you send them a link with it inside, and
-they claim the site from that link. Don't put it anywhere but
-step 6 and your message in step 8. If you must keep it in a file meanwhile,
-delete the file once your person has claimed the site, and delete any file
-you built for step 6's upload too: it contains the code.
+First query `SELECT count(*) AS n FROM owner` through the database query
+endpoint from step 3. If it is not zero, stop: this site is already claimed;
+send its owner to sign-in. Never reset a claimed site's owner or passkeys.
+
+Generate 24 cryptographically random bytes and encode them as unpadded
+base64url. Keep this plaintext `CODE` only in memory until step 8; never
+put it in SQL, a shell command, a deployment binding, an audit note or a log.
+Hash its UTF-8 bytes with SHA-256, then encode the digest as unpadded
+base64url (43 characters). Call that `HASH`. Use the same hash scheme as the
+installer; do not hash the base64-decoded code or store the plaintext.
+
+Set `CREATED` to the current UTC ISO timestamp and `EXPIRES` to 24 hours
+later. At `POST /accounts/ACCOUNT/d1/database/DB/query`, send this
+parameterized batch, replacing only the parameter values:
+
+```json
+{"batch":[
+  {"sql":"DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"},
+  {"sql":"INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)","params":["HASH","CREATED","EXPIRES"]}
+]}
+```
+
+Require success and `result[1].meta.changes` equal to 1; otherwise stop.
+The batch refuses to issue after a concurrent claim. It replaces previous
+stored links without changing an existing owner or a legacy setup secret.
+If a link is lost or expires before claim, repeat this step for a fresh link.
+The old link and any registration started with it then stop working.
+There is no setup secret to create or delete for this new installation.
 
 ## 6. Upload the site
 
@@ -169,13 +191,17 @@ two parts:
     "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
     "bindings": [
       {"type": "d1", "name": "DB", "id": "DB"},
-      {"type": "kv_namespace", "name": "OAUTH_KV", "namespace_id": "KV"},
-      {"type": "secret_text", "name": "SETUP_CODE", "text": "CODE"}
+      {"type": "kv_namespace", "name": "OAUTH_KV", "namespace_id": "KV"}
     ],
-    "observability": {"enabled": true}
+    "observability": {"enabled": true, "redact_query_string": true}
   }
   ```
-  with your `DB`, `KV` and `CODE` values in place of the quoted names.
+  with your `DB` and `KV` values in place of the quoted names.
+  Keep `redact_query_string` at the observability root as shown: it strips
+  request queries from Workers logs/traces. Do not assume it sanitizes
+  Logpush, Tail Workers, third-party traces or previously retained logs.
+  Existing deployments adopt this through their normal approved update;
+  do not change an existing account's logging settings silently.
   For a known stable site address, also include the plain-text binding
   `{"type":"plain_text","name":"SITE_URL","text":"https://example.com"}`,
   using that site's actual canonical origin with no path. Account subdomain
@@ -325,24 +351,18 @@ token (or to choose on Cloudflare's consent screen), and wait.
 
 ## 8. Your person claims it
 
-Send your person the link `https://…/setup?code=CODE` and tell them: "Your
+Send your person the link `https://…/setup#code=CODE` and tell them: "Your
 site is ready. Open this link, add your name, and tap Create my passkey. That
 passkey is how you approve what I write." The page fills the code in; they
 need no terminal and no code to type. Wait until they say it's done. (If the
-link is lost, the same link works until the site is claimed; once it is
+link is lost, the same link works until it expires or the site is claimed; once it is
 claimed, the link only leads to sign-in.)
 
-Then, at once:
-
-**Delete the SETUP_CODE secret.** `DELETE
-/accounts/ACCOUNT/workers/scripts/NAME/secrets/SETUP_CODE`. The site no
-longer needs it. It stays stored until you delete it: uploading again
-without the `SETUP_CODE` binding does **not** remove it. Deleting it is the
-only way.
-
-Check: `GET /accounts/ACCOUNT/workers/scripts/NAME/secrets` lists the
-script's secrets (`result[].name`). None may be named `SETUP_CODE`. If one
-is, delete it again and check again.
+The link expires at `EXPIRES` (24 hours after step 5). Until the first
+successful claim it can restart passkey registration; it is not spent just
+by opening the page. A fresh link replaces it. After claim, every setup code
+is inert and stored code rows are deleted atomically with the claim. Forget
+`CODE`; this installation created no Worker secret to remove.
 
 ## 9. Connect yourself
 
@@ -405,15 +425,13 @@ for approval. Nothing changes for visitors until they approve.
 
 - `GET https://…/` answers with the site.
 - `GET https://…/setup` after step 8 sends you to `/login`: the site is claimed.
-- `GET /accounts/ACCOUNT/workers/scripts/NAME/secrets` lists no secret named
-  `SETUP_CODE` (step 8).
 - Nothing you write shows on the site until your person approves it at
   `https://…/review`. That is on purpose.
 - **What changed on the account.** `GET
   /accounts/ACCOUNT/audit_logs?since=START&per_page=100` lists every change
   since you began (each with `when`, `action.type`, `resource.type` and
   `resource.id`, and `actor`). Match each one to a step you ran: the
-  database, the sign-in storage, the upload, the secret and its removal,
+  database and its setup-code row, the sign-in storage, the upload and
   the address. Tell your person, in plain words, about any change you
   didn't make; don't undo it yourself. The log can lag by 15 minutes or
   more, so a step of yours missing from it isn't a problem; what matters is

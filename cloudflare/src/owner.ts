@@ -97,18 +97,22 @@ const CODE_EXPIRED = "This setup link has expired. If the site was installed at 
 export async function issueSetupCode(db: D1Database, code: string, hours: number = SETUP_HOURS): Promise<string> {
   if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
   const expiresAt = iso(new Date(Date.now() + hours * 3600_000));
-  await db.batch([
-    db.prepare("DELETE FROM setup_codes"),
-    db.prepare("INSERT INTO setup_codes (code_hash, created_at, expires_at) VALUES (?, ?, ?)").bind(await hash(code), iso(now()), expiresAt),
+  const result = await db.batch([
+    db.prepare("DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"),
+    db.prepare("INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)").bind(await hash(code), iso(now()), expiresAt),
   ]);
+  if (!result[1].meta.changes) throw new ApiError(409, "claimed", "This site already has an owner.");
   return expiresAt;
 }
 
 /** Refuse if the code a claim started with has stopped working since. */
-async function stillWorks(db: D1Database, setupCode: string | undefined, via: string): Promise<void> {
+async function stillWorks(db: D1Database, setupCode: string | undefined, via: string, envHash?: string): Promise<void> {
   if (via === "env") {
     if (!setupCode || setupCode.length < 8) throw new ApiError(503, "no_setup_code", NO_SETUP_CODE);
+    // Old challenges contain only via=env; new ones also bind its identity.
+    if (envHash !== undefined && !sameDigest(await hash(setupCode), envHash)) throw new ApiError(403, "code_expired", CODE_EXPIRED);
   } else if (!(await db.prepare("SELECT 1 FROM setup_codes WHERE code_hash = ? AND expires_at > ?").bind(via, iso(now())).first())) {
+    if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
     throw new ApiError(403, "code_expired", CODE_EXPIRED);
   }
 }
@@ -117,13 +121,18 @@ async function stillWorks(db: D1Database, setupCode: string | undefined, via: st
  * Which setup code this is: "env" (the deploy-time one) or the hash of a
  * stored one. Refuses a wrong, replaced or expired code.
  */
+function sameDigest(a: string, b: string): boolean {
+  const canonical = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
+  return canonical.test(a) && canonical.test(b) && same(a, b);
+}
+
 async function checkSetupCode(db: D1Database, setupCode: string | undefined, given: string): Promise<string> {
   const code = given.trim();
   const envOk = !!setupCode && setupCode.length >= 8;
   if (envOk && same(code, setupCode!)) return "env";
   const h = await hash(code);
-  const row = await db.prepare("SELECT expires_at FROM setup_codes WHERE code_hash = ?").bind(h).first<{ expires_at: string }>();
-  if (row && row.expires_at > iso(now())) return h;
+  const row = await db.prepare("SELECT code_hash, expires_at FROM setup_codes WHERE code_hash = ?").bind(h).first<{ code_hash: string; expires_at: string }>();
+  if (row && sameDigest(h, row.code_hash) && row.expires_at > iso(now())) return h;
   if (row) throw new ApiError(403, "code_expired", CODE_EXPIRED);
   if (!envOk && !(await db.prepare("SELECT 1 FROM setup_codes WHERE expires_at > ?").bind(iso(now())).first())) {
     throw new ApiError(503, "no_setup_code", NO_SETUP_CODE);
@@ -169,15 +178,14 @@ export async function setupOptions(db: D1Database, req: Request, setupCode: stri
     attestationType: "none",
     authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
-  const setCookieHeader = await saveChallenge(db, JSON.stringify({ challenge: options.challenge, name, handle: b64url(userHandle), via }), "setup");
+  const setCookieHeader = await saveChallenge(db, JSON.stringify({ challenge: options.challenge, name, handle: b64url(userHandle), via, ...(via === "env" ? {env_hash: await hash(setupCode!)} : {}) }), "setup");
   return { options, setCookieHeader };
 }
 
 export async function setupVerify(db: D1Database, req: Request, setupCode: string | undefined, response: any) {
   const saved = JSON.parse(await takeChallenge(db, req, "setup"));
   if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
-  // The code must still work: a newer setup link, or an expiry, ends it.
-  await stillWorks(db, setupCode, saved.via ?? "env");
+  await stillWorks(db, setupCode, saved.via ?? "env", saved.env_hash);
   const { rpID, origin } = rp(req);
   const result = await registration({
     response,
@@ -187,17 +195,31 @@ export async function setupVerify(db: D1Database, req: Request, setupCode: strin
     requireUserVerification: true,
   });
   const cred = result.registrationInfo.credential;
+  // Verify the identity after WebAuthn; stored credentials are also checked
+  // in the atomic owner insert below, after any concurrent replacement.
+  const via = saved.via ?? "env";
+  await stillWorks(db, setupCode, via, saved.env_hash);
   const at = iso(now());
   // INSERT into owner fails on a second claim (id is fixed at 1), so two
   // racing claims can't both win.
-  await db.batch([
-    db.prepare("INSERT INTO owner (id, name, user_handle, created_at) VALUES (1, ?, ?, ?)").bind(saved.name || "", saved.handle, at),
-    db
-      .prepare("INSERT INTO passkeys (id, public_key, counter, transports, created_at) VALUES (?, ?, ?, ?, ?)")
-      .bind(cred.id, cred.publicKey, cred.counter, JSON.stringify(cred.transports ?? []), at),
-    // Claimed: every setup code is done.
-    db.prepare("DELETE FROM setup_codes"),
-  ]);
+  const stored = via !== "env";
+  const condition = stored ? "EXISTS (SELECT 1 FROM setup_codes WHERE code_hash = ? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now'))" : "1";
+  let resultRows: D1Result[];
+  try {
+    resultRows = await db.batch([
+      db.prepare(`INSERT INTO owner (id, name, user_handle, created_at) SELECT 1, ?, ?, ? WHERE ${condition}`).bind(saved.name || "", saved.handle, at, ...(stored ? [via] : [])),
+      db.prepare("INSERT INTO passkeys (id, public_key, counter, transports, created_at) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM owner WHERE id = 1 AND user_handle = ?)")
+        .bind(cred.id, cred.publicKey, cred.counter, JSON.stringify(cred.transports ?? []), at, saved.handle),
+      db.prepare("DELETE FROM setup_codes WHERE EXISTS (SELECT 1 FROM owner WHERE id = 1 AND user_handle = ?)").bind(saved.handle),
+    ]);
+  } catch (error) {
+    if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
+    throw error;
+  }
+  if (!resultRows[0].meta.changes) {
+    if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
+    throw new ApiError(403, "code_expired", CODE_EXPIRED);
+  }
   return startSession(db, cred.id, 0);
 }
 

@@ -121,7 +121,7 @@ async def test_cli_setup_link_prints_a_link_then_refuses_once_claimed(
     assert run("--hours", "2") == 0
     out = capsys.readouterr()
     link = out.out.strip()
-    assert link.startswith("https://example.com/setup?code=")
+    assert link.startswith("https://example.com/setup#code=")
     first = link.split("code=")[1]
     assert "until" in out.err
     expires = await db.fetchval("SELECT expires_at FROM setup_codes")
@@ -138,3 +138,30 @@ async def test_cli_setup_link_prints_a_link_then_refuses_once_claimed(
     await claimed(db)
     assert run() == 1
     assert "already claimed; use a passkey link from the owner's page" in capsys.readouterr().err
+
+async def test_fragment_stays_out_of_server_html_and_clears_before_submit(db,http):
+    await unclaimed(db)
+    code='fragment-only-credential'
+    r=await http.get('/setup#code='+code)
+    assert r.status_code==200 and code not in r.text
+    assert '<form method="post" action="/setup/options">' in r.text
+    assert 'new URLSearchParams(location.hash.slice(1))' in r.text
+    assert 'input.value = code.trim().slice(0, 200)' in r.text
+    assert r.text.index('history.replaceState')<r.text.index('await fetch(')
+    assert 'innerHTML' not in r.text
+    assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
+    old=await http.get('/setup?code=legacy-code')
+    assert 'value="legacy-code"' in old.text
+
+async def test_next_release_query_cutoff_is_fixed_and_credential_free():
+    from server.app.routes import setup_query_refusal
+    from starlette.requests import Request
+    import json
+    for query in ['code=','code=credential-canary','code=%3Cscript%3E','code=a&code=b']:
+        req=Request({'type':'http','method':'GET','scheme':'https','server':('site.example',443),'path':'/setup','query_string':query.encode(),'headers':[]})
+        r=setup_query_refusal(req,False)
+        assert r.status_code==400
+        assert json.loads(r.body)=={'error':'code_in_url','message':'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'}
+        assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
+        assert 'location' not in r.headers
+        assert setup_query_refusal(req) is None

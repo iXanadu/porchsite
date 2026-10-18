@@ -53,6 +53,15 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    proving freshness with a narrower query, needs a spec and security
    review; revisit only if an owner enables PERF-4.
 
+3. **GATE-2** OPEN (owner, 2026-10-18): every release states database
+   rows read per request (cold page, plain page, "not changed"), before and
+   after, with prepared copies off and on, plus the free daily-limit impact
+   ("about N page views a day per account"). The release build measures it
+   on the sample sites and refuses a release whose rows went up unless its
+   changelog entry carries a written reason. Owner approves any increase
+   before it is deployed. Decision briefings state reads, writes and limit
+   impact, not only speed.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
@@ -78,13 +87,18 @@ Found building a single-property listing site on the live release.
   shapes proven byte-identical to the SDK on a shared fixture set. The
   server edition has no fast path; add one only if its timings call for it.
   No reconnect.
+  Step 1 HELD 2026-10-18: logging every /mcp request (branch 8ee4c0e,
+  spec ea33d1e, both reviews passed) measured +0.13 ms on refusals and
+  inconclusive elsewhere, so it fails its no-measurable-cost gate. Next
+  design: log only requests that take the slower SDK path, which is the
+  data we need, so the fast path pays nothing. Refused requests are then
+  not logged at all; if a later design logs them, it keeps the single
+  access_refused code (no hint whether a key was sent) and needs a new
+  security review.
 - **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-9** OPEN: The install guide's setup code as a hashed row in the
-  site's database (as the installer does), not a Worker secret: no secret
-  to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
   guide (by app), and Grok Bot's Porchsite template, public and linked.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
@@ -140,6 +154,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **RA-9Q** OPEN (next product release after RA-9): end the one-release
+  setup query compatibility window. Unclaimed `/setup` requests with any
+  `code` query return `400 code_in_url`, with fixed credential-free text,
+  no-store and no-referrer. Claimed sites keep the redirect to login.
+  New links already use fragments; keep archived release tests untouched.
 - **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
   removes from setup links, so the code reaches request logs. Move it to
   the URL fragment the same way (one release still accepting the query,
@@ -157,6 +176,13 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
+- **AF-7T-C2** OPEN: hosted on porchsite.dev (2026-10-18, e88698b),
+  prepared copies cut a cold page to about 6.5 ms CPU (typical; it was
+  about 21 ms), the first time under the free plan's 10 ms. But database
+  rows read per cold page rose from 218 to 484, and "not changed" replies
+  from 176 to 240. On the free plan's 5 million rows a day per account,
+  that is about 10,000 cold page views a day instead of about 23,000.
+  Cut the rows a copy's freshness check reads, keeping every check.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
