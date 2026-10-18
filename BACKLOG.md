@@ -130,8 +130,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   State-once transport and grouped-counts proof implemented 2026-10-18:
   12 fresh pairs gave HIT median/p95 10.27/13.55 ms and clean-MISS increment
   median/p95 3.74/7.70 ms. Facts JSON fell 65,178 to 46,427 bytes, but total
-  HIT rows read only 3,480 to 3,472. Independent replication must include
-  the OFF control's +0.46 ms paired median; no target is declared met.
+  HIT rows read only 3,480 to 3,472. The independent replication found the
+  default-off path unchanged (+0.04 ms, inside noise, identical SQL); no
+  target is declared met. A HIT still reads about 3,470 rows: that, not
+  rendering, is what stands between it and 10 ms.
 - **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
