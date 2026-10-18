@@ -28,8 +28,8 @@
       "import_items": 3
     },
     "instrumentation": {
-      "product_sha256": "da9b8ec5ee78d0b664e6b15fc3cd0a0141f5022af3854ecab23c385a304c38b1",
-      "derived_sha256": "7938a7e80e2db42b88cbcf36a99f653c4735c53ea4405ab36fb1a7643cd2a5f3",
+      "product_sha256": "889b7a94f640c80196115a5382c551928ac50296befbccd440c35156200cd122",
+      "derived_sha256": "0888e08e251bb7643a8ae4595e2f890149604069bf88a5385c3f30939d61babd",
       "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
       "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
       "mapping": [
@@ -40,22 +40,22 @@
           "to": "./native-workers.mjs"
         },
         {
-          "start": 1999963,
-          "end": 1999981,
+          "start": 1999983,
+          "end": 2000001,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         },
         {
-          "start": 2025727,
-          "end": 2025745,
+          "start": 2025747,
+          "end": 2025765,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         }
       ]
     },
-    "inputs_sha256": "a637a1f1b1a13de0e028e6b3cf2f915dd53d2a656a299d8ca54eece6498b4750",
-    "source_sha256": "d92b9cfa58f601966bb644fc6c07f08285661c8652e3bb4336594b00e0b0bcc5",
-    "artifact_sha256": "da9b8ec5ee78d0b664e6b15fc3cd0a0141f5022af3854ecab23c385a304c38b1",
+    "inputs_sha256": "926fd21d382877e369349b5032bfc69d29eeb62bbce9ec6e182b3881461d1906",
+    "source_sha256": "60b791a60ebe345b7a724be6140f2e130e3378021f8544637fcb40d1b239e247",
+    "artifact_sha256": "889b7a94f640c80196115a5382c551928ac50296befbccd440c35156200cd122",
     "budgets": {
       "rows_read": 5000000,
       "rows_written": 100000,
@@ -79,15 +79,15 @@
     ],
     "cells": {
       "catalogue-page/off/cold": {
-        "rows_read": 149,
+        "rows_read": 110,
         "rows_written": 2
       },
       "catalogue-page/off/plain": {
-        "rows_read": 148,
+        "rows_read": 109,
         "rows_written": 0
       },
       "catalogue-page/off/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "catalogue-page/on/cold": {
@@ -99,19 +99,19 @@
         "rows_written": 0
       },
       "catalogue-page/on/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "event-page/off/cold": {
-        "rows_read": 149,
+        "rows_read": 110,
         "rows_written": 2
       },
       "event-page/off/plain": {
-        "rows_read": 148,
+        "rows_read": 109,
         "rows_written": 0
       },
       "event-page/off/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "event-page/on/cold": {
@@ -123,19 +123,19 @@
         "rows_written": 0
       },
       "event-page/on/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "group-page/off/cold": {
-        "rows_read": 141,
+        "rows_read": 104,
         "rows_written": 2
       },
       "group-page/off/plain": {
-        "rows_read": 140,
+        "rows_read": 103,
         "rows_written": 0
       },
       "group-page/off/not_modified": {
-        "rows_read": 112,
+        "rows_read": 75,
         "rows_written": 0
       },
       "group-page/on/cold": {
@@ -147,19 +147,19 @@
         "rows_written": 0
       },
       "group-page/on/not_modified": {
-        "rows_read": 112,
+        "rows_read": 75,
         "rows_written": 0
       },
       "link-page/off/cold": {
-        "rows_read": 85,
+        "rows_read": 62,
         "rows_written": 2
       },
       "link-page/off/plain": {
-        "rows_read": 84,
+        "rows_read": 61,
         "rows_written": 0
       },
       "link-page/off/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "link-page/on/cold": {
@@ -171,19 +171,19 @@
         "rows_written": 0
       },
       "link-page/on/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "listing-page/off/cold": {
-        "rows_read": 69,
+        "rows_read": 50,
         "rows_written": 2
       },
       "listing-page/off/plain": {
-        "rows_read": 68,
+        "rows_read": 49,
         "rows_written": 0
       },
       "listing-page/off/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "listing-page/on/cold": {
@@ -195,19 +195,19 @@
         "rows_written": 0
       },
       "listing-page/on/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "local-business/off/cold": {
-        "rows_read": 181,
+        "rows_read": 134,
         "rows_written": 2
       },
       "local-business/off/plain": {
-        "rows_read": 180,
+        "rows_read": 133,
         "rows_written": 0
       },
       "local-business/off/not_modified": {
-        "rows_read": 142,
+        "rows_read": 95,
         "rows_written": 0
       },
       "local-business/on/cold": {
@@ -219,19 +219,19 @@
         "rows_written": 0
       },
       "local-business/on/not_modified": {
-        "rows_read": 142,
+        "rows_read": 95,
         "rows_written": 0
       },
       "menu-page/off/cold": {
-        "rows_read": 197,
+        "rows_read": 146,
         "rows_written": 2
       },
       "menu-page/off/plain": {
-        "rows_read": 196,
+        "rows_read": 145,
         "rows_written": 0
       },
       "menu-page/off/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "menu-page/on/cold": {
@@ -243,19 +243,19 @@
         "rows_written": 0
       },
       "menu-page/on/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "personal-homepage/off/cold": {
-        "rows_read": 77,
+        "rows_read": 56,
         "rows_written": 2
       },
       "personal-homepage/off/plain": {
-        "rows_read": 76,
+        "rows_read": 55,
         "rows_written": 0
       },
       "personal-homepage/off/not_modified": {
-        "rows_read": 64,
+        "rows_read": 43,
         "rows_written": 0
       },
       "personal-homepage/on/cold": {
@@ -267,19 +267,19 @@
         "rows_written": 0
       },
       "personal-homepage/on/not_modified": {
-        "rows_read": 64,
+        "rows_read": 43,
         "rows_written": 0
       },
       "playbook/off/cold": {
-        "rows_read": 69,
+        "rows_read": 50,
         "rows_written": 2
       },
       "playbook/off/plain": {
-        "rows_read": 68,
+        "rows_read": 49,
         "rows_written": 0
       },
       "playbook/off/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "playbook/on/cold": {
@@ -291,19 +291,19 @@
         "rows_written": 0
       },
       "playbook/on/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "portfolio/off/cold": {
-        "rows_read": 197,
+        "rows_read": 146,
         "rows_written": 2
       },
       "portfolio/off/plain": {
-        "rows_read": 196,
+        "rows_read": 145,
         "rows_written": 0
       },
       "portfolio/off/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "portfolio/on/cold": {
@@ -315,19 +315,19 @@
         "rows_written": 0
       },
       "portfolio/on/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "product-page/off/cold": {
-        "rows_read": 85,
+        "rows_read": 62,
         "rows_written": 2
       },
       "product-page/off/plain": {
-        "rows_read": 84,
+        "rows_read": 61,
         "rows_written": 0
       },
       "product-page/off/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "product-page/on/cold": {
@@ -339,19 +339,19 @@
         "rows_written": 0
       },
       "product-page/on/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "services-page/off/cold": {
-        "rows_read": 165,
+        "rows_read": 122,
         "rows_written": 2
       },
       "services-page/off/plain": {
-        "rows_read": 164,
+        "rows_read": 121,
         "rows_written": 0
       },
       "services-page/off/not_modified": {
-        "rows_read": 130,
+        "rows_read": 87,
         "rows_written": 0
       },
       "services-page/on/cold": {
@@ -363,19 +363,19 @@
         "rows_written": 0
       },
       "services-page/on/not_modified": {
-        "rows_read": 130,
+        "rows_read": 87,
         "rows_written": 0
       },
       "services-page-200/off/cold": {
-        "rows_read": 1741,
+        "rows_read": 1304,
         "rows_written": 2
       },
       "services-page-200/off/plain": {
-        "rows_read": 1740,
+        "rows_read": 1303,
         "rows_written": 0
       },
       "services-page-200/off/not_modified": {
-        "rows_read": 1312,
+        "rows_read": 875,
         "rows_written": 0
       },
       "services-page-200/on/cold": {
@@ -387,7 +387,7 @@
         "rows_written": 0
       },
       "services-page-200/on/not_modified": {
-        "rows_read": 1312,
+        "rows_read": 875,
         "rows_written": 0
       },
       "operations/off/collect/first_day": {
@@ -431,34 +431,34 @@
         "rows_written": 1
       },
       "operations/off/approval/one": {
-        "rows_read": 70,
-        "rows_written": 6
+        "rows_read": 71,
+        "rows_written": 7
       },
       "operations/on/approval/one": {
-        "rows_read": 11872,
-        "rows_written": 31
+        "rows_read": 11873,
+        "rows_written": 32
       },
       "operations/off/approval/200": {
-        "rows_read": 2060,
-        "rows_written": 404
+        "rows_read": 2260,
+        "rows_written": 604
       },
       "operations/on/approval/200": {
-        "rows_read": 1118089,
-        "rows_written": 609
+        "rows_read": 1118289,
+        "rows_written": 809
       },
       "operations/off/import/file": {
-        "rows_read": 194,
-        "rows_written": 18
+        "rows_read": 201,
+        "rows_written": 22
       },
       "operations/on/import/file": {
-        "rows_read": 9393,
-        "rows_written": 39
+        "rows_read": 9400,
+        "rows_written": 43
       }
     }
   },
   "rebased_previous": {
-    "release": "2026.10.18-1edfb4a",
-    "artifact_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
+    "release": "2026.10.18-f343361",
+    "artifact_sha256": "37c5269d9dd2383d66628e21a9187ee541000f5297e10e9d4ff371bc2bf228db",
     "original_record": {
       "format": 2,
       "operations": {
@@ -486,8 +486,8 @@
         "import_items": 3
       },
       "instrumentation": {
-        "product_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
-        "derived_sha256": "c2bdb211a36d4f046816c396355ed001ad0a6368d2700ae8aa1adeaa9a951461",
+        "product_sha256": "54388bb3d297f44e06f998483643a869168f43d288ec455f8971ff1985e921bf",
+        "derived_sha256": "5a616884b8c161b013d41f2317c9a803861a4cbc5e80c9a930dcde55113bd8a7",
         "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
         "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
         "mapping": [
@@ -498,22 +498,22 @@
             "to": "./native-workers.mjs"
           },
           {
-            "start": 1999957,
-            "end": 1999975,
+            "start": 1999977,
+            "end": 1999995,
             "from": "cloudflare:workers",
             "to": "./native-workers.mjs"
           },
           {
-            "start": 2024384,
-            "end": 2024402,
+            "start": 2024404,
+            "end": 2024422,
             "from": "cloudflare:workers",
             "to": "./native-workers.mjs"
           }
         ]
       },
-      "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
-      "source_sha256": "a39c2eee8927ee8f10a169f3bf6dce13308095126f8238c2348878901f26e629",
-      "artifact_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
+      "inputs_sha256": "9548e17bc74d321b398de0b62a7b980f01104c15cc47784ca7413b6821fcaa5d",
+      "source_sha256": "c33d374b5d9850c5ce48f2db26cacff660b6f2d44bb072d7507c8c10501c1cbc",
+      "artifact_sha256": "54388bb3d297f44e06f998483643a869168f43d288ec455f8971ff1985e921bf",
       "budgets": {
         "rows_read": 5000000,
         "rows_written": 100000,
@@ -537,15 +537,15 @@
       ],
       "cells": {
         "catalogue-page/off/cold": {
-          "rows_read": 149,
+          "rows_read": 110,
           "rows_written": 2
         },
         "catalogue-page/off/plain": {
-          "rows_read": 148,
+          "rows_read": 109,
           "rows_written": 0
         },
         "catalogue-page/off/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "catalogue-page/on/cold": {
@@ -557,19 +557,19 @@
           "rows_written": 0
         },
         "catalogue-page/on/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "event-page/off/cold": {
-          "rows_read": 149,
+          "rows_read": 110,
           "rows_written": 2
         },
         "event-page/off/plain": {
-          "rows_read": 148,
+          "rows_read": 109,
           "rows_written": 0
         },
         "event-page/off/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "event-page/on/cold": {
@@ -581,19 +581,19 @@
           "rows_written": 0
         },
         "event-page/on/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "group-page/off/cold": {
-          "rows_read": 141,
+          "rows_read": 104,
           "rows_written": 2
         },
         "group-page/off/plain": {
-          "rows_read": 140,
+          "rows_read": 103,
           "rows_written": 0
         },
         "group-page/off/not_modified": {
-          "rows_read": 112,
+          "rows_read": 75,
           "rows_written": 0
         },
         "group-page/on/cold": {
@@ -605,19 +605,19 @@
           "rows_written": 0
         },
         "group-page/on/not_modified": {
-          "rows_read": 112,
+          "rows_read": 75,
           "rows_written": 0
         },
         "link-page/off/cold": {
-          "rows_read": 85,
+          "rows_read": 62,
           "rows_written": 2
         },
         "link-page/off/plain": {
-          "rows_read": 84,
+          "rows_read": 61,
           "rows_written": 0
         },
         "link-page/off/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "link-page/on/cold": {
@@ -629,19 +629,19 @@
           "rows_written": 0
         },
         "link-page/on/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "listing-page/off/cold": {
-          "rows_read": 69,
+          "rows_read": 50,
           "rows_written": 2
         },
         "listing-page/off/plain": {
-          "rows_read": 68,
+          "rows_read": 49,
           "rows_written": 0
         },
         "listing-page/off/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "listing-page/on/cold": {
@@ -653,19 +653,19 @@
           "rows_written": 0
         },
         "listing-page/on/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "local-business/off/cold": {
-          "rows_read": 181,
+          "rows_read": 134,
           "rows_written": 2
         },
         "local-business/off/plain": {
-          "rows_read": 180,
+          "rows_read": 133,
           "rows_written": 0
         },
         "local-business/off/not_modified": {
-          "rows_read": 142,
+          "rows_read": 95,
           "rows_written": 0
         },
         "local-business/on/cold": {
@@ -677,19 +677,19 @@
           "rows_written": 0
         },
         "local-business/on/not_modified": {
-          "rows_read": 142,
+          "rows_read": 95,
           "rows_written": 0
         },
         "menu-page/off/cold": {
-          "rows_read": 197,
+          "rows_read": 146,
           "rows_written": 2
         },
         "menu-page/off/plain": {
-          "rows_read": 196,
+          "rows_read": 145,
           "rows_written": 0
         },
         "menu-page/off/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "menu-page/on/cold": {
@@ -701,19 +701,19 @@
           "rows_written": 0
         },
         "menu-page/on/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "personal-homepage/off/cold": {
-          "rows_read": 77,
+          "rows_read": 56,
           "rows_written": 2
         },
         "personal-homepage/off/plain": {
-          "rows_read": 76,
+          "rows_read": 55,
           "rows_written": 0
         },
         "personal-homepage/off/not_modified": {
-          "rows_read": 64,
+          "rows_read": 43,
           "rows_written": 0
         },
         "personal-homepage/on/cold": {
@@ -725,19 +725,19 @@
           "rows_written": 0
         },
         "personal-homepage/on/not_modified": {
-          "rows_read": 64,
+          "rows_read": 43,
           "rows_written": 0
         },
         "playbook/off/cold": {
-          "rows_read": 69,
+          "rows_read": 50,
           "rows_written": 2
         },
         "playbook/off/plain": {
-          "rows_read": 68,
+          "rows_read": 49,
           "rows_written": 0
         },
         "playbook/off/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "playbook/on/cold": {
@@ -749,19 +749,19 @@
           "rows_written": 0
         },
         "playbook/on/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "portfolio/off/cold": {
-          "rows_read": 197,
+          "rows_read": 146,
           "rows_written": 2
         },
         "portfolio/off/plain": {
-          "rows_read": 196,
+          "rows_read": 145,
           "rows_written": 0
         },
         "portfolio/off/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "portfolio/on/cold": {
@@ -773,19 +773,19 @@
           "rows_written": 0
         },
         "portfolio/on/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "product-page/off/cold": {
-          "rows_read": 85,
+          "rows_read": 62,
           "rows_written": 2
         },
         "product-page/off/plain": {
-          "rows_read": 84,
+          "rows_read": 61,
           "rows_written": 0
         },
         "product-page/off/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "product-page/on/cold": {
@@ -797,19 +797,19 @@
           "rows_written": 0
         },
         "product-page/on/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "services-page/off/cold": {
-          "rows_read": 165,
+          "rows_read": 122,
           "rows_written": 2
         },
         "services-page/off/plain": {
-          "rows_read": 164,
+          "rows_read": 121,
           "rows_written": 0
         },
         "services-page/off/not_modified": {
-          "rows_read": 130,
+          "rows_read": 87,
           "rows_written": 0
         },
         "services-page/on/cold": {
@@ -821,19 +821,19 @@
           "rows_written": 0
         },
         "services-page/on/not_modified": {
-          "rows_read": 130,
+          "rows_read": 87,
           "rows_written": 0
         },
         "services-page-200/off/cold": {
-          "rows_read": 1741,
+          "rows_read": 1304,
           "rows_written": 2
         },
         "services-page-200/off/plain": {
-          "rows_read": 1740,
+          "rows_read": 1303,
           "rows_written": 0
         },
         "services-page-200/off/not_modified": {
-          "rows_read": 1312,
+          "rows_read": 875,
           "rows_written": 0
         },
         "services-page-200/on/cold": {
@@ -845,7 +845,7 @@
           "rows_written": 0
         },
         "services-page-200/on/not_modified": {
-          "rows_read": 1312,
+          "rows_read": 875,
           "rows_written": 0
         },
         "operations/off/collect/first_day": {
@@ -881,28 +881,28 @@
           "rows_written": 1
         },
         "operations/off/approval/one": {
-          "rows_read": 70,
-          "rows_written": 6
+          "rows_read": 71,
+          "rows_written": 7
         },
         "operations/on/approval/one": {
-          "rows_read": 11872,
-          "rows_written": 31
+          "rows_read": 11873,
+          "rows_written": 32
         },
         "operations/off/approval/200": {
-          "rows_read": 2060,
-          "rows_written": 404
+          "rows_read": 2260,
+          "rows_written": 604
         },
         "operations/on/approval/200": {
-          "rows_read": 1118089,
-          "rows_written": 609
+          "rows_read": 1118289,
+          "rows_written": 809
         },
         "operations/off/import/file": {
-          "rows_read": 194,
-          "rows_written": 18
+          "rows_read": 201,
+          "rows_written": 22
         },
         "operations/on/import/file": {
-          "rows_read": 9393,
-          "rows_written": 39
+          "rows_read": 9400,
+          "rows_written": 43
         }
       }
     },
@@ -934,8 +934,8 @@
         "import_items": 3
       },
       "instrumentation": {
-        "product_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
-        "derived_sha256": "eb4e6d0b3667ab555535c7f3de79cd8f8a8eb782d46b821baabb8e40fa9eb112",
+        "product_sha256": "37c5269d9dd2383d66628e21a9187ee541000f5297e10e9d4ff371bc2bf228db",
+        "derived_sha256": "6d243b26c63060d707034083494ad3cd58f920c13384ce32ac6ca7d89cb46654",
         "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
         "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
         "mapping": [
@@ -946,22 +946,22 @@
             "to": "./native-workers.mjs"
           },
           {
-            "start": 1999963,
-            "end": 1999981,
+            "start": 1999983,
+            "end": 2000001,
             "from": "cloudflare:workers",
             "to": "./native-workers.mjs"
           },
           {
-            "start": 2024390,
-            "end": 2024408,
+            "start": 2024410,
+            "end": 2024428,
             "from": "cloudflare:workers",
             "to": "./native-workers.mjs"
           }
         ]
       },
-      "inputs_sha256": "a637a1f1b1a13de0e028e6b3cf2f915dd53d2a656a299d8ca54eece6498b4750",
-      "source_sha256": "97e3b746349e51c7079c3c67a11e3b6e4725e39b81ea5974430c360d7401b40d",
-      "artifact_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
+      "inputs_sha256": "926fd21d382877e369349b5032bfc69d29eeb62bbce9ec6e182b3881461d1906",
+      "source_sha256": "9b547629f9e7477e8f2b0e4267e96cbccd961b4a3153ab261e268f89373d749f",
+      "artifact_sha256": "37c5269d9dd2383d66628e21a9187ee541000f5297e10e9d4ff371bc2bf228db",
       "budgets": {
         "rows_read": 5000000,
         "rows_written": 100000,
@@ -985,15 +985,15 @@
       ],
       "cells": {
         "catalogue-page/off/cold": {
-          "rows_read": 149,
+          "rows_read": 110,
           "rows_written": 2
         },
         "catalogue-page/off/plain": {
-          "rows_read": 148,
+          "rows_read": 109,
           "rows_written": 0
         },
         "catalogue-page/off/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "catalogue-page/on/cold": {
@@ -1005,19 +1005,19 @@
           "rows_written": 0
         },
         "catalogue-page/on/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "event-page/off/cold": {
-          "rows_read": 149,
+          "rows_read": 110,
           "rows_written": 2
         },
         "event-page/off/plain": {
-          "rows_read": 148,
+          "rows_read": 109,
           "rows_written": 0
         },
         "event-page/off/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "event-page/on/cold": {
@@ -1029,19 +1029,19 @@
           "rows_written": 0
         },
         "event-page/on/not_modified": {
-          "rows_read": 118,
+          "rows_read": 79,
           "rows_written": 0
         },
         "group-page/off/cold": {
-          "rows_read": 141,
+          "rows_read": 104,
           "rows_written": 2
         },
         "group-page/off/plain": {
-          "rows_read": 140,
+          "rows_read": 103,
           "rows_written": 0
         },
         "group-page/off/not_modified": {
-          "rows_read": 112,
+          "rows_read": 75,
           "rows_written": 0
         },
         "group-page/on/cold": {
@@ -1053,19 +1053,19 @@
           "rows_written": 0
         },
         "group-page/on/not_modified": {
-          "rows_read": 112,
+          "rows_read": 75,
           "rows_written": 0
         },
         "link-page/off/cold": {
-          "rows_read": 85,
+          "rows_read": 62,
           "rows_written": 2
         },
         "link-page/off/plain": {
-          "rows_read": 84,
+          "rows_read": 61,
           "rows_written": 0
         },
         "link-page/off/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "link-page/on/cold": {
@@ -1077,19 +1077,19 @@
           "rows_written": 0
         },
         "link-page/on/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "listing-page/off/cold": {
-          "rows_read": 69,
+          "rows_read": 50,
           "rows_written": 2
         },
         "listing-page/off/plain": {
-          "rows_read": 68,
+          "rows_read": 49,
           "rows_written": 0
         },
         "listing-page/off/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "listing-page/on/cold": {
@@ -1101,19 +1101,19 @@
           "rows_written": 0
         },
         "listing-page/on/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "local-business/off/cold": {
-          "rows_read": 181,
+          "rows_read": 134,
           "rows_written": 2
         },
         "local-business/off/plain": {
-          "rows_read": 180,
+          "rows_read": 133,
           "rows_written": 0
         },
         "local-business/off/not_modified": {
-          "rows_read": 142,
+          "rows_read": 95,
           "rows_written": 0
         },
         "local-business/on/cold": {
@@ -1125,19 +1125,19 @@
           "rows_written": 0
         },
         "local-business/on/not_modified": {
-          "rows_read": 142,
+          "rows_read": 95,
           "rows_written": 0
         },
         "menu-page/off/cold": {
-          "rows_read": 197,
+          "rows_read": 146,
           "rows_written": 2
         },
         "menu-page/off/plain": {
-          "rows_read": 196,
+          "rows_read": 145,
           "rows_written": 0
         },
         "menu-page/off/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "menu-page/on/cold": {
@@ -1149,19 +1149,19 @@
           "rows_written": 0
         },
         "menu-page/on/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "personal-homepage/off/cold": {
-          "rows_read": 77,
+          "rows_read": 56,
           "rows_written": 2
         },
         "personal-homepage/off/plain": {
-          "rows_read": 76,
+          "rows_read": 55,
           "rows_written": 0
         },
         "personal-homepage/off/not_modified": {
-          "rows_read": 64,
+          "rows_read": 43,
           "rows_written": 0
         },
         "personal-homepage/on/cold": {
@@ -1173,19 +1173,19 @@
           "rows_written": 0
         },
         "personal-homepage/on/not_modified": {
-          "rows_read": 64,
+          "rows_read": 43,
           "rows_written": 0
         },
         "playbook/off/cold": {
-          "rows_read": 69,
+          "rows_read": 50,
           "rows_written": 2
         },
         "playbook/off/plain": {
-          "rows_read": 68,
+          "rows_read": 49,
           "rows_written": 0
         },
         "playbook/off/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "playbook/on/cold": {
@@ -1197,19 +1197,19 @@
           "rows_written": 0
         },
         "playbook/on/not_modified": {
-          "rows_read": 58,
+          "rows_read": 39,
           "rows_written": 0
         },
         "portfolio/off/cold": {
-          "rows_read": 197,
+          "rows_read": 146,
           "rows_written": 2
         },
         "portfolio/off/plain": {
-          "rows_read": 196,
+          "rows_read": 145,
           "rows_written": 0
         },
         "portfolio/off/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "portfolio/on/cold": {
@@ -1221,19 +1221,19 @@
           "rows_written": 0
         },
         "portfolio/on/not_modified": {
-          "rows_read": 154,
+          "rows_read": 103,
           "rows_written": 0
         },
         "product-page/off/cold": {
-          "rows_read": 85,
+          "rows_read": 62,
           "rows_written": 2
         },
         "product-page/off/plain": {
-          "rows_read": 84,
+          "rows_read": 61,
           "rows_written": 0
         },
         "product-page/off/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "product-page/on/cold": {
@@ -1245,19 +1245,19 @@
           "rows_written": 0
         },
         "product-page/on/not_modified": {
-          "rows_read": 70,
+          "rows_read": 47,
           "rows_written": 0
         },
         "services-page/off/cold": {
-          "rows_read": 165,
+          "rows_read": 122,
           "rows_written": 2
         },
         "services-page/off/plain": {
-          "rows_read": 164,
+          "rows_read": 121,
           "rows_written": 0
         },
         "services-page/off/not_modified": {
-          "rows_read": 130,
+          "rows_read": 87,
           "rows_written": 0
         },
         "services-page/on/cold": {
@@ -1269,19 +1269,19 @@
           "rows_written": 0
         },
         "services-page/on/not_modified": {
-          "rows_read": 130,
+          "rows_read": 87,
           "rows_written": 0
         },
         "services-page-200/off/cold": {
-          "rows_read": 1741,
+          "rows_read": 1304,
           "rows_written": 2
         },
         "services-page-200/off/plain": {
-          "rows_read": 1740,
+          "rows_read": 1303,
           "rows_written": 0
         },
         "services-page-200/off/not_modified": {
-          "rows_read": 1312,
+          "rows_read": 875,
           "rows_written": 0
         },
         "services-page-200/on/cold": {
@@ -1293,7 +1293,7 @@
           "rows_written": 0
         },
         "services-page-200/on/not_modified": {
-          "rows_read": 1312,
+          "rows_read": 875,
           "rows_written": 0
         },
         "operations/off/collect/first_day": {
@@ -1337,28 +1337,28 @@
           "rows_written": 1
         },
         "operations/off/approval/one": {
-          "rows_read": 70,
-          "rows_written": 6
+          "rows_read": 71,
+          "rows_written": 7
         },
         "operations/on/approval/one": {
-          "rows_read": 11872,
-          "rows_written": 31
+          "rows_read": 11873,
+          "rows_written": 32
         },
         "operations/off/approval/200": {
-          "rows_read": 2060,
-          "rows_written": 404
+          "rows_read": 2260,
+          "rows_written": 604
         },
         "operations/on/approval/200": {
-          "rows_read": 1118089,
-          "rows_written": 609
+          "rows_read": 1118289,
+          "rows_written": 809
         },
         "operations/off/import/file": {
-          "rows_read": 194,
-          "rows_written": 18
+          "rows_read": 201,
+          "rows_written": 22
         },
         "operations/on/import/file": {
-          "rows_read": 9393,
-          "rows_written": 39
+          "rows_read": 9400,
+          "rows_written": 43
         }
       }
     }

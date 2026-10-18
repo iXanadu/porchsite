@@ -76,8 +76,9 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    9/5, existing-counter repeat 7/4 to 11/5 (reads/writes, copies off/on).
    Cold capped reconciliation costs 406/1 versus 206/0; steady capped
    requests use 7/0 without scanning pageviews. The owner approved the
-   added write cost. Prior candidate safety, compatibility and row gates
-   pass; the merged witness-release tree still needs fresh combined gates.
+   added write cost. Prior candidate safety and compatibility gates pass; merged full suites
+   and the fresh witness-release row comparison pass, with final combined
+   compatibility and paired safety checks pending.
    HELD on CPU: the original cohort crossed the declared diagnostic bar;
    the one authorized confirmation retains HOLD in three of four classes
    (all intervals span zero). The owner approved shipping with a hosted
