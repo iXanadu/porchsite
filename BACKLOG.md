@@ -111,6 +111,11 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    copy (index.md), cards run together as long link labels. Each card
    should be its own list item: `- [Title](url): summary`.
 
+13. **PERF-12** OPEN (Hand, hosted on porchsite.dev, a55686c, 2026-10-18):
+   cold page GET CPU averages 10.2-10.4 ms (p50 8-8.5), at the free
+   plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
+   cut the largest cost.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
