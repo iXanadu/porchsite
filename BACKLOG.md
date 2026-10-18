@@ -87,13 +87,18 @@ Found building a single-property listing site on the live release.
   shapes proven byte-identical to the SDK on a shared fixture set. The
   server edition has no fast path; add one only if its timings call for it.
   No reconnect.
+  Step 1 HELD 2026-10-18: logging every /mcp request (branch 8ee4c0e,
+  spec ea33d1e, both reviews passed) measured +0.13 ms on refusals and
+  inconclusive elsewhere, so it fails its no-measurable-cost gate. Next
+  design: log only requests that take the slower SDK path, which is the
+  data we need, so the fast path pays nothing. Refused requests are then
+  not logged at all; if a later design logs them, it keeps the single
+  access_refused code (no hint whether a key was sent) and needs a new
+  security review.
 - **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-9** OPEN: The install guide's setup code as a hashed row in the
-  site's database (as the installer does), not a Worker secret: no secret
-  to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
   guide (by app), and Grok Bot's Porchsite template, public and linked.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
@@ -149,6 +154,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **RA-9Q** OPEN (next product release after RA-9): end the one-release
+  setup query compatibility window. Unclaimed `/setup` requests with any
+  `code` query return `400 code_in_url`, with fixed credential-free text,
+  no-store and no-referrer. Claimed sites keep the redirect to login.
+  New links already use fragments; keep archived release tests untouched.
 - **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
   removes from setup links, so the code reaches request logs. Move it to
   the URL fragment the same way (one release still accepting the query,

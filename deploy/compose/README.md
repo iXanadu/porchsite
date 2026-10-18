@@ -303,3 +303,12 @@ code creates a version with only the settings that code understands;
 newer code does not silently restore omitted settings into that version.
 This does not change the private-site minimum release or its rollback
 warning.
+
+Setup links are credentials. New links use `/setup#code=...`, so the code
+is not sent in the HTTP request URL; it is submitted only in the setup
+POST body. The supported server image disables Uvicorn access logging and
+the supplied Caddy configuration keeps access logging off. If you enable
+reverse-proxy access logs or other host tracing, omit or redact query
+strings before issuing a setup link: old query links are accepted only in
+the introducing release, and recovery links still use query strings.
+Application code cannot erase logs retained by your hosting operator.

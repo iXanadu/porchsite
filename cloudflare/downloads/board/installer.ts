@@ -145,10 +145,16 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   const claimed = ((await q("SELECT count(*) AS n FROM owner")) as { n: number }[])[0]?.n > 0;
   let code = "";
   if (!claimed) {
-    code = random(24);
-    const expires = new Date(Date.now() + 24 * 3600_000).toISOString();
-    await q("DELETE FROM setup_codes");
-    await q("INSERT INTO setup_codes (code_hash, created_at, expires_at) VALUES (?, ?, ?)", [await codeHash(code), new Date().toISOString(), expires]);
+    code = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const issuedAt = new Date();
+    const created = issuedAt.toISOString();
+    const expires = new Date(issuedAt.getTime() + 24 * 3600_000).toISOString();
+    const issued = await cf(token, "POST", `${A}/d1/database/${dbId}/query`, {batch: [
+      {sql: "DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"},
+      {sql: "INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)", params: [await codeHash(code), created, expires]},
+    ]});
+    if (!issued.a.success) throw new Stop("The database could not issue a setup link.");
+    if (!issued.a.result?.[1]?.meta?.changes) throw new Stop("This site already has an owner. Open its sign-in page instead.");
   }
 
   // Establish the known install origin before uploading new-site metadata.
@@ -181,7 +187,7 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
             { type: "kv_namespace", name: "OAUTH_KV", namespace_id: kvId },
             ...(!claimed ? [{ type: "plain_text", name: "SITE_URL", text: url }] : []),
           ],
-          observability: { enabled: true },
+          observability: { enabled: true, redact_query_string: true },
         }),
       ],
       { type: "application/json" },
@@ -197,7 +203,7 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   if (!on.a.success) throw new Stop(`Cloudflare wouldn't turn the address on: ${why(on.a)}.`);
   steps.push(`Address: ${url} (a new address can take a minute or two to answer).`);
 
-  return { ok: true, url, setup: code ? `${url}/setup?code=${code}` : "", claimed, release: latest.version, steps };
+  return { ok: true, url, setup: code ? `${url}/setup#code=${code}` : "", claimed, release: latest.version, steps };
 }
 
 const PAGE = (nonce: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
