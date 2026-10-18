@@ -15,7 +15,7 @@ from typing import Any
 from . import mustache
 from .date_memo import date_memo
 from .lazy_values import lazy_values
-from .blocks import contact_view, event_view, hours_view, notice_view
+from .blocks import EventMemo, contact_view, event_view, hours_view, notice_view
 from .embeds import deferred_body, finish_embeds, heading_bodies
 from .jsutil import day_of, S, long_date, short_date, string, trim, u16key, u16slice, url_host
 from .site import SiteView
@@ -92,7 +92,7 @@ def streams(site: Data) -> list[Data]:
     return out
 
 
-Ctx = tuple[str, datetime, dict[str, str] | None]
+Ctx = tuple[str, datetime, dict[str, str] | None] | tuple[str, datetime, dict[str, str] | None, dict]
 
 
 def _ctx(v: SiteView) -> Ctx:
@@ -100,6 +100,7 @@ def _ctx(v: SiteView) -> Ctx:
         string(v.site.get("timezone") or "UTC"),
         v.now or datetime.now(UTC),
         strings_of(v.site),
+        {},  # Request-owned event memo, allocated only when an event is projected.
     )
 
 
@@ -109,14 +110,19 @@ def _date(value, long, memo):
 
 
 def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None, bodies=None, dates=None) -> Data:
-    tz, now, words = ctx or ("UTC", datetime.now(UTC), None)
+    tz, now, words = ctx[:3] if ctx else ("UTC", datetime.now(UTC), None)
+    events = None
+    if e.get("event") and ctx and len(ctx) == 4:
+        if "events" not in ctx[3]:
+            ctx[3]["events"] = EventMemo()
+        events = ctx[3]["events"]
     tags = _q(e.get("tags"), [])
     stats = _q(e.get("stats"), [])
     dates = date_memo() if dates is None else dates
     stamp = e["date"]
     return deferred_body(lazy_values({
         **e,
-        "event": event_view(e.get("event"), tz, now, words or STRINGS),
+        "event": event_view(e.get("event"), tz, now, words or STRINGS, events),
         "url": e.get("url"),
         "anchor": anchor,
         "has_body": bool(e.get("body")) and not e.get("external_url"),
@@ -158,7 +164,7 @@ def card(c: Data, aside: bool = False) -> Data:
 
 def site_words(v: SiteView, release: str, origin: str) -> Data:
     s = v.site
-    tz, now, words = _ctx(v)
+    tz, now, words = _ctx(v)[:3]
     buttons = _q(s.get("buttons"), [])
     return {
         **s,

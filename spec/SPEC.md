@@ -4708,15 +4708,14 @@ measurements.
 
 ### PERF-7b: request-local event formatting components
 
-The Worker may reuse pure event-display components within one render context:
+Both editions may reuse pure event-display components within one render context:
 fixed-format en-US date strings keyed by their exact date, format and timezone;
 clock strings keyed by the complete input; and local wall-clock records keyed
 by timezone and exact reference timestamp. No rendered value or wall-clock
 record enters a module-global or cross-request cache. Event-date timezone/DST
 semantics, all event fields, escaping, heading policy, embed capabilities and
-check markers remain unchanged. This is a Worker-only performance detail;
-both editions return identical bytes. All final access, facts, existence and
-clock checks still run. Event-detail fields and schedules remain eager.
+check markers remain unchanged. Both editions return identical bytes. All final
+access, facts, existence and clock checks still run. Event-detail fields and schedules remain eager.
 
 ### PERF-4: optional public response reuse
 
