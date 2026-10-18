@@ -157,6 +157,13 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
+- **AF-7T-C2** OPEN: hosted on porchsite.dev (2026-10-18, e88698b),
+  prepared copies cut a cold page to about 6.5 ms CPU (typical; it was
+  about 21 ms), the first time under the free plan's 10 ms. But database
+  rows read per cold page rose from 218 to 484, and "not changed" replies
+  from 176 to 240. On the free plan's 5 million rows a day per account,
+  that is about 10,000 cold page views a day instead of about 23,000.
+  Cut the rows a copy's freshness check reads, keeping every check.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
