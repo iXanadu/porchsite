@@ -671,6 +671,248 @@ No migration is needed. Older runtimes ignore the presentation selector and
 retain their ordinary Readers page and existing recovery semantics. Returning
 to the new runtime must not restore any removed reader, session or invite.
 
+### S4-7: authenticated assistant preview copies
+
+Both editions add `preview_read` to the existing authenticated writer MCP
+catalog. It returns a mechanical read-only copy of one proposed page before
+owner approval. It does not publish, approve, change item readiness or confer
+owner authority. The separate S4-7B
+openable browser preview remains deferred and requires explicit owner consent
+per writer connection. This section designs no URL transport or capability.
+
+#### Principal and catalog
+
+Only an already valid drafting OAuth connection or drafting `psk_` key can
+call this tool. Apply live writer authorization before approval/path/content
+lookup and recheck the same principal, expiry, revocation and recovery epoch
+immediately before returning the result. Never trust transport-cached props
+as a grant. If a writer's continued authority cannot be verified, refuse;
+missing auth storage or a failed lookup is not a public fallback.
+
+Published-read keys retain exactly their five-tool catalog and cannot invoke
+`preview_read` directly or through aliases, batch calls or a writer guide.
+Reader/owner cookies are not MCP credentials; an owner session's existing
+AG-6 review copies remain a separate owner-only feature. No reader session,
+invalid Authorization or combined cookie/key authority can substitute for a
+writer principal. Private sites permit the same existing writer MCP authority,
+not a new anonymous/private HTTP exception. Validate authority before revealing
+whether an approval, draft, path or theme exists, including after a race.
+
+The writer catalog gains one tool, so the introducing release MUST set
+`reconnect: true` and update the writer guide/reuse revision. Apps caching the
+catalog need reconnect/refresh to discover it. The restricted published guide,
+its five tools and published-read semantics stay unchanged. Older runtimes
+may return unknown-tool; never fall back by temporarily publishing, sharing
+owner cookies, enabling a public route or sending another principal's token.
+
+#### Input and output
+
+Input (unknown fields refused, both editions):
+
+- `approval_id`: required, 8..40 characters from `[A-Za-z0-9_-]`.
+- `path`: optional, defaults `/`, at most 2,048 UTF-8 bytes; an exact canonical
+  same-site absolute page path, not an absolute URL, scheme-relative URL,
+  query, fragment, percent-encoded alias, dot segment or `.md` alias.
+- `format`: `markdown` (default) or `html`. MCP selects the representation;
+  this adds no HTTP Accept mode or owner-route query flag.
+
+One successful tool result is the normal JSON MCP envelope containing
+`approval_id`, canonical `path`, `content_type` (`text/markdown; charset=utf-8`
+or `text/html; charset=utf-8`), `notice: "Preview: not published."`, the exact
+selected `items: [{id,version}]` in approval order, `rendered_at` (UTC ISO time)
+and `body`. No preview URL, owner review URL, fetchable resource URI, new token,
+cookie, CSRF, approval action, credential, owner identity or decision control
+is returned. A path/item version is descriptive data, never an access grant.
+Use the same UTF-8 JSON conventions as the shared fixtures in both ports.
+
+The body limit is 256 KiB UTF-8; the entire compact JSON payload is at most
+320 KiB UTF-8. Check the encoded sizes before delivery. Oversize is an error,
+never a truncated document, partial result or attachment/public-store fallback.
+One call renders one page; no recursive crawl, all-pages option, pagination,
+client-specified body limit, arbitrary resource fetch or binary media export.
+Authenticated MCP responses in both editions use
+`Cache-Control: private, no-store, no-transform`, on success and error;
+`content_type` describes the JSON body field, not a new fetchable document.
+Tool annotations are readOnlyHint=true and destructiveHint=false: this phase
+mints no transferable credential and mutates no content or capability state.
+
+#### Approval and pinned closure
+
+Require a still-pending approval whose nonempty item set is entirely pending
+and whose exact selected revisions still match their current items. A decided,
+partly decided, denied, changed or superseded request is refused. Do not drop
+nonpending members and return a different partial proposal. Reuse approval
+semantics for ready entries and staged removals; a preview cannot promote a
+`draft` entry to `ready` or include a draft excluded from that request.
+
+Construct only this approval's exact revisions on top of the currently
+approved baseline, using the same logical extension reconstruction and
+visibility rules as the proposed owner preview. Unrelated staged changes,
+other requests, history, raw private cards/fields, owner-only data and unused
+uploads are not included just because the writer can otherwise inspect them.
+The proposed site/theme, not the current live theme by default, selects the
+page render. A selected deletion removes that item in the proposed view.
+
+Before rendering, capture a complete, request-owned closure sufficient to
+prove the page: approval identity/status/member order and exact versions;
+selected revision data/deleted state/kind/current slug; authoritative live
+baseline rows and their version-specific fields, embed/stream/privacy/training
+extensions and approval flags; selected theme identity/version/digest/content;
+share-card and local-media dependencies consumed by that render; and every
+wall-clock input it consumes. Complete means raw identity/value equality and
+cardinality, not max+count, newest version, a state counter or public dep1 alone.
+AF-7 public facts omit unpublished input and cannot certify this draft closure.
+An unused library row need not invalidate a page that cannot consume it.
+
+Read the render data from that captured closure, not a mixture of fresh
+per-helper reads and captured rows. A missing selected revision/theme/extension
+or unprovable dependency fails closed. Use one pinned server clock for the
+proposed render. AF-7L's renderer-owned time predicates/boundaries apply to the
+proposed inputs, not the public live site's plan: recheck at delivery that its
+state is still valid and the clock did not roll back. An unknown plan must
+not claim a stable draft snapshot; refuse this call. Request Date, timezone,
+Host, user-agent or owner flags do not set the clock or render authority.
+Use the configured canonical `SITE_URL` (Worker) or `PORCHSITE_SITE_URL`
+(server), never Host, X-Forwarded-Host, a caller-supplied origin or external
+URL. It must be a valid HTTPS origin matching the authenticated site; absent,
+invalid or mismatched configuration returns `preview_unavailable`, not a
+request-origin fallback. The local test harness may use its established
+explicit loopback-origin configuration.
+
+Immediately before returning protected bytes, re-observe the complete closure
+and live writer authority. Any change or inability to prove equality returns
+`content_changed` with no body; no optimistic stale response or mixed-clock
+page. This first version does not retry automatically. A new explicit call
+may pin the new approved baseline. "Pinned" is per invocation, not a promise
+that two later calls retain an old baseline. If authentication was revoked,
+the authorization refusal takes precedence over a content-change error.
+No persistent graph, snapshot body or cross-request render/auth cache is added.
+Proposed time plans and template writers remain request-local; they do not
+populate the public plan cache or the shared installed-template parse cache.
+A legacy local hero with missing dimensions may use a captured, read-only
+64 KiB header prefix; an unprovable size refuses rather than decoding pixels,
+backfilling dimensions or returning an invented size.
+
+#### Allowed pages and inert representation
+
+Resolve `path` in that proposed graph: home, a present local ready-entry page,
+an enabled built-in combined archive, or an existing stream/tag archive
+renderable by the selected look. Never resolve owner/review/preview/write,
+setup/login/recover/invite/passkey/upload/MCP/API/media/static paths as pages.
+No public route fallback or outbound redirect/fetch is performed; an absent or
+removed proposed page is `not_found`. Unsupported archive/filter variants are
+refused, not silently shown as home or a different unfiltered page.
+
+Share content-rendering primitives with the proposed owner preview, never its
+wrapper: that wrapper contains owner CSRF, Approve, Ask for changes and owner
+navigation. The tool's fixed label is factual: "Preview: not published."
+It is not an instruction to approve or a claim that a site is public.
+
+Render visitor proposed content, then create an inert structural copy using
+a parsed HTML tree and a shared deterministic serializer. No regex-only
+sanitization. Preserve visible text and semantic headings/paragraphs/lists/
+tables/quotes/code and ordinary containers. Drop EVERY attribute regardless
+of whether it came from owner data, a theme or the engine, except validated
+structural table/list attributes: `rowspan`/`colspan` integers 1..1,000, `scope`
+one of row/col/rowgroup/colgroup, and `start` a signed 32-bit integer. Invalid
+values are omitted, not copied verbatim. In particular, engine-generated
+`href`, `src`, `srcset`, `action`, `formaction`, `poster`, `cite`, `srcdoc`,
+`xlink:href`, id/class/style/event/data and all other attributes are dropped.
+Remove link, base, meta, script (including JSON-LD) and style elements entirely,
+regardless of provenance, as well as comments, SVG/MathML, template/noscript,
+forms/inputs/buttons and executable objects. Active media/player subtrees
+become escaped inert placeholders using the engine's existing visible caption;
+images become escaped image/alt-text placeholders, not fetchable sources.
+Links retain escaped visible text without href/target/download or resource
+credentials. No CSS URL/import, image src/srcset, frame, embed, font, preload,
+network action, script or form survives. The generated HTML document's fixed
+UTF-8/title scaffold and notice are engine-owned, never owner HTML injection.
+A CSP meta tag is not a substitute for this structural removal.
+
+`html` returns that safe inspection document as a JSON string over MCP;
+`markdown` mechanically converts ONLY the stripped inert tree through the
+existing minimal-escape converter, with the same factual notice. Never call
+`markdownDocument` or the owner-preview HTML-to-Markdown path on pre-inert
+theme HTML: it would reconstruct fetchable links/images from attributes.
+Do not invoke `reviewPreview`, `inlineCss`, `ownerSitePage` or a signed-in
+wrapper to obtain the content; use the visitor proposed-content renderer,
+then the inert transform, with no owner session or owner decorations.
+Preserve hostile
+owner text as data under CommonMark/GFM; never turn it into engine instructions
+or executable HTML. The two formats share content, not arbitrary raw markup.
+
+This is an inspection copy, not pixel/interactive identity with the owner
+preview: CSS, photos, external fonts/players, forms and scripts are absent.
+No browser URL or screenshot is promised. Media/path references elsewhere
+retain their existing authorization; this call does not make unpublished or
+private images publicly readable. Do not widen the media live-reference
+rule: an anonymous GET of draft-only `/media/<name>` must still fail exactly
+as before. No `/review/<id>/preview` URL or owner-navigation link survives.
+S4-7B remains open for that separate goal.
+
+#### Storage, errors and compatibility
+
+Successful results are private MCP data. No HTTP preview route, public
+allowlist expansion, ETag/304, canonical/discovery link, map, sitemap, feed,
+analytics visit, UC9 event, AF-7 artifact, Cache API, KV body store, service
+worker copy or static prebuild is created. Render/image-size inspection must
+not write metadata or invalidate public copies. Only the existing inherited
+writer-auth last-used accounting may write; disclose it separately in counts.
+The post-MCP public-copy preparation hook skips preview calls, including
+refusals; inspecting a pending approval never schedules a public fill.
+No content publication, approval freshening write, new schema or migration is
+needed. Requests and returned owner text cannot enable any feature flag.
+
+Use existing MCP error envelopes, no partial success: `invalid` (422) for
+malformed input; `not_found` (404) for absent authorized approval/page;
+`approval_changed` (409) for a nonpending/partial/superseded or stale selected
+request; `content_changed` (409) for a closure/clock race;
+`preview_too_large` (413) for encoded size limits; `preview_unavailable` (409)
+for unsupported/missing render dependencies or an unknown temporal proof.
+Authentication/scope errors retain existing 401/403 behavior and do not reveal
+which resource was sought. Error details contain no draft snippets, tokens,
+internal raw facts or stack traces. Never return a prior cached preview.
+
+Rollback removes the new tool; existing owner previews, drafting, approval
+and published reads still work unchanged. Returning to new code proves current
+facts and current authority, including old-runtime changes/recovery/revoke;
+no prior response marker revives a grant. All cross-edition behavior, caps,
+errors, render transformations and catalog boundaries require paired fixtures.
+
+#### Paired acceptance plan
+
+- `preview_writer_scope`: live OAuth/psk writers on public/private sites;
+  read-key catalog stays exactly five, direct restricted invocation refuses;
+  anonymous/reader/owner-cookie/invalid/combined credentials never reveal drafts.
+- `preview_exact_overlay`: selected additions/edits/removals, site fields and
+  stream/embed/privacy/training versions, changed theme, ready entries and
+  approved context; unrelated pending content/history/private cards/unused
+  uploads excluded. Partial decisions, supersession and stale versions refuse.
+- `preview_paths`: home/local entry/combined/stream/tag archives versus missing,
+  removed/external/resource/owner/protocol paths; aliases, query/fragment,
+  encoded traversal, origin/Host tricks and unknown fields cannot broaden scope.
+- `preview_inert_bytes`: paired all-look and custom-theme fixtures for HTML and
+  Markdown visible text/structure; hostile tags/attributes/comments/CSS URLs,
+  forms/CSRF, images/frames/links/scripts (including engine-generated href/src/
+  srcset/action/link elements) cannot execute, fetch or become an
+  owner action. Body has factual label and no owner controls/secret sentinels;
+  anonymous draft-only media requests remain refused without a preview bypass.
+- `preview_closure_races`: changes in each dependency between capture/render/
+  delivery, no-counter old-runtime edits, approval/partial decision/unpublish,
+  clock boundary/rollback/unknown; no body on failure. Static quiet pages work
+  across an old minute; dynamic plans use the proposed site's own zone/inputs.
+- `preview_auth_races`: stalled render then key revoke, OAuth disconnect/expiry
+  or owner recovery; no response from the prior principal, existing MCP
+  connection grants not cached. Existing owner/reader/public gates unchanged.
+- `preview_bounds_purity`: exact UTF-8 caps including Unicode and large tables,
+  no truncation, no recursive work/network fetch; zero content/media/artifact
+  writes and zero public/agent analytics, inherited auth write counted; no
+  persistent auth/graph/body cache. Actual emitted entry starts on both ports.
+- `preview_rollback_catalog`: actual previous runtime lacks the tool while its
+  old tools work; new runtime after old writes proves current state; writer
+  guide revision/reconnect=true, restricted guide/catalog unchanged. Measure
+  local CPU/D1 for small/large inputs without promising a hosted CPU budget.
+
 ### Owner-approved embeds
 
 This applies identically to both editions. S7 continues to require
@@ -966,6 +1208,7 @@ replacement, so a refresh whose answer was lost can be retried.
 | `item_history(id)` | Every version, who made it, why |
 | `item_rollback(id, to_version, version)` | Stage an earlier version as a new one |
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
+| `preview_read(approval_id, path?, format?)` | Writer-only inert inspection of one pending approval; bounded HTML or Markdown, no publication or browser URL (S4-7) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
 | `image_add(data?, images?)` | Exactly one of `data` (one base64 picture, existing response) or `images` (1–8 base64 pictures). JPEG, PNG or WebP, at most 8 MiB each and 8 MiB decoded in total. Sniff every file and store all or none by content hash. `images` returns `{images: [{image, width, height}, ...], next}` in input order; duplicates repeat in the answer but are stored once. Private until a published item uses it (S7) |
 | `site_check` | Check the proposed site before asking for approval. With no arguments (or `deep: false`), returns only `ok`, `broken` (declared internal links to no page, populated home-page section or stored picture, each with where and why), and `empty_sections`; `ok` is true when `broken` is empty. This quick check does not render pages. `deep: true` also crawls rendered links from home and returns `unreachable`, entries with no path, each `{id, why}`, plus `crawl` if a limit stops it. Deep `ok` requires a complete target proof (including an empty target set) and empty `broken` and `unreachable`. Read-only. Run deep once before approval on a new site or look change; it is heavy and can exceed Cloudflare Free CPU limits on big sites |

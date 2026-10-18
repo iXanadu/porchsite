@@ -1,3 +1,5 @@
+import * as previewRead from './preview-read';
+import {previewContext} from './preview-auth';
 import * as readKeys from "./read-keys";
 import * as publishedRead from "./published-read";
 import { trainingState } from "./site-fields";
@@ -40,6 +42,7 @@ changed for this request; site_check first) -> give the owner the review_url -> 
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
 On a new site, if site_state lists no site item, call item_create with kind: "site" and the site fields (including theme); use item_update only after that item exists.
+preview_read can inspect one still-pending approval as an inert copy over this connection; it is not an openable browser preview.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
 The look: theme_list (built-in looks are ready to use; the catalog has previews) ->
 set the site item's theme -> theme_needs (the art and words that theme wants, and which
@@ -192,6 +195,7 @@ const INPUT_SCHEMAS = {
       })),
   theme_needs: toolSchema(z.object({ name: z.string().optional() })),
   approval_request: toolSchema(z.object({ ids: z.array(z.string()).min(1).max(50), note: z.string().max(1000).default("") })),
+  preview_read: toolSchema(z.object({approval_id:z.string().regex(/^[A-Za-z0-9_-]{8,40}$(?![\s\S])/),path:z.string().max(2048).default('/'),format:z.enum(['markdown','html']).default('markdown')}).strict()),
   approval_status: toolSchema(z.object({ approval_id: z.string().optional() })),
   site_check: toolSchema(z.object({ deep: z.boolean().optional().describe("Optional. Also crawl rendered links; this is a heavy check.") })),
   site_stats: toolSchema(z.object({
@@ -283,9 +287,10 @@ export const TOOL_DEFINITIONS = {
     },
   approval_request: {
       description:
-        "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; there is no preview link for you). Nothing goes live until they approve.",
+        "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; preview_read can inspect its pending proposal here, but grants no browser preview link). Nothing goes live until they approve.",
       inputSchema: INPUT_SCHEMAS.approval_request,
     },
+  preview_read: {description:'Inspect one pending approval as a bounded, inert proposed page over this drafting connection. Defaults to Markdown; optional HTML is a structural copy without CSS, images, scripts, forms or fetchable links. Nothing is published. No browser preview URL or owner authority is granted.',inputSchema:INPUT_SCHEMAS.preview_read,annotations:{readOnlyHint:true,destructiveHint:false}},
   approval_status: {
       description:
         "Look up one approval by approval_id, or omit it for the 10 most recent. Each has review_url, status (pending: something still waits for the owner | decided) and per item: status (pending | published | changes_requested: make the edit in its note, then ask again | denied | superseded: the item changed after you asked, ask again) and note, plus the owner's decision_note.",
@@ -509,6 +514,8 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
         };
       }),
   );
+
+  server.registerTool('preview_read',TOOL_DEFINITIONS.preview_read,async(args)=>run(()=>previewRead.read(db,args,previewContext(toolProps()))));
 
   server.registerTool(
     "approval_status",

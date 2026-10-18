@@ -1,0 +1,17 @@
+[
+  {
+    "name": "links_and_media",
+    "source": "<body><a href=\"https://example.com\" target=\"_blank\">Visible link</a><img src=\"/media/draft.png\" alt=\"Photo\"><iframe src=\"x\"></iframe></body>",
+    "html": "<!doctype html><html><head><meta charset=\"utf-8\"><title>Preview</title></head><body><main><p>Preview: not published.</p>Visible link<span>Image: Photo</span><span>Embedded content.</span></main></body></html>"
+  },
+  {
+    "name": "active_subtrees",
+    "source": "<body><script>bad()</script><link href=\"x\"><style>bad</style><svg><text>bad</text></svg><p class=\"x\" onclick=\"bad()\">Literal text.</p></body>",
+    "html": "<!doctype html><html><head><meta charset=\"utf-8\"><title>Preview</title></head><body><main><p>Preview: not published.</p><p>Literal text.</p></main></body></html>"
+  },
+  {
+    "name": "structural_attributes",
+    "source": "<body><table><tr><th scope=\"col\" colspan=\"2\" id=\"x\">Head</th><td rowspan=\"-1\">Cell</td></tr></table><ol start=\"3\"><li>Item</li></ol></body>",
+    "html": "<!doctype html><html><head><meta charset=\"utf-8\"><title>Preview</title></head><body><main><p>Preview: not published.</p><table><tr><th colspan=\"2\" scope=\"col\">Head</th><td>Cell</td></tr></table><ol start=\"3\"><li>Item</li></ol></main></body></html>"
+  }
+]

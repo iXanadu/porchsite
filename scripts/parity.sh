@@ -62,6 +62,15 @@ if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/markdown-parity.ts --bundle -
 else
   echo "✓ Markdown: shared source cases and light copies identical"
 fi
+# Writer inspection copies share visitor primitives, stripped HTML and Markdown.
+if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/preview-parity.ts --bundle --platform=node --outfile="$TMP/preview.cjs" --log-level=error && node "$TMP/preview.cjs" "$ROOT") >"$TMP/preview-cf.json" \
+ || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/preview_parity.py" >"$TMP/preview-py.json" \
+ || ! cmp -s "$TMP/preview-cf.json" "$TMP/preview-py.json"; then
+ echo "✗ writer inspection copies differ"
+ bad=$((bad + 1))
+else
+ echo "✓ writer inspection copies: all looks, HTML and Markdown identical"
+fi
 # Public dependency validators use the same normalized current-data document.
 if ! (cd "$ROOT/cloudflare" && npx esbuild scripts/public-read-parity.ts --bundle --platform=node --outfile="$TMP/public-read.cjs" --log-level=error && node "$TMP/public-read.cjs") >"$TMP/public-read-cf.json" \
  || ! PYTHONPATH="$ROOT/server" "$PYTHON" "$ROOT/server/scripts/public_read_parity.py" >"$TMP/public-read-py.json" \

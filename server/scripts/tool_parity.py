@@ -23,6 +23,7 @@ from server.app import check, content, mcp, site, themes, published_read
 from server.app.db import apply_schema
 from server.app.embed_storage import stored_data
 from server.app.site_guide import GUIDE_REVISION
+from server.app.fields import kind_guide
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -124,7 +125,14 @@ async def main(output, names):
                     assert result.content[0].text == expected, f'{case["name"]} {key}: historical answer bytes differ'
                 if key.startswith("site_state") and not key.startswith("site_state_guide"):
                     expected = state_baselines[case["name"]]["server"][key]
-                    assert hashlib.sha256(result.content[0].text.encode()).hexdigest() == expected, f'{case["name"]} {key}: unchanged response bytes differ'
+                    # S4-7 changes exactly one writer-guide sentence, not historical data.
+                    historical_text=result.content[0].text
+                    value=json.loads(historical_text)
+                    if isinstance(value,dict) and 'kinds' in value:
+                        current=kind_guide()['site'];suffix=". preview_read returns an inert copy of its pending approval; the copy is not published"
+                        assert value['kinds']['site']==current and current.endswith(suffix)
+                        historical_text=historical_text.replace(json.dumps(current,ensure_ascii=False),json.dumps(current.removesuffix(suffix),ensure_ascii=False),1)
+                    assert hashlib.sha256(historical_text.encode()).hexdigest() == expected, f'{case["name"]} {key}: unchanged response bytes differ'
                 if key == "site_state_guide_match":
                     baseline = answers["site_state"]["value"]
                     expected = {k:v for k,v in baseline.items() if k not in ("states","kinds","fields","site_defaults")}

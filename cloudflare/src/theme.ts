@@ -322,9 +322,10 @@ for (const theme of Object.values(THEMES)) {
   for (const template of [...Object.values(theme.pages), ...Object.values(theme.partials)]) Mustache.parse(template);
 }
 
-export function render(t: Theme, page: string, view: Data, policy?: { sources: unknown; origin: string }): string {
+export function render(t: Theme, page: string, view: Data, policy?: { sources: unknown; origin: string },cacheable=true): string {
   if (t.manifest?.heading_ids === true || t.manifest?.body_h1_as_h2 === true) view = headingBodies(view, t.manifest.heading_ids === true, t.manifest.body_h1_as_h2 === true);
-  return finishEmbeds(Mustache.render(t.pages[page], view, t.partials), policy?.sources, policy?.origin, view);
+  const rendered=cacheable?Mustache.render(t.pages[page],view,t.partials):new Mustache.Writer().render(t.pages[page],view,t.partials);
+  return finishEmbeds(rendered, policy?.sources, policy?.origin, view);
 }
 
 const STATIC_TYPES: Record<string, string> = { css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8" };

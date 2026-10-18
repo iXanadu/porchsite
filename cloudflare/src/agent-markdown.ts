@@ -19,7 +19,7 @@ function hidden(n:Node):boolean {
   return OMIT.has(n.tag) || Object.hasOwn(n.attrs,'hidden') || n.attrs['aria-hidden']==='true' ||
     /(?:^|\s)sk-owner-link(?:\s|$)/.test(n.attrs.class??'') || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(n.attrs.style??'');
 }
-function parse(html:string):Node {
+export function parseDocument(html:string):Node {
   const root:Node={tag:'root',attrs:{},children:[],text:''}, stack=[root];
   const tokens=html.match(/<!--[\s\S]*?-->|<![^>]*>|<\/?[a-zA-Z][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>|[^<]+|</g)??[];
   for(const token of tokens) {
@@ -92,13 +92,13 @@ const codeSpan=(content:string,table=false)=>{const ticks='`'.repeat(Math.max(1,
 
 /** Search sees the same visible document, never markup, URLs or owner controls. */
 export function visibleDocumentText(html:string):string {
-  const tree=parse(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
+  const tree=parseDocument(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
   const blocks=new Set('address article aside blockquote br caption dd div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main ol p pre section table td th tr ul'.split(' '));
   const read=(n:Node):string=>{if(hidden(n))return '';if(n.tag==='img')return inlineText(n.attrs.alt??'');const value=n.text+children(n,read);return blocks.has(n.tag)?' '+value+' ':value;};
   const footer=find(body,'footer');return inlineText(read(main)+(footer&&!find(main,'footer')?' '+read(footer):''));
 }
-export function markdownDocument(html:string,canonical:string):{title:string;description:string;markdown:string} {
-  const tree=parse(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
+export function markdownDocument(html:string,canonical:string,identity=true):{title:string;description:string;markdown:string} {
+  const tree=parseDocument(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
   const titleNode=find(main,'h1'), title=inlineText(text(titleNode??find(tree,'title',false)??{tag:'',attrs:{},children:[],text:''}));
   let description='';
   const meta=(n:Node)=>{if(n.tag==='meta'&&n.attrs.name?.toLowerCase()==='description')description=inlineText(n.attrs.content??'');n.children.forEach(meta);};meta(tree);
@@ -133,5 +133,5 @@ export function markdownDocument(html:string,canonical:string):{title:string;des
   }
   const footer=find(body,'footer'), extra=footer&&!find(main,'footer')?render(footer):'';
   const content=trim((description&&!inlineText(text(main)).includes(description)?blockText(mdText(description))+'\n\n':'')+render(main)+extra).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n');
-  return {title,description,markdown:(title?'# '+mdText(title)+'\n\n':'')+'<'+agentURL(canonical,canonical)+'>\n\n'+content+'\n'};
+  return {title,description,markdown:(title?'# '+mdText(title)+'\n\n':'')+(identity?'<'+agentURL(canonical,canonical)+'>\n\n':'')+content+'\n'};
 }

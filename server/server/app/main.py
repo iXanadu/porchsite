@@ -106,10 +106,11 @@ class App:
         req = Request(scope, receive)
         release = self.settings.release.encode("latin-1")
         prepared=False
+        scope['porchsite.preview_state']={'preview':False}
 
         async def send_with_release(message: Message) -> None:
             nonlocal prepared
-            if not prepared and message['type']=='http.response.start' and 200<=message.get('status',0)<400 and scope.get('method')=='POST' and (scope.get('path','').startswith('/review') or scope.get('path')=='/mcp'):
+            if not scope['porchsite.preview_state']['preview'] and not prepared and message['type']=='http.response.start' and 200<=message.get('status',0)<400 and scope.get('method')=='POST' and (scope.get('path','').startswith('/review') or scope.get('path')=='/mcp'):
                 prepared=True
                 routes.schedule_public(routes.Context(self.pool,self.settings.setup_code,self.provider,self.settings.site_url,self.settings.release,self.settings.public_artifacts))
             # Which release is running, on every answer.
@@ -270,9 +271,29 @@ class App:
             )
             await _cors(resp)(scope, receive, send)
             return
-        inner: dict[str, Any] = {**scope, "porchsite.props": props}
+        async def preview_authorize():
+            raw=bearer.group(1)
+            if raw.startswith(read_keys.PREFIX):
+                raise RuntimeError('not a drafting connection')
+            if raw.startswith(keys.PREFIX):
+                current=await keys.lookup(self.pool,raw,observe=False)
+            else:
+                current,_=await oauth.lookup_token(self.pool,raw,oauth.resource_of(origin))
+            if not current or current.get('clientId')!=props.get('clientId'):
+                raise RuntimeError('not a drafting connection')
+            if raw.startswith(keys.PREFIX):
+                epoch=await self.pool.fetchval('SELECT owner_epoch FROM auth_state WHERE id=1')
+                principal=current['clientId']
+            else:
+                grant=await self.pool.fetchrow("SELECT a.owner_epoch,t.grant_id,t.scope,t.client_id,g.client_id AS grant_client,g.user_id FROM auth_state a CROSS JOIN oauth_tokens t JOIN oauth_grants g ON g.id=t.grant_id WHERE a.id=1 AND t.token_hash=$1 AND t.kind='access'",oauth._hash(raw))
+                if not grant or grant['user_id']!='owner' or grant['client_id']!=current['clientId'] or grant['grant_client']!=current['clientId'] or 'site:draft' not in grant['scope'].split():
+                    raise RuntimeError('not a drafting connection')
+                epoch=grant['owner_epoch'];principal='oauth:'+grant['user_id']+':'+grant['grant_id']
+            if epoch is None:raise RuntimeError('not a drafting connection')
+            return dict(principal=principal,epoch=epoch)
+        inner: dict[str, Any] = {**scope, "porchsite.props": props,"porchsite.preview":dict(origin=self.settings.site_url,siteOrigin=origin,release=self.settings.release,authorize=preview_authorize)}
         async def protected_send(message):
-            if read_keys.restricted(props) and message['type']=='http.response.start':
+            if message['type']=='http.response.start':
                 message={**message,'headers':[(k,v) for k,v in message['headers'] if k.lower()!=b'cache-control']+[(b'cache-control',b'private, no-store, no-transform')]}
             await send(message)
         await (self.read_sessions if read_keys.restricted(props) else self.sessions).handle_request(inner, receive, protected_send)

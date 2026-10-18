@@ -184,7 +184,7 @@ def visible_document_text(source):
     return inline_text(read(main)+(' '+read(footer) if footer and not find(main, 'footer') else ''))
 
 
-def markdown_document(source, canonical):
+def markdown_document(source, canonical, identity=True):
     tree = Tree(source).root
     body = find(tree, 'body') or tree
     main = find(body, 'main') or body
@@ -267,4 +267,4 @@ def markdown_document(source, canonical):
     extra = render(footer) if footer and not find(main, 'footer') else ''
     prefix = block_text(md_text(description))+'\n\n' if description and description not in inline_text(text(main)) else ''
     content = re.sub(r'\n{3,}', '\n\n', re.sub(r'[ \t]+\n', '\n', trim(prefix+render(main)+extra)))
-    return dict(title=title, description=description, markdown=('# '+md_text(title)+'\n\n' if title else '')+'<'+agent_url(canonical, canonical)+'>\n\n'+content+'\n')
+    return dict(title=title, description=description, markdown=('# '+md_text(title)+'\n\n' if title else '')+('<'+agent_url(canonical, canonical)+'>\n\n' if identity else '')+content+'\n')

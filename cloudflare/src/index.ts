@@ -1,3 +1,4 @@
+import {withPreviewRequest,skipPublicPreparation} from './preview-auth';
 /**
  * The Worker. OAuthProvider owns the OAuth protocol endpoints and guards
  * /mcp; everything else (the site and the owner's pages) is routes.ts.
@@ -44,10 +45,11 @@ function provider(origin: string): OAuthProvider<Env> {
 }
 
 export default {
-  async fetch(req: Request, env: Env & { SITE_URL?: string }, ctx: ExecutionContext) {
+  fetch(req:Request,env:Env,ctx:ExecutionContext){const u=new URL(req.url);return u.pathname==='/mcp'?withPreviewRequest(req,env,()=>fetchRequest(req,env,ctx,u)):fetchRequest(req,env,ctx,u);},
+} satisfies ExportedHandler<Env & { SITE_URL?: string }>;
+async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx: ExecutionContext,u:URL) {
     // One address per site: a passkey works only where it was made, so
     // www.<domain> sends everyone to <domain>.
-    const u = new URL(req.url);
     const loopback = u.hostname === "localhost" || u.hostname === "[::1]" || /^127(?:\.[0-9]{1,3}){3}$/.test(u.hostname);
     if (u.protocol === "http:" && !loopback) {
       u.protocol = "https:";
@@ -78,7 +80,7 @@ export default {
     } else {
       res = await provider(origin).fetch(req, env, ctx);
     }
-    if(req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
+    if(!skipPublicPreparation()&&req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
     if(u.pathname==='/mcp'&&bearer?.[1].startsWith(readKeys.PREFIX)){
       res=new Response(res.body,res);res.headers.set('Cache-Control','private, no-store, no-transform');
     }
@@ -86,5 +88,4 @@ export default {
     const out = new Response(res.body, res);
     out.headers.set("X-Porchsite-Release", RELEASE);
     return out;
-  },
-} satisfies ExportedHandler<Env & { SITE_URL?: string }>;
+}

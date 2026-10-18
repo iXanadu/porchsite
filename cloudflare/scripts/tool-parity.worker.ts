@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
 import { it, expect, vi } from "vitest";
 import { validate } from "../src/content";
+import {KIND_GUIDE} from "../src/models";
 import { storedData } from "../src/embed-storage";
 import { createServer } from "../src/mcp";
 import { THEMES } from "../src/themes.gen";
@@ -79,7 +80,16 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
           const historical=(STATE_BASELINES.cases as Record<string,Record<string,Record<string,string>>>)[c.name]?.cloudflare?.[key];
           if(key.startsWith("site_state")&&!key.startsWith("site_state_guide")){
             expect(historical, `${c.name} ${key} must have a pre-change byte baseline`).toBeTruthy();
-            const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rpc.result.content[0].text)));
+            // S4-7 changes exactly one writer-guide sentence; retain every historical data byte.
+            let historicalText=rpc.result.content[0].text;
+            const value=JSON.parse(historicalText);
+            if(value?.kinds){
+              expect(value.kinds.site).toBe(KIND_GUIDE.site);
+              const suffix=". preview_read returns an inert copy of its pending approval; the copy is not published";
+              expect(KIND_GUIDE.site.endsWith(suffix)).toBe(true);
+              historicalText=historicalText.replace(JSON.stringify(KIND_GUIDE.site),JSON.stringify(KIND_GUIDE.site.slice(0,-suffix.length)));
+            }
+            const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(historicalText)));
             expect([...digest].map(n=>n.toString(16).padStart(2,"0")).join(""),`${c.name} ${key} unchanged bytes`).toBe(historical);
           }
           if(key === "site_state_guide_match"){

@@ -1,5 +1,5 @@
 {
-  "instructions": "You keep this person's website up to date. The site is theirs:\nnothing you write is public until they approve it, and the site enforces that.\nWorkflow: site_state (see what exists, each item's version and field guide) ->\nitem_create / item_update / item_remove (images: an https link, or\nphoto_upload_link for a photo your person sent you) -> approval_request (only the ids you\nchanged for this request; site_check first) -> give the owner the review_url -> approval_status.\nFinish the whole job first and send it as one request, then tell your person at once:\nyour drafts are invisible to them until you do.\nOn a new site, if site_state lists no site item, call item_create with kind: \"site\" and the site fields (including theme); use item_update only after that item exists.\nNever put passwords, keys, tokens or private addresses in content; the site refuses them.\nThe look: theme_list (built-in looks are ready to use; the catalog has previews) ->\nset the site item's theme -> theme_needs (the art and words that theme wants, and which\nare missing) -> fill them -> one approval_request. Use theme_install only for a\ncatalog look missing from installed, or to update one.\nCards have a visibility: a private card is never shown and its name may not appear in\nanything public (the site refuses it); a mention card shows its name and description only,\nand an entry names it at most once in its summary and once in its body.\nsite_stats: who reads the site.",
+  "instructions": "You keep this person's website up to date. The site is theirs:\nnothing you write is public until they approve it, and the site enforces that.\nWorkflow: site_state (see what exists, each item's version and field guide) ->\nitem_create / item_update / item_remove (images: an https link, or\nphoto_upload_link for a photo your person sent you) -> approval_request (only the ids you\nchanged for this request; site_check first) -> give the owner the review_url -> approval_status.\nFinish the whole job first and send it as one request, then tell your person at once:\nyour drafts are invisible to them until you do.\nOn a new site, if site_state lists no site item, call item_create with kind: \"site\" and the site fields (including theme); use item_update only after that item exists.\npreview_read can inspect one still-pending approval as an inert copy over this connection; it is not an openable browser preview.\nNever put passwords, keys, tokens or private addresses in content; the site refuses them.\nThe look: theme_list (built-in looks are ready to use; the catalog has previews) ->\nset the site item's theme -> theme_needs (the art and words that theme wants, and which\nare missing) -> fill them -> one approval_request. Use theme_install only for a\ncatalog look missing from installed, or to update one.\nCards have a visibility: a private card is never shown and its name may not appear in\nanything public (the site refuses it); a mention card shows its name and description only,\nand an entry names it at most once in its summary and once in its body.\nsite_stats: who reads the site.",
   "tools": [
     {
       "name": "site_state",
@@ -115,7 +115,7 @@
     },
     {
       "name": "item_create",
-      "description": "Create an item; nothing is public until the owner approves. Kinds: site: the site's standing text and layout. Exactly one, id \"site\"; create it once if site_state doesn't list it, then change it with item_update. entry: a dated post in one of the site's streams (its home section): with its own page (body in Markdown), or, with external_url, a listing that links to where it lives. card: a tile in the cards grid: projects, services, products. The grid's heading is the site's cards_title. note: a short dated line in the notes list (heading: the site's notes_title). data holds that kind's fields (see `fields` in site_state). A brand-new site has no site item: create it with item_create kind \"site\", then use item_update for later changes. An embed shows a video or tour from another site on your page. Each new source needs your approval; once approved, pages can show anything from that source. Put it on its own line in the body: !embed[Title](https://example.com/player).",
+      "description": "Create an item; nothing is public until the owner approves. Kinds: site: the site's standing text and layout. Exactly one, id \"site\"; create it once if site_state doesn't list it, then change it with item_update. preview_read returns an inert copy of its pending approval; the copy is not published. entry: a dated post in one of the site's streams (its home section): with its own page (body in Markdown), or, with external_url, a listing that links to where it lives. card: a tile in the cards grid: projects, services, products. The grid's heading is the site's cards_title. note: a short dated line in the notes list (heading: the site's notes_title). data holds that kind's fields (see `fields` in site_state). A brand-new site has no site item: create it with item_create kind \"site\", then use item_update for later changes. An embed shows a video or tour from another site on your page. Each new source needs your approval; once approved, pages can show anything from that source. Put it on its own line in the body: !embed[Title](https://example.com/player).",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -486,7 +486,7 @@
     },
     {
       "name": "approval_request",
-      "description": "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; there is no preview link for you). Nothing goes live until they approve.",
+      "description": "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; preview_read can inspect its pending proposal here, but grants no browser preview link). Nothing goes live until they approve.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -508,6 +508,41 @@
         "required": [
           "ids"
         ]
+      }
+    },
+    {
+      "name": "preview_read",
+      "description": "Inspect one pending approval as a bounded, inert proposed page over this drafting connection. Defaults to Markdown; optional HTML is a structural copy without CSS, images, scripts, forms or fetchable links. Nothing is published. No browser preview URL or owner authority is granted.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{8,40}$(?![\\s\\S])"
+          },
+          "path": {
+            "default": "/",
+            "type": "string",
+            "maxLength": 2048
+          },
+          "format": {
+            "default": "markdown",
+            "type": "string",
+            "enum": [
+              "markdown",
+              "html"
+            ]
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
       }
     },
     {

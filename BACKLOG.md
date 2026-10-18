@@ -31,9 +31,9 @@ Found building a single-property listing site on the live release.
 - **S4-4B** OPEN (only when asked, after browser push ships and is tested):
   approval alerts by email for the server edition and owners using their
   own domain. No paid mail-service path for hosted default-domain owners.
-- **S4-7** OPEN: The assistant can't see what it built before the owner
-  approves: no preview it can open. Design with security (a short-lived
-  read-only preview for the assistant).
+- **S4-7B** OPEN: an openable visual preview for the assistant. Requires
+  owner consent per writer connection and a separately reviewed capability;
+  the authenticated MCP inspection copy does not complete this browser goal.
 
 - **S4-10** OPEN (designed 2026-10-16): most newer-format requests already
   take the Cloudflare fast path; the SDK still handles the 2026-07-28 format

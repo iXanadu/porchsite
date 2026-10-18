@@ -1,3 +1,4 @@
+import {withPreviewRequest,markPreviewRead} from './preview-auth';
 import * as readKeys from "./read-keys";
 /** Fast dispatch for proven legacy forms; every other request uses the original handler. */
 import { MCP_CORS as cors } from "./mcp-origin";
@@ -34,7 +35,10 @@ function imageArguments(args: Record<string, unknown>) {
   } };
 }
 
-export async function toolTransport(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+export function toolTransport(req:Request,env:Env,ctx:ExecutionContext):Promise<Response>{
+ return withPreviewRequest(req,env,()=>dispatch(req,env,ctx));
+}
+async function dispatch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const fallback = () => { reportMcpDispatch("sdk"); return originalMcp(req, env, ctx); };
   // Header validation and all protocol extensions stay with the original handler.
   // The fast lane admits only the exact ordinary forms covered by the transcript.
@@ -64,6 +68,7 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
       (typeof body.id === "number" && !Number.isSafeInteger(body.id)) ||
       (body.params !== undefined && !record(body.params))) return fallback();
   const params = body.params as Record<string, unknown> | undefined;
+  if(body.method==='tools/call'&&params?.name==='preview_read')markPreviewRead();
   const props=(ctx as unknown as {props?:Record<string,unknown>}).props??{};
   if(readKeys.restricted(props))await readKeys.authorize(env.DB,props);
   let result: unknown;
@@ -104,6 +109,6 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
 function response(result: unknown, id: string | number, accept: string): Response {
   const json = JSON.stringify({result,jsonrpc:"2.0",id});
   return new Response(accept.includes("text/event-stream") ? `event: message\ndata: ${json}\n\n` : json, {
-    headers: { ...cors, "Cache-Control":"no-cache, no-transform", Connection:"keep-alive", "Content-Type":accept.includes("text/event-stream")?"text/event-stream":"application/json", "X-Accel-Buffering":"no" },
+    headers: { ...cors, "Cache-Control":"private, no-store, no-transform", Connection:"keep-alive", "Content-Type":accept.includes("text/event-stream")?"text/event-stream":"application/json", "X-Accel-Buffering":"no" },
   });
 }
