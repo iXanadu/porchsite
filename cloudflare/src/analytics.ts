@@ -188,9 +188,7 @@ async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
       .prepare(
         `INSERT OR IGNORE INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain, prev_path, src, post, test, created_at, updated_at)
          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE ${counter.available
-           ? "EXISTS (SELECT 1 FROM analytics_visitor_counts WHERE day = ? AND visitor = ? AND views < 200)"
-           : "NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)"}`,
+         WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)`,
       )
       .bind(
         ev.id as string,
@@ -212,16 +210,19 @@ async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
       );
     if (!counter.available) return (await insert.run()).meta.changes === 1;
     const results = await db.batch([
-      db.prepare(`INSERT INTO analytics_visitor_counts (day, visitor, views)
-        SELECT ?, ?, (SELECT COUNT(*) FROM (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 200))
-        WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE id = ?)
-        ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views
-        WHERE analytics_visitor_counts.views < excluded.views`).bind(day, visitor, day, visitor, ev.id as string),
       insert,
-      // SQL changes() describes only the immediately preceding pageview insert.
-      db.prepare("UPDATE analytics_visitor_counts SET views = views + 1 WHERE day = ? AND visitor = ? AND views < 200 AND changes() = 1").bind(day, visitor),
+      // Observe only the immediately preceding source insert's direct changes().
+      db.prepare(`INSERT INTO analytics_visitor_counts (day, visitor, views)
+        SELECT ?, ?, actual.n
+        FROM (
+          SELECT COUNT(*) AS n
+          FROM (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 200)
+        ) AS actual
+        WHERE changes() = 1 OR actual.n = 200
+        ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views
+        WHERE analytics_visitor_counts.views < excluded.views`).bind(day, visitor, day, visitor),
     ]);
-    return results[1].meta.changes === 1;
+    return results[0].meta.changes === 1;
   }
   if (ev.t === "hb") {
     const engaged = Math.max(0, Math.min(int(ev.e), MAX_ENGAGED_MS));

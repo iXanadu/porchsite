@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 import {ORIGIN,COMPATIBILITY,hash} from './fixtures.mjs';
-import {OPERATIONS,writeFixture,DAY,IP,UA} from './write-fixtures.mjs';
+import {OPERATIONS,writeFixture,DAY,IP,UA,VISITOR} from './write-fixtures.mjs';
 const q=(db,sql,...binds)=>db.prepare(sql).bind(...binds);
 async function live(db){return(await db.prepare('SELECT item_id,kind,slug,version,data FROM live ORDER BY item_id').all()).results;}
 async function outcome(db,operation,fixture,before,value,auth='valid') {
@@ -17,7 +17,7 @@ async function outcome(db,operation,fixture,before,value,auth='valid') {
   } else {
    const expected=operation==='collect/at_cap'?0:1;
    assert.equal(await q(db,'SELECT count(*) n FROM pageviews WHERE id=?','view_attempt_201').first('n'),expected,'actual view disposition mismatch');
-   assert.equal(await q(db,'SELECT count(*) n FROM pageviews WHERE day=?',DAY).first('n'),operation==='collect/at_cap'?200:operation==='collect/repeat'?2:1);
+   assert.equal(await q(db,'SELECT count(*) n FROM pageviews WHERE day=?',DAY).first('n'),operation==='collect/at_cap'?200:['collect/repeat','collect/existing_counter'].includes(operation)?2:1);
    assert.equal(await db.prepare('SELECT completed_day FROM analytics_maintenance WHERE id=1').first('completed_day'),DAY);
    if(operation==='collect/first_day') {
     assert.equal(await q(db,'SELECT count(*) n FROM pageviews WHERE day=?',fixture.first_expired_day).first('n'),0);
@@ -47,11 +47,13 @@ export async function measureWrites({root,out,migrations,corpus,Miniflare,conver
   try {
    await mf.ready;const db=await mf.getD1Database('DB');
    for(const file of fs.readdirSync(migrations).filter(x=>x.endsWith('.sql')).sort())for(const sql of fs.readFileSync(path.join(migrations,file),'utf8').replace(/--[^\n]*/g,'').split(';').map(x=>x.trim()).filter(Boolean))await db.prepare(sql).run();
-   await db.exec(seed.sql);await db.exec(fixture.sql);const before=await live(db);
+   await db.exec(seed.sql);await db.exec(fixture.sql);if(operation==='collect/existing_counter' && await db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analytics_visitor_counts'").first())await q(db,'INSERT INTO analytics_visitor_counts(day,visitor,views) VALUES(?,?,1)',DAY,VISITOR).run();
+   const before=await live(db);
    const response=await mf.dispatchFetch(ORIGIN+'/');const value=await response.json();
    fs.writeFileSync(path.join(out,`attempt-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,wrapper_status:response.status,status:value.status,stage:value.stage,counters:value.counters}));
    assert.equal(response.status,200,'write wrapper failed');
    await outcome(db,operation,fixture,before,value,auth);
+   if(operation==='collect/existing_counter' && await db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analytics_visitor_counts'").first())assert.equal(await q(db,'SELECT views FROM analytics_visitor_counts WHERE day=? AND visitor=?',DAY,VISITOR).first('views'),2);
    if(auth==='valid')cells[`operations/${mode}/${operation}`]={rows_read:value.counters.rows_read,rows_written:value.counters.rows_written};
    // Only credential-free numeric diagnostics persist.
    fs.writeFileSync(path.join(out,`write-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,status:value.status,counters:value.counters}));

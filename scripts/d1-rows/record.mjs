@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict';
 import {OPERATIONS,WRITE_MANIFEST} from './write-fixtures.mjs';
-export const FORMAT = 2;
+export const FORMAT = 3;
 export const BUDGETS = { rows_read: 5_000_000, rows_written: 100_000, verified: '2026-10-18', source: 'https://developers.cloudflare.com/d1/platform/pricing/' };
 export const REQUESTS = ['cold', 'plain', 'not_modified'];
 export function validate(record) {
-  assert([1,FORMAT].includes(record.format), 'row record format');
+  assert([1,2,FORMAT].includes(record.format), 'row record format');
   assert.match(record.inputs_sha256, /^[a-f0-9]{64}$/);
   assert.match(record.artifact_sha256, /^[a-f0-9]{64}$/);
   assert.match(record.source_sha256, /^[a-f0-9]{64}$/);
-  assert.equal(Object.keys(record.cells).length, record.format===1?78:92, 'complete page and operation matrix required');
-  if(record.format===2) {
-    assert.deepEqual(record.operations,WRITE_MANIFEST,'operation manifest mismatch');
+  assert.equal(Object.keys(record.cells).length, record.format===1?78:record.operations?.version===2?92:94, 'complete page and operation matrix required');
+  if(record.format>=2) {
+    const legacy=record.format===2;
+    const operations=legacy?OPERATIONS.filter(x=>x!=='collect/existing_counter'):OPERATIONS;
+    assert.deepEqual(record.operations,legacy?{...WRITE_MANIFEST,version:2,operations}:WRITE_MANIFEST,'operation manifest mismatch');
     const method=record.instrumentation;assert(method,'instrumentation provenance missing');assert.equal(method.product_sha256,record.artifact_sha256);for(const key of ['derived_sha256','adapter_sha256','scope_sha256'])assert.match(method[key],/^[a-f0-9]{64}$/);assert(Array.isArray(method.mapping)&&method.mapping.length>0);for(const item of method.mapping)assert(item.from==='cloudflare:workers'&&item.to==='./native-workers.mjs'&&Number.isSafeInteger(item.start)&&item.end>item.start);
-    for(const mode of ['off','on'])for(const operation of OPERATIONS){const cell=record.cells[`operations/${mode}/${operation}`];assert(cell,'missing operation cell');assert.deepEqual(Object.keys(cell).sort(),['rows_read','rows_written']);for(const metric of ['rows_read','rows_written'])assert(Number.isSafeInteger(cell[metric])&&cell[metric]>=0,'invalid operation row total');}
+    for(const mode of ['off','on'])for(const operation of operations){const cell=record.cells[`operations/${mode}/${operation}`];assert(cell,'missing operation cell');assert.deepEqual(Object.keys(cell).sort(),['rows_read','rows_written']);for(const metric of ['rows_read','rows_written'])assert(Number.isSafeInteger(cell[metric])&&cell[metric]>=0,'invalid operation row total');}
   }
   assert.equal(record.sites.length, 13);
   assert.equal(new Set(record.sites).size, 13);

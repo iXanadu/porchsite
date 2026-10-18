@@ -43,7 +43,7 @@ async function execute(out) {
   const { Miniflare, convertV4MiniflareOptions } = require('miniflare');
   const corpus = await fixtures(ROOT, esbuild, out);
   const observerFiles = ['fixtures.mjs','harness.mjs','measure.mjs','observer.mjs','record.mjs','write-fixtures.mjs','write-harness.mjs','write-measure.mjs','native-workers.mjs','wait-scope.mjs','instrument.mjs'].map(file => [file, hash(fs.readFileSync(path.join(ROOT, 'scripts/d1-rows', file)))]);
-  const inputs = hash(JSON.stringify({ format: 2, seeds: corpus.map(({ name, sha256 }) => ({ name, sha256 })), clock: CLOCK, origin: ORIGIN, headers: HEADERS, compatibility: COMPATIBILITY, node: process.version, esbuild: esbuild.version, miniflare: require('miniflare/package.json').version, observerFiles }));
+  const inputs = hash(JSON.stringify({ format: 3, seeds: corpus.map(({ name, sha256 }) => ({ name, sha256 })), clock: CLOCK, origin: ORIGIN, headers: HEADERS, compatibility: COMPATIBILITY, node: process.version, esbuild: esbuild.version, miniflare: require('miniflare/package.json').version, observerFiles }));
   const { current, previous } = entries();
   assert.match(previous.release, /^\d{4}\.\d{2}\.\d{2}-[a-f0-9]{7,40}$/);
   const previousRevision = previous.release.split('-')[1];

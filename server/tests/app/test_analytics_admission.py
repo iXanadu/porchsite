@@ -154,7 +154,7 @@ async def test_admission_faults_rollback_counter_and_view(db, monkeypatch):
     await seed(db, 1)
     await db.execute("UPDATE analytics_maintenance SET completed_day=$1 WHERE id=1", DAY)
     original = analytics.transaction
-    for index in range(3):
+    for index in range(2):
         @asynccontextmanager
         async def faulty(pool):
             async with original(pool) as c:
@@ -209,3 +209,12 @@ async def test_legacy_and_new_share_final_slot(db):
     assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
     assert not await send(db, "mixed-final-denial")
     assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 200
+
+async def test_post_insert_counter_tracks_new_and_existing_accepted_keys(db):
+    assert await send(db, "one-write-new-key")
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 1
+    assert await send(db, "one-write-existing-key")
+    assert await db.fetchval("SELECT count(*) FROM pageviews") == 2
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 2
+    assert not await send(db, "one-write-existing-key")
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 2

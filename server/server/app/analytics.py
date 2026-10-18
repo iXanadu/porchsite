@@ -219,19 +219,7 @@ async def _record(
         lock = int.from_bytes(hashlib.sha256(f"AN-1\0{day}\0{visitor}".encode()).digest()[:8], "big", signed=True)
         async with transaction(db) as c:
             await c.execute("SELECT pg_advisory_xact_lock($1)", lock)
-            if counters:
-                await c.execute(
-                    "INSERT INTO analytics_visitor_counts (day, visitor, views)"
-                    " SELECT $1, $2, (SELECT count(*) FROM (SELECT 1 FROM pageviews WHERE day = $1 AND visitor = $2 LIMIT 200) counted)"
-                    " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE id = $3)"
-                    " ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views"
-                    " WHERE analytics_visitor_counts.views < excluded.views", day, visitor, ev["id"],
-                )
-            cap = (
-                " WHERE EXISTS (SELECT 1 FROM analytics_visitor_counts WHERE day = $2 AND visitor = $3 AND views < 200)"
-                if counters else
-                " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = $2 AND visitor = $3 LIMIT 1 OFFSET 199)"
-            )
+            cap = " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = $2 AND visitor = $3 LIMIT 1 OFFSET 199)"
             status = await c.execute(
                 "INSERT INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain,"
                 " prev_path, src, post, test, created_at, updated_at)"
@@ -252,8 +240,15 @@ async def _record(
                 at,
             )
             inserted = status.endswith(" 1")
-            if counters and inserted:
-                await c.execute("UPDATE analytics_visitor_counts SET views = views + 1 WHERE day = $1 AND visitor = $2 AND views < 200", day, visitor)
+            if counters:
+                await c.execute(
+                    "INSERT INTO analytics_visitor_counts (day, visitor, views)"
+                    " SELECT $1, $2, actual.n FROM ("
+                    " SELECT count(*) AS n FROM (SELECT 1 FROM pageviews WHERE day = $1 AND visitor = $2 LIMIT 200) counted"
+                    " ) actual WHERE $3::boolean OR actual.n = 200"
+                    " ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views"
+                    " WHERE analytics_visitor_counts.views < excluded.views", day, visitor, inserted,
+                )
             return inserted
     if ev.get("t") == "hb":
         engaged = max(0, min(_int(ev.get("e")), MAX_ENGAGED_MS))

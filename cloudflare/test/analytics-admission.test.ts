@@ -106,7 +106,7 @@ it("duplicates do not allocate another visitor counter or consume a slot", async
 });
 it("rolls back every admission statement without consuming a counter slot",async()=>{
   await seed(1);await db.prepare("UPDATE analytics_maintenance SET completed_day=? WHERE id=1").bind(day).run();
-  for(let index=0;index<3;index++){
+  for(let index=0;index<2;index++){
     const fault=new Proxy(db,{get(target,key){
       if(key==="batch")return(ss:D1PreparedStatement[])=>target.batch(ss.map((s,i)=>i===index?target.prepare("INSERT INTO missing_counter_fault VALUES(1)"):s));
       const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
@@ -135,4 +135,16 @@ it("shares the final slot with the released legacy admission statement",async()=
   expect(results.filter(Boolean)).toHaveLength(1);expect(await count()).toBe(200);
   expect(await send("mixed-final-denial")).toBe(false);
   expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(200);
+});
+
+it("uses the native WITHOUT ROWID counter for new and existing accepted keys",async()=>{
+  const ddl=await db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='analytics_visitor_counts'").first<string>("sql");
+  expect(ddl).toMatch(/WITHOUT ROWID/i);
+  expect(await send("one-write-new-key")).toBe(true);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(1);
+  expect(await send("one-write-existing-key")).toBe(true);
+  expect(await count()).toBe(2);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(2);
+  expect(await send("one-write-existing-key")).toBe(false);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(2);
 });

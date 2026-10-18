@@ -25,7 +25,7 @@ No real credentials or remote services are used.
 
 For the introducing format change use `--record --rebase`: preserve the
 published 78-cell predecessor record and measure its exact archived bundle
-on all 92 matching cells. Both artifacts are measured, not populated from
+on all 94 matching cells. Both artifacts are measured, not populated from
 copied numbers. The original product bundle remains unchanged; only a
 separately named local measurement copy routes native module imports through
 a live-export waitUntil adapter. Original, derived and adapter hashes plus
