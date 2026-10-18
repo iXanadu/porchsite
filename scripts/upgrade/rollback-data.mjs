@@ -225,8 +225,26 @@ async function seed(base) {
   }
   return { key, agentReadKeys, entryId:entry.id, slug, token:access.token, guideRevision, receiptFeature, agentTraffic, streamFeature, pendingVersion:site.version+1, paths, picture: picture.image, imageBytes: stored, mediaTag, pending: new URL(pending.review_url).pathname, features: { broker: brokerFeature, expandedStreams:streamFeature, trainingChoice:trainingFeature, approvedEmbed: true, pendingEmbed: true, gpsStrippedPicture: true, cumulativeAnalytics: true, photoBatch: batch } };
 }
+function previousFeature(file) {
+  // upgrade-check overlays new migrations in the old worktree. Only the
+  // committed previous release declares which capabilities it shipped.
+  return spawnSync('git',['-C',previous,'cat-file','-e','HEAD:'+file],{stdio:'ignore'}).status===0;
+}
 async function checkPrevious(base, fixture, edition) {
-  if(fixture.agentReadKeys){for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await rejectedReadKey(base,token);}
+  if(fixture.agentReadKeys){
+    const probe=await readKeyResponse(base,fixture.agentReadKeys.active,'initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
+    const supportsReadKeys=previousFeature('cloudflare/migrations/0024_agent_read_keys.sql');
+    assert.equal(probe.status,supportsReadKeys?200:401,'actual previous runtime must match its declared read-key capability');
+    await probe.arrayBuffer();
+    if(supportsReadKeys){
+      const oldMCP=readFileSync(path.join(previous,edition==='cloudflare'?'cloudflare/src/mcp.ts':'server/server/app/mcp.py'),'utf8');
+      const readTools=edition==='cloudflare'?oldMCP.includes("registerTool('page_get'"):/["']name["']\s*:\s*["']page_get["']/.test(oldMCP);
+      await publishedReadKey(base,fixture.agentReadKeys.active,readTools);
+      const state=await existingCall(base,fixture.agentReadKeys.active,'site_state',{});
+      assert(!JSON.stringify(state).includes('Pending published title'),'previous read key cannot read a pending title');
+    }else await rejectedReadKey(base,fixture.agentReadKeys.active);
+    await rejectedReadKey(base,fixture.agentReadKeys.revoked);
+  }
 
   const http = client(base);
   const failures = [];
@@ -278,6 +296,61 @@ async function checkPrevious(base, fixture, edition) {
   console.log(`rollback-data: ${edition}: ${fixture.paths.length} public routes/feed HTTP200; owner passkey sign-in ok; ${JSON.stringify(fixture.features)}`);
 }
 
+async function readKeyResponse(base,token,method,params){
+ return fetch(base+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json','mcp-protocol-version':'2025-06-18'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+}
+async function readRPC(base,token,method,params){
+ const response=await readKeyResponse(base,token,method,params);
+ assert.equal(response.status,200,'AG-aware previous runtime authenticates the active read key');
+ return response.json();
+}
+async function publishedReadKey(base,token,readTools){
+ const initialized=await readRPC(base,token,'initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
+ assert(initialized.result&&!initialized.error,'active published-read key initializes');
+ const catalog=await readRPC(base,token,'tools/list',{});
+ const expected=['site_state','site_check',...(readTools?['page_get','pages_list','search']:[])].sort();
+ assert.deepEqual(catalog.result.tools.map(t=>t.name).sort(),expected,'previous read catalog never gains writer authority');
+ const state=await existingCall(base,token,'site_state',{});assert.equal(state.scope,'published_read');
+ for(const field of ['items','training_choice','update'])assert(!Object.hasOwn(state,field),'published state excludes owner/draft metadata');
+ for(const [name,args] of [['item_create',{kind:'note',data:{text:'Forbidden read-key draft',date:'2026-10-17'}}],['site_stats',{}],['site_state',{full:true}],['site_state',{ids:['site']}],['item_rollback',{id:'site',version:1}]]){
+  const refused=await readRPC(base,token,'tools/call',{name,arguments:args});
+  assert(refused.error||refused.result?.isError,'published-read key refuses writer, history, stats and draft access');
+ }
+ if(readTools){
+  assert.equal((await existingCall(base,token,'page_get',{path:'/'})).path,'/');
+  assert((await existingCall(base,token,'pages_list',{})).pages.some(p=>p.path==='/'));
+  assert((await existingCall(base,token,'search',{query:'Rollback'})).results.length>0);
+ }
+}
+async function privateReadKey(base,fixture){
+ const token=fixture.agentReadKeys.active;
+ for(const route of ['/index.md','/llms.txt']){
+  const fresh=await fetch(base+route,{headers:{Authorization:'Bearer '+token}});
+  assert.equal(fresh.status,200,'AG-aware previous runtime grants approved private copies');
+  assert.equal(fresh.headers.get('Cache-Control'),'private, no-cache, must-revalidate, no-transform');
+  const tag=fresh.headers.get('ETag');assert.match(tag,/^W\/"ag-sha256-[a-f0-9]{64}"$/);
+  const body=await fresh.text();assert(body.includes('Rollback old edit'));assert(!body.includes('/review'));
+  for(const method of ['GET','HEAD']){
+   const cached=await fetch(base+route,{method,headers:{Authorization:'Bearer '+token,'If-None-Match':tag}});
+   assert.equal(cached.status,304);assert.equal(await cached.text(),'');
+  }
+ }
+ for(const method of ['GET','HEAD']){
+  const html=await fetch(base+'/',{method,headers:{Authorization:'Bearer '+token,'If-None-Match':'*'}});
+  assert.equal(html.status,200);assert.equal(html.headers.get('Cache-Control'),'private, no-store, no-transform');
+  for(const header of ['ETag','Last-Modified','Content-Signal'])assert(!html.headers.has(header));
+  const body=await html.text();if(method==='HEAD')assert.equal(body,'');else{assert(body.includes('Rollback old edit'));assert(!body.includes('href="/review"'));}
+ }
+ for(const token of [fixture.agentReadKeys.revoked,fixture.token])await blankReadKey(base,token);
+ for(const route of ['/missing/index.md','/review'])for(const method of ['GET','HEAD']){
+  const denied=await fetch(base+route,{method,headers:{Authorization:'Bearer '+token},redirect:'manual'});
+  assert.equal(denied.status,404);assert(!denied.headers.has('ETag'));
+  const body=await denied.text();
+  if(method==='HEAD')assert.equal(body,'');
+  else if(route==='/review')assert.equal(body,'<!doctype html><meta name="robots" content="noindex"><title></title>');
+  else{assert.match(denied.headers.get('Cache-Control'),/no-store/);assert(!body.includes('href="/review"'));assert(!body.includes('Forbidden read-key draft'));}
+ }
+}
 async function rejectedReadKey(base,token){
  for(const [method,params] of [['initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}}],['tools/list',{}],['tools/call',{name:'item_create',arguments:{kind:'note',data:{text:'Forbidden read-key draft',date:'2026-10-17'}}}]]){
   const r=await fetch(base+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
@@ -434,7 +507,14 @@ try {
           const shared=await fetch(base+entryPath),sharedBody=await shared.text();assert.match(sharedBody,/<meta property="og:image" content="http:\/\/localhost:\d+\/media\/[a-f0-9]{32}\.jpg">/,'actual old share card appears after return');
           await fetch(base+'/index.md');await fetch(base+'/llms.txt');
           await runtime.stop();runtime=null;runtime=await old();await oldSite({private:true});
-          if(fixture.agentReadKeys)for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await blankReadKey(base,token);
+          if(fixture.agentReadKeys){
+            const probe=await fetch(base+'/index.md',{headers:{Authorization:'Bearer '+fixture.agentReadKeys.active}});
+            const privateGrant=previousFeature('cloudflare/migrations/0025_agent_read_sessions.sql');
+            assert.equal(probe.status,privateGrant?200:404,'actual previous runtime must match its declared private-copy capability');
+            await probe.arrayBuffer();
+            if(privateGrant)await privateReadKey(base,fixture);
+            else for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked])await blankReadKey(base,token);
+          }
           await runtime.stop();runtime=null;runtime=await current();
           for(const path of ['/','/index.md','/llms.txt',entryPath+'index.md'])for(const method of ['GET','HEAD']){
             const denial=await fetch(base+path,{method,headers:{'If-None-Match':'*'}});assert.equal(denial.status,404);assert.equal(await denial.text(),method==='HEAD'?'':'<!doctype html><meta name="robots" content="noindex"><title></title><a href="/login?next=%2Freview">Sign in</a>');
@@ -479,7 +559,7 @@ try {
           const restored=await recovery.post('/recover/verify',await replacement.create((await options.json()).options,base));assert.equal(restored.status,200,'actual previous runtime owner recovery');
           await runtime.stop();runtime=null;runtime=await current();
           for(const token of [fixture.agentReadKeys.active,fixture.agentReadKeys.revoked]){await rejectedReadKey(base,token);await blankReadKey(base,token);}
-          console.log(`rollback-data: ${edition}: new read prefix rejected by actual old runtime; revoke survives return; actual old owner recovery invalidates read keys by epoch`);
+          console.log(`rollback-data: ${edition}: previous read-key capability respected; revoke survives return; actual previous owner recovery invalidates read keys by epoch`);
         }
 
       }
