@@ -1,0 +1,42 @@
+{
+  "paths": [
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/oauth/token",
+    "/oauth/register"
+  ],
+  "headers": {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
+    "Access-Control-Expose-Headers": "WWW-Authenticate, Retry-After, Mcp-Session-Id",
+    "Access-Control-Max-Age": "86400"
+  },
+  "vary": [
+    {
+      "value": null,
+      "expected": null
+    },
+    {
+      "value": "Origin",
+      "expected": null
+    },
+    {
+      "value": "oRiGiN",
+      "expected": null
+    },
+    {
+      "value": "Accept, Origin, Authorization",
+      "expected": "Accept, Authorization"
+    },
+    {
+      "value": "Origin, *",
+      "expected": "*"
+    },
+    {
+      "value": "Accept-Encoding, Origin, Accept",
+      "expected": "Accept-Encoding, Accept"
+    }
+  ]
+}

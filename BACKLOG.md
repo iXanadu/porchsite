@@ -115,12 +115,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   form works on both, so sign-in discovery is unaffected. Pin in the spec
   whether the bare form exists, make both match, and test it. Found
   2026-10-18 in PAR-1-C3 work.
-- **PAR-1-C3** OPEN: the OAuth endpoints' CORS differs by edition. The
-  Cloudflare edition (the SDK's helper) sends no CORS headers without an
-  Origin and reflects a supplied Origin; the server edition always sends
-  `Access-Control-Allow-Origin: *`. The spec doesn't say which is right.
-  Pin one rule in the spec (metadata, token, registration), make both
-  match, and check it on the wire. Found 2026-10-18 in PAR-1-C2 acceptance.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it

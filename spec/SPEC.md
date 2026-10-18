@@ -1267,12 +1267,83 @@ In both editions, OPTIONS on `/.well-known/oauth-authorization-server`,
 `/oauth/register` remains an empty 204, but omits Content-Length entirely
 from both the response object and the actual emitted HTTP response. Zero
 is not acceptable (RFC 9110 §8.6). This extends only the framing repair;
-OAuth's existing CORS, Origin handling, metadata, consent, token validation,
-registration and non-OPTIONS responses are unchanged. The preflight does
+apart from the CORS policy defined in PAR-1-C3, OAuth metadata, consent,
+token validation, registration and non-OPTIONS responses are unchanged.
+The preflight does
 not look up credentials, touch database/KV storage or dispatch MCP tools.
 Paired path tests and normal production Worker/server HTTP probes require
 header absence; OPTIONS with absent or arbitrary Authorization stays the
 same preflight, never a credential-validity oracle. No catalog/reconnect.
+
+### OAuth protocol CORS (PAR-1-C3)
+
+Both editions send one fixed CORS header set on the five existing OAuth
+protocol paths listed in PAR-1-C2: authorization-server metadata,
+protected-resource metadata (root and `/mcp`), `/oauth/token` and
+`/oauth/register`. The rule applies to their existing successful responses,
+protocol errors, method refusals and OPTIONS. It does not add a route or
+change a route's methods, status, body or Content-Type. Existing canonical
+address/HTTPS redirects still run first. Unknown paths stay unknown.
+`/authorize`, `/mcp`, owner/review routes and public/private page responses
+keep their existing policies; do not change a shared CORS helper in a way
+that changes those surfaces.
+
+With no Origin header, or with any supplied Origin (same-site, foreign,
+`null`, empty, malformed or duplicate), the exact singleton header values
+on those five paths are:
+
+```text
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, HEAD, POST, OPTIONS
+Access-Control-Allow-Headers: Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id
+Access-Control-Expose-Headers: WWW-Authenticate, Retry-After, Mcp-Session-Id
+Access-Control-Max-Age: 86400
+```
+
+No other Access-Control-* response headers are emitted on these paths.
+Access-Control-Allow-Credentials is absent. No caller Origin is reflected
+in these headers. Header normalization replaces values rather than adding
+a second Allow-Origin. Remove only the `Origin` token from Vary,
+case-insensitively; preserve every other token and `Vary: *`. If no tokens
+remain, omit Vary. The CORS header set does not vary by Origin,
+Authorization or owner/reader cookies. A preflight never looks up a credential, reads
+storage, fetches metadata or dispatches a tool, and remains an empty 204
+without Content-Length on both actual HTTP wires (PAR-1-C2).
+
+This is non-credentialed browser sharing, not authentication. It does not
+enable cross-origin browser requests with credentials mode `include`.
+Clients use explicit OAuth client/token credentials without ambient owner
+cookies. Existing client authentication, registration checks, PKCE,
+consent, grant, audience, scope, expiry, revocation and single-use rules
+remain mandatory. Neither a wildcard nor a cookie grants a token or owner
+authority. The allowed HEAD method is the existing metadata method;
+Retry-After exposure preserves the provider's retry header. Never expose
+Set-Cookie or echo supplied credentials in the new headers. Token-response
+bodies still contain the protocol's deliberately issued credentials.
+
+Only CORS headers and the Origin token of Vary change. Preserve existing
+Cache-Control, validators, redirects, status and body bytes; metadata keeps
+its existing caching policy and sensitive token/registration/error copies
+keep their existing no-store policy. A wildcard does not make those
+responses cacheable. Normalizing a response must not replay a request,
+read its body twice, fetch discovery metadata or repeat a token exchange.
+No OAuth SDK fork or dependency change is required: apply the bounded
+response-header rule after the protocol handler.
+
+Paired proof `oauth_cors_identity` covers all five paths with absent,
+same-site, foreign, null, empty, malformed and duplicate Origin fields;
+metadata GET/HEAD, successful and rejected token/registration POST,
+method refusals and OPTIONS. Native and real normal Worker/server HTTP
+checks assert the complete fixed CORS map, singleton Allow-Origin, absent
+Allow-Credentials, no Vary Origin and no reflected request credentials.
+Check byte-preserving normalization of representative responses and
+preservation of unrelated Vary tokens; exercise successful OAuth flows
+independently, without replaying one-use codes just to compare responses.
+Retain client-auth/PKCE/consent/revocation tests, preflight no-storage and
+strict wire-framing checks, `/mcp` foreign-Origin 403, and owner/private
+boundaries. Any recorded transcript update must be restricted to the
+specified CORS/Vary leaves on these paths with a structural delta audit.
+No catalog, reconnect, schema, default or migration change.
 
 If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an

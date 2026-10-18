@@ -8,6 +8,7 @@ import {withPreviewRequest,skipPublicPreparation} from './preview-auth';
  * so a fresh workers.dev deploy works with no configuration.
  */
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import { oauthCors, OAUTH_PATHS } from "./oauth-cors";
 import { mcpOriginRejection } from "./mcp-origin";
 import { mcpBearer, mcpRefusal, mcpPreflight } from "./mcp-auth";
 import { toolTransport } from "./tool-transport";
@@ -89,11 +90,8 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
       res=new Response(res.body,res);res.headers.set('Cache-Control','private, no-store, no-transform');
     }
     // Which release is running, on every answer.
-    const out = new Response(res.body, res);
-    if (req.method === "OPTIONS" && out.status === 204 && [
-      "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource",
-      "/.well-known/oauth-protected-resource/mcp", "/oauth/token", "/oauth/register",
-    ].includes(u.pathname)) out.headers.delete("Content-Length");
+    const out = oauthCors(u.pathname, new Response(res.body, res));
+    if (req.method === "OPTIONS" && out.status === 204 && OAUTH_PATHS.has(u.pathname)) out.headers.delete("Content-Length");
     out.headers.set("X-Porchsite-Release", RELEASE);
     return out;
 }
