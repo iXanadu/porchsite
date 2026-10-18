@@ -68,7 +68,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    save. A hosted D1 probe decides; if hosted counts trigger rows too, the
    trigger design is not viable on the Cloudflare edition as specified.
 
-5. **GATE-2a** OPEN (found 2026-10-18 shipping AN-1): the rows gate
+5. **GATE-2a** IN-PROGRESS (found 2026-10-18 shipping AN-1): the rows gate
    measures page requests only, so writes on the visitor beacon
    (`POST /collect`) and on owner actions (approvals, imports) are not
    measured. AN-1's +1 write per recorded view passed the gate unseen;

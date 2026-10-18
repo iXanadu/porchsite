@@ -2424,6 +2424,146 @@ is available: "A newer Porchsite is available (<id>). Ask your assistant to
 update it.", or, when `security` is true, a line marked "Security update:"
 instead. No button: the assistant updates, when the owner says so.
 
+**Release write-operation row cells (GATE-2a, Cloudflare edition).** Extend
+GATE-2's local D1 gate, not the product API. Keep its 78 public-page cells
+and add exactly seven operation cells with prepared copies off and `1`
+(14 added cells, 92 per artifact). Measure the candidate and immediately
+preceding published archived Worker on the same versioned fixtures and
+method. This is not a server/PostgreSQL row-cost or hosted billing claim;
+both editions' existing correctness, parity and upgrade gates remain.
+No new product endpoint, binding, owner grant, default or schema is added.
+
+The existing 120-second bound covers the WHOLE gate: build, all page and
+write fixtures, both artifact measurements when required, request work,
+audits and cleanup. There is no separate 120-second allowance for writes.
+Timeout or incomplete cells fails closed; do not drop the 200-entry case,
+skip archive measurement, suppress deferred work or raise the limit to pass.
+Time is unmeasured until the implementation gate proves it. Reuse each
+immutable build and the local binding harness; do not time a replacement
+handler, direct approval helper or direct analytics SQL instead of HTTP.
+
+Use one versioned synthetic services site for these operations, not a
+cross-product with all 13 page sites. Each operation/mode/artifact has its
+own fresh disposable D1/KV and application instance with the fixture's
+explicit state. A setup GET may obtain a form token; finish it outside the
+measured POST scope before counting starts. No concurrent scopes or
+leftover setup/background work. Hold response reuse off. Use the same
+pinned application clock, origin, local runtime and toolchain as GATE-2;
+clock/fixture changes require an explicit comparison rebase.
+
+| Stable operation cell | Precondition and measured real request | Required outcome |
+| --- | --- | --- |
+| `collect/first_day` | `POST /collect`, valid new `pv` id; no salt for the clock day, previous-day maintenance watermark, one previous-day salt, two pageviews at day minus 91 for one visitor, one retained pageview at day minus 1, no prior daily aggregate for the expired rows. | One new view recorded. Assert daily salt, expired-row aggregation/deletion and monotonic completed-day watermark; include all cleanup/index writes and reads. |
+| `collect/repeat` | `POST /collect`, different valid `pv` id for the same daily visitor as one pre-existing current-day view; current salt and completed-day marker present. | Exactly one new view, original unchanged; no repeated retention mutation. This is a new page view, not a duplicate-id cell. |
+| `collect/at_cap` | `POST /collect`, distinct valid id for the same existing daily hash after exactly 200 current-day views; salt and completed-day marker present. | Cap-aware candidate/archive admit none; 200 stored views remain, attempted id absent. Count all denial reads and any writes; never infer a denial from wire 204 or zero writes. |
+| `collect/heartbeat` | `POST /collect`, `hb` on one admitted id, created one second before the fixed clock, initial engagement and scroll zero; request `e=1000,d=25`. | Same view count; that row becomes engaged 1000 ms and scroll 25. Count actual read and progress-update writes; no other view changes. |
+| `approval/one` | Authenticated same-origin `POST /review/<id>`, real form `all=approve` and valid CSRF, one pending request for exactly one new valid entry/version. | Exactly that shown entry is published with its intended data/version; pending request decided, receipts/history/invalidation consistent with the existing contract. |
+| `approval/200` | Same route and form, one pending request naming exactly 200 distinct new valid entries/versions. | All and only those 200 entries published; no silent truncation, deferred missing items, repeated approvals or direct-live seeding counted as success. |
+| `import/file` | Authenticated multipart `POST /review/import`, one fixed UTF-8 JSON file in the existing import format containing one site-title update, one valid entry and one valid card, no image bytes or external URLs. | Existing successful redirect to one pending approval with exactly three intended items; imported drafts validated/stored; published content unchanged. Import is not approval. |
+
+Fixture bytes, file bytes, event bodies, item data, prior versions, seed SQL,
+expected statuses and semantic postconditions are immutable hashed inputs.
+Use canonical complete valid entry/card data for the services fixture,
+including any required date, visibility and source receipts; no validation,
+privacy, version check, admission proof, request or publication check is
+bypassed. Preload the pending approval graph and stored versions as
+synthetic fixture setup, not a product helper called in place of approval.
+The 200-entry count is the approval payload, not total pre-existing items.
+For analytics use a fixed synthetic browser user-agent, RFC 5737 address,
+salt and paths that the real beacon accepts. Derive the existing day/visitor
+hash identically; never supply a client-chosen visitor or change the hash.
+Old cleanup rows have distinct valid ids and fixed payloads; the two expired
+rows share their old day's visitor, so audit views=2 and visits=1. All four
+beacon responses remain empty 204 with the existing no-store policy and no
+count, cookie or retry oracle. A swallowed database error or no-op does not
+satisfy an expected insertion, heartbeat, approval or import.
+
+For this extension, the introducing comparison uses published
+`2026.10.18-3f0141a` once its immutable archive and tag exist; never substitute
+an unfinished build. Thereafter use the immediately preceding published
+release in changelog order, not a permanently fixed release id. If an explicit rebase needs
+an archive predating the cap, use the identical at-cap input and record its
+actual uncapped insertion (201 rows); identify that expected disposition in
+the reviewed artifact-specific comparison manifest. Do not simulate a
+refusal, change its handler, label an accepted event denied, omit its cost
+or count a functional regression as a saving. A current cap-aware candidate
+must still refuse. Unexpected semantic differences fail even with a
+rows_justification; expected version differences must be pinned before
+measurement, never inferred from whichever output happened to appear.
+
+Owner harness credentials are synthetic and local only. Seed a disposable
+claimed owner and a matching unexpired hashed session using the existing
+schema; present its cookie to the REAL entry, which must perform its normal
+session checks. Obtain CSRF from the normal owner GET and submit the real
+form; never replace signedIn, requireOwner, CSRF, Origin or approval checks,
+export private internals, add a public test route or accept a fixture header
+as authority. Setup token creation/session seeding and token GET counters
+are excluded but explicitly named; all authentication reads, CSRF-related
+work and request-triggered refresh/history/index/invalidation work INSIDE
+the measured POST are included. Negative harness controls must show that
+absent/invalid owner sessions and wrong CSRF cannot publish or import.
+These controls are correctness evidence outside numeric cost cells and
+inside the total time bound. No real owner, passkey, API key, hosting account
+or remote service is used. The harness must not contact external services;
+fixtures contain no push subscriptions or external embeds.
+
+Do not persist raw cookies, tokens, CSRF, request bodies, SQL binds, owner
+labels, full authenticated headers or imported data in the committed record
+or logs. The measurement wrapper's diagnostic response stays temporary and
+local, returns no credentials and is never bundled as a product route.
+Random internal ids/nonces are not equality keys or comparison inputs;
+assert their shape and relationships. Preserve normal product entropy,
+crypto, session and transaction semantics; do not monkeypatch crypto to
+force deterministic ids or waive response differences caused by failures.
+Only fixed statuses, expected destinations, content/version relationships
+and whitelisted credential-free semantics are compared across artifacts.
+
+Reuse GATE-2's exact meta.rows_read/rows_written accounting, per-statement
+batch accounting, first/raw adapters, error detection and full response
+consumption. Settle every nested waitUntil before closing each scope; all
+request-caused D1 work counts. An observed failure cannot be swallowed by
+analytics' silent-204 boundary. Host-side migrations, seeds, auth setup,
+postcondition queries and explicit control requests are excluded with
+separate scopes. Missing metadata, unfinished work, request escape or
+uninstrumented D1 operations fails. No statement or estimate substitution.
+
+Version the expanded record format and measurement-input fingerprint.
+Keep the original published predecessor record. For the introducing
+extension explicitly remeasure its exact archived bundle with its own
+migrations and all 92 matching cells, retaining the old 78-cell record and
+the labelled expanded comparison. The extension is not the old no-record
+bootstrap exception. Verify release id/artifact manifest as in GATE-2;
+missing/malformed old record or missing archive still fails. Subsequent
+releases use the preceding published expanded record without silent rebase.
+
+The committed JSON identifies all 92 unique cells, their operation kind,
+mode and nonnegative integer row totals, plus the pinned expected outcome
+manifest; exact key-set validation rejects missing/extra/duplicated cells.
+No fabricated historical write totals or automatic baseline promotion.
+Default check is read-only and requires exact committed current metadata
+and cells, including the write cells. Compare every read and write metric
+individually with the matching predecessor: any increase requires the same
+plain newest-entry rows_justification, visible in all release reports.
+A reason never waives incorrect outcomes, auth failures, missing metadata,
+identity or timeout, and never grants deployment permission. Print limits
+in named operation equivalents per day: page requests for page cells,
+beacon events for collect cells, approvals or imported files for owner
+cells. Do not call a 200-entry approval a page view or multiply/divide its
+cost into an unmeasured per-entry claim. Existing three-page totals stay;
+no artificial combined user journey or net saving hides a cell increase.
+
+Before runtime freeze prove the whole current-plus-archive preparation and
+read-only expanded gate finish within 120 seconds each, existing page
+numbers and checks retained, and final committed record immutable during
+check. Scratch controls add a real read AND a real write to each new
+operation family: record/check refuse without justification, accept only
+the numeric increase with a visible reason, and never rewrite the record
+in check mode. Missing-cell, metadata-failure, silent-204-storage-failure,
+wrong-result, bad-session and wrong-CSRF cases must refuse as specified.
+Normal full gates remain, and independent testing repeats the expanded
+measurement and negative controls before acceptance.
+
+
 ## 5. Owner surface
 
 When a rendered site page is requested with a valid owner session, the
