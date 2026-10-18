@@ -15,8 +15,15 @@ def inline_text(value):
     return trim(re.sub(r'[ \t\r\n\f]+', ' ', value))
 
 
+def block_text(value):
+    value = re.sub(r'^( {0,3})(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)', lambda m: m[1]+'\\'+m[2], value, flags=re.M)
+    return re.sub(r'^( {0,3}\d{1,9})([.)])(?= |$)', lambda m: m[1]+'\\'+m[2], value, flags=re.M)
+
+
 def md_text(value):
-    return re.sub(r'[\\`*_{}\[\]()#+.!|~-]', lambda m: '\\'+m[0], value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    value = re.sub(r'[\\`*_\[\]|]', lambda m: '\\'+m[0], value)
+    value = re.sub(r'~{2,}', lambda m: m[0].replace('~', '\\~'), value)
+    return block_text(value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
 
 
 def hidden(n):
@@ -73,7 +80,7 @@ def find(n, tag, visible=True):
     return None
 
 
-def children(n, render):
+def children(n, render, markdown=False):
     result, previous = '', None
     # Direct text distinguishes mixed prose from an element-only label group.
     group = not any(not c['tag'] and inline_text(c['text']) for c in n['children'])
@@ -83,6 +90,8 @@ def children(n, render):
             continue
         if group and previous is not None and previous['tag'] and child['tag'] and result and result[-1] not in ' \t\r\n\f' and value[0] not in ' \t\r\n\f':
             result += ' '
+        if markdown and result.endswith('!') and value.startswith('['):
+            result = result[:-1]+'\\!'
         result += value
         previous = child
     return result
@@ -178,7 +187,7 @@ def markdown_document(source, canonical):
         if not tag:
             return md_text(re.sub(r'[ \t\r\n\f]+', ' ', n['text']))
         def inner():
-            return children(n, lambda c: render(c, depth+1, in_table))
+            return children(n, lambda c: render(c, depth+1, in_table), True)
         if tag == 'head' or (main is body and tag == 'header'):
             return ''
         if tag == 'pre':
@@ -220,7 +229,7 @@ def markdown_document(source, canonical):
             rows = table_rows(n)
             if rows:
                 def cell(c):
-                    return trim(re.sub(r'[\r\n\f]+', ' ', children(c, lambda x: render(x, depth+2, True))))
+                    return trim(re.sub(r'[\r\n\f]+', ' ', children(c, lambda x: render(x, depth+2, True), True)))
                 def row(cells):
                     return '| '+' | '.join(cell(c) for c in cells)+' |'
                 rules = [{'left': ':---', 'center': ':---:', 'right': '---:'}.get(c['attrs'].get('align'), '---') for c in rows[0]]
@@ -228,7 +237,7 @@ def markdown_document(source, canonical):
                 return '\n\n'+(trim(render(caption, depth+1))+'\n\n' if caption else '')+row(rows[0])+'\n| '+' | '.join(rules)+' |'+''.join('\n'+row(r) for r in rows[1:])+'\n\n'
         value = inner()
         if tag in ('p', 'div', 'dl', 'dt', 'dd', 'section', 'article', 'aside', 'figure', 'figcaption', 'header', 'footer', 'summary', 'tr'):
-            return '\n\n'+trim(value)+'\n\n'
+            return '\n\n'+(block_text(trim(value)) if tag == 'p' else trim(value))+'\n\n'
         return value+' | ' if tag in ('td', 'th') else value
 
     footer = find(body, 'footer')

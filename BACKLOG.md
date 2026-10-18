@@ -93,12 +93,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   six-process comparison (200 entries: median 16.49 to 19.60 ms). Startup
   CPU did not increase in that sample; hosted impact is unmeasured. Keep
   this first-render cost in the next performance investigation.
-- **LL-3** OPEN: the Markdown copies of pages (/index.md and each page's
-  index.md) backslash-escape ordinary punctuation ("after\.", "it\.**"),
-  the same over-escaping LL-2 fixed in /llms.txt. Agents read these raw,
-  and an escaped domain ("get\.porchsite\.dev") can be copied as a
-  broken address.
-  Found 2026-10-18 on porchsite.dev.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a

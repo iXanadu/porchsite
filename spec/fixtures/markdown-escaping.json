@@ -1,0 +1,74 @@
+[
+  {
+    "name": "ordinary",
+    "html": "<main><h1>Copy. (Title)!</h1><p>Visit get.example.com (now)! C++ #tag {value} well-known ~ ready.</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nVisit get.example.com (now)! C++ #tag {value} well-known ~ ready.\n",
+    "content": "Visit get.example.com (now)! C++ #tag {value} well-known ~ ready.",
+    "visible": "Visit get.example.com (now)! C++ #tag {value} well-known ~ ready."
+  },
+  {
+    "name": "formatting",
+    "html": "<main><h1>Copy. (Title)!</h1><p>After.<strong>Bold.</strong> and <em>done!</em></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nAfter.**Bold.** and *done!*\n",
+    "content": "After.**Bold.** and *done!*",
+    "visible": "After.Bold. and done!"
+  },
+  {
+    "name": "hostile",
+    "html": "<main><h1>Copy. (Title)!</h1><p>[label](javascript:bad) &lt;script&gt; &amp;copy; \\ *literal* _word_ ~~gone~~</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\[label\\](javascript:bad) &lt;script&gt; &amp;copy; \\\\ \\*literal\\* \\_word\\_ \\~\\~gone\\~\\~\n",
+    "content": "\\[label\\](javascript:bad) &lt;script&gt; &amp;copy; \\\\ \\*literal\\* \\_word\\_ \\~\\~gone\\~\\~",
+    "visible": "[label](javascript:bad) <script> &copy; \\ *literal* _word_ ~~gone~~"
+  },
+  {
+    "name": "leading",
+    "html": "<main><h1>Copy. (Title)!</h1><p># Heading</p><p>+ item</p><p>- item</p><p>1. ordered</p><p>2) ordered</p><p>---</p><p>===</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\# Heading\n\n\\+ item\n\n\\- item\n\n1\\. ordered\n\n2\\) ordered\n\n\\---\n\n\\===\n",
+    "content": "\\# Heading\n\n\\+ item\n\n\\- item\n\n1\\. ordered\n\n2\\) ordered\n\n\\---\n\n\\===",
+    "visible": "# Heading + item - item 1. ordered 2) ordered --- ==="
+  },
+  {
+    "name": "split_marker",
+    "html": "<main><h1>Copy. (Title)!</h1><p><span>12</span>. item</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "linebreak",
+    "html": "<main><h1>Copy. (Title)!</h1><p>First<br># Heading<br>- item</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nFirst\n\\# Heading\n\\- item\n",
+    "content": "First\n\\# Heading\n\\- item",
+    "visible": "First # Heading - item"
+  },
+  {
+    "name": "links",
+    "html": "<main><h1>Copy. (Title)!</h1><p><a href=\"/next/\">get.example.com [now]!</a> <img src=\"/media/x.png\" alt=\"Image (one).\"></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n[get.example.com \\[now\\]!](<https://example.com/next/>) ![Image (one).](<https://example.com/media/x.png>)\n",
+    "content": "[get.example.com \\[now\\]!](<https://example.com/next/>) ![Image (one).](<https://example.com/media/x.png>)",
+    "visible": "get.example.com [now]! Image (one)."
+  },
+  {
+    "name": "code",
+    "html": "<main><h1>Copy. (Title)!</h1><p><code>get.example.com \\ *raw*</code></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n` get.example.com \\ *raw* `\n",
+    "content": "` get.example.com \\ *raw* `",
+    "visible": "get.example.com \\ *raw*"
+  },
+  {
+    "name": "literal_bang_before_link",
+    "html": "<main><h1>Copy. (Title)!</h1><p>!<a href=\"/next/\">Read.</a> after!</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\![Read.](<https://example.com/next/>) after!\n",
+    "content": "\\![Read.](<https://example.com/next/>) after!",
+    "visible": "!Read. after!"
+  }
+]
