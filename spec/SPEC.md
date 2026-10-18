@@ -1190,7 +1190,8 @@ and `/oauth/*`, keep their existing behaviour.
 
 Both editions use the same authentication-refusal headers on `/mcp`.
 The existing HTTPS/Host redirects and Origin check run first; a rejected
-Origin remains 403, and OPTIONS keeps its existing 204 response. This
+Origin remains 403, and OPTIONS returns 204 before authentication, including
+when a writer or read key is supplied. This
 contract concerns resource authentication, not OAuth consent/token
 endpoints, public/private page refusals, or tool errors in an authenticated
 MCP response. It grants no access and does not change writer/read-key scopes.
