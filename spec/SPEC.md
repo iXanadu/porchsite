@@ -1919,6 +1919,16 @@ hostile brackets/HTML, leading block markers, literal inline delimiters,
 formatted text, code, links, images and tables, with round-trip visible-text
 and exact-byte parity checks.
 
+LL-4 leaves underscore runs literal inside ASCII identifiers: the complete
+run must have an ASCII letter or digit immediately on both sides in the
+same prose fragment (for example, `theme_create` and `version_2`). Other
+underscores keep their existing escaping, including word-edge delimiters,
+standalone runs and boundaries next to generated markup. This conservative
+rule is identical in both editions and does not change code or URLs.
+Paired `af_markdown_intraword_underscore` fixtures require exact bytes and
+CommonMark/GFM visible-text and structure round trips, including identifiers
+in titles, labels, image alt text and tables, and literal emphasis attacks.
+
 Generated titles, labels and summaries are escaped as Markdown data:
 owner strings cannot open a metadata/header block, inject an extra map
 entry or become an HTTP header. Relative content links resolve using the
