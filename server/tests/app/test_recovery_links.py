@@ -17,7 +17,7 @@ async def recovery_owner(db):
 async def test_html_dom_fill_and_post_only(db,http):
     from urllib.parse import quote
     code='credential-canary-\"><script>'
-    for suffix in ['#code='+quote(code),'?code='+quote(code),'']:
+    for suffix in ['#code='+quote(code),'']:
         r=await http.get('/recover'+suffix)
         assert r.status_code==200 and code not in r.text
         assert FIXTURE['script'] in r.text
@@ -25,7 +25,7 @@ async def test_html_dom_fill_and_post_only(db,http):
         assert r.text.index('history.replaceState')<r.text.index('await fetch(')
         assert r.headers['referrer-policy']=='no-referrer' and r.headers['cache-control']=='no-store'
     r=await http.head('/recover?code=canary')
-    assert r.status_code==200 and r.content==b''
+    assert r.status_code==400 and r.content==b''
 
 async def test_body_credentials_and_hashed_storage(db,http):
     code='recovery-code-with-24-random-bytes-test'
@@ -37,7 +37,7 @@ async def test_body_credentials_and_hashed_storage(db,http):
         assert r.status_code==200,r.text
         assert code not in r.text
     r=await http.post('/recover/options?code='+code,json={})
-    assert r.status_code==403 and code not in r.text
+    assert r.status_code==400 and r.json()['error']=='code_in_url' and code not in r.text
     assert await db.fetchval('SELECT count(*) FROM recovery_codes')==1
 
 async def test_json_errors_do_not_echo(db,http):
@@ -53,7 +53,7 @@ async def test_independent_cutoff_and_unclaimed_precedence(db,http,monkeypatch):
     for query in FIXTURE['query_cases']:
         for method in ['GET','HEAD']:
             req=Request({'type':'http','method':method,'scheme':'https','server':('site.example',443),'path':'/recover','query_string':query[1:].encode(),'headers':[]})
-            assert routes.recovery_query_refusal(req) is None
+            assert routes.recovery_query_refusal(req,True) is None
             r=routes.recovery_query_refusal(req,False)
             assert r.status_code==400
             assert r.headers['referrer-policy']=='no-referrer' and r.headers['cache-control']=='no-store'
@@ -78,3 +78,27 @@ async def test_cli_fragment_issuer(db,test_dsn):
     assert len(base64.urlsafe_b64decode(code+'='*(-len(code)%4)))==24
     assert await db.fetchval('SELECT code_hash FROM recovery_codes')==owner.hash_token(code)
     assert expiry>owner.now()
+
+async def test_query_cutoff_exact_routes_and_stored_authority(db,http):
+    code='body-credential-canary'
+    await owner.issue_recovery_code(db,code)
+    before=await db.fetch('SELECT * FROM recovery_codes')
+    for query in FIXTURE['query_cases']:
+        for path,method in [('/recover','GET'),('/recover','HEAD'),('/recover/options','POST'),('/recover/verify','POST')]:
+            kwargs={'json':{'code':code,'response':'body-canary'}} if method=='POST' else {}
+            r=await http.request(method,path+query,**kwargs)
+            assert r.status_code==400,r.text
+            assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
+            assert 'location' not in r.headers
+            if method=='HEAD':assert r.content==b''
+            else:assert r.json()=={'error':'code_in_url','message':FIXTURE['cutoff_message']}
+    assert await db.fetch('SELECT * FROM recovery_codes')==before
+    assert await db.fetchval('SELECT count(*) FROM challenges')==0
+    for path,method in [('/recover-extra','GET'),('/recover/','GET'),('/recover/options','GET'),('/recover/verify','HEAD'),('/recover','POST'),('/recover/options','OPTIONS')]:
+        plain=await http.request(method,path)
+        query=await http.request(method,path+'?code=canary')
+        assert query.status_code==plain.status_code and query.content==plain.content
+    await db.execute('DELETE FROM owner')
+    for path in ['/recover/options','/recover/verify']:
+        r=await http.post(path+'?%63ode=canary',content='not-json')
+        assert r.status_code==409 and r.json()=={'error':'unclaimed','message':'This site has no owner yet.'}
