@@ -6124,3 +6124,79 @@ Primary references checked 2026-10-18:
 [PostgreSQL 15 UUID functions](https://www.postgresql.org/docs/15/functions-uuid.html),
 [SQLite core functions](https://www.sqlite.org/lang_corefunc.html),
 [D1 SQL statements](https://developers.cloudflare.com/d1/sql-api/sql-statements/).
+
+### PERF-9a initial snapshot transport: facts and pair in one statement
+
+This replaces the separate pair0 execution before the initial facts with
+ONE current primary-consistent statement that returns both the complete
+initial dependency relation and its epoch-qualified witness from the same
+SQL snapshot. It changes only the ordinary anonymous path with both
+prepared-copy delivery and response-cache reuse OFF. The independent late
+pair1 execution and the epoch-repair/installation contract remain required.
+
+The approved complete FACTS_SQL relation remains intact inside this new
+initial transport statement: same dependency expressions, tables, joins,
+predicates, order and duplicates. Add a separately identified internal
+witness transport record from content_revision(id=1), with canonical epoch,
+TEXT counter and their required storage-type evidence. The witness is not
+a dependency tuple. Validate cardinality/shape/types and strip ALL transport
+records before passing fresh owned category/ident/value tuples through the
+existing decode and tag code. Original tuple order, multiplicity, raw bytes,
+normalized preimage and outward tags stay exactly the ordinary facts result.
+No state row can collide with, replace or be hashed as a dependency row.
+Bind the selected pair and complete facts to the same request-owned result;
+never combine an earlier pair with separately acquired/cached facts.
+
+A valid transport contains one witness row and the complete facts, all in
+one database statement/snapshot. Missing, malformed or duplicate witness
+rows yield no witness proof, while independently validating the returned
+complete facts normally. They never synthesize a default pair or exclude
+an unexpected dependency row. If the optional witness table/capability is
+absent and the combined statement cannot execute, retry the original plain
+FACTS_SQL and retain the original independent final full facts check. A
+failure of that original query keeps its original refusal/error behavior.
+Do not treat an unrelated SQL failure as a successful partial facts result.
+
+On a matching conditional or after rendering, pair1 is still one separate
+current statement at the old final proof point. Equality to the pair read
+in the initial snapshot plus the original late clock proof may replace
+only the final full facts. Missing/invalid/different pair1 or a clock change
+takes the existing bounded full-facts retry/refusal path. Private-on,
+unpublish, policy, existence, wildcard, origin/representation and immutable
+render dependencies retain all their existing checks. There is no 304 on
+an unproven route or unknown clock. Pair fields stay out of both outward
+hashes, raw dependency tuples, approved-view proofs and public output.
+
+The three-statement budget remains for the stable known-capability OFF
+conditional: access gate + combined initial facts/pair0 + independent
+pair1. Keep zero render, zero copy, zero UC9/write, empty GET/HEAD 304,
+identical bytes/headers and late clock assertions. Canonical missing-page
+metadata can stay within its existing three statements because the initial
+pair requires no extra execution. ON/reuse modes execute their original
+facts statements and no witness transport/read; archived runtime and
+unshaped miss behavior stay unchanged. A safe absent-table/capability
+fallback may add one failed optional-statement attempt; that degraded path
+must be measured and labelled separately, never presented as the stable
+three-statement optimization or permission for a stale response.
+
+This is a snapshot-proof change, not a claim that a CTE saves row reads.
+An outer UNION/ORDER or materialization can add a dependency traversal,
+just as prior state transport did. Measure the complete initial statement
+before choosing its final SQL shape; do not quote the earlier separate-read
+1087/1086/658 predictions as its measured cost. Repeated witness columns
+can trade extra transport bytes/CPU for statement count; an appended
+witness record can add query-plan work. Neither variant may drop ordering,
+cardinality, dependencies, type checks or the independent late read to make
+a budget pass. The selected shape must be disclosed with its plans and
+per-statement rows; the original two-statement facts control is retained.
+
+Required paired tests: exact combined-versus-plain original raw tuples and
+decode/tag bytes across all looks, extension cases and duplicate rows;
+absence/malformed/multiple witness records; missing optional table; mutation
+inside/around the initial statement and at the independent late statement;
+equal n/different epoch; private-on/unpublish/clock races; no transport
+record in either hash or approved-view proof; and query spies preserving
+the three-statement and zero-work assertions. Native tests must exercise
+the actual D1 and PostgreSQL statements, not a host-side join of two reads.
+All approval/trigger cost, previous-runtime, rollback, method-rebase and
+CPU gates remain. No new hosted or CPU claim follows from this amendment.
