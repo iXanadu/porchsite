@@ -68,6 +68,6 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
       } finally { await mf.dispose(); }
     }
   }
-  Object.assign(record.cells,await measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions}));
+  Object.assign(record.cells,await measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions,applyMigration}));
   return validate(record);
 }
