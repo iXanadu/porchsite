@@ -154,6 +154,15 @@ def main():
                         'status': status, 'bytes': len(body), 'headers': headers})
         if status != 304 or body:
             raise RuntimeError(f'{edition} conditional home must be an empty 304')
+        for path in json.loads((ROOT / 'spec/fixtures/oauth-preflight-paths.json').read_text()):
+            for case, authorization in [('absent', None), ('bearer', 'Bearer psk_invalid'), ('basic', 'Basic unused')]:
+                status, headers, body = request(base, path,
+                    {'Authorization': authorization} if authorization else {}, method='OPTIONS')
+                records.append({'edition': edition, 'method': 'OPTIONS', 'path': path,
+                                'credential_case': case, 'status': status, 'bytes': len(body), 'headers': headers})
+                if status != 204 or body or any(k.lower() == 'content-length' for k in headers):
+                    raise RuntimeError(f'{edition} {path}: OAuth preflight must be an empty 204 without Content-Length')
+
 
     try:
         address = urlsplit(admin)

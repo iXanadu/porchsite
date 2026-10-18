@@ -96,11 +96,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   `Access-Control-Allow-Origin: *`. The spec doesn't say which is right.
   Pin one rule in the spec (metadata, token, registration), make both
   match, and check it on the wire. Found 2026-10-18 in PAR-1-C2 acceptance.
-- **PAR-1-C2** OPEN: the server edition's OAuth protocol preflight still
-  explicitly sets Content-Length zero on 204 (metadata, token and client
-  registration endpoints). Remove it and prove actual HTTP omission in
-  both editions, as RFC 9110 §8.6 requires. Outside the MCP-only PAR-1-C1
-  repair. Found 2026-10-18 during its correctness review.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
