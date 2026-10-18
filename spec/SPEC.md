@@ -1191,8 +1191,12 @@ and `/oauth/*`, keep their existing behaviour.
 Both editions use the same authentication-refusal headers on `/mcp`.
 The existing HTTPS/Host redirects and Origin check run first; a rejected
 Origin remains 403, and OPTIONS returns 204 before authentication, including
-when a writer or read key is supplied. This
-contract concerns resource authentication, not OAuth consent/token
+when a writer or read key is supplied. That changes the Cloudflare
+key-first OPTIONS response from 200 to 204. Both editions' preflight has
+identical status, headers and empty body (with the same release label),
+as pinned by `spec/fixtures/mcp-preflight.json`; it contains no site data
+and performs no database/KV access or credential lookup. It cannot reveal
+whether a supplied key is valid. This contract concerns resource authentication, not OAuth consent/token
 endpoints, public/private page refusals, or tool errors in an authenticated
 MCP response. It grants no access and does not change writer/read-key scopes.
 
