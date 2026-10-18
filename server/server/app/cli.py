@@ -84,7 +84,7 @@ async def recovery_link(dsn: str,origin: str,hours: float) -> tuple[str,str]:
         expires = await owner.issue_recovery_code(pool,code,hours)
     finally:
         await pool.close()
-    return f"{origin}/recover?code={code}",expires
+    return f"{origin}/recover#code={code}",expires
 
 
 async def check(settings: Settings) -> list[tuple[str, str]]:

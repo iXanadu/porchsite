@@ -148,6 +148,23 @@ async function requireOwner(req: Request, env: Env): Promise<Response | null> {
 // Never send the code as a referrer or cache it; clear the address bar.
 const SETUP_HEADERS = { "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
 const SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n";
+const RECOVERY_JS = "(() => {\n  const fragment = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  const code = fragment !== null ? fragment : new URLSearchParams(location.search).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n  }\n})();\n";
+
+// Independent introducing-release window; RA-10Q disables it next release.
+const RECOVERY_QUERY_COMPAT = true;
+export function recoveryQueryRefusal(req: Request, acceptLegacy = RECOVERY_QUERY_COMPAT): Response | null {
+  if (acceptLegacy || !new URL(req.url).searchParams.has("code")) return null;
+  const refusal = json({error:"code_in_url",message:"This recovery link is no longer supported. Ask for a fresh link or enter the code manually."},400,SETUP_HEADERS);
+  return req.method === "HEAD" ? new Response(null,refusal) : refusal;
+}
+async function recoveryBody(req: Request): Promise<Record<string,unknown>> {
+  if ((req.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase() === "application/x-www-form-urlencoded") {
+    return Object.fromEntries(new URLSearchParams(await req.text()));
+  }
+  const value: unknown = await req.json().catch(() => ({}));
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string,unknown> : {};
+}
+
 const SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n";
 
 // Introducing-release compatibility only. Disable in the next product release.
@@ -1332,10 +1349,10 @@ async function routeInner(req: Request, env: Env): Promise<Response> {
     if (path === "/.well-known/porchsite-release" && m === "GET") return json({release:RELEASE,private_floor:await privacy.privateFloor(env.DB,RELEASE)},200,privacy.PRIVATE_HEADERS);
     if (path === "/recover" && m === "GET") return await recoveryPage(req,env);
     if (path === "/recover/options" && m === "POST") {
-      const body: any = await req.json(); const r = await owner.recoverOptions(env.DB,req,String(body.code ?? ""));
+      const body = await recoveryBody(req); const r = await owner.recoverOptions(env.DB,req,String(body.code ?? ""));
       return json({options:r.options},200,{"Set-Cookie":r.setCookieHeader,...SETUP_HEADERS});
     }
-    if (path === "/recover/verify" && m === "POST") return signedInJson(await owner.recoverVerify(env.DB,req,await req.json()));
+    if (path === "/recover/verify" && m === "POST") return signedInJson(await owner.recoverVerify(env.DB,req,await req.json().catch(() => ({}))));
     const invite = /^\/invite\/([A-Za-z0-9_-]{32})(\/options|\/verify)?$/.exec(path);
     if (invite && !invite[2] && m === "GET") return ownerPage("Reader invitation",html`<h1>Read this site</h1><p>Create your own passkey to read published pages. This does not give you owner access.</p><form><p class="error" hidden></p><button>Create reader passkey</button></form>`,{headers:SETUP_HEADERS,script:'history.replaceState(null,"","/login");\n'+PASSKEY_JS("invite","/",`invite/${invite[1]}`)});
     if (invite && invite[2] === "/options" && m === "POST") {
@@ -1520,8 +1537,9 @@ async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;da
 
 async function recoveryPage(req: Request,env: Env): Promise<Response> {
   if (!(await owner.hasOwner(env.DB))) return ownerPage("Recovery",html`<h1>This site has no owner yet.</h1>`,{status:409,headers:SETUP_HEADERS});
-  const code = (new URL(req.url).searchParams.get("code") ?? "").slice(0,200);
-  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review/readers?after=recovery")});
+  const refusal = recoveryQueryRefusal(req);
+  if (refusal) return refusal;
+  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form method="post" action="/recover/options"><label>Recovery code</label><input type="password" name="code" autocomplete="off" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:RECOVERY_JS+PASSKEY_JS("recover","/review/readers?after=recovery")});
 }
 async function readersPage(req: Request,env: Env): Promise<Response> {
   const recovered=new URL(req.url).searchParams.get("after")==="recovery";
