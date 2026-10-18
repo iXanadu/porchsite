@@ -1,3 +1,4 @@
+import robotsCases from '../../spec/robots-cases.json';
 // AF-C1 acceptance: paired with server/tests/app/test_training_receipt.py.
 import {env} from 'cloudflare:workers';
 import {beforeEach,expect,it} from 'vitest';
@@ -68,13 +69,38 @@ it('af_training_receipt_no_backfill: reads and requests never certify old approv
  const fresh=await content.updateItem(db,actor,'site',one.version,{title:'Fresh shown version'});await approvals.request(db,actor,['site'],'');expect(await n()).toBe(0);await approvals.publishNow(db,[{id:'site',version:fresh.version}],'',origin);expect((await fields.trainingState(db)).needs_publication).toBe(false);
 });
 it('af_training_receipt_http_parity: old approval cannot change robots or validators; a real receipt changes both',async()=>{
- const one=await site();await oldApprove(one);const before=await get();const tag=before.headers.get('ETag')!;expect(before.headers.get('Content-Signal')).toContain('ai-train=yes');expect(await (await get('/robots.txt')).text()).not.toContain('GPTBot');
+ const one=await site();await oldApprove(one);const before=await get();const tag=before.headers.get('ETag')!;expect(before.headers.get('Content-Signal')).toContain('ai-train=yes');expect(await (await get('/robots.txt')).text()).toBe(robotsCases.allowed);
  await db.prepare('UPDATE site_fields SET approved=1').run();expect((await get('/',{'If-None-Match':tag})).status).toBe(304);
- await approvals.publishNow(db,[{id:'site',version:one.version}],'',origin);const after=await get('/',{'If-None-Match':tag});expect(after.status).toBe(200);expect(after.headers.get('ETag')).not.toBe(tag);expect(after.headers.get('Content-Signal')).toContain('ai-train=no');expect(await (await get('/robots.txt')).text()).toContain('GPTBot');
+ await approvals.publishNow(db,[{id:'site',version:one.version}],'',origin);const after=await get('/',{'If-None-Match':tag});expect(after.status).toBe(200);expect(after.headers.get('ETag')).not.toBe(tag);expect(after.headers.get('Content-Signal')).toContain('ai-train=no');expect(await (await get('/robots.txt')).text()).toBe(robotsCases.disabled);
  const auth=await get('/',{Authorization:'Bearer fixture'});expect(auth.headers.get('Cache-Control')).toContain('no-store');expect(auth.headers.has('ETag')).toBe(false);expect(await (await get()).text()).not.toContain('training_approvals');
 });
 
 it('af_training_receipt_copy_restore: importing a proposed true choice never imports a receipt',async()=>{
  await importer.importFile(db,JSON.stringify({porchsite_import:1,from:'Fixture',items:[{kind:'site',data:{title:'Imported',theme:'personal-homepage',ai_training_disabled:true}}],training_approvals:[1]}));
  expect(await n()).toBe(0);expect(await trainingDisabled(db)).toBe(false);expect((await content.getItem(db,'site')).data.ai_training_disabled).toBe(true);
+});
+
+it('af_crawler_tiers_bytes and validators: public tiers are exact, UA-independent and revalidate only current state',async()=>{
+ const one=await site();await oldApprove(one);
+ const robot=await get('/robots.txt',{'User-Agent':'GPTBot'}),tag=robot.headers.get('ETag')!;
+ expect(await robot.text()).toBe(robotsCases.allowed);
+ expect(await (await get('/robots.txt',{'User-Agent':'unlisted-agent'})).text()).toBe(robotsCases.allowed);
+ expect((await get('/robots.txt',{'If-None-Match':tag})).status).toBe(304);
+ await approvals.publishNow(db,[{id:'site',version:one.version}],'',origin);
+ const blocked=await get('/robots.txt',{'If-None-Match':tag});expect(blocked.status).toBe(200);
+ expect(await blocked.text()).toBe(robotsCases.disabled);expect(blocked.headers.get('ETag')).not.toBe(tag);
+ const head=await handle(new Request(origin+'/robots.txt',{method:'HEAD'}),e);expect(head.status).toBe(200);expect(await head.text()).toBe('');expect(head.headers.get('ETag')).toBe(blocked.headers.get('ETag'));
+ const auth=await get('/robots.txt',{Authorization:'Bearer fixture'});expect(auth.headers.get('Cache-Control')).toContain('no-store');expect(auth.headers.has('ETag')).toBe(false);expect(await auth.text()).toBe(robotsCases.disabled);
+ expect(await n()).toBe(1);
+});
+it('af_training_discovery: existing protected state drives HTML and structured owner status without publication',async()=>{
+ const one=await site();await oldApprove(one);const token='crawler-discovery-owner';
+ await db.batch([db.prepare("INSERT INTO owner(id,name,user_handle,created_at) VALUES(1,'Owner','fixture','2026-10-17')"),db.prepare("INSERT INTO sessions(token_hash,created_at,expires_at) VALUES(?,'2026-10-17','2099-01-01')").bind(await hash(token))]);
+ const headers={Cookie:`__Host-sk_owner=${token}`};
+ for(const Accept of ['text/html','text/markdown']){const r=await get('/review',{...headers,Accept});expect(r.status).toBe(200);const text=await r.text();expect(text).toContain('Site settings');expect(text).toContain('Allowed');expect(text).toContain('Pending owner publication.');expect(text).toContain(fields.TRAINING_NOTE);expect(text).toContain('Search and user-triggered agents stay allowed.');}
+ expect(await n()).toBe(0);await approvals.publishNow(db,[{id:'site',version:one.version}],'',origin);
+ await content.updateItem(db,actor,'site',one.version,{ai_training_disabled:false});
+ for(const Accept of ['text/html','text/markdown']){const text=await(await get('/review',{...headers,Accept})).text();expect(text).toContain('Blocked for training crawlers');expect(text).toContain('Proposed: Allowed. Pending owner publication.');expect(text).not.toContain(fields.TRAINING_NOTE);}
+ expect(await n()).toBe(1);expect((await fields.trainingState(db)).effective_disabled).toBe(true);
+ for(const h of [{} as Record<string,string>,{Cookie:'__Host-sk_owner=invalid'}]){const r=await get('/review',h);expect(await r.text()).not.toContain('Site settings');}
 });

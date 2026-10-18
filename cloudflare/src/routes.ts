@@ -357,10 +357,18 @@ async function importPage(req: Request, error = "", problems: string[] = []): Pr
   );
 }
 
-async function trainingNotice(db: D1Database, read?:ownerReview.Block[]): Promise<Raw> {
+async function trainingNotice(db: D1Database, read?:ownerReview.Block[], settings=false): Promise<Raw> {
   const state = await trainingState(db);
   if(state.needs_publication)read?.push(rv("Warning",state.note));
-  return state.needs_publication ? html`<p class="warn">${state.note}</p>` : raw("");
+  const warning=state.needs_publication ? html`<p class="warn">${state.note}</p>` : raw("");
+  if(!settings)return warning;
+  const status=state.effective_disabled ? "Blocked for training crawlers" : "Allowed";
+  const pending=state.proposed_disabled!==state.effective_disabled ? `Proposed: ${state.proposed_disabled ? "Blocked for training crawlers" : "Allowed"}. Pending owner publication.` : "";
+  const guidance="Search and user-triggered agents stay allowed. Ask your assistant to change this; you review and approve the site change.";
+  const preference="Robots is a preference and does not guarantee crawler compliance.";
+  read?.push(ownerReview.heading("Site settings"),rv("AI training",status),rv("Training choice",guidance),rv("Crawler preference",preference));
+  if(pending)read?.push(rv("Pending training choice",pending));
+  return html`<section aria-label="Site settings"><h2>Site settings</h2><p>AI training: ${status}</p><p>${guidance}</p><p>${preference}</p>${pending ? html`<p>${pending}</p>` : ""}${warning}</section>`;
 }
 
 async function reviewIndex(env: Env, req: Request): Promise<Response> {
@@ -375,7 +383,7 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     )}<span class="go">${a.items.some((i) => i.status === "pending") ? "Review and decide →" : "See details →"}</span></a>`;
   const read:ownerReview.Block[]=[];
   const currentUpdate=await update.check(env.OAUTH_KV);
-  const training=await trainingNotice(env.DB,read),unsent=await approvals.unsent(env.DB);
+  const training=await trainingNotice(env.DB,read,true),unsent=await approvals.unsent(env.DB);
   if(currentUpdate.available)read.push(rv("Update",`${currentUpdate.security?'Security update: ':''}A newer Porchsite is available (${currentUpdate.latest}). Ask your assistant to update it.`));
   return ownerPage(
     "Review",

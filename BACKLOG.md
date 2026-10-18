@@ -81,38 +81,35 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    silently drops the log redaction RA-9 set at install. The update path's
    upload metadata must carry it (as the installer's does).
 
-8. **PERF-10** OPEN (found 2026-10-18, AN-2 timing): local /collect CPU on
-   a55686c vs 3f0141a: median +3.4 ms below cap, +9.0 ms at cap, with
-   intervals of about +-12 ms, so unresolved. The prime suspect is CO-1's
-   D1 daily-limit adapter (8a38af0): a Proxy get trap, a new closure and
-   allocations on every prepare, bind and execute, plus an async wrapper
-   per call. A typed prototype adapter could keep the same error
-   provenance without per-call closures. Hosted /collect CPU from Hand
-   decides; above the 10 ms mean, fix before other work.
+8. **PERF-10** WONTFIX 2026-10-18: the typed D1 adapter (5f76992) measured
+   slower, not faster, in its declared 72-process cohort (median +0.9 to
+   +1.3 ms in all three classes, the at-cap interval wholly positive), and
+   Hand's hosted A/B found no /collect regression to fix (a55686c mean
+   7.7 ms vs 3f0141a 8.3). Branch kept for reference; not shipped.
 
-9. **AF-8** OPEN (owner, 2026-10-18, from his agent-friendly article):
-   robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
-   turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
-   Google-Extended Disallow groups). Make the tiers explicit always:
-   named groups for search crawlers, user-triggered agents and training
-   crawlers, with the training group Allow or Disallow per the owner's
-   choice. Make the existing training switch discoverable: owners don't
-   know it exists (it's in INSTALL.md only), so it should appear in the
-   assistant guide, in site_state for assistants, and on /review.
-10. **PERF-11** OPEN (GATE-2a, 2026-10-18): with prepared copies on, an owner
-   approval of 200 entries reads about 1.12 million rows (609 writes),
-   including the background copy preparation, against 2,060 with copies
-   off. One such approval uses about a fifth of the account's free 5
-   million daily reads. Same on a55686c, so not a regression. Attribute and
-   cut, or prepare copies lazily on the first view instead of on approval.
+11. **AF-9** OPEN (owner, 2026-10-18, visiting-assistant test): every page's
+   JSON-LD is WebPage or CollectionPage (cloudflare/src/structured-data.ts).
+   Entries should be Article or BlogPosting with headline, author,
+   datePublished, dateModified and image, both editions.
+12. **AF-10** OPEN (owner, 2026-10-18, same test): in a list page's Markdown
+   copy (index.md), cards run together as long link labels. Each card
+   should be its own list item: `- [Title](url): summary`.
+
+13. **PERF-12** OPEN (Hand, hosted on porchsite.dev, a55686c, 2026-10-18):
+   cold page GET CPU averages 10.2-10.4 ms (p50 8-8.5), at the free
+   plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
+   cut the largest cost.
+
+14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
+   archived a55686c and earlier copies still compare timing fields, so the
+   upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
-- **PERF-9a-VALIDATION** BLOCKED: the revision witness changes ordinary
-  OFF conditional SQL while the copies-ON contract requires identical
-  statements. Extend only the ON conditional proof after a reviewed spec
-  delta, preserve copy lookup/admission, and restore the full current
-  safety suite with actual snapshot/late-proof injections and mutation
-  controls. Do not release until both editions pass their full suites.
+- **PERF-9a-VALIDATION** BLOCKED: conditional witness parity and retargeted
+  privacy controls pass the full suites before integration. Revalidate the
+  combined current tree and remeasure against the newest published archive;
+  installer atomicity, CPU and independent acceptance remain required.
+  Do not release on the earlier source or row records alone.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.

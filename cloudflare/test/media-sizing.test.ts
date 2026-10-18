@@ -18,7 +18,7 @@ async function prepared(){await db.prepare("INSERT INTO public_artifacts(key,gen
 it('perf3_read_only_size: legacy reads preserve dimensions and prepared state',async()=>{
  const {name}=await unsized();await prepared();const before=await db.prepare('SELECT * FROM public_artifact_state').all();const sql=vi.spyOn(db,'prepare');
  expect(await media.sizeOf(db,name)).toEqual([512,256]);expect(await media.sizeOf(db,name)).toEqual([512,256]);expect(sql.mock.calls.every(([q])=>/^SELECT/i.test(q))).toBe(true);sql.mockRestore();
- expect(await db.prepare('SELECT width FROM media WHERE name=?').bind(name).first('width')).toBe(0);expect(await db.prepare('SELECT * FROM public_artifact_state').all()).toEqual(before);expect(await db.prepare('SELECT count(*) AS n FROM public_artifacts').first('n')).toBe(1);
+ expect(await db.prepare('SELECT width FROM media WHERE name=?').bind(name).first('width')).toBe(0);expect((await db.prepare('SELECT * FROM public_artifact_state').all()).results).toEqual(before.results);expect(await db.prepare('SELECT count(*) AS n FROM public_artifacts').first('n')).toBe(1);
  expect(await media.sizeOf(db,'absent.png')).toEqual([0,0]);
 });
 it.each(['store','image_add'])('perf3_upload_backfill: %s records dimensions and atomically clears prepared copies',async(mode)=>{

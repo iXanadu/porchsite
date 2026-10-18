@@ -35,6 +35,12 @@ names. Re-read them at the start of each new task: they change.
   Don't ask me to edit content or upload corrections: make the change
   and send it for approval.
 - Never tell me a change is live before I've approved it.
+- Tell me I can allow training crawlers or ask them not to use my site's
+  content. Search and user-triggered agents stay allowed. This is a robots
+  preference, not a technical block or a guarantee crawlers obey it.
+  Read site_state.training_choice to distinguish the proposed choice from
+  the effective one. Changing site.ai_training_disabled creates a draft;
+  I review and approve the site change before it takes effect.
 
 1. Never upgrade a plan, add a payment method, or turn on a paid feature without the owner's explicit yes.
 2. Never call a budget alert a spending limit. Cloudflare has no hard cap, and alerts are email only, about a day late.

@@ -596,11 +596,23 @@ async def import_page(req: Request, error: str = "", problems: list[str] | None 
 _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
-async def _training_notice(db, read=None):
+async def _training_notice(db, read=None, settings=False):
     state = await training_state(db)
     if read is not None and state["needs_publication"]:
         read.append(rv("Warning",state["note"]))
-    return f'<p class="warn">{esc(state["note"])}</p>' if state["needs_publication"] else ""
+    warning = f'<p class="warn">{esc(state["note"])}</p>' if state["needs_publication"] else ""
+    if not settings:
+        return warning
+    status = "Blocked for training crawlers" if state["effective_disabled"] else "Allowed"
+    pending = ("Proposed: " + ("Blocked for training crawlers" if state["proposed_disabled"] else "Allowed") + ". Pending owner publication.") if state["proposed_disabled"] != state["effective_disabled"] else ""
+    guidance = "Search and user-triggered agents stay allowed. Ask your assistant to change this; you review and approve the site change."
+    preference = "Robots is a preference and does not guarantee crawler compliance."
+    if read is not None:
+        read.extend([rh("Site settings"), rv("AI training", status), rv("Training choice", guidance), rv("Crawler preference", preference)])
+        if pending:
+            read.append(rv("Pending training choice", pending))
+    pending_html = f"<p>{esc(pending)}</p>" if pending else ""
+    return f'<section aria-label="Site settings"><h2>Site settings</h2><p>AI training: {esc(status)}</p><p>{esc(guidance)}</p><p>{esc(preference)}</p>{pending_html}{warning}</section>'
 
 
 async def review_index(req: Request, cx: Context) -> Response:
@@ -630,7 +642,7 @@ async def review_index(req: Request, cx: Context) -> Response:
     decided = "".join(row(a) for a in done) if done else '<p class="meta">Nothing yet.</p>'
     read=[]
     current_update=await updates.check(cx.db, cx.release)
-    training=await _training_notice(cx.db,read)
+    training=await _training_notice(cx.db,read,settings=True)
     unsent=await approvals.unsent(cx.db)
     if current_update['available']:
         read.append(rv('Update',('Security update: ' if current_update['security'] else '')+f"A newer Porchsite is available ({current_update['latest']}). Ask your assistant to update it."))
