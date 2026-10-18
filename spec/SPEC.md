@@ -2427,8 +2427,8 @@ instead. No button: the assistant updates, when the owner says so.
 
 **Release write-operation row cells (GATE-2a, Cloudflare edition).** Extend
 GATE-2's local D1 gate, not the product API. Keep its 78 public-page cells
-and add exactly seven operation cells with prepared copies off and `1`
-(14 added cells, 92 per artifact). Measure the candidate and immediately
+and add exactly eight operation cells with prepared copies off and `1`
+(16 added cells, 94 per artifact). Measure the candidate and immediately
 preceding published archived Worker on the same versioned fixtures and
 method. This is not a server/PostgreSQL row-cost or hosted billing claim;
 both editions' existing correctness, parity and upgrade gates remain.
@@ -2456,6 +2456,7 @@ clock/fixture changes require an explicit comparison rebase.
 | --- | --- | --- |
 | `collect/first_day` | `POST /collect`, valid new `pv` id; no salt for the clock day, previous-day maintenance watermark, one previous-day salt, two pageviews at day minus 91 for one visitor, one retained pageview at day minus 1, no prior daily aggregate for the expired rows. | One new view recorded. Assert daily salt, expired-row aggregation/deletion and monotonic completed-day watermark; include all cleanup/index writes and reads. |
 | `collect/repeat` | `POST /collect`, different valid `pv` id for the same daily visitor as one pre-existing current-day view; current salt and completed-day marker present. | Exactly one new view, original unchanged; no repeated retention mutation. This is a new page view, not a duplicate-id cell. |
+| `collect/existing_counter` | `POST /collect`, distinct valid `pv` id after one same-day source view; matching valid views=1 counter seeded only if that artifact schema contains the counter table. The predecessor has identical source rows without invented schema. Setup is outside measurement. | Exactly two source views, original unchanged, candidate counter=2. Measure actual accepted-event writes against AN-1; at most +1 or reject the optimization. |
 | `collect/at_cap` | `POST /collect`, distinct valid id for the same existing daily hash after exactly 200 current-day views; salt and completed-day marker present. | Cap-aware candidate/archive admit none; 200 stored views remain, attempted id absent. Count all denial reads and any writes; never infer a denial from wire 204 or zero writes. |
 | `collect/heartbeat` | `POST /collect`, `hb` on one admitted id, created one second before the fixed clock, initial engagement and scroll zero; request `e=1000,d=25`. | Same view count; that row becomes engaged 1000 ms and scroll 25. Count actual read and progress-update writes; no other view changes. |
 | `approval/one` | Authenticated same-origin `POST /review/<id>`, real form `all=approve` and valid CSRF, one pending request for exactly one new valid entry/version. | Exactly that shown entry is published with its intended data/version; pending request decided, receipts/history/invalidation consistent with the existing contract. |
@@ -2578,13 +2579,14 @@ only and requires review before implementation or use.
 Version the expanded record format and measurement-input fingerprint.
 Keep the original published predecessor record. For the introducing
 extension explicitly remeasure its exact archived bundle with its own
-migrations and all 92 matching cells, retaining the old 78-cell record and
+migrations and all 94 matching cells, retaining the old 78-cell and 92-cell
+records and
 the labelled expanded comparison. The extension is not the old no-record
 bootstrap exception. Verify release id/artifact manifest as in GATE-2;
 missing/malformed old record or missing archive still fails. Subsequent
 releases use the preceding published expanded record without silent rebase.
 
-The committed JSON identifies all 92 unique cells, their operation kind,
+The committed JSON identifies all 94 unique cells, their operation kind,
 mode and nonnegative integer row totals, plus the pinned expected outcome
 manifest; exact key-set validation rejects missing/extra/duplicated cells.
 No fabricated historical write totals or automatic baseline promotion.
