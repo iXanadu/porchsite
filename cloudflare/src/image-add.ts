@@ -12,6 +12,9 @@ const MAX_TOTAL = 8 * 1024 * 1024;
 // Decode in SQLite, retaining the existing BLOB storage/rollback format.
 const CHUNK = media.CHUNK;
 const NEXT = "Put image in an image field with a description, then ask for approval as usual.";
+// Fast dispatch owns these inputs only after SDK fallback is impossible.
+export const IMAGE_INPUT_RELEASE = Symbol("image input release");
+export type OwnedImageInput = { data?: string; images?: string[]; [IMAGE_INPUT_RELEASE]?: () => void };
 
 function compatiblePreflight(value: string): { raw: string; size: number } {
   const raw = value.replace(/^data:[^,]*,/, "").replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
@@ -45,8 +48,9 @@ function decodeFiles(values: string[], files: {raw: string}[]): Uint8Array[] {
   }
 }
 
-export async function imageAdd(db: D1Database, actor: string, data?: string, images?: string[]) {
+export async function imageAdd(db: D1Database, actor: string, data?: string, images?: string[], releaseInput?: () => void) {
   if ((data !== undefined) === (images !== undefined)) throw new ApiError(422, "invalid", "Give exactly one of data or images.");
+  const batch = images !== undefined;
   const values = images ?? [data!];
   if (!values.length || values.length > MAX_FILES) throw new ApiError(422, "invalid", "Send 1 to 8 pictures.");
   // No byte decoding occurs until every encoded file's size has been checked.
@@ -63,6 +67,14 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
   let decoded;
   try { decoded = decodeFiles(values, files); }
   finally { reportUploadPhase("decode", "end"); }
+  if (releaseInput) {
+    values.length = 0;
+    files.length = 0;
+    data = undefined;
+    images = undefined;
+    releaseInput();
+    releaseInput = undefined;
+  }
   const sizes: number[] = [];
   const stmts: D1PreparedStatement[] = [];
   const seen = new Set<string>();
@@ -116,6 +128,6 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
     try { await db.batch(backfill ? [...invalidation(db), ...stmts] : stmts); }
     finally { reportUploadPhase("d1", "end"); }
   }
-  const next = photoNext(NEXT, sizes, images !== undefined);
-  return images !== undefined ? { images: out, next } : { ...out[0], next };
+  const next = photoNext(NEXT, sizes, batch);
+  return batch ? { images: out, next } : { ...out[0], next };
 }

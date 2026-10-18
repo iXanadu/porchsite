@@ -107,10 +107,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
   Needs its own security review.
-- **CF-M1** IN-PROGRESS: One 8 MB picture through image_add peaks at about
-  98 MiB in the Worker (measured locally, fresh isolate), about 23%
-  under the 128 MiB limit. Consider a lower per-file limit or a leaner
-  decode and D1 path (see CF-S2). Found: stage 2 memory measurement.
 
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
