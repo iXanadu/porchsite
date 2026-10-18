@@ -98,4 +98,4 @@ def test_af_time_lazy_artifact(monkeypatch):
     d=datetime.fromtimestamp(now/1000,UTC)
     hours_view(None,'UTC',d);notice_view(None,'UTC',d);event_view(None,'UTC',d)
     unread.assert_not_called()
-    assert isinstance(json.loads(Path(clock.__file__).with_name('public-time-zones.json').read_text()),str)
+    assert isinstance(json.loads(clock.clock_resource().read_text()),str)

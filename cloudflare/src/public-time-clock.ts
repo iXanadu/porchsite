@@ -1,5 +1,5 @@
 /** Finite IANA rules shared by renderer and proof; unknown clocks remain live-only. */
-import table from '../../server/server/spec/public-time-zones.json';
+import table from '../../shared/porchsite_shared/public-time-zones.json';
 type ClockData={start:number;zones:Record<string,number>;rules:string[]};
 let loaded:ClockData|undefined;
 const clockData=()=>loaded??=JSON.parse(table) as ClockData;

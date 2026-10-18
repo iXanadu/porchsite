@@ -48,7 +48,7 @@ it('af_time_complete_registry: every bundled renderer agrees with state at indep
  }
 });
 it('af_time_lazy_artifact: quiet render and validator do not parse the zone payload',async()=>{
- const {default:payload}=await import('../../server/server/spec/public-time-zones.json');expect(typeof payload).toBe('string');
+ const {default:payload}=await import('../../shared/porchsite_shared/public-time-zones.json');expect(typeof payload).toBe('string');
  const f=facts(),now=Date.parse('2026-10-19T08:00Z'),parsing=vi.spyOn(JSON,'parse');
  try{expect(plan(f,c,now).kind).toBe('static');hoursView(undefined,'UTC',new Date(now));noticeView(undefined,'UTC',new Date(now));eventView(null,'UTC',new Date(now));expect(parsing).not.toHaveBeenCalled();}finally{parsing.mockRestore();}
 });

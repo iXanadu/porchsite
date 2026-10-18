@@ -35,4 +35,4 @@ if version == 'unknown':
     raise SystemExit('A source tzdb +VERSION is required')
 payload=json.dumps(dict(version=version,start=START,zones=names,rules=[json.dumps(r,separators=(',',':')) for r in rules]),separators=(',',':'))
 # The bundler imports one inert string; even the zone index is lazy.
-(root/'server/server/spec/public-time-zones.json').write_text(json.dumps(payload,separators=(',',':'))+'\n')
+(root/'shared/porchsite_shared/public-time-zones.json').write_text(json.dumps(payload,separators=(',',':'))+'\n')

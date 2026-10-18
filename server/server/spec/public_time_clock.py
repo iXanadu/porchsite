@@ -3,9 +3,14 @@ import json
 from functools import lru_cache
 from datetime import UTC, datetime
 from pathlib import Path
+from importlib.resources import files
+def clock_resource():
+    source = Path(__file__).resolve().parents[3] / 'shared/porchsite_shared/public-time-zones.json'
+    return source if source.is_file() else files('porchsite_shared').joinpath('public-time-zones.json')
+
 @lru_cache(maxsize=1)
 def clock_data():
-    return json.loads(json.loads(Path(__file__).with_name('public-time-zones.json').read_text()))
+    return json.loads(json.loads(clock_resource().read_text()))
 
 @lru_cache(maxsize=8)
 def decoded(i):

@@ -30,12 +30,13 @@ requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["server*"]
+where = [".", "../shared"]
+include = ["server*", "porchsite_shared*"]
 
 [tool.setuptools.package-data]
 "server.app" = ["schema.sql", "field_guide.json", "beacon.js", "agent-traffic.json", "site-state-guide.json", "read-unicode.json"]
 
-"server.spec" = ["public-time-zones.json"]
+"porchsite_shared" = ["public-time-zones.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
