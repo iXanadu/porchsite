@@ -80,7 +80,7 @@ async def test_cli_fragment_issuer(db,test_dsn):
     assert expiry>owner.now()
 
 async def test_query_cutoff_exact_routes_and_stored_authority(db,http):
-    code='body-credential-canary'
+    code='body-credential-canary-with-32-characters'
     await owner.issue_recovery_code(db,code)
     before=await db.fetch('SELECT * FROM recovery_codes')
     for query in FIXTURE['query_cases']:

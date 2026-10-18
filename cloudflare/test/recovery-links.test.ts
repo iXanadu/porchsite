@@ -37,7 +37,7 @@ it('keeps recovery unavailable before claim without reflecting query values',asy
  await db.prepare('DELETE FROM owner').run();for(const method of ['GET','HEAD']){const r=await at('/recover?code=unclaimed-canary',{method});expect(r.status).toBe(409);expect(await r.text()).not.toContain('unclaimed-canary');}
 });
 it('refuses decoded query credentials on exactly the accepted recovery routes without changing stored authority',async()=>{
- const code='body-credential-canary';await owner.issueRecoveryCode(db,code);
+ const code='body-credential-canary-with-32-characters';await owner.issueRecoveryCode(db,code);
  const before=await db.prepare('SELECT * FROM recovery_codes').all();
  for(const query of fixture.query_cases)for(const [path,method] of [['/recover','GET'],['/recover','HEAD'],['/recover/options','POST'],['/recover/verify','POST']]){
   const r=await at(path+query,{method,...(method==='POST'?{headers:{'Content-Type':'application/json'},body:JSON.stringify({code,response:'body-canary'})}:{})});
