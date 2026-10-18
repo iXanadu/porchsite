@@ -75,12 +75,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
 
-   **PERF-10** OPEN (found by local write-cell measurement, 2026-10-18):
-   approving 200 new entries with prepared copies on reads 1,118,089 rows
-   and writes 609, including settled background preparation; copies off
-   reads 2,060 and writes 404. This is the same on the published baseline
-   and candidate, not a regression or hosted estimate. Attribute preparation
-   work and measure a cheaper design without weakening publication checks.
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
@@ -93,6 +87,31 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
    upload metadata must carry it (as the installer's does).
+
+8. **PERF-10** OPEN (found 2026-10-18, AN-2 timing): local /collect CPU on
+   a55686c vs 3f0141a: median +3.4 ms below cap, +9.0 ms at cap, with
+   intervals of about +-12 ms, so unresolved. The prime suspect is CO-1's
+   D1 daily-limit adapter (8a38af0): a Proxy get trap, a new closure and
+   allocations on every prepare, bind and execute, plus an async wrapper
+   per call. A typed prototype adapter could keep the same error
+   provenance without per-call closures. Hosted /collect CPU from Hand
+   decides; above the 10 ms mean, fix before other work.
+
+9. **AF-8** OPEN (owner, 2026-10-18, from his agent-friendly article):
+   robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
+   turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
+   Google-Extended Disallow groups). Make the tiers explicit always:
+   named groups for search crawlers, user-triggered agents and training
+   crawlers, with the training group Allow or Disallow per the owner's
+   choice. Make the existing training switch discoverable: owners don't
+   know it exists (it's in INSTALL.md only), so it should appear in the
+   assistant guide, in site_state for assistants, and on /review.
+10. **PERF-11** OPEN (GATE-2a, 2026-10-18): with prepared copies on, an owner
+   approval of 200 entries reads about 1.12 million rows (609 writes),
+   including the background copy preparation, against 2,060 with copies
+   off. One such approval uses about a fifth of the account's free 5
+   million daily reads. Same on a55686c, so not a regression. Attribute and
+   cut, or prepare copies lazily on the first view instead of on approval.
 
 ## BLOCKING
 
@@ -174,6 +193,12 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **PERF-11** OPEN (found by local write-cell measurement, 2026-10-18):
+ approving 200 new entries with prepared copies on reads 1,118,089 rows
+ and writes 609, including settled background preparation; copies off
+ reads 2,060 and writes 404. This is the same on the published baseline
+ and candidate, not a regression or hosted estimate. Attribute preparation
+ work and measure a cheaper design without weakening publication checks.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
