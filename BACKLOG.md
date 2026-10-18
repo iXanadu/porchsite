@@ -75,6 +75,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
 
+   **PERF-10** OPEN (found by local write-cell measurement, 2026-10-18):
+   approving 200 new entries with prepared copies on reads 1,118,089 rows
+   and writes 609, including settled background preparation; copies off
+   reads 2,060 and writes 404. This is the same on the published baseline
+   and candidate, not a regression or hosted estimate. Attribute preparation
+   work and measure a cheaper design without weakening publication checks.
+
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
    in 11 queries, so about 24,000 rejected views a day from one visitor
