@@ -7,6 +7,17 @@ from markdown_it import MarkdownIt
 from server.app.agent_markdown import markdown_document
 
 CASES=json.loads((Path(__file__).parents[3]/'spec/fixtures/markdown-escaping.json').read_text())
+INTRAWORD=json.loads((Path(__file__).parents[3]/'spec/fixtures/markdown-intraword.json').read_text())
+
+@pytest.mark.parametrize('case',INTRAWORD,ids=lambda c:c['name'])
+def test_af_markdown_intraword_underscore(case):
+    actual=markdown_document(case['html'],case['canonical'])['markdown']
+    assert actual==case['markdown']
+    for gfm in (False,True):
+        parser=MarkdownIt('commonmark')
+        if gfm: parser.enable(['strikethrough','table'])
+        # The legacy escaped image alt loses its underscore in the parser.
+        assert parser.render(actual)==case.get('rendered',parser.render(case['legacy']))
 
 class Visible(HTMLParser):
     def __init__(self, source):
