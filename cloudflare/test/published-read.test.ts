@@ -97,10 +97,22 @@ it.each(['page_get','pages_list','search'])('ag_read_publication_race %s never r
  const {entries,principal}=await fixture(),original=site.liveView;let calls=0;
  vi.spyOn(site,'liveView').mockImplementation(async(...args:Parameters<typeof site.liveView>)=>{const value=await original(...args);if(++calls===1)await db.prepare('DELETE FROM live WHERE item_id=?').bind(entries[0].id).run();return value;});
  const reading=name==='page_get'?published.pageGet(db,{path:'/one/'+entries[0].slug+'/'},principal):name==='pages_list'?published.pagesList(db,{},principal):published.search(db,{query:'woodwork'},principal);
- await expect(reading).rejects.toMatchObject({code:name==='page_get'?'not_found':'cursor_stale'});
+ if(name==='page_get')await expect(reading).rejects.toMatchObject({code:'not_found'});
+ else{const result=await reading;expect(JSON.stringify(result)).not.toContain('/one/'+entries[0].slug+'/');expect(JSON.stringify(result)).not.toContain('Café');expect(calls).toBe(4);}
 });
-it('ag_read_clock_boundary: a listing cannot deliver a corpus spanning display minutes',async()=>{
- const {principal}=await fixture(),original=site.liveView;let calls=0;
+it.each(['site_state','pages_list','search','page_get'])('ag_read_cursorless_restart: %s rebuilds across a minute',async(name)=>{
+ const {entries,principal}=await fixture(),original=site.liveView;let calls=0;
  vi.spyOn(site,'liveView').mockImplementation(async(...args:Parameters<typeof site.liveView>)=>{const value=await original(...args);if(++calls===2)vi.setSystemTime(new Date('2026-10-17T12:01:00Z'));return value;});
- await expect(published.pagesList(db,{},principal)).rejects.toMatchObject({code:'cursor_stale'});
+ const result=name==='site_state'?await published.state(db,{},principal):name==='pages_list'?await published.pagesList(db,{},principal):name==='search'?await published.search(db,{query:'woodwork'},principal):await published.pageGet(db,{path:'/one/'+entries[0].slug+'/'},principal);
+ expect(calls).toBe(4);expect(JSON.stringify(result)).toContain(name==='page_get'?'Café':'/one/'+entries[0].slug+'/');
+});
+it('ag_read_cursorless_restart: supplied cursor stays strict across a minute',async()=>{
+ const {principal}=await fixture(3),first=await published.pagesList(db,{limit:1},principal),original=site.liveView;let calls=0;expect(first.next_cursor).toBeTruthy();
+ vi.spyOn(site,'liveView').mockImplementation(async(...args:Parameters<typeof site.liveView>)=>{const value=await original(...args);if(++calls===2)vi.setSystemTime(new Date('2026-10-17T12:01:00Z'));return value;});
+ await expect(published.pagesList(db,{limit:1,cursor:first.next_cursor},principal)).rejects.toMatchObject({code:'cursor_stale'});expect(calls).toBe(2);
+});
+it('ag_read_cursorless_restart: repeated clock races fail bounded with content_changed',async()=>{
+ const {principal}=await fixture(),original=site.liveView;let calls=0;
+ vi.spyOn(site,'liveView').mockImplementation(async(...args:Parameters<typeof site.liveView>)=>{const value=await original(...args);if(++calls%2===0)vi.setSystemTime(Date.now()+60000);return value;});
+ await expect(published.pagesList(db,{},principal)).rejects.toMatchObject({code:'content_changed'});expect(calls).toBe(4);
 });

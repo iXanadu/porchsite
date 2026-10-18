@@ -247,31 +247,35 @@ async def _slice(db, args, principal, search_query=None):
     filter_digest, principal_digest = _digest(query), _binding(principal)
     if cursor and (cursor['filter'] != filter_digest or cursor['principal'] != principal_digest):
         _invalid('Invalid cursor.')
-    s, docs, generation = await _corpus(db, principal)
-    if cursor and cursor['corpus'] != generation:
-        raise ApiError(409, 'cursor_stale', 'Published pages changed. Start a new listing.')
-    rows = docs
-    if selected_filter is not None:
-        f = selected_filter
-        if f['stream'] or f['tag'] or f['since']:
-            def keep(doc):
-                e = s['by_path'].get(doc['path'])
-                return e is not None and not e.get('external_url') and (not f['stream'] or e['stream'] == f['stream']) and (not f['tag'] or f['tag'] in e['tags']) and (not f['since'] or _after(doc['changed_at'], f['since']))
-            rows = [d for d in docs if keep(d)]
-    else:
-        terms = re.split(WORD_SPACE, search_query)
-        def matches(doc):
-            text = _normalize(doc['title']+' '+doc['text'])
-            return all(term in text for term in terms)
-        rows = [d for d in docs if matches(d)]
-    if cursor and not any(d['path'] == cursor['last'] for d in rows):
-        _invalid('Invalid cursor.')
-    remaining = [d for d in rows if read_nfc(d['path']).encode() > cursor['last'].encode()] if cursor else rows
-    selected = remaining[:limit]
-    next_cursor = _encode(dict(v=1, last=selected[-1]['path'], filter=filter_digest, corpus=generation, principal=principal_digest)) if len(remaining) > limit else None
-    if not await _unchanged(db, s, principal):
-        raise ApiError(409, 'cursor_stale', 'Published pages changed. Start a new listing.')
-    return s, selected, next_cursor
+    for attempt in range(1 if cursor else 2):
+        s, docs, generation = await _corpus(db, principal)
+        if cursor and cursor['corpus'] != generation:
+            raise ApiError(409, 'cursor_stale', 'Published pages changed. Start a new listing.')
+        rows = docs
+        if selected_filter is not None:
+            f = selected_filter
+            if f['stream'] or f['tag'] or f['since']:
+                def keep(doc):
+                    e = s['by_path'].get(doc['path'])
+                    return e is not None and not e.get('external_url') and (not f['stream'] or e['stream'] == f['stream']) and (not f['tag'] or f['tag'] in e['tags']) and (not f['since'] or _after(doc['changed_at'], f['since']))
+                rows = [d for d in docs if keep(d)]
+        else:
+            terms = re.split(WORD_SPACE, search_query)
+            def matches(doc):
+                text = _normalize(doc['title']+' '+doc['text'])
+                return all(term in text for term in terms)
+            rows = [d for d in docs if matches(d)]
+        if cursor and not any(d['path'] == cursor['last'] for d in rows):
+            _invalid('Invalid cursor.')
+        remaining = [d for d in rows if read_nfc(d['path']).encode() > cursor['last'].encode()] if cursor else rows
+        selected = remaining[:limit]
+        next_cursor = _encode(dict(v=1, last=selected[-1]['path'], filter=filter_digest, corpus=generation, principal=principal_digest)) if len(remaining) > limit else None
+        if not await _unchanged(db, s, principal):
+            if cursor:
+                raise ApiError(409, 'cursor_stale', 'Published pages changed. Start a new listing.')
+            continue
+        return s, selected, next_cursor
+    raise ApiError(409, 'content_changed', 'Published pages changed. Try again.')
 
 
 async def pages_list(db, args, principal):

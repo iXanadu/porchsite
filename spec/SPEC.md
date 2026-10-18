@@ -2966,10 +2966,18 @@ engine. Restricted `site_state` uses the same default 20-row bound and cursor
 as a first `pages_list` call; callers use `pages_list` for continuation.
 
 Each result is rendered from one reader snapshot. Recheck its visible
-publication/theme dependencies before returning; crossing a display-clock
-minute while preparing a listing refuses with `cursor_stale`. A single-page
-read retries one changed snapshot, then refuses with `content_changed` if
-it changes again. Revocation is still rechecked by the outer tool boundary
+publication/theme dependencies before returning. A supplied cursor remains
+strict: a changed corpus or display-clock minute returns `cursor_stale`.
+Without a supplied cursor, `site_state`, `pages_list` and `search` discard a
+changed snapshot/corpus and rebuild once, including all filtering, rendering,
+generation and next-cursor creation. Never return a mixed-clock corpus or a
+cursor from the discarded attempt. A second change returns `content_changed`,
+not `cursor_stale`. A single-page read likewise retries one changed snapshot,
+then refuses with `content_changed` if it changes again. Paired
+`ag_read_cursorless_restart` cases inject a minute crossing mid-build, prove
+one successful complete restart, strict supplied-cursor refusal, and bounded
+failure under repeated changes; publication/removal and revocation protections
+remain strict. Revocation is still rechecked by the outer tool boundary
 immediately before protected return. These checks do not store a private body
 or extend authorization across requests.
 

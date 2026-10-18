@@ -112,16 +112,22 @@ async function pageSlice(db:D1Database,args:Args,principal:Principal,searchQuery
  const query=searchQuery===undefined?['pages_list',filter]:['search',searchQuery];
  const filterDigest=await digest(query),principalDigest=await binding(principal);
  if(cursor&&(cursor.filter!==filterDigest||cursor.principal!==principalDigest))return invalid('Invalid cursor.');
- const {s,docs,generation}=await corpus(db,principal);
- if(cursor&&cursor.corpus!==generation)throw new ApiError(409,'cursor_stale','Published pages changed. Start a new listing.');
- let rows=docs;
- if(filter){if(filter.stream||filter.tag||filter.since)rows=docs.filter(d=>{const e=s.byPath.get(d.path);return !!e&&!e.external_url&&(!filter.stream||e.stream===filter.stream)&&(!filter.tag||e.tags.includes(filter.tag))&&(!filter.since||after(d.changed_at,filter.since));});}
- else{const terms=searchQuery!.split(WORD_SPACE);rows=docs.filter(d=>{const text=normalize(d.title+' '+d.text);return terms.every(term=>text.includes(term));});}
- if(cursor&&!rows.some(d=>d.path===cursor.last))return invalid('Invalid cursor.');
- const remaining=cursor?rows.filter(d=>compare(d.path,cursor.last)>0):rows,selected=remaining.slice(0,limit);
- const next_cursor=remaining.length>limit?encode({v:1,last:selected.at(-1)!.path,filter:filterDigest,corpus:generation,principal:principalDigest}):null;
- if(!await unchanged(db,s,principal))throw new ApiError(409,'cursor_stale','Published pages changed. Start a new listing.');
- return {s,selected,next_cursor};
+ for(let attempt=0;attempt<(cursor?1:2);attempt++){
+  const {s,docs,generation}=await corpus(db,principal);
+  if(cursor&&cursor.corpus!==generation)throw new ApiError(409,'cursor_stale','Published pages changed. Start a new listing.');
+  let rows=docs;
+  if(filter){if(filter.stream||filter.tag||filter.since)rows=docs.filter(d=>{const e=s.byPath.get(d.path);return !!e&&!e.external_url&&(!filter.stream||e.stream===filter.stream)&&(!filter.tag||e.tags.includes(filter.tag))&&(!filter.since||after(d.changed_at,filter.since));});}
+  else{const terms=searchQuery!.split(WORD_SPACE);rows=docs.filter(d=>{const text=normalize(d.title+' '+d.text);return terms.every(term=>text.includes(term));});}
+  if(cursor&&!rows.some(d=>d.path===cursor.last))return invalid('Invalid cursor.');
+  const remaining=cursor?rows.filter(d=>compare(d.path,cursor.last)>0):rows,selected=remaining.slice(0,limit);
+  const next_cursor=remaining.length>limit?encode({v:1,last:selected.at(-1)!.path,filter:filterDigest,corpus:generation,principal:principalDigest}):null;
+  if(!await unchanged(db,s,principal)){
+   if(cursor)throw new ApiError(409,'cursor_stale','Published pages changed. Start a new listing.');
+   continue;
+  }
+  return {s,selected,next_cursor};
+ }
+ throw new ApiError(409,'content_changed','Published pages changed. Try again.');
 }
 export async function pagesList(db:D1Database,args:Args,principal:Principal){const {selected,next_cursor}=await pageSlice(db,args,principal);return {pages:selected.map(({path,title,changed_at})=>({path,title,changed_at})),next_cursor};}
 export async function search(db:D1Database,args:Args,principal:Principal){

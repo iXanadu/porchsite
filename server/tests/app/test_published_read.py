@@ -196,12 +196,38 @@ async def test_ag_read_publication_race(db, monkeypatch, name):
     monkeypatch.setattr(site, 'live_view', changing)
     handler = {'page_get':published.page_get,'pages_list':published.pages_list,'search':published.search}[name]
     args = {'path':'/one/'+entries[0]['slug']+'/'} if name == 'page_get' else {'query':'woodwork'} if name == 'search' else {}
-    with pytest.raises(ApiError) as error:
-        await handler(db, args, principal)
-    assert error.value.code == ('not_found' if name == 'page_get' else 'cursor_stale')
+    if name == 'page_get':
+        with pytest.raises(ApiError) as error:
+            await handler(db, args, principal)
+        assert error.value.code == 'not_found'
+    else:
+        result = await handler(db, args, principal)
+        assert '/one/'+entries[0]['slug']+'/' not in json.dumps(result)
+        assert 'Café' not in json.dumps(result, ensure_ascii=False)
+        assert calls == 4
 
-async def test_ag_read_clock_boundary(db, monkeypatch):
+@pytest.mark.parametrize('name', ['site_state','pages_list','search','page_get'])
+async def test_ag_read_cursorless_restart(db, monkeypatch, name):
+    _, entries, _, principal = await fixture(db)
+    original, calls = site.live_view, 0
+    async def crossing(*args, **kwargs):
+        nonlocal calls
+        value = await original(*args, **kwargs)
+        calls += 1
+        if calls == 2:
+            monkeypatch.setattr(published, '_clock', lambda: datetime(2026,10,17,12,1,tzinfo=UTC))
+        return value
+    monkeypatch.setattr(site, 'live_view', crossing)
+    handler = {'site_state':published.state,'pages_list':published.pages_list,'search':published.search,'page_get':published.page_get}[name]
+    args = {'query':'woodwork'} if name == 'search' else {'path':'/one/'+entries[0]['slug']+'/'} if name == 'page_get' else {}
+    result = await handler(db, args, principal)
+    assert calls == 4
+    assert ('Café' if name == 'page_get' else '/one/'+entries[0]['slug']+'/') in json.dumps(result, ensure_ascii=False)
+
+async def test_ag_read_supplied_cursor_clock_boundary(db, monkeypatch):
     _, _, _, principal = await fixture(db)
+    first = await published.pages_list(db, {'limit':1}, principal)
+    assert first['next_cursor']
     original, calls = site.live_view, 0
     async def crossing(*args, **kwargs):
         nonlocal calls
@@ -212,5 +238,21 @@ async def test_ag_read_clock_boundary(db, monkeypatch):
         return value
     monkeypatch.setattr(site, 'live_view', crossing)
     with pytest.raises(ApiError) as error:
+        await published.pages_list(db, {'limit':1,'cursor':first['next_cursor']}, principal)
+    assert error.value.code == 'cursor_stale' and calls == 2
+
+async def test_ag_read_repeated_clock_boundary(db, monkeypatch):
+    _, _, _, principal = await fixture(db)
+    original, calls = site.live_view, 0
+    async def crossing(*args, **kwargs):
+        nonlocal calls
+        value = await original(*args, **kwargs)
+        calls += 1
+        if calls % 2 == 0:
+            minute = calls//2
+            monkeypatch.setattr(published, '_clock', lambda: datetime(2026,10,17,12,minute,tzinfo=UTC))
+        return value
+    monkeypatch.setattr(site, 'live_view', crossing)
+    with pytest.raises(ApiError) as error:
         await published.pages_list(db, {}, principal)
-    assert error.value.code == 'cursor_stale'
+    assert error.value.code == 'content_changed' and calls == 4
