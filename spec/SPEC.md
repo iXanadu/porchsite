@@ -2245,7 +2245,7 @@ private-site contract matrices remain required.
   database, only as its sha256 hash, with an expiry (24 hours unless the
   issuer says otherwise); issuing a stored code replaces any earlier stored
   one, and the deploy-time code keeps working beside it. Whoever installs
-  the site sends the owner a link, `/setup?code=<code>`: the page fills the
+  the site sends the owner a link, `/setup#code=<code>`: the page fills the
   code in, so the owner only adds a name and creates a passkey; no terminal.
   `/setup` answers with `Referrer-Policy: no-referrer` and
   `Cache-Control: no-store`, and its script takes the code out of the
@@ -2279,7 +2279,7 @@ Store exactly unpadded base64url of SHA-256 over the UTF-8 code bytes,
 matching the existing installer/owner hash scheme (43 ASCII characters).
 Only the hash and UTC creation/expiry instants enter the row. No plaintext
 code is stored in D1/PostgreSQL, Worker bindings, deployment metadata,
-logs, diagnostics or an audit-note field. The claim link necessarily
+application logs, diagnostics or an audit-note field. The claim link necessarily
 contains the plaintext credential; show it only to the owner/installing
 assistant, never in public content, a tool catalog or a shared report.
 
@@ -2293,6 +2293,49 @@ never authenticate. Legacy environment credentials keep the existing
 constant-time comparison. This does not promise that database lookup,
 WebAuthn, missing/expired cases or the entire HTTP request is constant time.
 Do not expose either digest or credential through refusal text.
+
+**Claim-link transport.** Every newly issued guide, browser-installer and
+server `setup-link` URL is `/setup#code=<code>` (URL-encoded if needed), not
+a query string. The fragment is never part of the HTTP request target.
+The setup page reads only its own fragment's `code` value into the password
+input via the DOM `value` property, never HTML interpolation or execution;
+it removes fragment and query from the address bar before asynchronous work
+or submitting anything. The code travels to setup options only in the
+existing POST JSON body. If JavaScript is disabled the owner can enter the
+code manually; the page must not redirect the fragment into a query URL.
+A fragment code takes precedence over a legacy query code; neither appears
+in a redirect, resource URL, referrer, application log or third-party script.
+
+For the introducing RA-9 release only, accept the old `/setup?code=...`
+form so existing links and archived upgrade assertions keep working. New
+issuers never generate that form. At the immediately following product
+release, unclaimed `/setup` with any `code` query parameter refuses with
+`400 code_in_url`, a fixed credential-free message telling the owner to ask
+for a fresh link or enter the code manually, `no-store` and `no-referrer`.
+No query value is reflected on that refusal. Claimed sites retain their
+existing credential-free `303 /login` redirect. Record the query-removal
+follow-up in the release backlog; do not leave this compatibility window
+open indefinitely or rewrite archived previous-release assertions.
+
+**Request-URL logging.** Browser history removal and `no-referrer` do not
+remove the initial claim URL from hosting access logs. The new-install
+Cloudflare guide, installer and supported Worker configuration therefore
+set `observability.redact_query_string: true` (at the observability root),
+so request URLs in Workers logs/traces omit the query. Keep application
+console messages free of the code, digest, request body and full claim URL.
+The supported server container disables Uvicorn access logging with
+`--no-access-log`; the supplied reverse proxy keeps access logging off.
+Self-hosting instructions require any operator-added proxy/access tracing
+to omit or redact query strings before issuing a setup link. Application
+code cannot erase an external operator's logs or promise that arbitrary
+hosting instrumentation is safe. These installation defaults do not
+silently mutate an existing hosting account or delete previous logs.
+Existing deployments adopting these settings do so through their normal
+owner-approved update/configuration workflow. Setup links are credentials
+in both editions even though only their hashes are kept in the database.
+This does not promise redaction of Logpush, Tail Workers, interactive tail,
+third-party traces or previously retained log rows without separate proof
+for that sink.
 
 **Expiry and single use.** The normal guide/installer lifetime is 24 hours
 from issuance. Server `setup-link --hours N` retains its existing explicit
@@ -2321,6 +2364,10 @@ Already claimed sites remain claimed; every setup credential is inert and
 installer links, server links and in-flight challenges keep their existing
 formats. Stored-code replacement invalidates pending stored-code claims;
 it does not invalidate an independent legacy environment-code challenge.
+For old in-flight `via=env` challenges which predate an identity hash,
+retain the existing configured-secret check for their remaining challenge
+lifetime. New environment-code challenges retain a hash of the same secret;
+rotating to a different secret invalidates them, not merely removing it.
 An operator may remove an old secret through its existing hosting/admin
 workflow, but RA-9 never deletes a hosting-account secret automatically.
 
@@ -2329,7 +2376,7 @@ refuse to issue for a claimed site. The guide generates the code and hash,
 then replaces the stored row using parameterized database queries in one
 transaction/batch, conditional on the site remaining unclaimed. It uploads
 without a setup-secret binding and sends the owner
-`/setup?code=<code>` at the final site origin. It says the link expires in
+`/setup#code=<code>` at the final site origin. It says the link expires in
 24 hours, may be reused to restart registration until the first successful
 claim, and a fresh link replaces it. No new-install secret deletion or
 secret-list check is required. Existing-site update instructions retain
@@ -2488,7 +2535,7 @@ Not part of the contract; one edition has them for how it is run.
 
 - **Server edition: `setup-link`.** `python -m server.app.cli setup-link
   [--hours N]` stores a fresh one-time setup code (§5) and prints
-  `<PORCHSITE_SITE_URL>/setup?code=<code>`, so a new link needs no settings
+  `<PORCHSITE_SITE_URL>/setup#code=<code>`, so a new link needs no settings
   change or restart. Once the site is claimed it refuses and exits 1. The
   Cloudflare edition has no admin command: its installer and new-install
   guide store a hashed code in `setup_codes` (§5, RA-9). Legacy
