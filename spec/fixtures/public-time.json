@@ -179,6 +179,50 @@
         "text": "Last day",
         "until": "2011-12-29"
       }
+    },
+    {
+      "name": "hours_exception_horizon",
+      "zone": "UTC",
+      "before": "2026-10-19T23:59:59Z",
+      "boundary": "2026-10-20T00:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "closed": true
+          }
+        ],
+        "exceptions": [
+          {
+            "from": "2026-12-19",
+            "label": "Exceptional opening",
+            "open": "09:00",
+            "close": "10:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hours_next_open_lookahead",
+      "zone": "UTC",
+      "before": "2026-10-19T23:59:59Z",
+      "boundary": "2026-10-20T00:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "closed": true
+          }
+        ],
+        "exceptions": [
+          {
+            "from": "2026-10-27",
+            "label": "Exceptional opening",
+            "open": "09:00",
+            "close": "10:00"
+          }
+        ]
+      }
     }
   ]
 }

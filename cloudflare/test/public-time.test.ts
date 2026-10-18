@@ -12,6 +12,8 @@ it.each(fixture.cases)('af_time_$name',x=>{
  const f=facts(x),before=Date.parse(x.before),boundary=Date.parse(x.boundary),p=plan(f,c,before);
  expect(p.kind).toBe('bounded');expect(p.next_change).toBe(boundary);expect(valid(p,boundary-1)).toBe(true);expect(valid(p,boundary)).toBe(false);
  expect(output(f,boundary-1)).toBe(output(f,before));expect(output(f,boundary)).not.toBe(output(f,before));expect(plan(f,c,boundary).state).not.toEqual(p.state);
+ if(x.name==='hours_exception_horizon'){expect((p.state as any[])[0].exceptions).toHaveLength(0);expect((plan(f,c,boundary).state as any[])[0].exceptions).toHaveLength(1);}
+ if(x.name==='hours_next_open_lookahead'){expect((p.state as any[])[0].status).toBe('Closed now');expect((plan(f,c,boundary).state as any[])[0].status).toContain('opens');}
  // Independent UTC grid does not take its sample instants from the planner.
  for(let t=before;t<boundary;t+=37000)expect(output(f,t)).toBe(output(f,before));
 });

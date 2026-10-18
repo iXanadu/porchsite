@@ -28,6 +28,10 @@ def test_af_time_boundaries(x):
     assert public_time.valid(p,boundary-1) and not public_time.valid(p,boundary)
     assert output(f,boundary-1)==output(f,before) and output(f,boundary)!=output(f,before)
     assert public_time.plan(f,C,boundary)['state']!=p['state']
+    if x['name']=='hours_exception_horizon':
+        assert len(p['state'][0]['exceptions'])==0 and len(public_time.plan(f,C,boundary)['state'][0]['exceptions'])==1
+    if x['name']=='hours_next_open_lookahead':
+        assert p['state'][0]['status']=='Closed now' and 'opens' in public_time.plan(f,C,boundary)['state'][0]['status']
     for t in range(int(before),int(boundary),37000):
         assert output(f,t)==output(f,before)
 
