@@ -4401,13 +4401,16 @@ workerd process CPU from hosted invocation CPU. Target fresh cold home below
 meeting a timing threshold. No hosted/default-enablement claim follows local
 measurements.
 
-### PERF-4: public response reuse (scope proposal)
+### PERF-4: optional public response reuse
 
-This is a spec-only fallback proposal, not an implemented or enabled feature.
-Implementation follows accepted AF-7T thin prepared-copy delivery, and waits
-for hosted measurements to establish a need and separate authorization. It
-adds an operator-opt-in response cache, off by default, behind the
-Worker/server request handler and ahead of the optional AF-7T store. A miss
+An operator-opt-in response cache, off by default, sits behind the
+Worker/server request handler and ahead of the optional AF-7T store.
+Only the exact operator environment value `PUBLIC_RESPONSES=1` (Worker) or
+`PORCHSITE_PUBLIC_RESPONSES=1` (server), together with the pinned canonical
+`SITE_URL` / `PORCHSITE_SITE_URL`, enables it. Absent, empty and every other
+flag value leave it off. Requests, cookies and MCP cannot set or expose it.
+Accepted AF-7T delivery and hosted evidence establish the implementation
+need; default enablement still requires a separate hosted release decision. A miss
 continues to AF-7T when enabled, otherwise the ordinary live renderer; the
 existing AF-7T admission, integrity and final proof still apply before its 200
 may fill this layer. Enabling one store does not enable the other. It does not
