@@ -41,6 +41,13 @@ it("matches the original dispatcher across the request-header matrix",async()=>{
   const make=()=>new Request(`${origin}/mcp`,{method:"POST",headers,body:new TextEncoder().encode(body)});
   const before=await originalDispatcher(make()),after=await toolTransport(make(),e,ctx);
   const normalized=async(response:Response)=>({status:response.status,headers:Object.fromEntries([...response.headers].filter(([key])=>key!=="date").sort(([a],[b])=>a.localeCompare(b))),body:await response.text()});
-  expect(await normalized(after),JSON.stringify({contentType,accept,body,extraOrigin})).toEqual(await normalized(before));
+  const actual=await normalized(after),historical=await normalized(before);
+  expect(actual.headers['cache-control']).toBe('private, no-store, no-transform');
+  // S4-7 tightens only this header; keep the independent adapter unchanged.
+  const withCurrentMcpCachePolicy=(value:typeof historical)=>{
+   expect([undefined,'no-cache, no-transform']).toContain(value.headers['cache-control']);
+   return {...value,headers:{...value.headers,'cache-control':'private, no-store, no-transform'}};
+  };
+  expect(actual,JSON.stringify({contentType,accept,body,extraOrigin})).toEqual(withCurrentMcpCachePolicy(historical));
  }
 },30000);
