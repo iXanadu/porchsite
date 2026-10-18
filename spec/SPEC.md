@@ -3705,9 +3705,9 @@ version that requires the owner's ordinary review and approval. Never
 switch it automatically, describe a draft as effective, or infer approval
 from these instructions. No extra permission, service or credential is
 introduced. Existing exact-version receipts are neither backfilled nor
-rewritten. Public owner-facing descriptions that enumerate the training
-group must include CCBot or use the accurate generic phrase "training
-crawlers"; do not change tool descriptions or catalogs in this item.
+rewritten. Human-facing review and guide text that enumerates the training group
+must include CCBot or use the accurate generic phrase "training crawlers".
+Existing model/tool descriptions and catalogs stay outside this item.
 
 `site_state.training_choice` already exists in both editions. Keep its
 current protected schema (`proposed_disabled`, `effective_disabled`,
