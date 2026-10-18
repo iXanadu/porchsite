@@ -4,7 +4,7 @@
     "lib": ["es2023", "esnext.typedarrays"],
     "module": "es2022",
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"],
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,

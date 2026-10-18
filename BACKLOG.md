@@ -98,11 +98,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
   hosted measurements and further profiling determine release settings.
-- **DEP-1** OPEN (partly fixed): the build toolchain now uses patched
-  sharp and undici (Wrangler 4.151.1). High-severity npm advisories remain
-  in the unused MCP client dependencies and the test runner's nested
-  runtime; security review found none ships in the Worker. Clears when the
-  agents package and test runner move to current versions. Found 2026-10-18.
 - **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
