@@ -87,22 +87,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    Hand's hosted A/B found no /collect regression to fix (a55686c mean
    7.7 ms vs 3f0141a 8.3). Branch kept for reference; not shipped.
 
-9. **AF-8** IN-PROGRESS (frozen for independent review) (owner, 2026-10-18, from his agent-friendly article):
-   robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
-   turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
-   Google-Extended Disallow groups). Make the tiers explicit always:
-   named groups for search crawlers, user-triggered agents and training
-   crawlers, with the training group Allow or Disallow per the owner's
-   choice. Make the existing training switch discoverable: owners don't
-   know it exists (it's in INSTALL.md only), so it should appear in the
-   assistant guide, in site_state for assistants, and on /review.
-10. **PERF-11** OPEN (GATE-2a, 2026-10-18): with prepared copies on, an owner
-   approval of 200 entries reads about 1.12 million rows (609 writes),
-   including the background copy preparation, against 2,060 with copies
-   off. One such approval uses about a fifth of the account's free 5
-   million daily reads. Same on a55686c, so not a regression. Attribute and
-   cut, or prepare copies lazily on the first view instead of on approval.
-
 11. **AF-9** OPEN (owner, 2026-10-18, visiting-assistant test): every page's
    JSON-LD is WebPage or CollectionPage (cloudflare/src/structured-data.ts).
    Entries should be Article or BlogPosting with headline, author,
