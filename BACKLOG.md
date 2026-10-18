@@ -106,6 +106,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    million daily reads. Same on a55686c, so not a regression. Attribute and
    cut, or prepare copies lazily on the first view instead of on approval.
 
+11. **AF-9** OPEN (owner, 2026-10-18, visiting-assistant test): every page's
+   JSON-LD is WebPage or CollectionPage (cloudflare/src/structured-data.ts).
+   Entries should be Article or BlogPosting with headline, author,
+   datePublished, dateModified and image, both editions.
+12. **AF-10** OPEN (owner, 2026-10-18, same test): in a list page's Markdown
+   copy (index.md), cards run together as long link labels. Each card
+   should be its own list item: `- [Title](url): summary`.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
