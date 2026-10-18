@@ -138,9 +138,9 @@ function missingCounter(error: unknown): boolean {
 }
 async function counterState(db: D1Database, day: string, visitor: string): Promise<{ available: boolean; views: number | null }> {
   try {
-    const row = await db.prepare("SELECT views FROM analytics_visitor_counts WHERE day = ? AND visitor = ?").bind(day, visitor).first<{ views: number }>();
+    const row = await db.prepare("SELECT c.views, m.completed_day FROM analytics_visitor_counts c JOIN analytics_maintenance m ON m.id = 1 WHERE c.day = ? AND c.visitor = ?").bind(day, visitor).first<{ views: number; completed_day: string }>();
     if (!row) return { available: true, views: null };
-    return { available: Number.isInteger(row.views) && row.views >= 0 && row.views <= DAILY_VIEW_CAP, views: row.views };
+    return { available: day >= addDays(row.completed_day, -RETAIN_DAYS) && Number.isInteger(row.views) && row.views >= 0 && row.views <= DAILY_VIEW_CAP, views: row.views };
   } catch (error) {
     if (!missingCounter(error)) throw error;
     return { available: false, views: null };

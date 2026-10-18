@@ -108,16 +108,16 @@ async def test_legacy_reconcile_and_saturated_no_source_scan(db):
         counter_reads = 0
         forbidden = 0
         def __getattr__(self, name):
-            if name in ("transaction", "acquire", "execute", "fetchrow", "fetch"):
+            if name in ("transaction", "acquire", "execute", "fetch"):
                 self.forbidden += 1
             return getattr(db, name)
-        async def fetchval(self, sql, *args):
+        async def fetchrow(self, sql, *args):
             if "FROM pageviews" in sql:
                 self.forbidden += 1
                 raise AssertionError("source scan on saturated path")
-            if sql.startswith("SELECT views FROM analytics_visitor_counts"):
+            if sql.startswith("SELECT c.views"):
                 self.counter_reads += 1
-            return await db.fetchval(sql, *args)
+            return await db.fetchrow(sql, *args)
     guarded = Guarded()
     assert not await send(guarded, "cheap-denial")
     assert guarded.counter_reads == 1

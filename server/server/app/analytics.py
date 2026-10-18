@@ -195,14 +195,15 @@ async def _record(
         counters = day >= add_days(horizon, -RETAIN_DAYS)
         if counters:
             try:
-                views = await db.fetchval("SELECT views FROM analytics_visitor_counts WHERE day = $1 AND visitor = $2", day, visitor)
+                counter = await db.fetchrow("SELECT c.views, m.completed_day FROM analytics_visitor_counts c JOIN analytics_maintenance m ON m.id = 1 WHERE c.day = $1 AND c.visitor = $2", day, visitor)
             except asyncpg.UndefinedTableError as error:
                 if '"analytics_visitor_counts"' not in str(error):
                     raise
                 counters = False
             else:
-                if views is not None:
-                    counters = type(views) is int and 0 <= views <= DAILY_VIEW_CAP
+                if counter is not None:
+                    views = counter["views"]
+                    counters = day >= add_days(counter["completed_day"], -RETAIN_DAYS) and type(views) is int and 0 <= views <= DAILY_VIEW_CAP
                     if counters and views == DAILY_VIEW_CAP:
                         return False
         kind = _str(ev.get("k"), 20)

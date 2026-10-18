@@ -91,7 +91,7 @@ it("reconciles legacy writes, then denies saturated requests without scanning pa
   expect(await db.prepare("SELECT views FROM analytics_visitor_counts WHERE day=? AND visitor=?").bind(day,visitor).first("views")).toBe(200);
   let counterReads=0, sourceTouches=0;
   const guarded = new Proxy(db, { get(target,key) {
-    if(key==="prepare")return (sql:string)=>{if(/FROM pageviews|INTO pageviews|UPDATE analytics_visitor_counts/.test(sql)){sourceTouches++;throw Error("saturated path touched source/write");}if(sql.startsWith("SELECT views FROM analytics_visitor_counts"))counterReads++;return target.prepare(sql);};
+    if(key==="prepare")return (sql:string)=>{if(/FROM pageviews|INTO pageviews|UPDATE analytics_visitor_counts/.test(sql)){sourceTouches++;throw Error("saturated path touched source/write");}if(sql.startsWith("SELECT c.views"))counterReads++;return target.prepare(sql);};
     const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
   }});
   expect(await send("cheap-denial",{},guarded)).toBe(false);expect(counterReads).toBe(1);expect(sourceTouches).toBe(0);expect(await count()).toBe(200);
