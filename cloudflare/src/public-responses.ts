@@ -46,7 +46,7 @@ async function stored(response:Response,p:Proof&{tag:string},origin:string,clock
  const now=Date.now();if(now<meta[2]||now>=meta[3]||meta[3]<=meta[2]||meta[3]-meta[2]>MAX_AGE||!valid(clock))return null;
  const expected=canonicalHeaders(p,origin);
  if([...expected].some(([name,value])=>name!=='cache-control'&&response.headers.get(name)!==value))return null;
- const allowed=new Set([...expected.keys(),INTERNAL,'age','date','content-length']);
+ const allowed=new Set([...expected.keys(),INTERNAL,'age','date','content-length','cf-cache-status']);
  if([...response.headers].some(([name])=>!allowed.has(name))||!/^public, max-age=[0-9]+$/.test(response.headers.get('Cache-Control')??''))return null;
  const body=await boundedBody(response);if(!body||body.length!==meta[4]||await bodyDigest(body)!==meta[5])return null;
  return {body,expires:meta[3],born:meta[2]};

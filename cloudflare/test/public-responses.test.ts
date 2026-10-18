@@ -31,8 +31,8 @@ it('perf4_hit_identity: body and outward headers are fresh policy; HEAD/304 avoi
  const artifact=vi.spyOn(artifacts,'respond').mockImplementation(async()=>{throw Error('HIT entered artifacts');});
  const observe=vi.spyOn(traffic,'observe');
  // Backend age/cache retention is never outward response policy.
- for(const row of rows.values())row.headers.set('Age','300');
- const hit=await get('/',{Origin:'https://other.example'});expect(await hit.text()).toBe(body);expect([...hit.headers]).toEqual([...first.headers]);expect(hit.headers.get('Cache-Control')).toBe(PUBLIC_CACHE);expect(hit.headers.has('Age')).toBe(false);
+ for(const row of rows.values()){row.headers.set('Age','300');row.headers.set('CF-Cache-Status','HIT');}
+ const hit=await get('/',{Origin:'https://other.example'});expect(await hit.text()).toBe(body);expect([...hit.headers]).toEqual([...first.headers]);expect(hit.headers.get('Cache-Control')).toBe(PUBLIC_CACHE);expect(hit.headers.has('Age')).toBe(false);expect(hit.headers.has('CF-Cache-Status')).toBe(false);
  const head=await get('/',{},'HEAD');expect(await head.text()).toBe('');expect([...head.headers]).toEqual([...first.headers]);
  const reads=vi.mocked(caches.default.match).mock.calls.length,puts=vi.mocked(caches.default.put).mock.calls.length;
  expect((await get('/',{'If-None-Match':first.headers.get('ETag')!})).status).toBe(304);
@@ -112,4 +112,11 @@ it('perf4_hit_race_unpublish: page existence is rechecked after the asynchronous
  const {entry}=await fixture(),f=await read.facts(db),page=f.entries.find(x=>x.id===entry.id)!.page;await get(page);
  vi.mocked(caches.default.match).mockImplementation(async request=>{const found=rows.get(address(request))?.clone();await db.prepare('DELETE FROM live WHERE item_id=?').bind(entry.id).run();return found;});
  const answer=await get(page);expect(answer.status).toBe(404);expect(await answer.text()).not.toContain('Public body.');
+});
+
+it('perf4_real_cache_api: backend retention headers still yield a genuine no-render HIT',async()=>{
+ vi.mocked(caches.default.match).mockRestore();vi.mocked(caches.default.put).mockRestore();
+ await fixture();const first=await get(),body=await first.text();
+ const view=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('real Cache API HIT rendered');});
+ const observe=vi.spyOn(traffic,'observe');const hit=await get();expect(await hit.text()).toBe(body);expect([...hit.headers]).toEqual([...first.headers]);expect(view).not.toHaveBeenCalled();expect(observe).not.toHaveBeenCalled();
 });
