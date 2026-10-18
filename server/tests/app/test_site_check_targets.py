@@ -50,6 +50,7 @@ def test_site_check_target_quick(monkeypatch):
  assert deep=={**quick,'unreachable':[]} and not deep['ok']
 
 def test_site_check_target_redirect_cycle():
- d=validate('site',{**DATA,'streams':[{'id':'journal','title':'Journal','path':'e'}]})
+ # Reserved by schema; construct a synthetic view for defensive cycle refusal.
+ d={**DATA,'streams':[{**DATA['streams'][0],'path':'e'}]}
  r=check.check_site_deep(view(d,[entry('a')]),set(),look('<a href="/journal/a">Moved</a><a href="/e/a/">Cycle</a>'))
  assert not r['ok'] and 'crawl' not in r and [x['id'] for x in r['unreachable']]==['a']
