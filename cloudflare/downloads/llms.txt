@@ -26,6 +26,8 @@ Prefer your own server? If your person is a developer, see
 
 ## What it costs
 
+Before setting up any site, tell the owner in your own words: the free limits; that going over stops the site without charging; that a paid plan has no spending cap and you never upgrade or add payment without their explicit yes; and that self-hosting on a small server costs about $5 a month flat. Details: install.md, first step.
+
 Cost facts: the site's Cloudflare account is on the free plan unless the owner upgraded (ask, don't assume). Workers and D1 on Free have no usage bill; past its daily limits the site shows errors until midnight UTC. Paid bills database rows with no hard spending cap. Never upgrade, add payment or enable paid features without the owner's explicit yes.
 
 ## Install
