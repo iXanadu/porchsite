@@ -5411,6 +5411,15 @@ SQLite REPLACE must be caught through its INSERT event even when its implicit
 DELETE does not fire a delete trigger. A source write that fails or rolls
 back must not leave a committed witness for nonexistent content.
 
+Within that installed-schema contract n is strictly monotonic across committed
+watched writes: a revert increments it again rather than restoring an earlier
+value. Thus n1 == n0 proves that no watched write committed between those two
+current reads, including a write followed by a revert. PostgreSQL TRUNCATE
+must advance it too. No application, legacy-write, migration re-entry or
+rollback path may reset/delete/reseed the singleton; verify those paths and
+the overflow refusal explicitly. Administrative reset or snapshot replacement
+is outside this proof and requires the quiesce/restart procedure below.
+
 This covers ordinary DML by current code, old runtimes and direct SQL against
 the dependency tables while the canonical schema remains installed. It does
 not claim to survive a database administrator dropping/disabling triggers,
