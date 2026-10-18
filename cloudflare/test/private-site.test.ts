@@ -414,7 +414,12 @@ it.each([false,true])('pv4_recovery_readers: fresh owner, removal and stale auth
  await owner.revokeReader(db,removed.invite.id);await owner.createReaderInvite(db,'Unused invitation');
  const oldPage=await(await f.browser.at('/review/readers')).text(),oldCsrf=/name="csrf" value="([^"]+)"/.exec(oldPage)![1];
  const recover=new Browser(),key=await SoftKey.make(),code='v'.repeat(32);await owner.issueRecoveryCode(db,code);
- const ceremony=await(await recover.at('/recover?code='+code)).text();expect(ceremony).toContain('location.href = "/review/readers?after=recovery"');
+ for(const [path,method] of [['/recover','GET'],['/recover','HEAD'],['/recover/options','POST'],['/recover/verify','POST']]){
+  const denied=await recover.at(path+'?%63ode='+code,{method,...(method==='POST'?{headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}:{})});
+  expect(denied.status).toBe(400);expect(denied.headers.get('Cache-Control')).toContain('no-store');expect(denied.headers.get('Referrer-Policy')).toBe('no-referrer');expect(denied.headers.has('Location')).toBe(false);
+  if(method==='HEAD')expect(await denied.text()).toBe('');else expect(await denied.json()).toEqual({error:'code_in_url',message:'This recovery link is no longer supported. Ask for a fresh link or enter the code manually.'});
+ }
+ const ceremony=await(await recover.at('/recover#code='+code)).text();expect(ceremony).toContain('location.href = "/review/readers?after=recovery"');
  expect(await(await f.browser.at('/login')).text()).not.toContain('location.href = "/review/readers?after=recovery"');
  const options=await recover.options('/recover/options',{code});const verified=await recover.post('/recover/verify',await key.create(options,origin));expect(verified.status).toBe(200);expect(await verified.text()).not.toContain(recoveryReaders.name);
  const first=await recover.at(recoveryReaders.path),body=await first.text();expect(first.status).toBe(200);expect(first.headers.get('Cache-Control')).toContain('no-store');expect(first.headers.has('ETag')).toBe(false);

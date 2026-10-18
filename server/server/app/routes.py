@@ -301,14 +301,24 @@ SETUP_HEADERS = [("Referrer-Policy", "no-referrer"), ("Cache-Control", "no-store
 SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n"
 RECOVERY_JS = "(() => {\n  const fragment = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  const code = fragment !== null ? fragment : new URLSearchParams(location.search).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n  }\n})();\n"
 
-# Independent introducing-release window; RA-10Q disables it next release.
-RECOVERY_QUERY_COMPAT = True
+# The recovery query compatibility window ended after its introducing release.
+RECOVERY_QUERY_COMPAT = False
 
 def recovery_query_refusal(req: Request, accept_legacy: bool = RECOVERY_QUERY_COMPAT) -> Response | None:
-    if accept_legacy or "code" not in req.query_params:
+    accepted = (req.url.path == "/recover" and req.method in ("GET","HEAD")) or (req.url.path in ("/recover/options","/recover/verify") and req.method == "POST")
+    if accept_legacy or not accepted or "code" not in req.query_params:
         return None
     refusal = json_response({"error": "code_in_url", "message": "This recovery link is no longer supported. Ask for a fresh link or enter the code manually."}, 400, SETUP_HEADERS)
     return Response(status_code=400, headers=refusal.headers) if req.method == "HEAD" else refusal
+
+async def recovery_post_query_refusal(req: Request, cx) -> Response | None:
+    refusal = recovery_query_refusal(req, RECOVERY_QUERY_COMPAT)
+    if refusal is None:
+        return None
+    if not await owner.has_owner(cx.db):
+        return json_response({"error":"unclaimed","message":"This site has no owner yet."},409,SETUP_HEADERS)
+    return refusal
+
 
 async def recovery_body(req: Request) -> dict:
     if req.headers.get("content-type", "").split(";")[0].strip().lower() == "application/x-www-form-urlencoded":
@@ -320,8 +330,8 @@ async def recovery_body(req: Request) -> dict:
 SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n"
 
 
-# Introducing-release compatibility only. Disable in the next product release.
-SETUP_QUERY_COMPAT = True
+# The setup query compatibility window ended after its introducing release.
+SETUP_QUERY_COMPAT = False
 
 
 def setup_query_refusal(req: Request, accept_legacy: bool = SETUP_QUERY_COMPAT) -> Response | None:
@@ -1721,10 +1731,16 @@ async def _route_inner(req: Request, cx: Context) -> Response:
         if path == "/recover" and m == "GET":
             return await recovery_page(req,cx)
         if path == "/recover/options" and m == "POST":
+            refusal = await recovery_post_query_refusal(req,cx)
+            if refusal is not None:
+                return refusal
             body = await recovery_body(req)
             options,cookie = await owner.recover_options(cx.db,req,str(body.get("code") or ""))
             return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
         if path == "/recover/verify" and m == "POST":
+            refusal = await recovery_post_query_refusal(req,cx)
+            if refusal is not None:
+                return refusal
             return signed_in_json(await owner.recover_verify(cx.db,req,await _json_body(req)))
         invite = re.fullmatch(r"/invite/([A-Za-z0-9_-]{32})(/options|/verify)?",path)
         if invite and not invite.group(2) and m == "GET":

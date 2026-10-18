@@ -1087,7 +1087,14 @@ async def test_pv4_recovery_readers(db,browser_factory,private_mode):
     await owner.revoke_reader(db,removed['id']);await owner.create_reader_invite(db,'Unused invitation')
     old_csrf=re.search(r'name="csrf" value="([^"]+)"',(await f.at('/review/readers')).text)[1]
     recovery,key=browser_factory(),SoftKey();code='v'*32;await owner.issue_recovery_code(db,code)
-    ceremony=await recovery.at('/recover?code='+code)
+    for path,method in [('/recover','GET'),('/recover','HEAD'),('/recover/options','POST'),('/recover/verify','POST')]:
+        kwargs={'json':{'code':code}} if method=='POST' else {}
+        denied=await recovery.at(path+'?%63ode='+code,method=method,**kwargs)
+        assert denied.status_code==400 and 'no-store' in denied.headers['cache-control']
+        assert denied.headers['referrer-policy']=='no-referrer' and 'location' not in denied.headers
+        if method=='HEAD':assert denied.content==b''
+        else:assert denied.json()=={'error':'code_in_url','message':'This recovery link is no longer supported. Ask for a fresh link or enter the code manually.'}
+    ceremony=await recovery.at('/recover#code='+code)
     assert 'location.href = "/review/readers?after=recovery"' in ceremony.text
     assert 'location.href = "/review/readers?after=recovery"' not in (await f.at('/login')).text
     options=await recovery.options('/recover/options',{'code':code});verified=await recovery.post('/recover/verify',key.create(options,ORIGIN))
