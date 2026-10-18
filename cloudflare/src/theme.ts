@@ -14,7 +14,7 @@ import { THEMES } from "./themes.gen";
 import { dateString, dateMemo } from "./date-format";
 import { markdown } from "./html";
 import type { SiteView } from "./site";
-import { contactView, eventView, hoursView, noticeView, paletteCss } from "./blocks";
+import { contactView, eventView, eventMemo, hoursView, noticeView, paletteCss } from "./blocks";
 import { stringsOf } from "./strings";
 import type { Theme } from "./themes";
 import { BEACON_JS } from "./beacon";
@@ -64,7 +64,7 @@ export function streams(site: Data): Data[] {
   });
 }
 
-type Ctx = { tz: string; now: Date; strings?: Record<string, string>; bodies?: Map<string, string>; dates?: typeof dateString };
+type Ctx = { tz: string; now: Date; strings?: Record<string, string>; bodies?: Map<string, string>; dates?: typeof dateString; events?: ReturnType<typeof eventMemo> };
 const ctxOf = (v: SiteView): Ctx => ({ tz: String(v.site.timezone || "UTC"), now: v.now ?? new Date(), strings: stringsOf(v.site), bodies: new Map(), dates: dateMemo() });
 
 function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: new Date() }): Data {
@@ -72,7 +72,7 @@ function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: 
   const stamp=e.date,format=ctx.dates??=dateMemo();
   return deferredBody(lazyValues({
     ...e,
-    event: eventView(e.event, ctx.tz, ctx.now, ctx.strings),
+    event: eventView(e.event, ctx.tz, ctx.now, ctx.strings, e.event ? ctx.events ??= eventMemo() : undefined),
     url: e.url,
     anchor,
     has_body: !!e.body && !e.external_url,

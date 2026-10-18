@@ -40,7 +40,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    event-heavy site costs about 57 ms. Cuts to measure, every check kept:
    - **PERF-7a** OPEN: the decode repeats scans, sorting and conversions
      within one already-validated read; do each once.
-   - **PERF-7b** OPEN: on event-heavy pages, building each event's display
+   - **PERF-7b** IN-PROGRESS: on event-heavy pages, building each event's display
      data dominates; reuse per-request presentation where the inputs are
      identical.
    - **PERF-7c** OPEN: the database result wrapping allocates more than
