@@ -90,7 +90,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PAR-1-C3** OPEN: the OAuth endpoints' CORS differs by edition. The
+- **PAR-1-C3** IN-PROGRESS: the OAuth endpoints' CORS differs by edition. The
   Cloudflare edition (the SDK's helper) sends no CORS headers without an
   Origin and reflects a supplied Origin; the server edition always sends
   `Access-Control-Allow-Origin: *`. The spec doesn't say which is right.
