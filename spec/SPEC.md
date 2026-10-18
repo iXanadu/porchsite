@@ -2527,6 +2527,32 @@ postcondition queries and explicit control requests are excluded with
 separate scopes. Missing metadata, unfinished work, request escape or
 uninstrumented D1 operations fails. No statement or estimate substitution.
 
+The write harness must also observe promises registered through the native
+`cloudflare:workers` module's `waitUntil`, not only the context argument.
+For local measurement only, route emitted application's imports of that
+module through a temporary re-export adapter. Re-export the actual native
+exports unchanged; wrap only `waitUntil` to forward the identical promise
+to native `waitUntil` and also retain it for the active request's settle
+loop. Both registrations are required. Do not suppress native lifetime,
+change task arguments/results, expose an application drain helper or call
+a private product helper. Adapter state is request-local; setup tasks
+finish before POST counters reset. Capture nested registrations until the
+tracked set is fully settled. A rejected, unscoped or late task fails the
+gate, including errors the application otherwise hides. No sleeps or
+idle-query inference substitutes for this completion proof.
+
+Apply this import-only adapter identically to current and exact archived
+emitted bundles; preserve all other application bytes. Keep the original
+archive/source artifact SHA as product identity, and additionally record
+the derived instrumented-bundle SHA, adapter hash and exact import mapping
+as measurement provenance. Pin these in the input fingerprint. Recognize
+static module imports only and fail closed on unexpected/unrewritten
+native waitUntil imports. The adapter itself imports the real native
+module, never itself. It remains external local tooling, not a product
+source/auth/response change. Tests prove both native forwarding and nested
+settlement exactly once in the observer, request isolation, rejected/late
+work refusal, and unchanged non-waitUntil export identity.
+
 Version the expanded record format and measurement-input fingerprint.
 Keep the original published predecessor record. For the introducing
 extension explicitly remeasure its exact archived bundle with its own
