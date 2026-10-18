@@ -6,9 +6,10 @@ import {ORIGIN,COMPATIBILITY,hash} from './fixtures.mjs';
 import {OPERATIONS,writeFixture,DAY,IP,UA} from './write-fixtures.mjs';
 const q=(db,sql,...binds)=>db.prepare(sql).bind(...binds);
 async function live(db){return(await db.prepare('SELECT item_id,kind,slug,version,data FROM live ORDER BY item_id').all()).results;}
-async function outcome(db,operation,fixture,before,value,negative=false) {
+async function outcome(db,operation,fixture,before,value,auth='valid') {
+ const negative=auth!=='valid';
  assert(!value.counters.failed&&value.counters.closed,'operation counter scope failed');
- if(negative){assert.deepEqual(await live(db),before,'unauthorized owner operation changed publication');assert.equal(await db.prepare('SELECT count(*) n FROM approvals').first('n'),operation==='import/file'?0:1);assert.equal(await q(db,'SELECT count(*) n FROM items WHERE id NOT IN (SELECT item_id FROM live)').first('n'),operation==='import/file'?0:1);return;}
+ if(negative){assert.equal(value.status,auth==='badcsrf'?(operation==='import/file'?422:200):303,'wrong access-refusal status');assert.deepEqual(await live(db),before,'unauthorized owner operation changed publication');assert.equal(await db.prepare('SELECT count(*) n FROM approvals').first('n'),operation==='import/file'?0:1);assert.equal(await q(db,'SELECT count(*) n FROM items WHERE id NOT IN (SELECT item_id FROM live)').first('n'),operation==='import/file'?0:1);return;}
  if(operation.startsWith('collect/')) {
   assert.equal(value.status,204);assert.equal(value.bytes,0);assert.equal(value.credential_oracle_headers,false);assert.equal(Object.fromEntries(value.headers)['cache-control'],'no-store');
   if(operation==='collect/heartbeat') {
@@ -50,7 +51,7 @@ export async function measureWrites({root,out,migrations,corpus,Miniflare,conver
    const response=await mf.dispatchFetch(ORIGIN+'/');const value=await response.json();
    fs.writeFileSync(path.join(out,`attempt-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,wrapper_status:response.status,status:value.status,stage:value.stage,counters:value.counters}));
    assert.equal(response.status,200,'write wrapper failed');
-   await outcome(db,operation,fixture,before,value,auth!=='valid');
+   await outcome(db,operation,fixture,before,value,auth);
    if(auth==='valid')cells[`operations/${mode}/${operation}`]={rows_read:value.counters.rows_read,rows_written:value.counters.rows_written};
    // Only credential-free numeric diagnostics persist.
    fs.writeFileSync(path.join(out,`write-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,status:value.status,counters:value.counters}));

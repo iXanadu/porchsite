@@ -16,6 +16,11 @@ pending content. Each operation starts on its own synthetic disposable site.
 Owner/session seeding and the normal form GET are named setup costs outside
 the POST scope; the real POST's authentication, checks and background D1
 work count. Invalid-session and CSRF controls must leave content unchanged.
+Owner-write seeds use the canonical split embed-source storage: the versioned
+extension is present and items/revisions/live omit the legacy inline field.
+This setup is unmeasured. Import still requires exact raw live-row equality
+and three pending drafts; legitimate representation repair is not treated
+as publication. All fixture changes require a full predecessor rebase.
 No real credentials or remote services are used.
 
 For the introducing format change use `--record --rebase`: preserve the

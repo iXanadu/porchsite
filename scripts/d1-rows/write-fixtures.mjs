@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {CLOCK,hash} from './fixtures.mjs';
 export const OPERATIONS=['collect/first_day','collect/repeat','collect/at_cap','collect/heartbeat','approval/one','approval/200','import/file'];
-export const WRITE_MANIFEST={version:1,operations:OPERATIONS,expected_cap:true,uncapped_archives:[],heartbeat:{e:1000,d:25},approval_counts:[1,200],import_items:3};
+export const WRITE_MANIFEST={version:2,site_storage:"split_embed_sources",operations:OPERATIONS,expected_cap:true,uncapped_archives:[],heartbeat:{e:1000,d:25},approval_counts:[1,200],import_items:3};
 export const quote=x=>x===null?'NULL':"'"+String(x).replaceAll("'","''")+"'";
 export const digest=x=>createHash('sha256').update(x).digest('base64url');
 export const DAY=CLOCK.slice(0,10),SALT='synthetic-daily-salt',UA='Mozilla/5.0 SyntheticBrowser',IP='192.0.2.40';
@@ -32,6 +32,12 @@ export function writeFixture(root,operation,token) {
    if(operation==='collect/heartbeat')body={t:'hb',id:'existing_view_000',e:1000,d:25};
   }
  } else {
+  // The page corpus deliberately supports legacy storage. Owner writes start
+  // from the production split representation, so one-time representation
+  // repair cannot masquerade as publication in the strict live-row audit.
+  statements.push("UPDATE items SET data=json_remove(data,'$.embed_sources') WHERE id='site';",
+   "UPDATE revisions SET data=json_remove(data,'$.embed_sources') WHERE item_id='site';",
+   "UPDATE live SET data=json_remove(data,'$.embed_sources') WHERE item_id='site';");
   statements.push(`INSERT INTO sessions(token_hash,created_at,expires_at) VALUES(${quote(digest(token))},${quote(new Date(Date.parse(CLOCK)-60000).toISOString())},${quote(new Date(Date.parse(CLOCK)+86400000).toISOString())});`);
   if(operation.startsWith('approval/')) {
    const n=operation==='approval/200'?200:1;
