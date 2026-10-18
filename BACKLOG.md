@@ -93,10 +93,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **DEP-1** OPEN: npm audit reports 8 high-severity advisories in
-  inherited dependencies (the MCP SDK, agents, and the test, build and
-  local-runtime chain). Security review decides which ship in the Worker
-  and are reachable; any that are become BLOCKING. Found 2026-10-18.
+- **DEP-1** OPEN (partly fixed): the build toolchain now uses patched
+  sharp and undici (Wrangler 4.151.1). High-severity npm advisories remain
+  in the unused MCP client dependencies and the test runner's nested
+  runtime; security review found none ships in the Worker. Clears when the
+  agents package and test runner move to current versions. Found 2026-10-18.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a
