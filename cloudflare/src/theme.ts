@@ -1,3 +1,4 @@
+import {lazyValues} from './lazy-values';
 /**
  * Mustache themes (spec/TEMPLATES.md). A theme is a folder of
  * logic-less templates; everything it shows is decided here, display-ready:
@@ -9,7 +10,7 @@
 import { deferredBody, finishEmbeds, headingBodies } from "./embeds";
 import Mustache from "mustache";
 import { THEMES } from "./themes.gen";
-import { dateString } from "./date-format";
+import { dateString, dateMemo } from "./date-format";
 import { markdown } from "./html";
 import type { SiteView } from "./site";
 import { contactView, eventView, hoursView, noticeView, paletteCss } from "./blocks";
@@ -21,8 +22,8 @@ type Data = Record<string, any>;
 
 
 const day = (d: string) => new Date(`${d}T12:00:00Z`);
-const shortDate = (d: string) => dateString(day(d), { month: "short", day: "numeric" });
-const longDate = (d: string) => dateString(day(d), { month: "long", day: "numeric", year: "numeric" });
+const shortDate = (d: string, format = dateString) => format(day(d), { month: "short", day: "numeric" });
+const longDate = (d: string, format = dateString) => format(day(d), { month: "long", day: "numeric", year: "numeric" });
 const host = (u: string) => {
   try {
     return new URL(u).host.replace(/^www\./, "");
@@ -62,18 +63,17 @@ export function streams(site: Data): Data[] {
   });
 }
 
-type Ctx = { tz: string; now: Date; strings?: Record<string, string>; bodies?: Map<string, string> };
-const ctxOf = (v: SiteView): Ctx => ({ tz: String(v.site.timezone || "UTC"), now: v.now ?? new Date(), strings: stringsOf(v.site), bodies: new Map() });
+type Ctx = { tz: string; now: Date; strings?: Record<string, string>; bodies?: Map<string, string>; dates?: typeof dateString };
+const ctxOf = (v: SiteView): Ctx => ({ tz: String(v.site.timezone || "UTC"), now: v.now ?? new Date(), strings: stringsOf(v.site), bodies: new Map(), dates: dateMemo() });
 
 function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: new Date() }): Data {
   const tags = (e.tags ?? []) as string[];
-  return deferredBody({
+  const stamp=e.date,format=ctx.dates??=dateMemo();
+  return deferredBody(lazyValues({
     ...e,
     event: eventView(e.event, ctx.tz, ctx.now, ctx.strings),
     url: e.url,
     anchor,
-    date_short: shortDate(e.date),
-    date_long: longDate(e.date),
     has_body: !!e.body && !e.external_url,
     stats: e.stats ?? [],
     has_stats: !!(e.stats ?? []).length,
@@ -85,7 +85,7 @@ function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: 
     label: e.external_url ? stream.link_label || "Read" : "",
     link: "",
     link_host: "",
-  }, e.body && !e.external_url ? e.body : "", ctx.bodies ??= new Map());
+  },{date_short:()=>shortDate(stamp,format),date_long:()=>longDate(stamp,format)}), e.body && !e.external_url ? e.body : "", ctx.bodies ??= new Map());
 }
 
 function card(c: Data, aside = false): Data {
@@ -206,7 +206,7 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       sec.show = items.length > 0;
       sec.latest = items.length ? [entry(items[0], stream, "", ctx)] : [];
       sec.more_than_one = items.length > 1;
-      sec.activity = v.notes.map((n) => ({ ...n, date_short: shortDate(n.date) }));
+      sec.activity = v.notes.map((n) => lazyValues({...n},{date_short:()=>shortDate(n.date,ctx.dates)}));
       sec.has_activity = stream.is_feature && v.notes.length > 0;
       const ordered = streamItems(items, stream);
       sec.items = ordered.slice(0, 3).map((e, i) => entry(e, stream, i === 0 ? "article" : "", ctx));

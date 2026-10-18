@@ -2,7 +2,7 @@
 import { SiteData } from './models';
 import { ApiError } from './errors';
 type Data = Record<string, any>;
-const schema = SiteData.pick({streams: true, sections: true, archive: true}).strict();
+export const schema = SiteData.pick({streams: true, sections: true, archive: true}).strict();
 export function streamProjection(data: Data): Data {
   const {archive, ...legacy} = data;
   if (!Array.isArray(data.streams)) return legacy;

@@ -13,9 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from . import mustache
+from .date_memo import date_memo
+from .lazy_values import lazy_values
 from .blocks import contact_view, event_view, hours_view, notice_view
 from .embeds import deferred_body, finish_embeds, heading_bodies
-from .jsutil import S, long_date, short_date, string, trim, u16key, u16slice, url_host
+from .jsutil import day_of, S, long_date, short_date, string, trim, u16key, u16slice, url_host
 from .site import SiteView
 from .strings import STRINGS, strings_of
 
@@ -101,17 +103,22 @@ def _ctx(v: SiteView) -> Ctx:
     )
 
 
-def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None, bodies=None) -> Data:
+def _date(value, long, memo):
+    options = {"month": "long", "day": "numeric", "year": "numeric"} if long else {"month": "short", "day": "numeric"}
+    return memo(day_of(value).toordinal()*86400+43200, options, lambda: long_date(value) if long else short_date(value))
+
+
+def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None, bodies=None, dates=None) -> Data:
     tz, now, words = ctx or ("UTC", datetime.now(UTC), None)
     tags = _q(e.get("tags"), [])
     stats = _q(e.get("stats"), [])
-    return deferred_body({
+    dates = date_memo() if dates is None else dates
+    stamp = e["date"]
+    return deferred_body(lazy_values({
         **e,
         "event": event_view(e.get("event"), tz, now, words or STRINGS),
         "url": e.get("url"),
         "anchor": anchor,
-        "date_short": short_date(e["date"]),
-        "date_long": long_date(e["date"]),
         "has_body": bool(e.get("body")) and not e.get("external_url"),
         "stats": stats,
         "has_stats": bool(len(stats)),
@@ -123,7 +130,7 @@ def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None, bodie
         "label": (stream["link_label"] or "Read") if e.get("external_url") else "",
         "link": "",
         "link_host": "",
-    }, e.get("body", "") if not e.get("external_url") else "", bodies)
+    }, {"date_short": lambda: _date(stamp, False, dates), "date_long": lambda: _date(stamp, True, dates)}), e.get("body", "") if not e.get("external_url") else "", bodies)
 
 
 def card(c: Data, aside: bool = False) -> Data:
@@ -292,6 +299,7 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
     ]
     ctx = _ctx(v)
     bodies = {}
+    dates = date_memo()
     out: list[Data] = []
     for k in keys:
         stream = next((x for x in st if x["id"] == k), None)
@@ -300,16 +308,16 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             items = [e for e in v.entries if e["stream"] == stream["id"]]
             sec["stream"] = stream
             sec["show"] = len(items) > 0
-            sec["latest"] = [entry(items[0], stream, "", ctx, bodies)] if items else []
+            sec["latest"] = [entry(items[0], stream, "", ctx, bodies, dates)] if items else []
             sec["more_than_one"] = len(items) > 1
-            sec["activity"] = [{**n, "date_short": short_date(n["date"])} for n in v.notes]
+            sec["activity"] = [lazy_values({**n}, {"date_short": lambda stamp=n["date"]: _date(stamp, False, dates)}) for n in v.notes]
             sec["has_activity"] = stream["is_feature"] and len(v.notes) > 0
             ordered = stream_items(items, stream)
             sec["items"] = [
-                entry(e, stream, "article" if i == 0 else "", ctx, bodies) for i, e in enumerate(ordered[:3])
+                entry(e, stream, "article" if i == 0 else "", ctx, bodies, dates) for i, e in enumerate(ordered[:3])
             ]
             # Events: the next ones first, soonest first; past ones after, newest first.
-            evs = [entry(e, stream, "", ctx, bodies) for e in items if e.get("event")]
+            evs = [entry(e, stream, "", ctx, bodies, dates) for e in items if e.get("event")]
             sec["upcoming"] = sorted(
                 [e for e in evs if not e["event"]["is_past"]],
                 key=lambda e: string(e["event"]["start"]),
@@ -323,10 +331,10 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             sec["has_earlier"] = len(sec["earlier"]) > 0
             # Entries that aren't events, in a stream that has some: newest first.
             sec["others"] = (
-                [entry(e, stream, "", ctx, bodies) for e in ordered if not e.get("event")] if evs else []
+                [entry(e, stream, "", ctx, bodies, dates) for e in ordered if not e.get("event")] if evs else []
             )
             sec["has_others"] = len(sec["others"]) > 0
-            sec["all"] = [entry(e, stream, "", ctx, bodies) for e in ordered]
+            sec["all"] = [entry(e, stream, "", ctx, bodies, dates) for e in ordered]
             sec["count_suffix"] = f" ({len(items)})" if len(items) > 3 else ""
         elif k == "cards":
             groups = list(dict.fromkeys(c.get("group") for c in v.cards if c.get("group")))
@@ -469,13 +477,14 @@ def archive_view(
     }
     ctx = _ctx(v)
     bodies = {}
+    dates = date_memo()
     # [...counts].sort(): each [name, count] pair compared as the string "name,count".
     pairs = sorted(counts.items(), key=lambda p: u16key(f"{p[0]},{p[1]}"))
     return {
         **base(v, release, origin, meta),
         "stream": stream,
         "tag": tag or "",
-        "entries": [entry(e, stream, "", ctx, bodies) for e in items],
+        "entries": [entry(e, stream, "", ctx, bodies, dates) for e in items],
         "tags": [{"name": n, "count": c} for n, c in pairs],
         "has_tags": len(counts) > 0,
     }

@@ -25,8 +25,8 @@ from .theme import render, static_file
 Data = dict[str, Any]
 
 
-async def live_view(db: Db, discovery=False) -> SiteView:
-    return await proposed_view(db, [], discovery=discovery)
+async def live_view(db: Db, discovery=False, approved=None) -> SiteView:
+    return await proposed_view(db, [], discovery=discovery, approved=approved)
 
 
 def _updated(last: str, timezone: str) -> str:
@@ -41,7 +41,7 @@ def _updated(last: str, timezone: str) -> str:
 
 
 async def proposed_view(
-    db: Db, changes: list[dict[str, Any]], ready: str | None = None, discovery=False
+    db: Db, changes: list[dict[str, Any]], ready: str | None = None, discovery=False, approved=None
 ) -> SiteView:
     """The site as it would be with these item versions ({id, version})
     published on top of what's live (an approval's items); [] is the live site.
@@ -89,7 +89,8 @@ async def proposed_view(
     if shown:
         shown["data"] = {**shown["data"], "status": "ready"}
     site_row = rows.get(SITE_ID)
-    site = validate("site", await source_data(db, SITE_ID, site_row["version"], site_row["data"], not any(c["id"] == SITE_ID for c in changes)) if site_row else {})
+    reuse = approved if not changes and not ready and site_row and approved and approved.get("site") and approved.get("site_rows") and isinstance(approved.get("shares"), list) and approved.get("site_version") == site_row["version"] and approved.get("raw_site") == site_row["data"] else None
+    site = validate("site", reuse["site"] if reuse else await source_data(db, SITE_ID, site_row["version"], site_row["data"], not any(c["id"] == SITE_ID for c in changes)) if site_row else {})
     v = view(site, [r for r in rows.values() if r["kind"] != "site"])
     visible = {SITE_ID, *(e["id"] for e in v.entries), *(c["id"] for c in v.cards), *(n["id"] for n in v.notes)}
     visible_rows = {identifier: row for identifier, row in rows.items() if identifier in visible}
@@ -98,7 +99,7 @@ async def proposed_view(
         return v  # XML needs no share cards, image sizes or display-clock formatting.
     v.share_cards = {
         c["item_id"]: f"/media/{c['name']}"
-        for c in await db.fetch("SELECT item_id, version, name FROM share_cards")
+        for c in (reuse["shares"] if reuse else await db.fetch("SELECT item_id, version, name FROM share_cards"))
         if c["item_id"] in rows and rows[c["item_id"]].get("version") == c["version"]
     }
     hero = LOCAL.search(str(site.get("hero")))

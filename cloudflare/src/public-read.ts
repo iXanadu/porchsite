@@ -1,5 +1,6 @@
+import {approvedSourceData} from './embed-storage';
 import {plan} from './public-time';
-import {redirectFor} from './site';
+import {redirectFor,type ApprovedView} from './site';
 /** Anonymous public validators from current dependency facts, never page bodies. */
 import {validate} from './content';
 import {isBuiltIn,ALIASES} from './themes';
@@ -38,6 +39,13 @@ export function decode(rows:Row[]):Facts{
  const entries=data.filter(r=>r[0]==='live'&&r[2][0]==='entry'&&r[2][5]!=='draft').map(([,id,v])=>{const st=streams.find(s=>s.id===v[6])??streams[0],stream=String(st.path||st.id);return {id,slug:String(v[1]),stream,streamId:String(st.id),page:`/${stream}/${v[1]}/`,external:String(v[7]??''),endpoint:v[9]||undefined,tags:v[10]??[]};});
  const theme=ALIASES[String(s.theme)]??String(s.theme);
  return {rows:ordered(data),site:s,entries,hasSite:!!live,themed:isBuiltIn(theme)||data.some(r=>r[0]==='theme'&&r[1]===theme),disabled:s.ai_training_disabled===true,private:s.private===true};
+}
+/** Retain exact approved source rows for this request's final facts comparison. */
+export function viewProof(f:Facts):ApprovedView|undefined {
+ if(f.private||!f.hasSite)return undefined;
+ const rows=f.rows as [string,string,any[]][],live=rows.find(r=>r[0]==='live'&&r[1]==='site')?.[2];
+ if(!live?.[8]||!f.site)return undefined;
+ return {siteVersion:live[2],rawSite:live[8],site:approvedSourceData(live[8],rows),siteRows:rows.filter(r=>r[0]==='live'&&r[1]==='site'||['field','embed','streams','private','training'].includes(r[0])),shares:rows.filter(r=>r[0]==='share').map(([,id,v])=>({id,version:v[0],name:v[1]}))};
 }
 export async function facts(db:D1Database){return decode((await db.prepare(FACTS_SQL).all<Row>()).results);}
 export type Choice={base:string;query:string;type:string;kind:'html'|'markdown'|'map'|'plain'|'xml'|'feed';direct:boolean};

@@ -70,8 +70,11 @@ export function view(site: Data, rows: { id: string; kind: string; slug: string 
   return { site, entries, cards, notes, updated: "", hero_size: [0, 0] };
 }
 
-export async function liveView(db: D1Database, discovery = false): Promise<SiteView> {
-  return proposedView(db, [], undefined, discovery);
+/** Only the anonymous request's already-approved facts, never an authority grant. */
+export type ApprovedView={siteVersion:number;rawSite:Data;site:Data;siteRows:unknown[];shares:{id:string;version:number;name:string}[]};
+const canonicalData=(value:any):any=>Array.isArray(value)?value.map(canonicalData):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonicalData(value[k])])):value;
+export async function liveView(db: D1Database, discovery = false, approved?:ApprovedView): Promise<SiteView> {
+  return proposedView(db, [], undefined, discovery, approved);
 }
 
 /**
@@ -79,7 +82,7 @@ export async function liveView(db: D1Database, discovery = false): Promise<SiteV
  * what's live (an approval's items); [] is the live site. `ready` names an
  * entry to show even if it is a draft (the writing desk's preview).
  */
-export async function proposedView(db: D1Database, changes: { id: string; version: number }[], ready?: string, discovery = false): Promise<SiteView> {
+export async function proposedView(db: D1Database, changes: { id: string; version: number }[], ready?: string, discovery = false, approved?:ApprovedView): Promise<SiteView> {
   const { results } = await db
     .prepare("SELECT l.*, i.created_at FROM live l LEFT JOIN items i ON i.id = l.item_id ORDER BY l.item_id")
     .all<LiveRow & { created_at: string | null }>();
@@ -107,7 +110,8 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   const shown = ready ? rows.get(ready) : undefined;
   if (shown) shown.data = { ...shown.data, status: "ready" };
   const siteRow = rows.get(SITE_ID);
-  const site = validate("site", siteRow ? await sourceData(db, SITE_ID, siteRow.version, siteRow.data, !changes.some(c => c.id === SITE_ID)) : {});
+  const reuse=!changes.length&&!ready&&siteRow&&approved?.site&&approved.siteRows&&Array.isArray(approved.shares)&&approved.siteVersion===siteRow.version&&JSON.stringify(canonicalData(approved.rawSite))===JSON.stringify(canonicalData(siteRow.data))?approved:undefined;
+  const site = validate("site", reuse ? reuse.site : siteRow ? await sourceData(db, SITE_ID, siteRow.version, siteRow.data, !changes.some(c => c.id === SITE_ID)) : {});
   const v = view(site, [...rows.values()].filter((r) => r.kind !== "site"));
   const visible = new Set([SITE_ID, ...v.entries.map(e=>e.id), ...v.cards.map(c=>c.id), ...v.notes.map(n=>n.id)]);
   const visibleRows = [...rows].filter(([id])=>visible.has(id));
@@ -115,7 +119,7 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   if (discovery) {
     return v; // XML needs no share cards, image-size lookup or display-clock formatting.
   }
-  const { results: cards } = await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>();
+  const cards = reuse ? reuse.shares.map(c=>({item_id:c.id,version:c.version,name:c.name})) : (await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>()).results;
   v.share_cards = Object.fromEntries(cards.filter((c) => rows.get(c.item_id)?.version === c.version).map((c) => [c.item_id, `/media/${c.name}`]));
   const hero = /^\/media\/([0-9a-f]{32}\.(?:jpg|png|webp))$/.exec(String(site.hero));
   if (hero) {

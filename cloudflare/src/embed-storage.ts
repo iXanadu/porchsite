@@ -1,4 +1,4 @@
-import { streamData, streamProjection } from "./stream-settings";
+import { streamData, streamProjection, schema as streamSchema } from "./stream-settings";
 /** Versioned site extension. Legacy item JSON stays readable on rollback. */
 import { brokerData, privateData, trainingData } from "./site-fields";
 import { embedSources } from "./embed-url";
@@ -55,4 +55,14 @@ export async function migrateSources(db: D1Database): Promise<void> {
     db.prepare("UPDATE live SET data = json_remove(data, '$.embed_sources') WHERE item_id = 'site' AND json_type(data, '$.embed_sources') IS NOT NULL"),
   );
   await db.batch(statements);
+}
+
+/** Decode only normalized rows from the request's already-approved live facts. */
+export function approvedSourceData(data:Data,rows:[string,string,any[]][]):Data {
+ const at=(kind:string,id='site')=>rows.find(r=>r[0]===kind&&r[1]===id)?.[2];
+ const extension=at('streams');let settings:Data={};
+ if(extension?.[1])try{settings=streamSchema.parse(extension[0]);}catch{throw new ApiError(422,'invalid','Stored stream settings do not validate.');}
+ const field=(name:string,fallback:unknown)=>{const value=at('field',name);return value?.[1]?value[0]:fallback;};
+ const sources=at('embed');
+ return {...data,...settings,broker:field('broker',''),private:field('private',false)===true&&!!at('private'),ai_training_disabled:field('ai_training_disabled',false)===true&&!!at('training'),embed_sources:sources?(sources[1]?sources[0]:[]):data.embed_sources??[]};
 }
