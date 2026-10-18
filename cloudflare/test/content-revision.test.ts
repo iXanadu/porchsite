@@ -117,7 +117,7 @@ it('bumps only actual items dependencies and preserves normal version fences and
  const history=await db.prepare('SELECT data FROM revisions WHERE item_id=? AND version=?').bind('site',changed.version).first<{data:string}>();expect(JSON.parse(history!.data).title).toBe('After ordinary edit');
  const zero=await db.prepare('UPDATE items SET version=version+1 WHERE id=? AND version=?').bind('site',-1).run();expect(zero.meta.changes).toBe(0);expect((await pair())[0]).toBe(before[0]);
  let prior=await pair();await approvals.publishNow(db,[{id:changed.id,version:changed.version}],'',origin);expect(BigInt((await pair())[1])).toBeGreaterThan(BigInt(prior[1]));
- const entry=await content.createItem(db,'assistant:test','entry',{title:'Witness publication',body:'Public body'},undefined);await approvals.publishNow(db,[{id:entry.id,version:entry.version}],'',origin);
+ const entry=await content.createItem(db,'assistant:test','entry',{title:'Witness publication',date:'2026-10-18',body:'Public body'},undefined);await approvals.publishNow(db,[{id:entry.id,version:entry.version}],'',origin);
  prior=await pair();const removed=await content.removeItem(db,'assistant:test',entry.id,entry.version);await approvals.publishNow(db,[{id:removed.id,version:removed.version}],'',origin);expect(BigInt((await pair())[1])).toBeGreaterThan(BigInt(prior[1]));
  // Independent old-runtime SQL still advances for both actual Q_F inputs.
  prior=await pair();await db.prepare("UPDATE items SET created_at='2030-01-01' WHERE id='site'").run();expect(await pair()).toEqual([prior[0],String(BigInt(prior[1])+1n)]);
