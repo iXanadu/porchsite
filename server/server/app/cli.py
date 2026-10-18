@@ -10,7 +10,7 @@ In the container setup, run them in the app container:
 
 `setup-link` makes a fresh one-time setup code, stores it in the database
 (hashed) for --hours (default 24), and prints the link to send the owner:
-https://<site>/setup?code=<code>. The owner opens it and saves a passkey; no
+https://<site>/setup#code=<code>. The owner opens it and saves a passkey; no
 env edit or restart. A new link replaces any earlier one. Once the site is
 claimed it refuses (exit 1): add a device with a passkey link from the
 owner's page instead. The site's address is --origin, else
@@ -74,7 +74,7 @@ async def setup_link(dsn: str, origin: str, hours: float) -> tuple[str, str]:
         expires_at = await owner.issue_setup_code(pool, code, hours)
     finally:
         await pool.close()
-    return f"{origin}/setup?code={code}", expires_at
+    return f"{origin}/setup#code={code}", expires_at
 
 
 async def recovery_link(dsn: str,origin: str,hours: float) -> tuple[str,str]:
