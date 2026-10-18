@@ -53,14 +53,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    proving freshness with a narrower query, needs a spec and security
    review; revisit only if an owner enables PERF-4.
 
-3. **GATE-2** OPEN (owner, 2026-10-18): every release states database
-   rows read per request (cold page, plain page, "not changed"), before and
-   after, with prepared copies off and on, plus the free daily-limit impact
-   ("about N page views a day per account"). The release build measures it
-   on the sample sites and refuses a release whose rows went up unless its
-   changelog entry carries a written reason. Owner approves any increase
-   before it is deployed. Decision briefings state reads, writes and limit
-   impact, not only speed.
 
 4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
    read per first page view grow with site size. Small samples read 69-197
