@@ -11,6 +11,7 @@ import * as artifacts from '../src/public-artifacts';
 import * as traffic from '../src/agent-traffic';
 import {PUBLIC_CACHE} from '../src/public-http';
 import keys from '../../spec/fixtures/public-response-keys.json';
+import {THEMES} from '../src/themes.gen';
 const origin='https://site.example',e={...env,SITE_URL:origin,PUBLIC_RESPONSES:'1'} as unknown as Env,db=e.DB;
 let rows:Map<string,Response>;
 const address=(request:RequestInfo|URL)=>typeof request==='string'?request:request instanceof URL?request.href:request.url;
@@ -25,6 +26,16 @@ beforeEach(async()=>{
 async function publish(item:content.Item){await approvals.publishNow(db,[{id:item.id,version:item.version}],'',origin);}
 async function fixture(){const one=await content.createItem(db,'assistant:test','site',{title:'Response cache',theme:'personal-homepage',archive:{enabled:true,title:'Pages'}},undefined);await publish(one);const entry=await content.createItem(db,'assistant:test','entry',{title:'Entry',date:'2026-10-17',body:'Public body.'},undefined);await publish(entry);return {one,entry};}
 const get=(path='/',headers:Record<string,string>={},method='GET',settings=e)=>handle(new Request(origin+path,{headers,method}),settings);
+it('perf4_all_looks: OFF, fill and render-free HIT preserve every built-in home response',async()=>{
+ let {one}=await fixture();
+ for(const theme of Object.keys(THEMES)){
+  one=await content.updateItem(db,'assistant:test','site',one.version,{theme});await publish(one);
+  const off=await get('/',{},'GET',{...e,PUBLIC_RESPONSES:''}),body=await off.text();expect(off.status).toBe(200);
+  const fill=await get();expect(await fill.text()).toBe(body);expect([...fill.headers]).toEqual([...off.headers]);
+  const view=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('Built-in HIT rendered');});
+  try{const hit=await get();expect(await hit.text()).toBe(body);expect([...hit.headers]).toEqual([...off.headers]);expect(view).not.toHaveBeenCalled();}finally{view.mockRestore();}
+ }
+});
 it('perf4_hit_identity: body and outward headers are fresh policy; HEAD/304 avoid render and fills',async()=>{
  await fixture();const first=await get(),body=await first.text();expect(rows.size).toBe(1);
  const view=vi.spyOn(site,'liveView').mockImplementation(async()=>{throw Error('HIT rendered');});

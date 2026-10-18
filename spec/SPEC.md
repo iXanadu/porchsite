@@ -4444,6 +4444,18 @@ enable a proxy rule, Workers Caching, service worker or another path that can
 deliver a body before the engine's live access check. PUBLIC_ARTIFACTS remains
 off by default.
 
+Local measurements are not an enablement recommendation. On one 200-entry
+fixture, twelve interleaved fresh-process pairs per case gave a median
+paired saving of 7.4 ms on a hit and an added 8.3 ms on a miss plus fill,
+with prepared copies off. The approximate CPU break-even hit fraction is
+8.3 / (7.4 + 8.3), or 53%. With prepared copies on, the corresponding
+1.0 ms saving and 5.3 ms added cost require about 84% hits. These fractions
+apply to the measured local workload, not every site or hosted location.
+The unprepared miss median was about 29 ms versus 20 ms without this cache,
+further above the 10 ms CPU budget. Measure the site's hit rate and hit/miss
+costs before any hosted enablement decision; default remains off. Neither
+these observations nor twelve samples establish hosted or tail latency.
+
 Eligibility is a successful anonymous public GET or HEAD representation of
 HTML, page Markdown or the public map. Run the existing live private-site gate
 first on every request. Any Authorization header or owner/reader cookie,

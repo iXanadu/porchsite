@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from server.app import content, approvals, site, public_read, public_responses as cache, public_artifacts, agent_traffic
 from .conftest import TABLES
+from server.spec.theme import THEMES as THEMES_DIR
 ORIGIN='https://site.example'
 
 @pytest.fixture(autouse=True)
@@ -28,6 +29,26 @@ async def warm(http,app,path='/',**kwargs):
     response=await http.get(path,**kwargs)
     await app._response_store.drain()
     return response
+
+async def test_perf4_all_looks(db,http,app,monkeypatch):
+    one,_=await fixture(db)
+    directories=[directory for directory in sorted(THEMES_DIR.iterdir()) if (directory/'template.json').is_file()]
+    assert len(directories)==12
+    for directory in directories:
+        one=await content.update_item(db,'assistant:test','site',one['version'],{'theme':directory.name})
+        await publish(db,one)
+        app.settings=replace(app.settings,public_responses=False)
+        off=await http.get('/')
+        assert off.status_code==200
+        app.settings=replace(app.settings,public_responses=True)
+        fill=await warm(http,app)
+        assert fill.content==off.content and dict(fill.headers)==dict(off.headers)
+        async def forbidden(*args,**kwargs):
+            raise AssertionError('Built-in HIT rendered')
+        with monkeypatch.context() as patch:
+            patch.setattr(site,'live_view',forbidden)
+            hit=await http.get('/')
+        assert hit.content==off.content and dict(hit.headers)==dict(off.headers)
 
 async def test_perf4_hit_identity(db,http,app,monkeypatch):
     await fixture(db)
