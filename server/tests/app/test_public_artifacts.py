@@ -475,13 +475,15 @@ async def test_af_prebuild_failed_builder_keeps_publication(db,http,app,monkeypa
     assert 'Committed despite failed build' in (await http.get('/')).text
 
 
+@pytest.mark.parametrize('boundary',['snapshot','late'])
 @pytest.mark.parametrize('change',['private','unpublish','expiry'])
-async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
+async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change,boundary):
     one,entry=await fixture(db)
     path='/journal/'+entry['slug']+'/'
     first=await http.get(path)
     assert first.status_code==200 and await count(db)==1
-    original=content_revision.initial_facts
+    target='initial_facts' if boundary=='snapshot' else 'read_revision'
+    original=getattr(content_revision,target)
     live=site.live_view
     rendered=0
     async def observed(*args,**kwargs):
@@ -492,10 +494,10 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
     calls=0
     async def raced(*args,**kwargs):
         nonlocal calls
-        stamp=await original(*args,**kwargs)
+        stamp=await original(*args,**kwargs) if boundary=='snapshot' else None
         calls+=1
         if calls==1:
-            # Commit after the hit's validation snapshot was read, before delivery.
+            # Commit after the snapshot or immediately before the independent late read.
             if change=='private':
                 hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
                 await publish(db,hidden)
@@ -505,8 +507,8 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
             else:
                 expired=await db.fetchval('SELECT max(valid_until) FROM public_artifacts')
                 monkeypatch.setattr(artifacts.time,'time',lambda:expired/1000+1)
-        return stamp
-    monkeypatch.setattr(content_revision,'initial_facts',raced)
+        return stamp if boundary=='snapshot' else await original(*args,**kwargs)
+    monkeypatch.setattr(content_revision,target,raced)
     response=await http.get(path,headers={'If-None-Match':first.headers['etag']})
     assert calls>0
     if change=='expiry':
