@@ -65,7 +65,12 @@ def test_site_check_marker_render_policy(monkeypatch):
  original=embeds.deferred_body({'body':source},source);clone=embeds.copy_deferred_body(original,{'body':source},'<!--porchsite-check-test:0-->');policy=embeds.heading_bodies(clone,True,True);calls=counter(monkeypatch)
  body=render(look('{{{body_html}}}',True),'home',policy,{'sources':['https://video.example'],'origin':'https://example.invalid'})
  assert len(calls)==1 and body.count('<iframe ')==12
- assert '<h2 id="main">Main</h2>' in body and '<table>' in body and '<!--porchsite-check-test:0-->' in body
+ assert '<h2 id="main">Main</h2>' in body and '<table style="border-spacing:0.75em 0.35em;overflow-wrap:normal">' in body and '<!--porchsite-check-test:0-->' in body
  assert 'body_html' not in list(clone.keys())
  empty=embeds.copy_deferred_body(embeds.deferred_body({},''),{},'<!--porchsite-check-test:1-->')
  assert empty['body_html']==''
+
+def test_site_check_marker_truthiness_not_emission(monkeypatch):
+ calls=counter(monkeypatch)
+ r=check.check_site_deep(view(DATA,[entry(0)]),set(),look('{{#sections}}{{#latest}}{{#body_html}}Title only{{/body_html}}{{/latest}}{{/sections}}'))
+ assert len(calls)==1 and [x['id'] for x in r['unreachable']]==['entry-0']

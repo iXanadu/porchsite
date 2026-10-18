@@ -61,8 +61,13 @@ it('site_check_marker_render_policy: policy clone preserves genuine embeds, tabl
  const policy=headingBodies(clone,true,true),parse=vi.spyOn(html,'markdown');
  const render=()=>theme.render(look('{{{body_html}}}',true),'home',policy,{sources:['https://video.example'],origin:'https://example.invalid'});
  const body=render();expect(parse).toHaveBeenCalledTimes(1);expect(body.match(/<iframe /g)).toHaveLength(12);
- expect(body).toContain('<h2 id="main">Main</h2>');expect(body).toContain('<table>');expect(body).toContain('<!--porchsite-check-test:0-->');
+ expect(body).toContain('<h2 id="main">Main</h2>');expect(body).toContain('<table style="border-spacing:0.75em 0.35em;overflow-wrap:normal">');expect(body).toContain('<!--porchsite-check-test:0-->');
  expect(finishEmbeds('',[], '',clone)).toBe(''); // capability walk itself must not consume a new body
  expect(Object.keys(clone)).not.toContain('body_html');
  const empty=copyDeferredBody(deferredBody({},''),{},'<!--porchsite-check-test:1-->');expect((empty as any).body_html).toBe('');
+});
+it('site_check_marker_inline: truthiness consumes a body but does not prove it was emitted',async()=>{
+ const parse=vi.spyOn(html,'markdown');
+ const r=await checkSiteDeep(site.view(data,[entry(0)]),new Set(),look('{{#sections}}{{#latest}}{{#body_html}}Title only{{/body_html}}{{/latest}}{{/sections}}'));
+ expect(parse).toHaveBeenCalledTimes(1);expect(r.unreachable.map(x=>x.id)).toEqual(['entry-0']);
 });
