@@ -39,7 +39,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    about 8 ms extra, so it only helps where more than about half of first
    views in a location are repeats.
    - **PERF-4b** OPEN: cut the cost of storing the page on a first visit
-     (about 8 ms locally); find where it goes before changing anything.
+     (about 8 ms locally). Profiled 2026-10-18 (too sparse to rank
+     precisely): copying and re-reading the page body, re-reading the site
+     facts to prove nothing changed, and hashing the body each showed
+     about 1.6-2.4 ms. First cut: reuse the bytes already built instead of
+     copying and re-reading them. Later, if needed: prove freshness with a
+     narrower query (needs a spec and security review).
 
 ## BLOCKING
 
