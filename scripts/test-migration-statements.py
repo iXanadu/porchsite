@@ -2,7 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
-from content_revision_sql import migration
+from content_revision_sql import migration, cf_trigger
 from sql_statements import statements, canonical
 
 spec = importlib.util.spec_from_file_location('migration_check', Path(__file__).with_name('migration-check.py'))
@@ -45,12 +45,18 @@ class Statements(unittest.TestCase):
                             [x.replace('THEN prior.n + 1','THEN 0').replace('THEN content_revision.n + 1','THEN 0') for x in good],
                             [x.replace('prior.n >= 0','1 = 1').replace("typeof(content_revision.n) = 'integer'",'1 = 1') for x in good],
                             good+['UPDATE owner SET name = \'changed\''],
+                            [x.replace('WHEN NEW.id IS NOT OLD.id OR NEW.created_at IS NOT OLD.created_at','WHEN 1') for x in good] if dialect=='cf' else [*good,'SELECT 1'],
+                            [x.replace('NEW.created_at IS NOT OLD.created_at','NEW.version IS NOT OLD.version') for x in good] if dialect=='cf' else [*good,'SELECT 1'],
                             [x.replace('RETURN NULL;', 'DELETE FROM owner; RETURN NULL;') for x in good] if dialect=='pg' else [x.replace('INSERT INTO content_revision (id,epoch,n)', 'DELETE FROM owner; INSERT INTO content_revision (id,epoch,n)') for x in good]]:
                 self.assertTrue(errors(altered), (dialect, altered))
             # A forged trigger cannot be accepted as a header followed by
             # individually allowed writes to a same-migration table.
             forged = ['CREATE TABLE scratch(id INTEGER)', "CREATE TRIGGER content_revision__live__ai AFTER INSERT ON live BEGIN INSERT INTO scratch VALUES(1); DELETE FROM owner; END"]
             self.assertTrue(errors(forged))
+
+    def test_exact_reviewed_items_update_body(self):
+        frozen = Path(__file__).parents[1] / 'spec/fixtures/content-revision-items-update.sql'
+        self.assertEqual(cf_trigger('items', 'UPDATE', 'au')+';\n', frozen.read_text())
 
     def test_literal_case_and_whitespace_are_not_erased(self):
         self.assertNotEqual(canonical("SELECT 'a  b'"), canonical("SELECT 'a b'"))

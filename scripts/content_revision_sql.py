@@ -29,8 +29,9 @@ $$"""
 
 
 def cf_trigger(table, event, suffix):
+    when = "\nWHEN NEW.id IS NOT OLD.id OR NEW.created_at IS NOT OLD.created_at" if table == "items" and event == "UPDATE" else ""
     return f"""CREATE TRIGGER IF NOT EXISTS content_revision__{table}__{suffix}
-AFTER {event} ON {table} FOR EACH ROW BEGIN
+AFTER {event} ON {table} FOR EACH ROW{when} BEGIN
  INSERT INTO content_revision (id,epoch,n) VALUES (1,lower(hex(randomblob(16))),1)
  ON CONFLICT (id) DO UPDATE SET
  epoch = CASE WHEN {CF_VALID} THEN content_revision.epoch ELSE excluded.epoch END,

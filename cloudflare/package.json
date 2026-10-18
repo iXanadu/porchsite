@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node ../scripts/site-guide-contract.mjs && node --test scripts/beacon-check.mjs scripts/heading-check.mjs scripts/recovery-check.mjs scripts/alerts-ui-check.mjs scripts/theme-version-check.mjs && vitest run",
+    "test": "node ../scripts/check-witness-compat.mjs && node --test ../scripts/check-witness-compat.test.mjs && node ../scripts/site-guide-contract.mjs && node --test scripts/beacon-check.mjs scripts/heading-check.mjs scripts/recovery-check.mjs scripts/alerts-ui-check.mjs scripts/theme-version-check.mjs && vitest run",
     "typecheck": "tsc --noEmit",
     "themes": "node scripts/themes.mjs",
     "theme:check": "node scripts/theme.mjs check",
