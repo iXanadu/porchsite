@@ -8,17 +8,20 @@ import {observer,counters,settle} from './observer.mjs';
 const allowedHeaders=['cache-control','location','content-type'];
 export default { async fetch(_request,env,context) {
   for(const key of Object.keys(native))if(key!=='waitUntil'&&!Object.is(native[key],adapter[key]))throw Error('Native export identity changed');
-  let state=counters();
+  let stage='start';let state=counters();
   const scope=new Proxy({}, {get:(_,k)=>state[k],set:(_,k,v)=>{state[k]=v;return true;}});
   const db=observer(env.DB,scope);
   const applicationEnv={DB:db,OAUTH_KV:env.OAUTH_KV,SITE_URL:env.SITE_URL,PUBLIC_ARTIFACTS:env.PUBLIC_ARTIFACTS,PUBLIC_RESPONSES:''};
   async function dispatch(request) {
     const pending=[];
+    stage=request.method==='POST'?'post':'setup';
     const scoped=await runScoped(async()=>{
     const response=await application.fetch(request,applicationEnv,{...context,props:context.props,passThroughOnException:context.passThroughOnException.bind(context),waitUntil:p=>{pending.push(p);registerContext(p);}});
     const body=await response.text();await settle(pending);return {response,body};});
     const {response,body}=scoped.value;
+    stage='native-certification';
     if(env.ROW_OPERATION==='import/file'&&request.method==='POST'&&env.ROW_AUTH==='valid'&&scoped.nativeRegistrations<1)throw Error('Native background task adapter missing');
+    stage='db-certification';
     if(state.failed)throw Error('Row operation database failure');state.closed=true;
     return {response,body};
   }
@@ -40,5 +43,5 @@ export default { async fetch(_request,env,context) {
     }
     const {response,body}=await dispatch(request);
     return Response.json({status:response.status,headers:[...response.headers].filter(([k])=>allowedHeaders.includes(k.toLowerCase())),bytes:new TextEncoder().encode(body).length,credential_oracle_headers:["set-cookie","retry-after","x-rate-limit-remaining"].some(k=>response.headers.has(k)),counters:state});
-  } catch {state.closed=true;return Response.json({error:'Write measurement failed',counters:state},{status:500});}
+  } catch {state.closed=true;return Response.json({error:'Write measurement failed',stage,counters:state},{status:500});}
 }};

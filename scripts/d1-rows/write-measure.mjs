@@ -47,7 +47,9 @@ export async function measureWrites({root,out,migrations,corpus,Miniflare,conver
    await mf.ready;const db=await mf.getD1Database('DB');
    for(const file of fs.readdirSync(migrations).filter(x=>x.endsWith('.sql')).sort())for(const sql of fs.readFileSync(path.join(migrations,file),'utf8').replace(/--[^\n]*/g,'').split(';').map(x=>x.trim()).filter(Boolean))await db.prepare(sql).run();
    await db.exec(seed.sql);await db.exec(fixture.sql);const before=await live(db);
-   const response=await mf.dispatchFetch(ORIGIN+'/');const value=await response.json();assert.equal(response.status,200,'write wrapper failed');
+   const response=await mf.dispatchFetch(ORIGIN+'/');const value=await response.json();
+   fs.writeFileSync(path.join(out,`attempt-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,wrapper_status:response.status,status:value.status,stage:value.stage,counters:value.counters}));
+   assert.equal(response.status,200,'write wrapper failed');
    await outcome(db,operation,fixture,before,value,auth!=='valid');
    if(auth==='valid')cells[`operations/${mode}/${operation}`]={rows_read:value.counters.rows_read,rows_written:value.counters.rows_written};
    // Only credential-free numeric diagnostics persist.
