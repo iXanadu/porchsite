@@ -2529,29 +2529,43 @@ uninstrumented D1 operations fails. No statement or estimate substitution.
 
 The write harness must also observe promises registered through the native
 `cloudflare:workers` module's `waitUntil`, not only the context argument.
-For local measurement only, route emitted application's imports of that
-module through a temporary re-export adapter. Re-export the actual native
-exports unchanged; wrap only `waitUntil` to forward the identical promise
-to native `waitUntil` and also retain it for the active request's settle
-loop. Both registrations are required. Do not suppress native lifetime,
-change task arguments/results, expose an application drain helper or call
-a private product helper. Adapter state is request-local; setup tasks
-finish before POST counters reset. Capture nested registrations until the
-tracked set is fully settled. A rejected, unscoped or late task fails the
-gate, including errors the application otherwise hides. No sleeps or
-idle-query inference substitutes for this completion proof.
+Prefer a native runtime completion hook or module alias that preserves the
+emitted application bytes, if one exists. Otherwise, for local measurement
+only, route static imports of that module in a separately named derived
+measurement copy through a temporary re-export adapter. The original
+application.js and archived Worker remain byte-identical. Preserve every
+other byte in the derived copy and pin the exact import-only mapping.
 
-Apply this import-only adapter identically to current and exact archived
-emitted bundles; preserve all other application bytes. Keep the original
-archive/source artifact SHA as product identity, and additionally record
-the derived instrumented-bundle SHA, adapter hash and exact import mapping
-as measurement provenance. Pin these in the input fingerprint. Recognize
-static module imports only and fail closed on unexpected/unrewritten
-native waitUntil imports. The adapter itself imports the real native
-module, never itself. It remains external local tooling, not a product
-source/auth/response change. Tests prove both native forwarding and nested
-settlement exactly once in the observer, request isolation, rejected/late
-work refusal, and unchanged non-waitUntil export identity.
+Re-export actual native exports unchanged and as live bindings (including
+`env`); wrap only `waitUntil`. First register the identical promise in the
+open request-local settlement set, then call native `waitUntil` with it.
+Keep the registration even if the native call throws; propagate the native
+throw and do not swallow rejection. Do not suppress lifetime or tasks,
+change task arguments/results, expose an application drain helper or call
+a private product helper. Cover every native registration, not only import.
+Context-argument waitUntil capture stays and shares the same open request
+identity. Only one request may be in flight; no concurrent scopes or a
+process-global promise bag. Setup tasks finish before POST counters reset.
+Capture nested registrations until the tracked set is fully settled.
+Rejected, unscoped, late or unsettled work fails, including hidden database
+errors. Optional alert delivery need not succeed, but every D1 query it
+causes still counts. No sleep or idle-query inference proves completion.
+
+Apply the same measurement method to current and archived artifacts. Keep
+original product/archive SHA as artifact identity, and additionally record
+derived measurement-copy SHA, adapter hash and import mapping as separate
+provenance; adapter/harness hash belongs to the input fingerprint. Never
+substitute an adapter SHA for a release hash or copy cells across a changed
+fingerprint. Recognize static imports and fail on unexpected/unmapped
+native waitUntil imports. The adapter imports the real native module,
+never itself. Never modify product wrangler, handler, auth, DB, alerts.ts,
+crypto, route or fixture authority; no helper drain() substitutes for this.
+No task results, payloads, credentials or owner labels persist in records.
+Tests prove native forwarding plus request-local registration when native
+throws, nested/rejected/late work and request isolation, live other-export
+identity, and that omitting the adapter in a scratch copy fails import or
+approval completion/counted-work certification. This shim is local tooling
+only and requires review before implementation or use.
 
 Version the expanded record format and measurement-input fingerprint.
 Keep the original published predecessor record. For the introducing
