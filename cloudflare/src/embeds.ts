@@ -1,3 +1,4 @@
+import {copyLazyValues} from './lazy-values';
 /** Engine-owned blocks. Content holds URLs, never active iframe markup. */
 import { esc, markdown } from "./html";
 import { embedSources, embedURL, requestOrigin } from "./embed-url";
@@ -56,14 +57,14 @@ export function headingBodies(value: unknown, headingIds = true, bodyH1AsH2 = fa
   if (!value || typeof value !== "object" || value instanceof String) return value;
   const source = value as Record<string, unknown>;
   const deferred = deferredBodies.get(value);
-  if (deferred) return deferredBody(Object.fromEntries(Object.entries(source).map(([key, child]) => [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)])), deferred.source, bodies, headingIds, bodyH1AsH2);
-  return Object.fromEntries(Object.entries(source).map(([key, child]) => {
+  if (deferred) return copyLazyValues(value,deferredBody(Object.fromEntries(Object.entries(source).map(([key, child]) => [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)])), deferred.source, bodies, headingIds, bodyH1AsH2));
+  return copyLazyValues(value,Object.fromEntries(Object.entries(source).map(([key, child]) => {
     if (key === "body_html" && child && typeof source.body === "string") {
       if (!bodies.has(source.body)) bodies.set(source.body, bodyMarkdown(source.body, undefined, headingIds, bodyH1AsH2));
       return [key, bodies.get(source.body)];
     }
     return [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)];
-  }));
+  })));
 }
 export function embedsOf(src: string): Embed[] {
   const out: Embed[] = []; if (src.includes("!embed[")) bodyMarkdown(src, e => out.push(e)); return out;

@@ -6,6 +6,7 @@ import time
 from .public_time import plan
 from starlette.responses import Response
 from .content import validate
+from .embed_storage import approved_source_data
 from .errors import ApiError
 from server.spec.embeds import PERMISSIONS, frame_csp
 from . import themes
@@ -51,6 +52,16 @@ def decode(rows):
         entries.append(dict(id=ident,slug=str(v[1]),stream=st.get('path') or st['id'],streamId=st['id'],page='/'+(st.get('path') or st['id'])+'/'+str(v[1])+'/',external=str(v[7] or ''),endpoint=v[9] if len(v)>9 else None,tags=v[10] if len(v)>10 and v[10] else []))
     theme=themes.ALIASES.get(s['theme'],s['theme'])
     return dict(rows=data,site=s,entries=entries,hasSite=bool(live),themed=themes.is_built_in(theme) or any(r[0]=='theme' and r[1]==theme for r in data),disabled=s['ai_training_disabled'] is True,private=s['private'] is True)
+
+def view_proof(f):
+    """Request-owned approved source rows; not an authorization grant."""
+    if f['private'] or not f['hasSite']:
+        return None
+    rows=f['rows']
+    live=next((r[2] for r in rows if r[0]=='live' and r[1]=='site'),None)
+    if not live or not live[8] or not f.get('site'):
+        return None
+    return dict(site_version=live[2],raw_site=live[8],site=approved_source_data(live[8],rows),site_rows=[r for r in rows if (r[0]=='live' and r[1]=='site') or r[0] in ('field','embed','streams','private','training')],shares=[dict(item_id=ident,version=v[0],name=v[1]) for kind,ident,v in rows if kind=='share'])
 
 async def facts(db):
     return decode(await db.fetch(FACTS_SQL))

@@ -9,7 +9,7 @@ from server.spec.embed_url import embed_sources
 from .db import dumps, transaction
 from .errors import ApiError
 from .site_fields import broker_data, private_data, training_data
-from .stream_settings import stream_data, stream_projection
+from .stream_settings import stream_data, stream_projection, checked_settings
 
 
 def stored_data(kind, data):
@@ -80,3 +80,22 @@ async def migrate_sources(db):
             await c.execute(
                 f"UPDATE {table} SET data = (data::jsonb - 'embed_sources')::text WHERE {key} = 'site' AND data::jsonb ? 'embed_sources'"
             )
+
+
+def approved_source_data(data, rows):
+    """Same live source rules, from normalized rows in this request's facts."""
+    from pydantic import ValidationError
+    def at(kind, ident="site"):
+        return next((r[2] for r in rows if r[0] == kind and r[1] == ident), None)
+    extension = at("streams")
+    settings = {}
+    if extension and extension[1]:
+        try:
+            settings = checked_settings(extension[0])
+        except (ValueError, TypeError, ValidationError):
+            raise ApiError(422, "invalid", "Stored stream settings do not validate.") from None
+    def field(name, fallback):
+        value = at("field", name)
+        return value[0] if value and value[1] else fallback
+    sources = at("embed")
+    return {**data, **settings, "broker": field("broker", ""), "private": field("private", False) is True and at("private") is not None, "ai_training_disabled": field("ai_training_disabled", False) is True and at("training") is not None, "embed_sources": (sources[0] if sources[1] else []) if sources else data.get("embed_sources", [])}

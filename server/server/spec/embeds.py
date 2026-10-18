@@ -7,6 +7,7 @@ from urllib.parse import quote, unquote
 from .embed_url import embed_sources, embed_url, request_origin
 from .html import esc, markdown
 from .jsutil import trim
+from .lazy_values import LazyValues, copy_lazy_values
 
 _FORM = re.compile(r"!embed\[([^\[\]\r\n]{1,200})\]\(([^()\r\n]{1,2000})\)\Z")
 PERMISSIONS = "camera=(), microphone=(), geolocation=(), payment=(), display-capture=(), publickey-credentials-get=()"
@@ -21,7 +22,7 @@ class _Body(str):
         return obj
 
 
-class _DeferredEntry(dict):
+class _DeferredEntry(LazyValues):
     """Template-visible body_html without enumerating or serializing a body."""
 
     def __init__(self, view, source, memo, ids, demote):
@@ -50,7 +51,7 @@ class _DeferredEntry(dict):
 
 
 def deferred_body(view, source, memo=None, ids=False, demote=False):
-    return _DeferredEntry(view, source, {} if memo is None else memo, ids, demote)
+    return copy_lazy_values(view, _DeferredEntry(view, source, {} if memo is None else memo, ids, demote))
 
 
 def _render_markers(view, out=None, seen=None):
@@ -112,7 +113,7 @@ def heading_bodies(value, heading_ids=True, body_h1_as_h2=False, bodies=None):
     if isinstance(value, _DeferredEntry):
         metadata = {key: heading_bodies(child, heading_ids, body_h1_as_h2, bodies)
                     for key, child in value.items()}
-        return deferred_body(metadata, value._source, bodies, heading_ids, body_h1_as_h2)
+        return copy_lazy_values(value, deferred_body(metadata, value._source, bodies, heading_ids, body_h1_as_h2))
     out = {}
     for key, child in value.items():
         if key == "body_html" and child and isinstance(value.get("body"), str):
@@ -124,7 +125,7 @@ def heading_bodies(value, heading_ids=True, body_h1_as_h2=False, bodies=None):
             out[key] = bodies[source]
         else:
             out[key] = heading_bodies(child, heading_ids, body_h1_as_h2, bodies)
-    return out
+    return copy_lazy_values(value, out)
 
 
 def embeds_of(src):

@@ -426,7 +426,7 @@ async def content_view(req, cx, discovery=False, grant=None):
         if state.get('denied'):
             raise privacy.PrivateContentDenied()
         if 'view' not in state:
-            view=await site.live_view(cx.db,discovery=discovery)
+            view=await site.live_view(cx.db,discovery=discovery,approved=None if session_request(req) else state.get("approved"))
             if view.site.get('private'):
                 state['denied']=True
                 raise privacy.PrivateContentDenied()
@@ -2206,6 +2206,7 @@ async def fast_public(req,cx):
                     now=public_read.time.time()*1000
                     tag=public_read.tag(f,req,c,cx.release,now)
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
+                cx._read['approved']=public_read.view_proof(f) if tag else None
             cx._read['zone']=f['site'].get('timezone') or 'UTC'
         except ApiError as error:
             return owner_page("Problem",f"<h1>Something's wrong</h1><p>{esc(error.message)}</p>",status=error.status)
@@ -2224,6 +2225,7 @@ async def render_public(req,cx):
                 now=public_read.time.time()*1000
                 tag=public_read.tag(f,req,c,cx.release,now)
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
+                cx._read['approved']=public_read.view_proof(f) if tag else None
     state=getattr(cx,'_read',None)
     private_now,gated_now,denial=(state['private'],state['gated'],state['response']) if state is not None else await privacy.access(cx.db,req)
     get=Request({**req.scope,'method':'GET'},req.receive) if req.method=='HEAD' else req
@@ -2256,6 +2258,7 @@ async def render_public(req,cx):
                 if not state.get('retries'):
                     state['retries']=1
                     state.pop('view',None)
+                    state['approved']=public_read.view_proof(f) if fresh_tag else None
                     state['fast']=dict(tag=fresh_tag,disabled=f['disabled'],now=public_read.time.time()*1000) if fresh_tag else None
                     return await render_public(req,cx)
                 return privacy.no_store(rendered)

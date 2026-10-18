@@ -32,3 +32,13 @@ for (const options of [
   { year: "numeric", month: "2-digit", day: "2-digit" },
   { hour: "numeric", minute: "2-digit" },
 ] as Intl.DateTimeFormatOptions[]) dateFormatter(options).format(new Date(0));
+
+/** Formatted strings belong to one render, never to the formatter registry. */
+export function dateMemo():typeof dateString {
+  const values=new Map<string,string>();
+  return (date,options,timeZone="UTC")=>{
+    const key=JSON.stringify([date.getTime(),"en-US",timeZone,Object.entries(options).sort(([a],[b])=>a<b?-1:a>b?1:0)]);
+    if(!values.has(key))values.set(key,dateString(date,options,timeZone));
+    return values.get(key)!;
+  };
+}
