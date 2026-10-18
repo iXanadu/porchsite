@@ -13,7 +13,7 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
   for (const site of corpus) {
     const identity = new Map();
     for (const mode of ['off', 'on']) {
-      const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, modulesRoot: out, scriptPath: path.join(out, 'harness.mjs'), ...COMPATIBILITY, d1Databases: ['DB'], kvNamespaces: ['OAUTH_KV'], bindings: { SITE_URL: ORIGIN, PUBLIC_ARTIFACTS: mode === 'on' ? '1' : '', PUBLIC_RESPONSES: '' }, outboundService: () => new Response(null, { status: 502 }) }));
+      const mf = new Miniflare(convertV4MiniflareOptions({ rootPath: out, modules: true, modulesRules: [{type:'ESModule',include:['**/*.mjs','**/*.js']}], modulesRoot: out, scriptPath: path.join(out, 'harness.mjs'), ...COMPATIBILITY, d1Databases: ['DB'], kvNamespaces: ['OAUTH_KV'], bindings: { SITE_URL: ORIGIN, PUBLIC_ARTIFACTS: mode === 'on' ? '1' : '', PUBLIC_RESPONSES: '' }, outboundService: () => new Response(null, { status: 502 }) }));
       try {
         await mf.ready;
         const database = await mf.getD1Database('DB');
