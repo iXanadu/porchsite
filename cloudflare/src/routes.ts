@@ -1,3 +1,4 @@
+import {readRevision,initialFacts} from './content-revision';
 import {dailyOwnerAuthorized,optionalD1} from './daily-limit';
 import {plan as timePlan,valid as timeValid} from './public-time';
 import * as ownerReview from './owner-review';
@@ -9,7 +10,7 @@ import * as publicArtifacts from "./public-artifacts";
 import * as publicRead from "./public-read";
 import * as publicResponses from "./public-responses";
 import {sessionRequest,publicPath,markdownPath} from "./public-http";
-type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;responseHit?:boolean;artifact?:publicArtifacts.Proof;};
+type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;responseHit?:boolean;witness?:{pair:string;facts:publicRead.Facts;choice:publicRead.Choice;at:number;tag:string};artifact?:publicArtifacts.Proof;};
 const readStates=new WeakMap<Env,ReadState>();
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
@@ -1293,18 +1294,25 @@ async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):P
   return mapResponse(mapPages(v),new URL(req.url).origin);
  },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
 }
+const witnessScope=(env:Env)=>env.PUBLIC_ARTIFACTS!=='1'&&env.PUBLIC_RESPONSES!=='1';
+// A conditional attempt must capture the same snapshot before its tag is known.
+// A copies-ON token is never retained for body delivery or admission.
+const conditionalWitnessScope=(req:Request,env:Env)=>env.PUBLIC_RESPONSES!=='1'&&(witnessScope(env)||(['GET','HEAD'].includes(req.method)&&!!req.headers.get('If-None-Match')?.trim()));
 /** Live metadata is never an authorization grant or a prepared body. */
 async function fastPublic(req:Request,env:Env,ctx?:Pick<ExecutionContext,'waitUntil'>):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
   try{
-   let f=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');
+   const initial=conditionalWitnessScope(req,env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1'),pair:null};
+   let n0=initial.pair,f=initial.facts;
    if(f.private)return privacy.blankResponse(req);
    readStates.get(env)!.zone=String(f.site.timezone||'UTC');
    let c=publicRead.choice(req,f);
    if(!c){const miss=await publicRead.miss(req,f,env.DB);if(miss)return miss;}
    if(c){
     let now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now),hit=publicRead.conditional(req,f,c,tag);
-    if(hit){const current=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&timeValid(timePlan(f,c,now)))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();now=Date.now();tag=await publicRead.tag(f,req,c,RELEASE,now);}
+    if(hit){if(n0!==null&&await readRevision(env.DB)===n0&&timeValid(timePlan(f,c,now)))return hit;n0=null;const current=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&timeValid(timePlan(f,c,now)))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();now=Date.now();tag=await publicRead.tag(f,req,c,RELEASE,now);}
+    if(!witnessScope(env))n0=null; // conditional-only pair cannot authorize a copies-ON body
+    readStates.get(env)!.witness=tag&&n0!==null?{pair:n0,facts:f,choice:c,at:now,tag}:undefined;
     readStates.get(env)!.fast=tag?{tag,disabled:f.disabled,now}:undefined;readStates.get(env)!.approved=tag?publicRead.viewProof(f):undefined;readStates.get(env)!.artifact={facts:f,choice:c,tag,now};
    }
   }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
@@ -1319,7 +1327,7 @@ async function publicPaths(req:Request,env:Env):Promise<string[]> {
  return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
 }
 async function renderPublic(req:Request,env:Env):Promise<Response>{
- if(!readStates.has(env)){env={...env};const access=await privacy.access(env.DB,req);readStates.set(env,{access});if(!access.isPrivate&&!sessionRequest(req)){const f=await publicRead.facts(env.DB),c=publicRead.choice(req,f);if(c){const now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now);if(tag){readStates.get(env)!.fast={tag,disabled:f.disabled,now};readStates.get(env)!.approved=publicRead.viewProof(f);}}}}
+ if(!readStates.has(env)){env={...env};const access=await privacy.access(env.DB,req);readStates.set(env,{access});if(!access.isPrivate&&!sessionRequest(req)){const initial=witnessScope(env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB),pair:null};const n0=initial.pair,f=initial.facts,c=publicRead.choice(req,f);if(c){const now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now);if(tag){readStates.get(env)!.witness=n0!==null&&!f.private?{pair:n0,facts:f,choice:c,at:now,tag}:undefined;readStates.get(env)!.fast={tag,disabled:f.disabled,now};readStates.get(env)!.approved=publicRead.viewProof(f);}}}}
  const fresh=readStates.get(env)?.access??await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
  if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse(req);
  if(fresh.response)return fresh.response;
@@ -1327,6 +1335,9 @@ async function renderPublic(req:Request,env:Env):Promise<Response>{
  let rendered:Response;try{rendered=await agentPage(get,r=>route(r,env),async()=>mapResponse(mapPages(await contentView(new Request(new URL('/',get.url)),env,true)),new URL(get.url).origin),r=>notFoundPage(r,env),()=>contentView(get,env));}catch(error){if(error instanceof privacy.PrivateContentDenied)return privacy.blankResponse(req);throw error;}
  const stamp=readStates.get(env)?.fast;
  if(stamp&&rendered.status===200){
+  const state=readStates.get(env)!,token=state.witness;
+  if(witnessScope(env)&&token&&token.tag===stamp.tag&&await readRevision(env.DB)===token.pair&&timeValid(timePlan(token.facts,token.choice,token.at)))return publicResponse(env.DB,req,rendered,stamp);
+  state.witness=undefined;
   try{const f=await publicRead.facts(env.DB);if(f.private)return privacy.blankResponse(req);const c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();const freshTag=await publicRead.tag(f,req,c,RELEASE);if(freshTag!==stamp.tag||!timeValid(timePlan(f,c,stamp.now))){const state=readStates.get(env)!;if(!state.retries){state.retries=1;state.view=undefined;state.approved=freshTag?publicRead.viewProof(f):undefined;state.fast=freshTag?{tag:freshTag,disabled:f.disabled,now:Date.now()}:undefined;return renderPublic(req,env);}return privacy.noStore(rendered);}}catch{return privacy.blankResponse(req);}
  }
  return publicResponse(env.DB,req,rendered,stamp);

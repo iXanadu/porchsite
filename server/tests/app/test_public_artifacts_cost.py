@@ -1,3 +1,4 @@
+from server.app import content_revision
 """AF-7T-C1 transport and multiset controls, paired with the Worker."""
 from dataclasses import replace
 from pathlib import Path
@@ -141,7 +142,9 @@ async def test_af_c2_304_sql_identity(db,method):
                     return response.status_code,response.body,dict(response.headers),counted.calls
                 off,on=await run(False),await run(True)
                 assert on==off and on[0]==304 and on[1]==b''
-                assert sum(sql==read.FACTS_SQL for sql,args,kwargs in on[3])==2
+                assert sum(sql==content_revision.initial_sql() for sql,args,kwargs in on[3])==1
+                assert sum(sql==content_revision.REVISION_SQL for sql,args,kwargs in on[3])==1
+                assert sum(sql==read.FACTS_SQL for sql,args,kwargs in on[3])==0
                 assert not any('public_artifact' in sql for sql,args,kwargs in on[3])
         finally:
             if missing:await db.execute('ALTER TABLE absent_copy_state RENAME TO public_artifact_state')

@@ -1,3 +1,4 @@
+import * as revision from '../src/content-revision';
 import {env} from 'cloudflare:workers';
 import {beforeEach,afterEach,expect,it,vi} from 'vitest';
 import * as content from '../src/content';
@@ -71,7 +72,7 @@ it.each(['GET','HEAD'])('af_c2_304: %s uses exact OFF SQL and bindings with copi
     const spy=vi.spyOn(db,'prepare').mockImplementation((sql:string)=>{const statement=original(sql),row={sql,binds:[] as unknown[]};calls.push(row);const bind=statement.bind.bind(statement);vi.spyOn(statement,'bind').mockImplementation((...values:unknown[])=>{row.binds=values;return bind(...values);});return statement;});
     try{const response=await handle(new Request(origin+'/',{method,headers:{'If-None-Match':match}}),{...e,PUBLIC_ARTIFACTS:on?'1':''});return {status:response.status,body:await response.text(),headers:[...response.headers],calls};}finally{spy.mockRestore();}
    };
-   const off=await run(false),on=await run(true);expect(on).toEqual(off);expect(on.status).toBe(304);expect(on.body).toBe('');expect(on.calls.filter(x=>x.sql===read.FACTS_SQL)).toHaveLength(2);expect(on.calls.some(x=>/public_artifact/.test(x.sql))).toBe(false);
+   const off=await run(false),on=await run(true);expect(on).toEqual(off);expect(on.status).toBe(304);expect(on.body).toBe('');expect(on.calls.filter(x=>x.sql===revision.INITIAL_SQL)).toHaveLength(1);expect(on.calls.filter(x=>x.sql===revision.REVISION_SQL)).toHaveLength(1);expect(on.calls.filter(x=>x.sql===read.FACTS_SQL)).toHaveLength(0);expect(on.calls.some(x=>/public_artifact/.test(x.sql))).toBe(false);
   }}finally{if(missing)await db.prepare('ALTER TABLE absent_copy_state RENAME TO public_artifact_state').run();}
  }
 });

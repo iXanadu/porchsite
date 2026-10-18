@@ -7,6 +7,7 @@ import * as approvals from '../src/approvals';
 import * as site from '../src/site';
 import * as artifacts from '../src/public-artifacts';
 import * as read from '../src/public-read';
+import {INITIAL_SQL,REVISION_SQL} from '../src/content-revision';
 import * as traffic from '../src/agent-traffic';
 import {handle} from '../src/routes';
 import {BLANK,SIGN_IN} from '../src/privacy';
@@ -209,7 +210,7 @@ it('af_prebuild_publication_atomic: a failed post-commit builder cannot undo pub
 });
 
 
-it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after current dependency facts cannot deliver the old row',async(change)=>{
+it.each(['snapshot','late'].flatMap(boundary=>['private','unpublish','expiry'].map(change=>({boundary,change}))))('af_prebuild_warm_hit_race: $change at $boundary cannot deliver the old row',async({boundary,change})=>{
  const {one,entry}=await fixture(),path='/journal/'+entry.slug+'/';
  const first=await get(path);expect(first.status).toBe(200);expect(await count()).toBe(1);
  const rendered=vi.spyOn(site,'liveView');
@@ -217,16 +218,16 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after c
  const raced=new Proxy(db,{get(target,key){
   if(key==='prepare')return(sql:string)=>{
    const statement=target.prepare(sql);
-   if(sql!==read.FACTS_SQL&&sql!==read.FACTS_STATE_SQL)return statement;
+   if(sql!==(boundary==='snapshot'?INITIAL_SQL:REVISION_SQL))return statement;
    return new Proxy(statement,{get(t,k){
     if(k==='all')return async(...args:any[])=>{
-     const stamp=await (t.all as any)(...args);calls++;
+     const stamp=boundary==='snapshot'?await (t.all as any)(...args):null;calls++;
      if(calls===1){
       if(change==='private')await publish(await content.updateItem(db,actor,'site',one.version,{private:true}));
       else if(change==='unpublish')await publish(await content.removeItem(db,actor,entry.id,entry.version));
       else {const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));vi.spyOn(Date,'now').mockReturnValue(until+1000);}
      }
-     return stamp;
+     return boundary==='snapshot'?stamp:await (t.all as any)(...args);
     };
     const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value;
    }});
@@ -234,6 +235,7 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after c
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
  const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
+ expect(calls).toBeGreaterThan(0);
  if(change==='expiry'){expect(rendered).not.toHaveBeenCalled();expect(response.status).toBe(304);expect(response.headers.get('ETag')).toBe(first.headers.get('ETag'));}
  else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(SIGN_IN);}
 });

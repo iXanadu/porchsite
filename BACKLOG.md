@@ -55,18 +55,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 
 
 4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
-   read per first page view grow with site size. Small samples read 69-197
-   rows (25k-72k free views a day per account); a 200-entry site reads about
-   1,700 (about 2,900 a day); with prepared copies on, about 6,700 (about
-   750 a day). Find what scales with entries on the ordinary read path and
-   cut it, measured under GATE-2. Until then, prepared copies are a
-   small-site setting.
-   PERF-9a (trigger-maintained change counter, specs 84df93e + 0413180,
-   both reviews passed) HELD 2026-10-18: locally a trigger's write raises
-   D1's meta.changes, so every earlier release, the rollback target
-   included, would report a false version conflict after a successful
-   save. A hosted D1 probe decides; if hosted counts trigger rows too, the
-   trigger design is not viable on the Cloudflare edition as specified.
+   read per first page view grow with site size. PERF-9a (a trigger-kept
+   content counter) cut the 200-entry fixture's ordinary reads from about
+   1,741 to 1,304 (304s 875), released with the owner's yes on its extra
+   writes and stale-validator reads. What still scales with entries is the
+   render path (about 428 rows) and the facts reads; with prepared copies
+   on, admission (AF-7T-C3, drafted) is the next cut. Until then, prepared
+   copies are a small-site setting.
 
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a

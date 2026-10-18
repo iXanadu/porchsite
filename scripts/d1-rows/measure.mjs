@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { statements } from './sql-statements.mjs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { CLOCK, ORIGIN, COMPATIBILITY, HEADERS, hash } from './fixtures.mjs';
@@ -6,6 +7,11 @@ import { FORMAT, BUDGETS, REQUESTS, validate } from './record.mjs';
 import {WRITE_MANIFEST} from './write-fixtures.mjs';
 import {measureWrites} from './write-measure.mjs';
 import {instrument} from './instrument.mjs';
+
+export async function applyMigration(database, sql) {
+  const queries=statements(sql).map(statement=>database.prepare(statement));
+  if(queries.length)await database.batch(queries);
+}
 
 export async function measure({ root, out, bundle, migrations, corpus, source, inputs, Miniflare, convertV4MiniflareOptions }) {
   fs.mkdirSync(out, { recursive: true });
@@ -23,8 +29,8 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
         await mf.ready;
         const database = await mf.getD1Database('DB');
         for (const file of fs.readdirSync(migrations).filter(file => file.endsWith('.sql')).sort()) {
-          const sql = fs.readFileSync(path.join(migrations, file), 'utf8').replace(/--[^\n]*/g, '');
-          for (const statement of sql.split(';').map(value => value.trim()).filter(Boolean)) await database.prepare(statement).run();
+          const sql = fs.readFileSync(path.join(migrations, file), 'utf8');
+          await applyMigration(database,sql);
         }
         await database.exec(site.sql);
         assert.equal(await database.prepare('SELECT count(*) n FROM public_artifacts').first('n'), 0, 'artifact seed must be empty');
@@ -62,6 +68,6 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
       } finally { await mf.dispose(); }
     }
   }
-  Object.assign(record.cells,await measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions}));
+  Object.assign(record.cells,await measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions,applyMigration}));
   return validate(record);
 }

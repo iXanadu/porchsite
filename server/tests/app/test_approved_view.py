@@ -1,3 +1,4 @@
+from server.app import content_revision
 import json
 from unittest.mock import AsyncMock, Mock
 import pytest
@@ -6,11 +7,12 @@ from .test_public_read import clear, seed
 from .test_agent_map import Count, request
 
 async def test_perf5_public_proof_budget(db,monkeypatch):
-    await seed(db);counted=Count(db);load=AsyncMock(wraps=site.live_view);facts=AsyncMock(wraps=public_read.facts)
+    await seed(db);counted=Count(db);load=AsyncMock(wraps=site.live_view);facts=AsyncMock(wraps=public_read.facts);initial=AsyncMock(wraps=content_revision.initial_facts);late=AsyncMock(wraps=content_revision.read_revision)
     monkeypatch.setattr(site,'live_view',load);monkeypatch.setattr(public_read,'facts',facts)
+    monkeypatch.setattr(content_revision,'initial_facts',initial);monkeypatch.setattr(content_revision,'read_revision',late)
     response=await routes.handle(request('/'),routes.Context(counted,'',None));await agent_traffic.settle(counted)
     assert response.status_code==200 and b'Approved title' in response.body
-    assert load.await_count==1 and load.call_args.kwargs['approved']['site_rows'];assert facts.await_count==2
+    assert load.await_count==1 and load.call_args.kwargs['approved']['site_rows'];assert initial.await_count==1 and late.await_count==1 and facts.await_count==0
     writes=[q for q in counted.calls if q.lstrip().upper().startswith(('INSERT','UPDATE','DELETE'))]
     assert len(counted.calls)-len(writes)<=5 and len(writes)<=1
     assert all(q.startswith('INSERT INTO agent_traffic_daily') for q in writes)
@@ -39,7 +41,7 @@ async def test_perf5_share_version(db):
     proof=public_read.view_proof(await public_read.facts(db));assert (await site.live_view(db,approved=proof)).share_cards=={item['id']:'/media/'+name}
 
 async def test_perf5_extension_race(db,monkeypatch):
-    await seed(db);original=public_read.facts;calls=0
+    await seed(db);original=content_revision.initial_facts;calls=0
     async def reading(db):
         nonlocal calls
         f=await original(db);calls+=1
@@ -47,9 +49,10 @@ async def test_perf5_extension_race(db,monkeypatch):
             row=await db.fetchrow('SELECT settings FROM site_stream_settings WHERE version=1');value=json.loads(row['settings']);value['streams'][0]['title']='Fresh approved stream';value['streams'][0]['nav_label']='Fresh approved stream'
             await db.execute('UPDATE site_stream_settings SET settings=$1 WHERE version=1',json.dumps(value))
         return f
-    monkeypatch.setattr(public_read,'facts',reading);load=AsyncMock(wraps=site.live_view);monkeypatch.setattr(site,'live_view',load)
+    monkeypatch.setattr(content_revision,'initial_facts',reading);load=AsyncMock(wraps=site.live_view);monkeypatch.setattr(site,'live_view',load)
     r=await routes.handle(request('/'),routes.Context(db,'',None));assert r.status_code==200 and b'Fresh approved stream' in r.body;assert load.await_count==2
     assert load.call_args_list[0].kwargs['approved']['site_rows']!=load.call_args_list[1].kwargs['approved']['site_rows']
+    assert calls>0
 
 async def test_perf5_private_race(db,monkeypatch):
     await seed(db);original=site.live_view;once=True
