@@ -44,7 +44,9 @@ async def test_json_errors_do_not_echo(db,http):
     for path in ['/recover/options','/recover/verify']:
         for body in ['{"code":"private-canary','null','[]']:
             r=await http.post(path,content=body,headers={'content-type':'application/json'})
-            assert r.status_code==403 and 'private-canary' not in r.text
+            assert r.status_code==(403 if path=='/recover/options' else 400)
+            assert r.json()['error']==('bad_code' if path=='/recover/options' else 'expired')
+            assert 'private-canary' not in r.text
             assert r.headers['referrer-policy']=='no-referrer' and r.headers['cache-control']=='no-store'
 
 async def test_independent_cutoff_and_unclaimed_precedence(db,http,monkeypatch):

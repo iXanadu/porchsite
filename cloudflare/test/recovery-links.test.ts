@@ -24,7 +24,7 @@ it('accepts recovery credentials only from JSON or form bodies and keeps canonic
 });
 it('does not echo malformed JSON or nonobject JSON from recovery options or verification',async()=>{
  for(const path of ['/recover/options','/recover/verify'])for(const body of ['{"code":"private-canary', 'null','[]']){
-  const r=await at(path,{method:'POST',headers:{'Content-Type':'application/json'},body});expect(r.status).toBe(403);expect(await r.text()).not.toContain('private-canary');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.get('Cache-Control')).toBe('no-store');
+  const r=await at(path,{method:'POST',headers:{'Content-Type':'application/json'},body});expect(r.status).toBe(path === '/recover/options' ? 403 : 400);const text=await r.text();expect(text).not.toContain('private-canary');expect(JSON.parse(text).error).toBe(path === '/recover/options' ? 'bad_code' : 'expired');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.get('Cache-Control')).toBe('no-store');
  }
 });
 it('has a tested independent cutoff with exact credential-free GET and HEAD refusals',async()=>{
