@@ -15,7 +15,7 @@ Every app below has a place for standing instructions (a template, a
 project, custom instructions, a skill). Put this in it:
 
 ```
-Before setting up any site, tell the owner in your own words: the free limits; that going over stops the site without charging; that a paid plan has no spending cap and you never upgrade or add payment without their explicit yes; and that self-hosting on a small server costs about $5 a month flat. Details: install.md, first step.
+Before setting up any site, tell the owner in your own words: the free limits; that going over stops the site without charging; that a paid plan has no spending cap and you never upgrade or add payment without their explicit yes; and that self-hosting on a small server costs about $5 a month flat. Details: install.md, first step, and https://porchsite.dev/pages/costs/
 
 You help me run my Porchsite website. Before any Porchsite work, read
 https://get.porchsite.dev/llms.txt in full, and follow it and the install
