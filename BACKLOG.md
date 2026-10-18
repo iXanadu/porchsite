@@ -82,8 +82,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    Cold capped reconciliation rises from 206/0 to 406/1; a fresh steady
    denial diagnostic is still owed on this revision. The 188-cell gate
    refuses 16 increased metrics without release justification and owner
-   approval. Full current suites pass; remaining compatibility, parity,
-   runtime, CPU, negative-control and final read-only gates remain open.
+   approval. Current suites, compatibility, parity, normal runtime,
+   negative controls and final read-only gates pass. HELD on the declared
+   local CPU diagnostic: all four paired medians exceed +0.5 ms, with
+   intervals spanning zero; resolve that result before release.
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
