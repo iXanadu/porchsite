@@ -2353,7 +2353,8 @@ validators and derived artifacts never enter a shared store.
 ### AF-1 / use case 9: traffic counts by agent kind
 
 Both editions count engine-observed requests for public HTML, Markdown,
-robots, feeds, sitemap and llms.txt, including only successful GET 200 responses, by site-local calendar day and one of four kinds: search
+robots, feeds, sitemap and llms.txt, including only successful GET 200
+responses except PERF-4 response-cache hits, by site-local calendar day and one of four kinds: search
 crawler, training crawler, agent acting for a person, or other. Use one
 shared, versioned user-agent classification table, evaluated in memory:
 OAI-SearchBot, Claude-SearchBot and Googlebot are search; GPTBot and
@@ -2385,7 +2386,8 @@ nonnegative, and flushed increments are atomic. Counts are buffered in
 process memory by day and kind only, flushed in one bounded UPSERT at most
 once per minute in background work. Process loss can lose unflushed counts;
 failed flushes retain bounded totals for retry. HEAD and 304 neither count
-nor flush. Reports disclose delayed visibility and possible loss. No new columns or values enter
+nor flush. PERF-4 response-cache hits follow the same no-count/no-flush rule;
+reports disclose that exclusion, delayed visibility and possible loss. No new columns or values enter
 legacy analytics tables or stored content JSON. A previous runtime ignores
 the additive table and keeps its original statistics behavior.
 
@@ -4304,14 +4306,15 @@ without liveView, even with If-None-Match *. Existing aliases and historical
 address redirects are checked before declaring a miss.
 
 UC9 becomes best-effort buffered accounting of anonymous public GET 200
-responses only. HEAD and 304 no longer increment counts. Keep only day, kind
+responses only, excluding PERF-4 response-cache hits. HEAD, 304 and those
+hits neither increment nor flush. Keep only day, kind
 and count in process/isolate memory, with no URL, UA, IP, credential or request
 identifier. Flush aggregates in one bounded UPSERT at most once per minute;
 Worker work uses waitUntil and the server uses equivalent background work.
 Concurrent arrivals must not overwrite increments. Failed flushes retain the
 bounded aggregates for retry, but process loss can lose unflushed counts;
 this is an estimate, not durable per-request delivery. Owner reports disclose
-the excluded HEAD/304 traffic, delayed visibility and possible loss. No flush
+the excluded HEAD/304 and PERF-4 hit traffic, delayed visibility and possible loss. No flush
 or accounting work belongs on a public conditional or HEAD request path.
 
 Required paired proof: private/session gate before every conditional shortcut;
@@ -4397,3 +4400,159 @@ workerd process CPU from hosted invocation CPU. Target fresh cold home below
 10 ms locally on the 200-entry fixture; correctness and scope do not depend on
 meeting a timing threshold. No hosted/default-enablement claim follows local
 measurements.
+
+### PERF-4: public response reuse (scope proposal)
+
+This is a spec-only fallback proposal, not an implemented or enabled feature.
+Implementation follows accepted AF-7T thin prepared-copy delivery, and waits
+for hosted measurements to establish a need and separate authorization. It
+adds an operator-opt-in response cache, off by default, behind the
+Worker/server request handler and ahead of the optional AF-7T store. A miss
+continues to AF-7T when enabled, otherwise the ordinary live renderer; the
+existing AF-7T admission, integrity and final proof still apply before its 200
+may fill this layer. Enabling one store does not enable the other. It does not
+enable a proxy rule, Workers Caching, service worker or another path that can
+deliver a body before the engine's live access check. PUBLIC_ARTIFACTS remains
+off by default.
+
+Eligibility is a successful anonymous public GET or HEAD representation of
+HTML, page Markdown or the public map. Run the existing live private-site gate
+first on every request. Any Authorization header or owner/reader cookie,
+including expired, empty or invalid credentials, bypasses lookup, fill and
+cache delivery. Private principal-bound copies and owner review projections
+never enter this cache. Keep JSON/binary, media, errors, redirects, non-
+GET/HEAD, Range and an unknown clock plan on the existing path. Future routes
+do not opt in merely because their response is HTML.
+
+After the gate, read current committed render facts, validate the canonical
+route/query and negotiate the representation. Use AF-7L's current dependency
+stamp, including its clock state and actual next visible boundary; never a
+maximum version, body scraped stamp or process-only revision. A matching
+visitor conditional returns the existing empty public 304 before response
+cache lookup and does not fill the cache. The same approved facts and original
+principal remain authoritative through delivery. Do not reconstruct or decode
+SNAPSHOT, load liveView, parse a theme or render a body on a response-cache
+hit. A response-cache hit performs no artifact lookup, fill, state update or
+cleanup, even when AF-7T is enabled.
+
+For Cache API operations construct a new GET Request with a synthetic URL on
+the configured canonical origin. Its namespace and digest bind engine release,
+canonical origin, canonical page path and normalized query, selected type and
+the entire current dependency stamp. Pass no visitor request headers, cookies,
+Authorization, Range or conditionals to match or put. The synthetic URL is an
+internal key and has no public route. Never fetch that URL; use only the Cache
+API. The engine still handles a guessed key URL as an ordinary request, with
+the same access and routing rules. Direct and negotiated Markdown with the
+same canonical page/type share a key; HTML and Markdown never do. Equivalent
+keys must encode the same identity in both editions, even though storage is
+local to each runtime. No IP, user-agent, visitor identifier or session value
+enters a key or cache record.
+
+A cache hit is usable only as a complete public 200 with the expected type,
+stamp and bounded body metadata from a fixed engine allowlist; arbitrary
+stored headers are never trusted. Validate the body integrity digest on
+retrieval; malformed, truncated or mismatched records are misses. Re-read the
+live committed facts after the asynchronous match and before returning any
+bytes; re-evaluate access, path existence and clock validity. The final facts
+read supplies the live privacy check; do not repeat its query. A changed or
+unknown proof discards the hit and uses the ordinary guarded
+render/retry/refusal path. A private-on, unpublish, revocation or clock-
+boundary commit observed by that final proof excludes the older cached body. A
+commit after the final consistent observation is an already-authorized in-
+flight response, as in AF-7T; delivered public bytes cannot be recalled. Do
+not add unrelated asynchronous work after that proof. HEAD returns the same
+GET representation headers and length with no body. Cache availability,
+errors, eviction and an absent entry are ordinary misses, not permission
+grants or reasons to use stale bytes.
+
+On a miss, keep the existing one-view render and final committed-facts check.
+Only an eligible GET with a successfully revalidated public 200 can fill. HEAD
+can reuse the GET body but never fills an entry. Recheck the stamp and clock
+immediately before an asynchronous put, since a response may wait in
+background work; a changed proof skips insertion. A later mutation makes the
+old immutable key unreachable, including mutations by a previous runtime. No
+distributed purge is required for correctness; orphaned keys expire. Never
+insert a response carrying Set-Cookie, Location, Vary: *, private or no-store
+policy, or a private/owner tag.
+
+Store only a clone. The client retains its existing public,no-cache, must-
+revalidate,no-transform policy, Content-Signal, CSP, discovery Link, Vary,
+ETag and body bytes. The Cache API clone alone uses a cacheable max-age, and
+strips request-dependent Vary behavior because the synthetic key already
+separates each representation. Rebuild request-specific CORS/Origin headers
+for the current request rather than storing them. An unkeyed Vary dimension
+makes a response ineligible. Internal TTL/namespace/metadata must not appear
+in the client response. Bound stored metadata to 8 KiB and any encoded key to
+2048 bytes. The clone's maximum body is 256 KiB UTF-8; larger bodies render
+normally without truncation or storage. Detect that bound with a bounded read
+or trusted engine byte length, never an unbounded body buffer. Retain it for
+no more than two hours and never beyond the clock plan's known next visible
+boundary. Record exclusive expiry and reject at or after it, on clock rollback
+or when the captured plan becomes invalid; do not rely solely on backend
+eviction. Round remaining lifetime down to whole seconds and skip storage
+below one second. A storage TTL is retention only; it never replaces the
+current live proof. Worker match/put is local to the serving data center and
+may evict earlier. Server uses an in-process least-recently-used store,
+bounded to 128 entries and 4 MiB of body bytes, with the same
+body/TTL/access/proof rules. No PostgreSQL/D1/KV body store or dependency on
+an external proxy cache is added. Partition the server store by an opaque
+app/database-lifecycle namespace as well as the canonical representation key;
+never put a DSN or credential in a key. Apps or replacement pools for
+different databases cannot reuse bodies even with equal origins, releases and
+version numbers. Dispose the partition on app shutdown. Enforce limits
+atomically under concurrent fills and coalesce or bound outstanding fills,
+with no unbounded queue of response clones. Process loss and Cache API
+unavailability are harmless misses. A deployment with no-op cache operations
+remains correct; hosted reuse benefits require a measured functional cache.
+
+UC9 treats a delivered response-cache HIT exactly like its current 304:
+neither increment nor flush. HEAD and public conditional 304 also do neither.
+A miss retains PERF-1's existing anonymous public GET 200 accounting,
+including the optional AF-7 path. The UC9 report note must disclose the
+exclusion of PERF-4 hits; browser-beacon analytics keep their existing meaning
+and calculation. Cache operations must not create per-request accounting
+writes. At most one Cache API put per eligible GET uses bounded waitUntil
+work; server insertion has equivalent bounded work. Failures do not change the
+response or schedule an unbounded retry. Background CPU is still part of the
+request budget. This amendment adds no schema or MCP catalog change, and does
+not require reconnect.
+
+Required paired named cases:
+
+- perf4_gate_before_cache: private, reader/owner cookie and any Authorization
+  header cause zero cache reads/writes, including invalid credentials.
+- perf4_key_identity: canonical Markdown aliases agree; type, archive query,
+  origin, release, approved facts and clock changes separate keys. Visitor
+  conditionals and Range never reach the synthetic Request.
+- perf4_hit_identity: second unconditional GET reuses exact fresh body and
+  outward headers without liveView/render/Markdown parsing; HEAD is empty;
+  public conditional remains 304 without cache work; HEAD never fills.
+  Fresh Origin/CORS headers cannot be poisoned by a previous visitor.
+- perf4_hit_race: private-on, unpublish, changed theme/training/media and clock
+  expiry during match discard the hit before delivery.
+- perf4_put_race: the same mutations during queued put skip insertion; a
+  delayed old writer can never make its key usable under a new stamp.
+- perf4_storage_limits: unavailability, failed put/match, malformed records,
+  oversized body, capacity eviction and expiry preserve the live path and
+  introduce no stale fallback, truncation, secret storage or public-route key. Two app/database lifecycles with equal
+  version numbers cannot share bodies; concurrent fills obey capacity bounds.
+- perf4_counts: hits/HEAD/304 neither increment nor flush UC9; misses retain the
+  disclosed buffered accounting and counts cannot overwrite one another,
+  including when the optional AF-7T store is enabled. A miss satisfied by AF-7T
+  counts exactly once, not once per cache layer.
+- perf4_previous_runtime: actual previous-runtime publication, theme,
+  private-on and removal invalidate access to cached old keys after return.
+
+Measure miss-plus-put separately from hits, with the real production Worker
+bundle. Measure response-cache enabled/disabled with AF-7T on and off
+separately; never attribute an AF-7T hit to this layer. Include GETs at least
+two minutes apart in one colo, a first request in a second colo, and
+home/entry/stream/direct Markdown/map. Report hosted CPU, cache operations, D1
+statements/rows read/written and body parity; report local process CPU
+separately. A cache hit must meet the free plan's 10 ms target without
+rendering and with at most three D1 statements and zero database writes. Cache
+reuse does not claim that a first render in a colo meets that target: cold
+rendering remains a separate cost. Do not claim universal savings from local
+tests or ship default enablement on the strength of local CPU alone.
+
+API reference: [Cloudflare Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/).
