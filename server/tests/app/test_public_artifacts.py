@@ -729,13 +729,13 @@ async def test_af_thin_state_outage(db,http,monkeypatch):
     one,_=await fixture(db);first=await http.get('/')
     await db.execute('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state')
     try:
-        lookup=Mock(wraps=artifacts.proof_sql);monkeypatch.setattr(artifacts,'proof_sql',lookup)
+        lookup=Mock(wraps=artifacts.lookup_sql);monkeypatch.setattr(artifacts,'lookup_sql',lookup)
         live=await http.get('/')
-        assert live.status_code==200 and live.content==first.content and not lookup.called
+        assert live.status_code==200 and live.content==first.content and lookup.call_count==1
         await db.execute("INSERT INTO site_fields(version,key,value,approved)VALUES($1,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1",one['version'])
         await db.execute('INSERT INTO private_approvals(version)VALUES($1) ON CONFLICT DO NOTHING',one['version'])
         denied=await http.get('/')
-        assert denied.status_code==404 and denied.text==SIGN_IN and 'etag' not in denied.headers and not lookup.called
+        assert denied.status_code==404 and denied.text==SIGN_IN and 'etag' not in denied.headers and lookup.call_count==1
     finally:
         await db.execute('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state')
 

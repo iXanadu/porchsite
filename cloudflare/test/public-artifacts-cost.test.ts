@@ -26,7 +26,7 @@ const req=()=>new Request(origin+'/');
 const legacyStateSQL=()=>`SELECT f.*,(SELECT generation FROM public_artifact_state WHERE id=1) AS generation,(SELECT revision FROM public_artifact_state WHERE id=1) AS revision FROM (${read.FACTS_SQL}) f`;
 it('af_c1_state_once: complete source, raw tuples, hashes and approved proof match the old transport',async()=>{
  await seed();await db.prepare("UPDATE public_artifact_state SET generation='observed-only',revision=37 WHERE id=1").run();
- const legacy=(await db.prepare(legacyStateSQL()).all<read.Row>()).results,old=read.decode(legacy),f=await read.facts(db,true),wire=(await db.prepare(read.FACTS_STATE_SQL).all<read.Row>()).results;
+ const legacy=(await db.prepare(legacyStateSQL()).all<read.Row>()).results,old=read.decode(legacy),f=await read.preparationFacts(db),wire=(await db.prepare(read.FACTS_STATE_SQL).all<read.Row>()).results;
  expect(wire.filter(x=>x.category==='artifact_state')).toEqual([{category:'artifact_state',ident:'site',value:'["observed-only",37]'}]);
  expect(f.rows).toEqual(old.rows);expect(f.site).toEqual(old.site);expect(f.raw).toEqual(legacy.map(x=>[x.category,x.ident,x.value]));expect(f.generation).toBe('observed-only');expect(f.revision).toBe(37);
  expect(read.viewProof(f)).toEqual(read.viewProof(old));const c=read.choice(req(),f)!;
@@ -38,17 +38,17 @@ it.each([0,1,203])('af_c1_state_once: %i dependencies survive extraction without
  await seed();const rows=(await db.prepare(read.FACTS_SQL).all<read.Row>()).results,site=rows.find(r=>r.category==='live'&&r.ident==='site')!,entry=rows.find(r=>r.category==='live'&&r.ident!=='site')!;
  const dependencies=n?[site,...Array.from({length:n-1},(_,i)=>({...entry,ident:'entry-'+i}))]:[];
  const transport=[{category:'artifact_state',ident:'site',value:'["state",1]'},...dependencies];const prepare=vi.fn(()=>({all:async()=>({results:transport})}));
- const f=await read.facts({prepare} as unknown as D1Database,true);expect(f.rows).toEqual(read.decode(dependencies).rows);expect(f.raw).toHaveLength(n);expect(f.generation).toBe('state');expect(prepare).toHaveBeenCalledTimes(1);
+ const f=await read.preparationFacts({prepare} as unknown as D1Database);expect(f.rows).toEqual(read.decode(dependencies).rows);expect(f.raw).toHaveLength(n);expect(f.generation).toBe('state');expect(prepare).toHaveBeenCalledTimes(1);
 });
 it.each(['absent','duplicate','bad-json','wrong-id','wrong-length','boolean-revision'])('af_c1_state_once: %s state cannot provide a matching generation',async mode=>{
  await seed();const rows=(await db.prepare(read.FACTS_SQL).all<read.Row>()).results,state={category:'artifact_state',ident:'site',value:'["state",1]'};
  const states=mode==='absent'?[]:mode==='duplicate'?[state,state]:[{...state,...(mode==='wrong-id'?{ident:'other'}:{}),value:mode==='bad-json'?'{':mode==='wrong-length'?'["state"]':mode==='boolean-revision'?'["state",true]':state.value}];
- const f=await read.facts({prepare:()=>({all:async()=>({results:[...states,...rows]})})} as unknown as D1Database,true);
+ const f=await read.preparationFacts({prepare:()=>({all:async()=>({results:[...states,...rows]})})} as unknown as D1Database);
  expect(f.rows).toEqual(read.decode(rows).rows);expect(f.raw).toEqual(rows.map(r=>[r.category,r.ident,r.value]));expect(f.generation).toBeUndefined();expect(f.revision).toBeUndefined();
 });
 it('af_c1_state_once: unavailable state query retains the ordinary facts fallback',async()=>{
  await seed();const prepare=db.prepare.bind(db),calls:string[]=[];
- const f=await read.facts({prepare:(q:string)=>{calls.push(q);if(q===read.FACTS_STATE_SQL)throw Error('unavailable state');return prepare(q);}} as unknown as D1Database,true);
+ const f=await read.preparationFacts({prepare:(q:string)=>{calls.push(q);if(q===read.FACTS_STATE_SQL)throw Error('unavailable state');return prepare(q);}} as unknown as D1Database);
  expect(calls).toEqual([read.FACTS_STATE_SQL,read.FACTS_SQL]);expect(f.generation).toBeUndefined();expect(f.rows).toEqual((await read.facts(db)).rows);
 });
 it.each(cases)('af_c1_grouped_proof: $name withholds both delivery and conditional insertion',async c=>{
@@ -58,4 +58,44 @@ it.each(cases)('af_c1_grouped_proof: $name withholds both delivery and condition
  const result=await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(raw),g,row.key,g).first<any>();expect(!!result.ok).toBe(c.allowed);expect(result.body).toBe(c.allowed?row.body:null);
  const key='conditional-control';await db.prepare(artifacts.proofSQL()+' INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size) SELECT ?,?,?,?,?,? FROM proof WHERE ok').bind(JSON.stringify(raw),g,key,g,row.body,row.metadata,row.valid_until,row.size).run();
  expect(Number(await db.prepare('SELECT count(*) n FROM public_artifacts WHERE key=?').bind(key).first('n'))).toBe(c.allowed?1:0);
+});
+
+it.each(['GET','HEAD'])('af_c2_304: %s uses exact OFF SQL and bindings with copies ON, even without optional tables',async method=>{
+ await seed();const first=await handle(req(),{...e,PUBLIC_ARTIFACTS:''}),tag=first.headers.get('ETag')!;await first.text();
+ const original=db.prepare.bind(db);
+ for(const missing of [false,true]){
+  if(missing)await db.prepare('ALTER TABLE public_artifact_state RENAME TO absent_copy_state').run();
+  try{for(const match of [tag,'*']){
+   const run=async(on:boolean)=>{
+    traffic.reset(db);const calls:{sql:string;binds:unknown[]}[]=[];
+    const spy=vi.spyOn(db,'prepare').mockImplementation((sql:string)=>{const statement=original(sql),row={sql,binds:[] as unknown[]};calls.push(row);const bind=statement.bind.bind(statement);vi.spyOn(statement,'bind').mockImplementation((...values:unknown[])=>{row.binds=values;return bind(...values);});return statement;});
+    try{const response=await handle(new Request(origin+'/',{method,headers:{'If-None-Match':match}}),{...e,PUBLIC_ARTIFACTS:on?'1':''});return {status:response.status,body:await response.text(),headers:[...response.headers],calls};}finally{spy.mockRestore();}
+   };
+   const off=await run(false),on=await run(true);expect(on).toEqual(off);expect(on.status).toBe(304);expect(on.body).toBe('');expect(on.calls.filter(x=>x.sql===read.FACTS_SQL)).toHaveLength(2);expect(on.calls.some(x=>/public_artifact/.test(x.sql))).toBe(false);
+  }}finally{if(missing)await db.prepare('ALTER TABLE absent_copy_state RENAME TO public_artifact_state').run();}
+ }
+});
+it('af_c2_facts: visitor ON captures raw tuples from ordinary SQL without state, preparation remains separate',async()=>{
+ await seed();const prepare=vi.spyOn(db,'prepare'),f=await read.facts(db,true);expect(prepare.mock.calls.map(([sql])=>sql)).toEqual([read.FACTS_SQL]);expect(f.raw).toEqual((await originalRows()).map(r=>[r.category,r.ident,r.value]));expect(f.generation).toBeUndefined();expect(f.revision).toBeUndefined();
+ prepare.mockClear();await read.preparationFacts(db);expect(prepare.mock.calls.map(([sql])=>sql)).toEqual([read.FACTS_STATE_SQL]);
+ async function originalRows(){return (await db.prepare(read.FACTS_SQL).all<read.Row>()).results;}
+});
+it.each(['missing','generation','revision'])('af_c2_lookup: %s state withholds body while preserving tuple equality',async mode=>{
+ await seed();await handle(req(),e);const f=await read.facts(db,true),old=await db.prepare('SELECT * FROM public_artifacts LIMIT 1').first<any>();expect(old).toBeTruthy();
+ if(mode==='missing')await db.prepare('DELETE FROM public_artifact_state').run();else if(mode==='generation')await db.prepare("UPDATE public_artifact_state SET generation='stale' WHERE id=1").run();else await db.prepare("UPDATE public_artifact_state SET revision='bad' WHERE id=1").run();
+ const rows=(await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(f.raw),old.generation,old.key,old.generation).all<any>()).results;
+ expect(rows).toHaveLength(1);expect(rows[0].facts_ok).toBe(1);expect(rows[0].ok).toBe(0);expect(rows[0].key).toBeNull();expect(rows[0].body).toBeNull();
+});
+it('af_c2_lookup: tuple drift wins over stale state and refreshes instead of synchronizing a stale capture',async()=>{
+ await seed();await handle(req(),e);const f=await read.facts(db,true),c=read.choice(req(),f)!,now=Date.now(),tag=await read.tag(f,req(),c,'fixture',now);
+ await db.prepare("UPDATE live SET data=json_set(data,'$.title','Changed without version') WHERE item_id='site'").run();await db.prepare("UPDATE public_artifact_state SET generation='stale' WHERE id=1").run();
+ const render=vi.fn(async()=>new Response('incorrect render')),refresh=vi.fn(async()=>new Response('fresh'));
+ const response=await artifacts.respond(db,req(),origin,'fixture',render,{facts:f,choice:c,tag,now},refresh);
+ expect(await response.text()).toBe('fresh');expect(refresh).toHaveBeenCalledTimes(1);expect(render).not.toHaveBeenCalled();expect(await db.prepare('SELECT count(*) n FROM public_artifacts').first('n')).toBe(0);expect(await db.prepare('SELECT generation FROM public_artifact_state WHERE id=1').first('generation')).toBe('');
+});
+it('af_c2_lookup: inconsistent returned proof cannot serve or render a selected body',async()=>{
+ await seed();const f=await read.facts(db,true),c=read.choice(req(),f)!,now=Date.now(),tag=await read.tag(f,req(),c,'fixture',now),prepare=db.prepare.bind(db);
+ const fake={prepare:(sql:string)=>sql===artifacts.lookupSQL()?{bind:()=>({all:async()=>({results:[{facts_ok:0,ok:1,generation:'stale',revision:0,key:'bad',body:'must not serve',metadata:'[]',valid_until:Date.now()+10000}]})})}:prepare(sql)} as unknown as D1Database;
+ const render=vi.fn(async()=>new Response('incorrect render')),refresh=vi.fn(async()=>new Response('fresh'));
+ expect(await(await artifacts.respond(fake,req(),origin,'fixture',render,{facts:f,choice:c,tag,now},refresh)).text()).toBe('fresh');expect(refresh).toHaveBeenCalledTimes(1);expect(render).not.toHaveBeenCalled();
 });

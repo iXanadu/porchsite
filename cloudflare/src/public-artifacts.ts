@@ -95,7 +95,18 @@ export function proofSQL(){return `WITH current_facts AS (${publicRead.FACTS_REL
  proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
  AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts)
  AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=?) AS ok)`;}
-export function lookupSQL(){return proofSQL()+` SELECT p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=? AND a.generation=?`;}
+export function lookupSQL(){return `WITH current_facts AS (${publicRead.FACTS_RELATION}),
+ expected AS (SELECT json_extract(value,'$[0]') AS category,json_extract(value,'$[1]') AS ident,json_extract(value,'$[2]') AS value FROM json_each(?)),
+ current_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM current_facts GROUP BY category,ident,value),
+ expected_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM expected GROUP BY category,ident,value),
+ tuple_proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
+ AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts) AS facts_ok),
+ copy_state AS MATERIALIZED (SELECT generation,revision FROM public_artifact_state WHERE id=1),
+ proof AS (SELECT t.facts_ok,s.generation,s.revision,
+ COALESCE(typeof(s.generation)='text' AND typeof(s.revision)='integer' AND t.facts_ok AND s.generation=?,0) AS ok
+ FROM tuple_proof t LEFT JOIN copy_state s ON 1=1)
+ SELECT p.facts_ok,p.generation,p.revision,p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=? AND a.generation=?`;}
+
 export function admitSQL(){return proofSQL()+` INSERT OR REPLACE INTO public_artifacts(key,generation,body,metadata,valid_until,size)
  SELECT ?,?,?,?,?,? FROM proof WHERE ok AND ?>((julianday('now')-2440587.5)*86400000)
  AND (SELECT count(*) FROM public_artifacts WHERE key<>?)<?
@@ -118,21 +129,23 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
   raw=JSON.stringify(f.raw);if(!f.raw||bytes(raw)>MAX_FACTS)return render();
   g=await generation(f,release,origin);until=displayBoundary(Date.now(),clock);
   key=JSON.stringify([THIN_FORMAT,origin,g,release,c.base+c.query,c.type,etag]);if(bytes(key)>2048)return render();
-  if(f.generation!==g){
-   // Derived state is never authority. Old runtimes may not clear it, so a
-   // mismatch always purges before any stored-row lookup.
+  const found=(await db.prepare(lookupSQL()).bind(raw,g,key,g).all<any>()).results;
+  if(found.length!==1)throw Error('Unavailable copy proof');
+  const row=found[0],state=typeof row.generation==='string'&&Number.isInteger(row.revision);
+  if(![0,1].includes(row.facts_ok)||![0,1].includes(row.ok)||!Object.hasOwn(row,'generation')||!Object.hasOwn(row,'revision')||row.ok!==Number(!!row.facts_ok&&state&&row.generation===g))throw Error('Unavailable copy proof');
+  if(row.key!==null&&row.key!==key)throw Error('Unavailable copy proof');
+  if((!row.ok||row.key===null)&&(row.key!==null||row.body!==null||row.metadata!==null||row.valid_until!==null))throw Error('Unavailable copy proof');
+  if(!row.facts_ok){await clear(db);return refresh();}
+  if(!row.ok){
+   // No body is selected on generation/state mismatch. Synchronizing does not
+   // authorize admission: the final INSERT still proves all current tuples.
    await synchronize(db,g);
-  }else{
-   const row=await db.prepare(lookupSQL()).bind(raw,g,key,g).first<{ok:number;key:string|null;body:string;metadata:string;valid_until:number}>();
-   if(!row?.ok){await clear(db);return refresh();}
-   if(row.key){
-    if(row.valid_until>Date.now()&&timeValid(clock)){
-     const hit=await delivery(row,req,c,f,etag);
-     if(hit&&row.valid_until>Date.now()&&timeValid(clock))return hit;
-    }
-    // Corrupt/expired rows are exceptional misses, never zero-write HITs.
-    await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
+  }else if(row.key){
+   if(row.valid_until>Date.now()&&timeValid(clock)){
+    const hit=await delivery(row,req,c,f,etag);
+    if(hit&&row.valid_until>Date.now()&&timeValid(clock))return hit;
    }
+   await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
   }
  }catch{return refresh();}
  const response=await render();
@@ -153,7 +166,7 @@ export async function prepare(db:D1Database,configured:string|undefined,release:
  const origin=configuredOrigin(configured);if(!origin)return;
  const {livePrivate}=await import('./privacy');
  if(await livePrivate(db))return;
- const initial=await publicRead.facts(db,true);if(initial.private||!initial.hasSite)return;const stamp=JSON.stringify(initial.rows);
+ const initial=await publicRead.preparationFacts(db);if(initial.private||!initial.hasSite)return;const stamp=JSON.stringify(initial.rows);
  const g=await generation(initial,release,origin);if(initial.generation!==g)await synchronize(db,g);
  const token=crypto.randomUUID(),started=Date.now();
  await db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)').run();
