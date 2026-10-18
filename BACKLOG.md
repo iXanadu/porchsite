@@ -17,6 +17,17 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    (typical, hosted, measured 2026-10-18 after PERF-5) against the free
    plan's 10 ms; repeat visits answered "not changed" are about 5 ms. Find
    where the time goes stage by stage, then cut the biggest costs.
+   Measured locally (median 16 ms per cold GET /): checking and decoding
+   the site data 22%, building the page from the theme 14%, setting up
+   sign-in handling that a public page never uses 12%, garbage collection
+   9%. Cuts, smallest first:
+   - **PERF-6a** OPEN: build the sign-in handler only for routes that use
+     it; public pages skip it. Same gate, same OAuth/MCP behaviour.
+   - **PERF-6b** OPEN: the same request checks the site data twice (when
+     reading the facts and again for the page). Check once, keeping every
+     freshness, access and clock check.
+   - **PERF-6c** OPEN: the page-building step allocates fields the page
+     never uses; build only what the theme reads, keeping all escaping.
 2. PERF-4: reuse a rendered public page for every visitor in a location
    while nothing on it has changed.
 
