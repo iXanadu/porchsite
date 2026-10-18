@@ -111,5 +111,6 @@ async def test_mcp_auth_preflight_identity_no_storage_or_credential_oracle(db,ap
         headers = {} if auth is None else {"Authorization":auth}
         response = await http.options("/mcp",headers=headers)
         assert response.status_code == expected["status"]
+        assert "content-length" not in response.headers
         assert response.text == expected["body"]
         assert dict(response.headers) == {**expected["headers"],"x-porchsite-release":"dev"}

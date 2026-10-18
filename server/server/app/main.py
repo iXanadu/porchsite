@@ -236,7 +236,6 @@ class App:
             return
         if req.method == "OPTIONS":
             await Response(None, status_code=204, headers={
-                "Content-Length": "0",
                 "Cache-Control": "private, no-store, no-transform",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
