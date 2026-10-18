@@ -10,8 +10,9 @@ export function archiveFilter(pairs: Iterable<[string,string]>): ArchiveFilter {
     if (!['sort','tag','stream'].includes(key) || seen.has(key)) throw new ApiError(400,'invalid','Invalid archive filters.');
     seen.add(key);
     if (key === 'sort') { if(value && !['date','stream'].includes(value)) throw new ApiError(400,'invalid','Invalid archive filters.'); out.sort=value || 'date'; }
-    if (key === 'tag') { if(value && !/^[a-z0-9-]{1,30}$/.test(value)) throw new ApiError(400,'invalid','Invalid archive filters.'); out.tag=value; }
-    if (key === 'stream') { if(value && !/^[a-z][a-z0-9-]{0,29}$/.test(value)) throw new ApiError(400,'invalid','Invalid archive filters.'); out.stream=value; }
+    // Unlike $, this end assertion cannot match before a final line break.
+    if (key === 'tag') { if(value && !/^[a-z0-9-]{1,30}(?![\s\S])/.test(value)) throw new ApiError(400,'invalid','Invalid archive filters.'); out.tag=value; }
+    if (key === 'stream') { if(value && !/^[a-z][a-z0-9-]{0,29}(?![\s\S])/.test(value)) throw new ApiError(400,'invalid','Invalid archive filters.'); out.stream=value; }
   }
   return out;
 }

@@ -95,11 +95,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   in the unused MCP client dependencies and the test runner's nested
   runtime; security review found none ships in the Worker. Clears when the
   agents package and test runner move to current versions. Found 2026-10-18.
-- **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
-  filter check accepts a decoded trailing newline in tag/stream (JS `$`)
-  where the server edition refuses it, so the two editions answer a
-  malformed filter differently. Not an access issue. Anchor the check to
-  the exact end in both editions, with a paired test. Found 2026-10-17.
 - **PV-4** OPEN: after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,

@@ -16,6 +16,7 @@ def archive_filter(pairs):
             if value and value not in ("date", "stream"):
                 raise ValueError("Invalid archive filters.")
             value = value or "date"
+        # Keep fullmatch: a $ anchor alone can accept a final newline.
         elif value and not re.fullmatch(
             r"[a-z0-9-]{1,30}" if key == "tag" else r"[a-z][a-z0-9-]{0,29}", value
         ):

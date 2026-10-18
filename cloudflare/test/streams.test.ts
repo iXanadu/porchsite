@@ -136,3 +136,19 @@ it('af_combined_archive copies preserve filters, canonical validators and map vi
  await content.updateItem(db,actor,'site',1,{archive:{enabled:false}});await publish(['site']);
  const missing=await get('/archive/index.md'+canonical,{'If-None-Match':tag});expect(missing.status).toBe(404);expect(missing.headers.get('ETag')).toBeNull();expect(await(await get('/llms.txt')).text()).not.toContain('/archive/index.md');
 });
+
+it('ar_archive_filter_exact_end rejects decoded LF/CRLF for tag and stream before HTML or Markdown validators',async()=>{
+ await content.createItem(db,actor,'site',{title:'Archive site',theme:'personal-homepage',streams:streams(),archive:{enabled:true}},undefined);
+ await publish(['site']);
+ const variants=[['/archive/','text/html'],['/archive/','text/markdown'],['/archive/index.md','text/markdown']];
+ for(const [key,value] of [['tag','report'],['stream','part-0']]){
+  for(const [path,accept] of variants){
+   expect((await handle(new Request(origin+path+'?'+key+'='+value,{headers:{Accept:accept}}),e)).status).toBe(200);
+   for(const ending of ['%0A','%0D%0A'])for(const method of ['GET','HEAD']){
+    const r=await handle(new Request(origin+path+'?'+key+'='+value+ending,{method,headers:{Accept:accept,'If-None-Match':'*'}}),e);
+    expect(r.status).toBe(400);expect(r.headers.has('ETag')).toBe(false);expect(r.headers.has('Location')).toBe(false);
+    if(method==='HEAD')expect(await r.text()).toBe('');
+   }
+  }
+ }
+});
