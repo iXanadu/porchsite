@@ -98,10 +98,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   inherited dependencies (the MCP SDK, agents, and the test, build and
   local-runtime chain). Security review decides which ship in the Worker
   and are reachable; any that are become BLOCKING. Found 2026-10-18.
-- **AF-7L-C1** OPEN: fresh quiet-site HTML GET CPU regresses in the local
-  six-process comparison (200 entries: median 16.49 to 19.60 ms). Startup
-  CPU did not increase in that sample; hosted impact is unmeasured. Keep
-  this first-render cost in the next performance investigation.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a
