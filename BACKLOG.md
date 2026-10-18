@@ -33,7 +33,19 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      now defers those two collections; local 200/500-entry paired medians
      improved 0.7–8.1 ms across three looks, while sample-site results
      were mixed. A server port needs its own measurement and approval.
-2. **PERF-4b** OPEN: cut the cost of storing the page on a first visit
+2. **PERF-7** OPEN (round 2 profile, 2026-10-18, after PERF-6a/6c): a cold
+   page on the 12 sample sites now costs 12.9-18.7 ms (typical, local);
+   still all over 10 ms. Largest shares: checking and decoding site data
+   25%, building the page 15%, memory clean-up 10%. A 500-entry
+   event-heavy site costs about 57 ms. Cuts to measure, every check kept:
+   - **PERF-7a** OPEN: the decode repeats scans, sorting and conversions
+     within one already-validated read; do each once.
+   - **PERF-7b** OPEN: on event-heavy pages, building each event's display
+     data dominates; reuse per-request presentation where the inputs are
+     identical.
+   - **PERF-7c** OPEN: the database result wrapping allocates more than
+     needed; audit before changing.
+3. **PERF-4b** OPEN: cut the cost of storing the page on a first visit
      (about 8 ms locally). Profiled 2026-10-18 (too sparse to rank
      precisely): copying and re-reading the page body, re-reading the site
      facts to prove nothing changed, and hashing the body each showed
