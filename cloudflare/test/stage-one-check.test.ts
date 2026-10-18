@@ -48,6 +48,9 @@ it("reports the published entry a rendered look drops, excluding drafts", async 
 
 it('site_check_target_graph: proposed draft/removal/replacement never borrows published or prepared targets',async()=>{
  const e=env as unknown as Env,db=e.DB,who='assistant:test';
+ const tables=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();
+ for(const {name} of tables.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith('sqlite_')&&!name.startsWith('d1_'))await db.prepare(`DELETE FROM ${name}`).run();
+ await db.prepare('INSERT INTO auth_state(id) VALUES(1)').run();
  const contentSite=await content.createItem(db,who,'site',{title:'Graph',theme:'target-graph',sections:['entries'],archive:{enabled:true,title:'All pages'}},undefined);
  const a=await content.createItem(db,who,'entry',{title:'A',slug:'a',date:'2026-10-10',body:'Old approved A',status:'ready'},undefined);
  const c=await content.createItem(db,who,'entry',{title:'C',slug:'c',date:'2026-10-10',body:'Approved C',status:'ready'},undefined);

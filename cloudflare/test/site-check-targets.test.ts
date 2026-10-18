@@ -36,3 +36,8 @@ it('site_check_target_quick: broken remains failure; default and empty target sk
  const quick=checkSite(v,new Set()),deep=await checkSiteDeep(v,new Set(),look('<a href="/reports/a/">A</a>'));
  expect(deep).toEqual({...quick,unreachable:[]});expect(deep.ok).toBe(false);expect(spy).not.toHaveBeenCalled();
 });
+it('site_check_target_redirect: a legacy-prefix self-redirect is not a renderable target',async()=>{
+ const d=validate('site',{...data,streams:[{id:'journal',title:'Journal',path:'e'}]});
+ const r=await checkSiteDeep(site.view(d,[entry('a')]),new Set(),look('<a href="/journal/a">Moved</a><a href="/e/a/">Cycle</a>'));
+ expect(r.ok).toBe(false);expect(r.crawl).toBeUndefined();expect(r.unreachable.map(x=>x.id)).toEqual(['a']);
+});

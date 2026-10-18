@@ -123,9 +123,24 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
     const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
     return old ? bySlug.get(old[1])?.page ?? null : redirectFor(v, path);
   };
-  const target = (path: string) => {
-    const moved = movedPath(path);
-    return byPage.get(moved ?? path);
+  const target = (path: string): Data | undefined => {
+    const seen = new Set<string>();
+    while (!seen.has(path)) {
+      seen.add(path);
+      const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
+      if (old) {
+        const e = bySlug.get(old[1]);
+        if (!e || e.external_url) return e;
+        path = e.page;
+        continue;
+      }
+      const e = byPage.get(path);
+      if (e) return e;
+      const moved = redirectFor(v, path);
+      if (!moved) return undefined;
+      path = moved;
+    }
+    return undefined; // A redirect cycle is not a renderable target.
   };
   const marker = `porchsite-check-${crypto.randomUUID()}:`;
   // Check-only comments identify full entry bodies that a look emits inline.

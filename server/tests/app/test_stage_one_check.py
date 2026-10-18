@@ -38,6 +38,9 @@ async def test_reports_the_published_entry_a_rendered_look_drops_excluding_draft
 async def test_site_check_target_graph(db,http):
     from server.app import approvals, read_keys
     from .test_read_keys import rpc
+    from .conftest import TABLES
+    await db.execute(f'TRUNCATE {TABLES} RESTART IDENTITY')
+    await db.execute('UPDATE auth_state SET owner_epoch=0 WHERE id=1')
     who='assistant:test'
     s=await content.create_item(db,who,'site',{'title':'Graph','theme':'target-graph','sections':['entries'],'archive':{'enabled':True,'title':'All pages'}},None)
     a=await content.create_item(db,who,'entry',{'title':'A','slug':'a','date':'2026-10-10','body':'Old approved A','status':'ready'},None)

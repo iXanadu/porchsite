@@ -221,7 +221,24 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
         return by_slug.get(old[1], {}).get("page") if old else builtin.redirect_for(v, path)
 
     def target(path: str) -> Data | None:
-        return by_page.get(moved_path(path) or path)
+        seen: set[str] = set()
+        while path not in seen:
+            seen.add(path)
+            old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
+            if old:
+                entry = by_slug.get(old[1])
+                if not entry or entry.get("external_url"):
+                    return entry
+                path = entry["page"]
+                continue
+            entry = by_page.get(path)
+            if entry:
+                return entry
+            moved = builtin.redirect_for(v, path)
+            if not moved:
+                return None
+            path = moved
+        return None  # A redirect cycle is not a renderable target.
     marker = f"porchsite-check-{uuid4()}:"
     indexes = {e["id"]: i for i, e in enumerate(v.entries)}
 
