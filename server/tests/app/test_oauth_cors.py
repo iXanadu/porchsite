@@ -52,7 +52,7 @@ async def test_oauth_cors_identity_all_paths_methods_and_origin_forms(http):
                 if method == "OPTIONS":
                     assert response.status_code == 204 and "content-length" not in response.headers
                 elif path.startswith("/.well-known/") and method in ("GET","HEAD"):
-                    assert response.status_code == 200
+                    assert response.status_code == (404 if path == "/.well-known/oauth-protected-resource" else 200)
                 else:assert response.status_code >= 400
     for path in FIXTURE["paths"]:
         response = await http.options(path,headers=[("Origin","https://one.example"),("Origin","https://two.example")])

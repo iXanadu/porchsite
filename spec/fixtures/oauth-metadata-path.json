@@ -1,0 +1,60 @@
+{
+  "origins": [
+    null,
+    "https://other.example"
+  ],
+  "credentials": [
+    {},
+    {
+      "Authorization": "Bearer psk_invalid"
+    },
+    {
+      "Authorization": "Bearer prk_invalid"
+    },
+    {
+      "Authorization": "Bearer owner:missing:token"
+    },
+    {
+      "Cookie": "__Host-sk_owner=invalid"
+    },
+    {
+      "Cookie": "__Host-sk_reader=invalid"
+    },
+    {
+      "Authorization": "Bearer invalid",
+      "Cookie": "__Host-sk_owner=invalid; __Host-sk_reader=invalid"
+    }
+  ],
+  "cases": [
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "method": "GET",
+      "status": 404
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "method": "HEAD",
+      "status": 404
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "method": "HEAD",
+      "status": 200
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "method": "OPTIONS",
+      "status": 204
+    }
+  ]
+}
