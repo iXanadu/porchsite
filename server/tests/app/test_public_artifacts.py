@@ -3,7 +3,7 @@ import asyncio
 from dataclasses import replace
 import json
 import pytest
-from server.app import approvals,content,site,public_artifacts as artifacts
+from server.app import approvals,content,site,public_artifacts as artifacts,public_read,agent_traffic
 from server.app.privacy import BLANK,SIGN_IN
 from .conftest import TABLES
 from .test_private_site import browser_factory as browser_factory
@@ -13,6 +13,7 @@ ORIGIN, ACTOR = 'https://site.example','assistant:test'
 
 @pytest.fixture(autouse=True)
 async def clear(db,app):
+    agent_traffic.reset(db)
     await db.execute(f'TRUNCATE {TABLES} RESTART IDENTITY')
     app.settings=replace(app.settings,site_url=ORIGIN,public_artifacts=True)
 
@@ -182,6 +183,7 @@ async def test_af_prebuild_accounting(db,http,app):
     assert await count(db)>0
     assert await db.fetchval('SELECT COALESCE(sum(requests),0) FROM agent_traffic_daily')==0
     await http.get('/')
+    await agent_traffic.settle(db)
     assert await db.fetchval('SELECT sum(requests) FROM agent_traffic_daily')==1
 
 
@@ -375,6 +377,11 @@ async def test_af_prebuild_no_owner_bytes(db,http):
         assert ('sk-owner-link' in html.text)==(role=='owner')
         md=await http.get('/index.md',headers=headers)
         assert 'etag' not in md.headers and '/review' not in md.text
+        for path in ['/nowhere/','/wp-admin/install.php']:
+            missing=await http.get(path,headers=headers)
+            assert missing.status_code==404
+            assert ('sk-owner-link' in missing.text)==(role=='owner')
+            assert 'no-store' in missing.headers['cache-control'] and 'etag' not in missing.headers
     assert await count(db)==1 and (await http.get('/')).content==visitor.content
     rows=[dict(r) for r in await db.fetch('SELECT body,metadata FROM public_artifacts')]
     assert 'sk-owner-link' not in json.dumps(rows) and '/review' not in json.dumps(rows)
@@ -474,7 +481,7 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
     path='/journal/'+entry['slug']+'/'
     first=await http.get(path)
     assert first.status_code==200 and await count(db)==1
-    original=artifacts.snapshot
+    original=public_read.facts
     live=site.live_view
     rendered=0
     async def observed(*args,**kwargs):
@@ -487,7 +494,7 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
         nonlocal calls
         stamp=await original(*args,**kwargs)
         calls+=1
-        if calls==2:
+        if calls==1:
             # Commit after the hit's validation snapshot was read, before delivery.
             if change=='private':
                 hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
@@ -499,11 +506,12 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
                 expired=await db.fetchval('SELECT max(valid_until) FROM public_artifacts')
                 monkeypatch.setattr(artifacts.time,'time',lambda:expired/1000+1)
         return stamp
-    monkeypatch.setattr(artifacts,'snapshot',raced)
+    monkeypatch.setattr(public_read,'facts',raced)
     response=await http.get(path,headers={'If-None-Match':first.headers['etag']})
     if change=='expiry':
-        # Same public content may still validate, but only after ordinary rendering.
-        assert rendered>0 and response.status_code==304
+        # A new conservative minute changes the dependency validator.
+        assert rendered>0 and response.status_code==200
+        assert response.headers['etag']!=first.headers['etag']
     else:
         assert response.status_code==404 and 'etag' not in response.headers
         assert await count(db)==0

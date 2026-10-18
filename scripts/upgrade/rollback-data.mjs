@@ -170,6 +170,9 @@ async function seed(base) {
     for (const ua of ['OAI-SearchBot', 'GPTBot', 'ChatGPT-User']) {
       assert.equal((await http.request('/', {headers:{'User-Agent':ua}}, false)).status, 200);
     }
+    // Exercise the next eligible aggregate flush before restarting the process.
+    // Unflushed in-memory estimates are deliberately not durable across rollback.
+    assert.equal((await http.request('/__rollback/traffic', {}, false)).status,200);
     agentTraffic = (await call('site_stats', {})).agent_traffic.daily.filter(r => r.kind !== 'other');
     assert.equal(new Set(agentTraffic.map(r => r.kind)).size, 3, 'new daily agent kinds are populated');
   }
@@ -322,7 +325,7 @@ try {
       if (edition === 'cloudflare') {
         const dir = path.join(temp, 'worker'); mkdirSync(dir);
         const entry = path.join(dir, 'current.ts');
-        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nimport * as recovery from ${JSON.stringify(path.join(root,'cloudflare/src/owner.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/recovery')return recovery.issueRecoveryCode(env.DB,'rollback-local-recovery-code-at-least-32-bytes').then(()=>Response.json({ok:true}));if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);if(new URL(req.url).pathname==='/__rollback/artifacts')return env.DB.prepare('SELECT key,generation FROM public_artifacts').all().then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
+        writeFileSync(entry, `import worker from ${JSON.stringify(path.join(root,'cloudflare/src/index.ts'))};\nimport * as keys from ${JSON.stringify(path.join(root,'cloudflare/src/keys.ts'))};\nimport * as recovery from ${JSON.stringify(path.join(root,'cloudflare/src/owner.ts'))};\nimport * as traffic from ${JSON.stringify(path.join(root,'cloudflare/src/agent-traffic.ts'))};\nexport default {fetch(req,env,ctx){if(new URL(req.url).pathname==='/__rollback/traffic')return traffic.flush(env.DB).then(()=>traffic.flush(env.DB,Date.now()+60000)).then(()=>new Response('ok'));if(new URL(req.url).pathname==='/__rollback/recovery')return recovery.issueRecoveryCode(env.DB,'rollback-local-recovery-code-at-least-32-bytes').then(()=>Response.json({ok:true}));if(new URL(req.url).pathname==='/__rollback/key')return keys.create(env.DB,'Rollback fixture').then(Response.json);if(new URL(req.url).pathname==='/__rollback/artifacts')return env.DB.prepare('SELECT key,generation FROM public_artifacts').all().then(Response.json);return worker.fetch(req,env,ctx);}};\n`);
         copyFileSync(bundle, path.join(dir, 'previous.js'));
         const config = main => ({ name: 'rollback-fixture', main, compatibility_date: '2026-08-15', compatibility_flags: ['nodejs_compat'], d1_databases: [{ binding: 'DB', database_name: 'rollback-fixture', database_id: '00000000-0000-4000-8000-000000000000', migrations_dir: path.join(root,'cloudflare/migrations') }], kv_namespaces: [{ binding: 'OAUTH_KV', id: 'rollback-fixture' }], vars: { SETUP_CODE: setupCode, SITE_URL: base, PUBLIC_ARTIFACTS: '1' } });
         writeFileSync(path.join(dir,'current.json'),JSON.stringify({...config(entry),define:{RELEASE:JSON.stringify('rollback-current')}}));

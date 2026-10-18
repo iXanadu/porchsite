@@ -102,7 +102,9 @@ describe("personal-homepage theme", () => {
     expect(css.headers.get("content-type")).toContain("text/css");
     const missing = await at("/nowhere/");
     expect(missing.status).toBe(404);
-    expect(await missing.text()).toContain("Nothing here.");
+    expect(await missing.text()).toBe('<!doctype html><title>Not found</title>');
+    expect(missing.headers.get('Cache-Control')).toBe('no-store');
+    expect(missing.headers.has('ETag')).toBe(false);
     // The owner's pages are untouched by the theme.
     expect((await at("/review")).status).toBe(303);
   });

@@ -2,7 +2,8 @@
 //   npm run theme:preview <name>   render the sample site and open it
 //   npm run theme:check <name>     check the rules, render every page, take previews
 //   node scripts/theme.mjs raw <name> <themes> <outdir> [now]   the sample's pages, unmodified
-import { structuredBlock } from '../src/structured-data';
+import {mapPages,mapResponse} from '../src/agent-map';
+import { structuredViewBlock } from '../src/structured-data';
 import { markdownDocument } from '../src/agent-markdown';
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -52,7 +53,7 @@ function writeSite(pages: Record<string, string>, t: Theme, dir: string, palette
   for (const [f, body] of Object.entries(t.static)) writeFileSync(join(dir, "static", f), f === "site.css" ? body + paletteCss(t.manifest.palettes, palette) : body);
 }
 
-function main() {
+async function main() {
   const [cmd, name] = process.argv.slice(2);
   const names = name ? [name] : readdirSync(ROOT).filter((d) => existsSync(join(ROOT, d, "template.json")));
   if (cmd === "check") {
@@ -86,10 +87,10 @@ function main() {
     const pages = renderSample(loadTheme(name) as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8")), "https://example.com", now);
     const v=sampleView(loadTheme(name) as any, JSON.parse(readFileSync(join(ROOT, name, "sample.json"), "utf8")), now);
     v.approved_at=Object.fromEntries(['site',...v.entries.map(e=>String(e.id)),...v.cards.map(e=>String(e.id)),...v.notes.map(e=>String(e.id))].map((id,i)=>[id,new Date(now.getTime()-i*86400000).toISOString()]));
-    pages['sitemap.xml']=sitemap(v,'https://example.com');pages['robots.txt']=robots('https://example.com');
+    pages['sitemap.xml']=sitemap(v,'https://example.com');pages['robots.txt']=robots('https://example.com');pages['llms.txt']=await mapResponse(mapPages(v),'https://example.com').text();
     for(const [p,html] of Object.entries(pages))if(p.endsWith('index.html')) {
       const canonical='https://example.com/'+p.slice(0,-10);
-      pages[p]=html.replace('</head>',structuredBlock(html,canonical)+'</head>');
+      pages[p]=html.replace('</head>',structuredViewBlock(v,canonical)+'</head>');
       pages[p.slice(0,-10)+'index.md']=markdownDocument(html,canonical).markdown;
     }
     for (const [p, html] of Object.entries(pages)) {
@@ -101,4 +102,4 @@ function main() {
   console.log("usage: theme check [name] | theme preview <name> | theme raw <name> <themes> <outdir> [now]");
   process.exit(2);
 }
-main();
+main().catch(error=>{console.error(error);process.exitCode=1;});

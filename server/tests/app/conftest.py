@@ -114,6 +114,8 @@ async def db(fresh_tables):
     try:
         yield pool
     finally:
+        from server.app import agent_traffic
+        await agent_traffic.drain(pool)
         await pool.close()
 
 

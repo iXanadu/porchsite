@@ -54,7 +54,9 @@ async def test_the_built_in_look(db, http):
     assert (away.status_code, away.headers["location"]) == (302, "https://example.com/skiff")
     missing = await http.get("/journal/nothing/")
     assert missing.status_code == 404
-    assert "<h1>Not found</h1>" in missing.text
+    assert missing.text == '<!doctype html><title>Not found</title>'
+    assert missing.headers['cache-control'] == 'no-store'
+    assert 'etag' not in missing.headers
     assert missing.headers["cache-control"] == "no-store"
 
 

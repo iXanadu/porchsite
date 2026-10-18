@@ -6,12 +6,14 @@ import * as content from '../src/content';
 import * as approvals from '../src/approvals';
 import * as site from '../src/site';
 import * as artifacts from '../src/public-artifacts';
+import * as read from '../src/public-read';
+import * as traffic from '../src/agent-traffic';
 import {handle} from '../src/routes';
 import {BLANK,SIGN_IN} from '../src/privacy';
 import {SoftKey} from './softkey';
 const origin='https://site.example',actor='assistant:test',base=env as unknown as Env,e={...base,SITE_URL:origin,PUBLIC_ARTIFACTS:'1'},db=e.DB;
 beforeEach(async()=>{
- vi.restoreAllMocks();vi.useRealTimers();
+ vi.restoreAllMocks();vi.useRealTimers();traffic.reset(db);
  const rows=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();
  for(const {name} of rows.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith('sqlite_')&&!name.startsWith('d1_'))await db.prepare(`DELETE FROM ${name}`).run();
  await db.prepare('INSERT INTO auth_state(id) VALUES(1)').run();
@@ -175,6 +177,7 @@ it('af_prebuild_no_owner_bytes: valid owner/reader sessions bypass warmed copies
  for(const [token,role] of [['owner-fixture','owner'],['reader-fixture','reader']]){
   const headers={Cookie:`__Host-sk_${role}=${token}`},html=await get('/',headers),body=await html.text();expect(html.headers.get('Cache-Control')).toContain('no-store');expect(html.headers.has('ETag')).toBe(false);expect(body.includes('sk-owner-link')).toBe(role==='owner');
   const md=await get('/index.md',headers);expect(md.headers.has('ETag')).toBe(false);expect(await md.text()).not.toContain('/review');
+  for(const path of ['/nowhere/','/wp-admin/install.php']){const missing=await get(path,headers);expect(missing.status).toBe(404);expect((await missing.text()).includes('sk-owner-link')).toBe(role==='owner');expect(missing.headers.get('Cache-Control')).toContain('no-store');expect(missing.headers.has('ETag')).toBe(false);}
  }
  expect(await count()).toBe(1);expect(await(await get()).text()).toBe(visitor);
  const rows=await db.prepare('SELECT body,metadata FROM public_artifacts').all<{body:string;metadata:string}>();expect(JSON.stringify(rows.results)).not.toContain('sk-owner-link');expect(JSON.stringify(rows.results)).not.toContain('/review');
@@ -206,7 +209,7 @@ it('af_prebuild_publication_atomic: a failed post-commit builder cannot undo pub
 });
 
 
-it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after the validation snapshot cannot deliver the old row',async(change)=>{
+it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after current dependency facts cannot deliver the old row',async(change)=>{
  const {one,entry}=await fixture(),path='/journal/'+entry.slug+'/';
  const first=await get(path);expect(first.status).toBe(200);expect(await count()).toBe(1);
  const rendered=vi.spyOn(site,'liveView');
@@ -214,11 +217,11 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after t
  const raced=new Proxy(db,{get(target,key){
   if(key==='prepare')return(sql:string)=>{
    const statement=target.prepare(sql);
-   if(sql!==`SELECT ${artifacts.SNAPSHOT} AS stamp`)return statement;
+   if(sql!==read.FACTS_SQL)return statement;
    return new Proxy(statement,{get(t,k){
-    if(k==='first')return async(...args:any[])=>{
-     const stamp=await (t.first as any)(...args);calls++;
-     if(calls===2){
+    if(k==='all')return async(...args:any[])=>{
+     const stamp=await (t.all as any)(...args);calls++;
+     if(calls===1){
       if(change==='private')await publish(await content.updateItem(db,actor,'site',one.version,{private:true}));
       else if(change==='unpublish')await publish(await content.removeItem(db,actor,entry.id,entry.version));
       else {const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));vi.spyOn(Date,'now').mockReturnValue(until+1000);}
@@ -231,7 +234,7 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after t
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
  const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
- if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(304);}
+ if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(200);expect(response.headers.get('ETag')).not.toBe(first.headers.get('ETag'));}
  else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(SIGN_IN);}
 });
 

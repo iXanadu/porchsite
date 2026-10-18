@@ -84,7 +84,9 @@ describe("product-page theme", () => {
     expect(await (await at("/pages/")).text()).toContain("Everything else.");
     const missing = await at("/nowhere/");
     expect(missing.status).toBe(404);
-    expect(await missing.text()).toContain('class="dateline"');
+    expect(await missing.text()).toBe('<!doctype html><title>Not found</title>');
+    expect(missing.headers.get('Cache-Control')).toBe('no-store');
+    expect(missing.headers.has('ETag')).toBe(false);
     expect(await (await at("/static/site.css")).text()).toContain(".numbers-rail");
     // Without a photo, the follow link is words only.
     expect(home).toContain('<a class="follow-author" href="https://x.com/kettle_dev" aria-label="Follow on X"><span>Follow on X</span></a>');

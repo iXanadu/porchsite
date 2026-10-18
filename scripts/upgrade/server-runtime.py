@@ -63,6 +63,12 @@ async def serve(current):
             from server.app import owner
             await owner.issue_recovery_code(app.pool,'rollback-local-recovery-code-at-least-32-bytes')
             await JSONResponse({'ok':True})(scope,receive,send)
+        elif current and scope.get("path") == "/__rollback/traffic":
+            import time
+            from server.app import agent_traffic
+            await agent_traffic.settle(app.pool)
+            await agent_traffic.flush(app.pool,time.time()*1000+60000)
+            await JSONResponse({"ok":True})(scope,receive,send)
         elif current and scope.get("path") == "/__rollback/artifacts":
             try:
                 rows=await app.pool.fetch('SELECT key,generation FROM public_artifacts ORDER BY key')

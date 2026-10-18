@@ -2,10 +2,10 @@
 import re
 from starlette.requests import Request
 from starlette.responses import Response
-from .agent_markdown import markdown_document, md_text
+from .agent_markdown import markdown_document
 from .public_http import markdown_path, page_path, page_query, representation, session_request
 
-from .structured_data import structured_block
+from .structured_data import structured_block, structured_view_block
 
 MD = {'Content-Type': 'text/markdown; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; base-uri 'none'; frame-ancestors 'none'", 'Link': '</llms.txt>; rel="describedby"'}
 
@@ -18,33 +18,12 @@ def is_html(response):
     return response.status_code == 200 and response.headers.get('Content-Type') == 'text/html; charset=utf-8'
 
 
-async def agent_page(req, route, paths, origin, not_found):
+async def agent_page(req, route, map_response, origin, not_found, view=None):
     path = req.url.path
     if req.method != 'GET':
         return await route(req)
     if path == '/llms.txt':
-        rows, seen, count = [], set(), 0
-        for p in ['/', *await paths()]:
-            if p in seen or not page_path(p):
-                continue
-            seen.add(p)
-            response = await route(anonymous(req, p))
-            if not is_html(response):
-                continue
-            doc = markdown_document(response.body.decode(), origin+p)
-            if not rows:
-                rows.extend(['# '+md_text(doc['title'][:512]), ''])
-                if doc['description']:
-                    rows.extend([md_text(doc['description'][:2048]), ''])
-            summary = md_text(doc['description'][:2048])
-            line = '- ['+md_text(doc['title'][:512])+'](<'+origin+p+'index.md>)'+(': '+summary if summary else '')
-            if len(('\n'.join([*rows, line, ''])).encode()) > 16384:
-                break
-            rows.append(line)
-            count += 1
-            if count == 50:
-                break
-        return Response('\n'.join(rows)+'\n', headers=MD)
+        return await map_response()
     base = markdown_path(path)
     if base or re.search(r'/index\.md/?$', path):
         if not base:
@@ -77,11 +56,12 @@ async def agent_page(req, route, paths, origin, not_found):
         canonical = (origin+path+page_query(req, path)).replace('&', '&amp;')
         original = re.sub(r'<link rel="canonical" href="[^"]*">', lambda _: '<link rel="canonical" href="'+canonical+'">', original, count=1)
     visitor_html = original
-    if session_request(req):
+    if view is None and session_request(req):
         visitor = await route(anonymous(req, path, True))
         if not is_html(visitor):
             return visitor
         visitor_html = visitor.body.decode()
-    data = structured_block(visitor_html, origin+path+page_query(req, path))
+    canonical=origin+path+page_query(req,path)
+    data = structured_view_block(await view(),canonical) if view is not None else structured_block(visitor_html,canonical)
     body = original.replace('</head>', data+'<link rel="alternate" type="text/markdown" href="'+copy.replace('&', '&amp;')+'"></head>', 1)
     return Response(body, headers=headers)

@@ -1,3 +1,4 @@
+import * as publicRead from './public-read';
 /** Disposable anonymous copies. The router must run the private gate first. */
 import {frameCsp,PERMISSIONS} from './embeds';
 import {markdownPath,pagePath,pageQuery,representation,sessionRequest,matchesTag,PUBLIC_CACHE} from './public-http';
@@ -33,7 +34,7 @@ export async function snapshot(db:D1Database){return (await db.prepare(`SELECT $
 export function invalidation(db:D1Database):D1PreparedStatement[]{return [db.prepare('DELETE FROM public_artifacts'),db.prepare("UPDATE public_artifact_state SET generation='',revision=revision+1,preparing='',prepare_until=0 WHERE id=1")];}
 export async function clear(db:D1Database){await db.batch(invalidation(db));}
 
-const ALLOWED=new Set(['content-type','content-security-policy','permissions-policy','x-content-type-options','referrer-policy','link','content-signal','etag','cache-control','vary']);
+const ALLOWED=new Set(['x-internal-body-sha256','content-type','content-security-policy','permissions-policy','x-content-type-options','referrer-policy','link','content-signal','etag','cache-control','vary']);
 const TYPES={'html':'text/html; charset=utf-8','markdown':'text/markdown; charset=utf-8','map':'text/markdown; charset=utf-8'};
 type Choice={type:keyof typeof TYPES;base:string;query:string;direct:boolean};
 function choice(req:Request,origin:string):Choice|null {
@@ -66,15 +67,16 @@ function safeMetadata(headers:Headers,req:Request,c:Choice,stamp:string):boolean
  if(c.base==='/archive/'&&HTML_POLICIES.some(base=>headers.get('Content-Security-Policy')===base.replace("form-action 'none'","form-action 'self'")))return true;
  return HTML_POLICIES.some(base=>headers.get('Content-Security-Policy')===frameCsp(base,sources,new URL(req.url).origin)||(c.base==='/archive/'&&headers.get('Content-Security-Policy')===frameCsp(base.replace("form-action 'none'","form-action 'self'"),sources,new URL(req.url).origin)));
 }
-async function delivery(row:{body:string;metadata:string},req:Request,c:Choice,stamp:string):Promise<Response|null> {
+async function delivery(db:D1Database,row:{body:string;metadata:string},req:Request,c:Choice,stamp:string,release:string):Promise<Response|null> {
  if(bytes(row.body)>MAX_BODY||bytes(row.metadata)>8192)return null;
  let entries:[string,string][];
  try{entries=JSON.parse(row.metadata);if(!Array.isArray(entries)||entries.some(p=>!Array.isArray(p)||p.length!==2||p.some(x=>typeof x!=='string')||!ALLOWED.has(p[0])))return null;}catch{return null;}
  if(new Set(entries.map(p=>p[0])).size!==entries.length)return null;
  const headers=new Headers(entries);if(!safeMetadata(headers,req,c,stamp))return null;
- if(headers.get('Content-Type')!==TYPES[c.type]||headers.get('Cache-Control')!==PUBLIC_CACHE||!/^W\/"sha256-[a-f0-9]{64}"$/.test(headers.get('ETag')??'')||!/^search=yes, ai-input=yes, ai-train=(yes|no)$/.test(headers.get('Content-Signal')??''))return null;
- const expected=`W/\"sha256-${await digest(`${new URL(req.url).origin}${c.base}${c.query}\0${TYPES[c.type]}\0${headers.get('Content-Signal')}\0${row.body}`)}\"`;
- if(headers.get('ETag')!==expected)return null;
+ if(headers.get('Content-Type')!==TYPES[c.type]||headers.get('Cache-Control')!==PUBLIC_CACHE||!/^W\/"dep1-[a-f0-9]{64}"$/.test(headers.get('ETag')??'')||!/^search=yes, ai-input=yes, ai-train=(yes|no)$/.test(headers.get('Content-Signal')??''))return null;
+ const f=await publicRead.facts(db),selected=publicRead.choice(req,f);
+ if(f.private||!selected||headers.get('ETag')!==await publicRead.tag(f,req,selected,release)||headers.get('x-internal-body-sha256')!==await digest(row.body))return null;
+ headers.delete('x-internal-body-sha256');
  if(c.type==='html'||(c.type==='markdown'&&!c.direct))headers.set('Vary','Accept');else headers.delete('Vary');
  const match=matchesTag(req.headers.get('If-None-Match'),headers.get('ETag')!);
  return new Response(match||req.method==='HEAD'?null:row.body,{status:match?304:200,headers});
@@ -96,13 +98,13 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
   const row=await db.prepare('SELECT body,metadata,valid_until FROM public_artifacts WHERE key=? AND generation=?').bind(key,g).first<{body:string;metadata:string;valid_until:number}>();
   if(row&&row.valid_until>Date.now()){
    const current=await snapshot(db);
-   if(current===stamp){const hit=await delivery(row,req,c,stamp);if(hit&&row.valid_until>Date.now()&&await snapshot(db)===stamp)return hit;}
+   if(current===stamp){const hit=await delivery(db,row,req,c,stamp,release);if(hit&&row.valid_until>Date.now()&&await snapshot(db)===stamp)return hit;}
    await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
   }
  }catch{return render();}
  const response=await render();
  if(response.status!==200||response.headers.get('Content-Type')!==TYPES[c.type]||response.headers.has('Set-Cookie')||response.headers.get('Cache-Control')!==PUBLIC_CACHE)return response;
- const body=await response.clone().text(),size=bytes(body),metadata=JSON.stringify([...response.headers].filter(([name])=>ALLOWED.has(name)));
+ const body=await response.clone().text(),size=bytes(body),metadata=JSON.stringify([...response.headers].filter(([name])=>ALLOWED.has(name)).concat([['x-internal-body-sha256',await digest(body)]]));
  if(size>MAX_BODY||bytes(metadata)>8192||Date.now()>=until)return response;
  try{
   // The fingerprint comparison is inside INSERT SELECT, not a check-then-write gap.

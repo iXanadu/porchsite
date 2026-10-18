@@ -1,10 +1,15 @@
 import * as privateAgent from './private-agent';
 import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
+import * as publicRead from "./public-read";
+import {sessionRequest,publicPath,markdownPath} from "./public-http";
+type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;fast?:{tag:string;disabled:boolean};zone?:string;retries?:number;};
+const readStates=new WeakMap<Env,ReadState>();
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
 import { agentPage } from './agent-pages';
 import { publicResponse, privateAgentPath, representation as representationForPrivate } from "./public-http";
+import {mapPages,mapResponse} from './agent-map';
 import { ownerSitePage } from "./site-owner-link";
 import { archiveFilter } from "./archive";
 import * as pushWire from "./push-crypto";
@@ -223,7 +228,10 @@ async function themedPage(req: Request, env: Env, path: string, grant?:()=>Promi
 }
 
 async function contentView(req: Request, env: Env, discovery = false, grant?:()=>Promise<void>) {
-  if(grant)await grant();else await privacy.requireContent(env.DB,req);
+  if(grant){await grant();return site.liveView(env.DB,discovery);}
+  const state=readStates.get(env);
+  if(state&&!state.access.isPrivate)return state.view??=site.liveView(env.DB,discovery).then(v=>{if(v.site.private)throw new privacy.PrivateContentDenied();return v;});
+  await privacy.requireContent(env.DB,req);
   return site.liveView(env.DB,discovery);
 }
 
@@ -978,8 +986,10 @@ const BEACON_HEADERS = { "Content-Type": "text/javascript; charset=utf-8", "Cach
  * HEAD is GET without the body, on every address: it is routed as a GET and
  * answered with the GET's status and headers. (Routes test for GET alone.)
  */
-export async function handle(req: Request, env: Env): Promise<Response> {
+export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,'waitUntil'>): Promise<Response> {
+  env={...env};
   const access = await privacy.access(env.DB,req);
+  readStates.set(env,{access});
   if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
@@ -990,11 +1000,12 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
   else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
-  else res=await publicArtifacts.respond(env.DB,req,env.PUBLIC_ARTIFACTS==='1'?env.SITE_URL:undefined,RELEASE,()=>renderPublic(req,env));
+  else if(!sessionRequest(req)&&publicRead.unshaped(new URL(req.url).pathname))res=publicRead.missing();
+  else res=await fastPublic(req,env);
   if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
-  if (!access.isPrivate) await agentTraffic.observe(env.DB,req,res).catch(()=>{});
+  if(!access.isPrivate&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }
@@ -1016,21 +1027,45 @@ async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):P
  if(path!=='/llms.txt'&&!/\/index\.md$/.test(path)&&representationForPrivate(req.headers.get('Accept'))==='html')return read(req);
  return agentPage(req,read,async()=>{
   const v=await contentView(req,env,false,grant);
-  return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
+  return mapResponse(mapPages(v),new URL(req.url).origin);
  },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
 }
+/** Live metadata is never an authorization grant or a prepared body. */
+async function fastPublic(req:Request,env:Env):Promise<Response>{
+ if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
+  try{
+   let f=await publicRead.facts(env.DB);
+   if(f.private)return privacy.blankResponse(req);
+   readStates.get(env)!.zone=String(f.site.timezone||'UTC');
+   let c=publicRead.choice(req,f);
+   if(!c){const miss=await publicRead.miss(req,f,env.DB);if(miss)return miss;}
+   if(c){
+    let now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now),hit=publicRead.conditional(req,f,c,tag);
+    if(hit){const current=await publicRead.facts(env.DB);if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&Math.floor(Date.now()/60000)===Math.floor(now/60000))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();tag=await publicRead.tag(f,req,c,RELEASE);}
+    readStates.get(env)!.fast={tag,disabled:f.disabled};
+   }
+  }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
+ }
+ return env.PUBLIC_ARTIFACTS==='1'?publicArtifacts.respond(env.DB,req,env.SITE_URL,RELEASE,()=>renderPublic(req,env)):renderPublic(req,env);
+}
+
 /** Anonymous renderer used by both requests and internal build-ahead. */
 async function publicPaths(req:Request,env:Env):Promise<string[]> {
  const v=await contentView(new Request(new URL('/',req.url)),env);
  return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
 }
 async function renderPublic(req:Request,env:Env):Promise<Response>{
- const fresh=await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
+ if(!readStates.has(env)){env={...env};const access=await privacy.access(env.DB,req);readStates.set(env,{access});if(!access.isPrivate&&!sessionRequest(req)){const f=await publicRead.facts(env.DB),c=publicRead.choice(req,f);if(c)readStates.get(env)!.fast={tag:await publicRead.tag(f,req,c,RELEASE),disabled:f.disabled};}}
+ const fresh=readStates.get(env)?.access??await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
  if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse(req);
  if(fresh.response)return fresh.response;
  if(fresh.isPrivate)return privacy.noStore(await route(get,env));
- const rendered=await agentPage(get,r=>route(r,env),()=>publicPaths(get,env),r=>notFoundPage(r,env));
- return publicResponse(env.DB,req,rendered);
+ let rendered:Response;try{rendered=await agentPage(get,r=>route(r,env),async()=>mapResponse(mapPages(await contentView(new Request(new URL('/',get.url)),env,true)),new URL(get.url).origin),r=>notFoundPage(r,env),()=>contentView(get,env));}catch(error){if(error instanceof privacy.PrivateContentDenied)return privacy.blankResponse(req);throw error;}
+ const stamp=readStates.get(env)?.fast;
+ if(stamp&&rendered.status===200){
+  try{const f=await publicRead.facts(env.DB);if(f.private)return privacy.blankResponse(req);const c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();const freshTag=await publicRead.tag(f,req,c,RELEASE);if(freshTag!==stamp.tag){const state=readStates.get(env)!;if(!state.retries){state.retries=1;state.view=undefined;state.fast={tag:freshTag,disabled:f.disabled};return renderPublic(req,env);}return privacy.noStore(rendered);}}catch{return privacy.blankResponse(req);}
+ }
+ return publicResponse(env.DB,req,rendered,stamp);
 }
 export async function preparePublic(env:Env):Promise<void>{
   if(env.PUBLIC_ARTIFACTS!=='1')return;
