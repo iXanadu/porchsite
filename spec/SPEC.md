@@ -3247,9 +3247,9 @@ Paired test plan (both editions):
 
 #### AF-7T-C1: facts transport and grouped proof costs
 
-This is the proposed contract for two bounded cuts in both editions. It
-requires contract review before implementation. It does not authorize a
-larger stored-closure design, default enablement or a performance claim.
+This contract defines two bounded cuts in both editions. It does not
+authorize a larger stored-closure design, default enablement or an unmeasured
+performance claim.
 All AF-7T access, identity, clock, metadata, admission and fallback rules
 above continue to apply. There is no schema, index, trigger, flag, format,
 key, tool, scope, route or header change. No client reconnect is required.
@@ -3435,6 +3435,30 @@ establish fresh p95 below 10 ms. Both editions require parity, real normal
 entry startup, full correctness/migration gates and actual previous-runtime
 upgrade/rollback checks. Default remains off; hosted AF-7H remains required
 before recommending or enabling it by default. No new public HIT signal.
+
+**Local measurement, targets still unmet.** On a fixed 200-entry fixture,
+12 interleaved fresh baseline/candidate pairs per mode through the normal
+minified entry yielded HIT median 11.093 to 10.269 ms and clean-MISS median
+20.827 to 18.266 ms. Median paired deltas were -0.780 and -2.351 ms. Fresh HIT
+p95 was 15.426 to 13.546 ms (N=12, nearest-rank p95 equals maximum), still
+above 10 ms. Clean-MISS increment over the matching OFF build had candidate
+median 3.740 ms and p95 7.704 ms, above the original 1/2 ms targets. Unforced
+warm follow-ups had candidate median 5.694 ms; these are not forced-due warm
+acceptance. No fresh, warm or incremental-MISS target is declared met.
+
+Separate exact-source/seed SQL diagnostics measured HIT facts result JSON
+65,178 to 46,427 characters (ASCII in this fixture). HIT total D1 rows read
+were 3,480 to 3,472: the facts/state statement increased from 619 to 822 rows
+read, while lookup fell from 2,860 to 2,649; the transport reduction is not a
+28.8% database-read reduction. Clean-MISS total rows read fell from 10,220
+to 8,971; conditional admission fell from 5,721 to 4,480. Statement and DML
+counts were unchanged, including the due traffic UPSERT. Both dependency
+hash preimages and the stored-body hash remained identical. The OFF control
+had a +0.457 ms paired median CPU delta despite identical SQL/row counters;
+that observation is retained for independent replication, not dismissed as
+zero. These are local process measurements, not hosted billing or default-
+enable evidence. Instrumented query counters are separate from normal CPU.
+The broader performance work remains open and the flag remains OFF.
 
 **Future work only, not selected.** A stored complete-closure proof with
 SQL-only delivery/clock projection might avoid transporting F to JS. It is
