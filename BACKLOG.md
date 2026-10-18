@@ -156,18 +156,6 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
-- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs and runtime shipped; left: the porchsite.dev /costs page, drafted by Hand for the owner's review, then the link back into INSTALL.md and llms.txt): a plain free/paid/self-host
-  explanation for people and assistants. It covers the Cloudflare free
-  plan's limits; what happens when a site goes over (it stops, with no
-  bill, and one busy site can stop others on the same account); the risk
-  of a paid plan (usage billing with no hard spending cap); how to move to
-  a self-hosted server; and getting a small (about $5/month) server.
-  Assistants tell every new owner before or during setup, and never
-  upgrade a plan, add payment or turn on a paid feature without the
-  owner's explicit yes. Lands on a porchsite.dev page, in the install
-  guide, in the getting-started and helper flows, as a short block in the
-  writer tools, in llms.txt/index.md, and on error pages. Staged for the
-  owner's approval before anything goes live.
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
   one private playbook), one "<Project> reports" stream per project, no
   expiry, weekly batch approval. Changed 2026-10-17: all updates to the
