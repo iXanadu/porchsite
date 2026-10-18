@@ -803,15 +803,18 @@ wrapper: that wrapper contains owner CSRF, Approve, Ask for changes and owner
 navigation. The tool's fixed label is factual: "Preview: not published."
 It is not an instruction to approve or a claim that a site is public.
 
-Render first, then create an inert structural copy using a parsed HTML tree
-and a shared deterministic serializer. No regex-only sanitization. Preserve
-visible text and semantic headings/paragraphs/lists/tables/quotes/code and
-ordinary containers. The output has no authored attributes except validated
+Render visitor proposed content, then create an inert structural copy using
+a parsed HTML tree and a shared deterministic serializer. No regex-only
+sanitization. Preserve visible text and semantic headings/paragraphs/lists/
+tables/quotes/code and ordinary containers. Drop EVERY attribute regardless
+of whether it came from owner data, a theme or the engine, except validated
 structural table/list attributes: `rowspan`/`colspan` integers 1..1,000, `scope`
 one of row/col/rowgroup/colgroup, and `start` a signed 32-bit integer. Invalid
-values are omitted, not copied verbatim; no
-id/class/style/event/data attributes. Remove scripts (including JSON-LD),
-styles/stylesheets, meta/base, comments, SVG/MathML, template/noscript,
+values are omitted, not copied verbatim. In particular, engine-generated
+`href`, `src`, `srcset`, `action`, `formaction`, `poster`, `cite`, `srcdoc`,
+`xlink:href`, id/class/style/event/data and all other attributes are dropped.
+Remove link, base, meta, script (including JSON-LD) and style elements entirely,
+regardless of provenance, as well as comments, SVG/MathML, template/noscript,
 forms/inputs/buttons and executable objects. Active media/player subtrees
 become escaped inert placeholders using the engine's existing visible caption;
 images become escaped image/alt-text placeholders, not fetchable sources.
@@ -822,8 +825,14 @@ UTF-8/title scaffold and notice are engine-owned, never owner HTML injection.
 A CSP meta tag is not a substitute for this structural removal.
 
 `html` returns that safe inspection document as a JSON string over MCP;
-`markdown` mechanically converts the same inert content through the existing
-minimal-escape converter, with the same factual notice. Preserve hostile
+`markdown` mechanically converts ONLY the stripped inert tree through the
+existing minimal-escape converter, with the same factual notice. Never call
+`markdownDocument` or the owner-preview HTML-to-Markdown path on pre-inert
+theme HTML: it would reconstruct fetchable links/images from attributes.
+Do not invoke `reviewPreview`, `inlineCss`, `ownerSitePage` or a signed-in
+wrapper to obtain the content; use the visitor proposed-content renderer,
+then the inert transform, with no owner session or owner decorations.
+Preserve hostile
 owner text as data under CommonMark/GFM; never turn it into engine instructions
 or executable HTML. The two formats share content, not arbitrary raw markup.
 
@@ -877,7 +886,8 @@ errors, render transformations and catalog boundaries require paired fixtures.
   encoded traversal, origin/Host tricks and unknown fields cannot broaden scope.
 - `preview_inert_bytes`: paired all-look and custom-theme fixtures for HTML and
   Markdown visible text/structure; hostile tags/attributes/comments/CSS URLs,
-  forms/CSRF, images/frames/links/scripts cannot execute, fetch or become an
+  forms/CSRF, images/frames/links/scripts (including engine-generated href/src/
+  srcset/action/link elements) cannot execute, fetch or become an
   owner action. Body has factual label and no owner controls/secret sentinels;
   anonymous draft-only media requests remain refused without a preview bypass.
 - `preview_closure_races`: changes in each dependency between capture/render/
