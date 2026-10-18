@@ -71,6 +71,15 @@ function tableRows(n:Node):Node[][]|null {
   return rows;
 }
 const codeSpan=(content:string,table=false)=>{const ticks='`'.repeat(Math.max(1,...[...content.matchAll(/`+/g)].map(m=>m[0].length+1)));return table&&/^ +$/.test(content)?ticks+content+ticks:`${ticks} ${content} ${ticks}`;};
+
+
+/** Search sees the same visible document, never markup, URLs or owner controls. */
+export function visibleDocumentText(html:string):string {
+  const tree=parse(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
+  const blocks=new Set('address article aside blockquote br caption dd div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main ol p pre section table td th tr ul'.split(' '));
+  const read=(n:Node):string=>{if(hidden(n))return '';if(n.tag==='img')return inlineText(n.attrs.alt??'');const value=n.text+children(n,read);return blocks.has(n.tag)?' '+value+' ':value;};
+  const footer=find(body,'footer');return inlineText(read(main)+(footer&&!find(main,'footer')?' '+read(footer):''));
+}
 export function markdownDocument(html:string,canonical:string):{title:string;description:string;markdown:string} {
   const tree=parse(html),body=find(tree,'body')??tree,main=find(body,'main')??body;
   const titleNode=find(main,'h1'), title=inlineText(text(titleNode??find(tree,'title',false)??{tag:'',attrs:{},children:[],text:''}));

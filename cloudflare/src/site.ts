@@ -109,8 +109,10 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   const siteRow = rows.get(SITE_ID);
   const site = validate("site", siteRow ? await sourceData(db, SITE_ID, siteRow.version, siteRow.data, !changes.some(c => c.id === SITE_ID)) : {});
   const v = view(site, [...rows.values()].filter((r) => r.kind !== "site"));
+  const visible = new Set([SITE_ID, ...v.entries.map(e=>e.id), ...v.cards.map(c=>c.id), ...v.notes.map(n=>n.id)]);
+  const visibleRows = [...rows].filter(([id])=>visible.has(id));
+  v.approved_at = Object.fromEntries(visibleRows.map(([id,r])=>[id,r.published_at]));
   if (discovery) {
-    v.approved_at = Object.fromEntries([...rows].map(([id,r])=>[id,r.published_at]));
     return v; // XML needs no share cards, image-size lookup or display-clock formatting.
   }
   const { results: cards } = await db.prepare("SELECT item_id, version, name FROM share_cards").all<{ item_id: string; version: number; name: string }>();
@@ -119,7 +121,7 @@ export async function proposedView(db: D1Database, changes: { id: string; versio
   if (hero) {
     v.hero_size = await sizeOf(db, hero[1]);
   }
-  const last = [...rows.values()].reduce((m, r) => (r.published_at > m ? r.published_at : m), "");
+  const last = visibleRows.map(([,r])=>r).reduce((m, r) => (r.published_at > m ? r.published_at : m), "");
   if (last) {
     const d = new Date(last);
     const timeZone = String(site.timezone || "UTC");

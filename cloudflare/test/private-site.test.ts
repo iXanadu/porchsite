@@ -316,12 +316,12 @@ it("AF1 slice: conditional public representations never cross roles or gates",as
 });
 
 
-it("af_gate_before_representation: new private agent surfaces are blank for every role",async()=>{
+it("af_gate_before_representation: new private agent surfaces are blank without a valid AG principal",async()=>{
  const f=await fixture(),r=await reader(),visitor=new Browser();
  const expired=new Browser(),revoked=new Browser();expired.jar.set("__Host-sk_owner","expired");revoked.jar.set("__Host-sk_reader","revoked");
  const view=vi.spyOn(site,"liveView").mockImplementation(async()=>{throw Error("View before AF denial");});
  const data=vi.spyOn(structured,"structuredBlock").mockImplementation(()=>{throw Error("Structured data before AF denial");});
- try {for(const b of [f.browser,r.browser,visitor,expired,revoked])for(const path of ["/index.md","/index.md/","/guide/published-guide/index.md","/missing/index.md","/llms.txt","/index.jsonld","/","/guide/published-guide/"]) {
+ try {for(const b of [visitor,expired,revoked])for(const path of ["/index.md","/index.md/","/guide/published-guide/index.md","/missing/index.md","/llms.txt","/index.jsonld","/","/guide/published-guide/"]) {
   await blank(await b.at(path,{headers:{Accept:"text/markdown","If-None-Match":"*"}}));
   const head=await b.at(path,{method:"HEAD",headers:{Accept:"text/markdown"}});expect(head.status).toBe(404);expect(await head.text()).toBe("");expect(head.headers.has("Vary")).toBe(false);
  }expect(view).not.toHaveBeenCalled();expect(data).not.toHaveBeenCalled();}finally{view.mockRestore();data.mockRestore();}

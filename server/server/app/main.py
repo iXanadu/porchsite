@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Message, Receive, Scope, Send
 
-from . import alerts, keys, mcp, oauth, privacy, routes
+from . import alerts, keys, read_keys, mcp, oauth, privacy, routes
 from .db import Db, connect
 from .settings import Settings
 
@@ -59,6 +59,8 @@ class App:
             max_request_body_size=16 * 1024 * 1024,
             security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
+        self.read_server=mcp.create_server(lambda:self.pool,lambda:self.settings.release,True)
+        self.read_sessions=StreamableHTTPSessionManager(app=self.read_server,json_response=True,stateless=True,max_request_body_size=16*1024*1024,security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False))
         self._started = False
 
     @property
@@ -75,7 +77,7 @@ class App:
                 raise RuntimeError("PORCHSITE_DSN is not set")
             self._pool = await connect(self.settings.dsn)
         try:
-            async with self.sessions.run():
+            async with self.sessions.run(), self.read_sessions.run():
                 self._started = True
                 yield self
         finally:
@@ -247,9 +249,9 @@ class App:
             )
             await _cors(resp)(scope, receive, send)
             return
-        if bearer.group(1).startswith(keys.PREFIX):
+        if bearer.group(1).startswith((keys.PREFIX,read_keys.PREFIX)):
             # An assistant key (keys.py) instead of an OAuth token: the same tools.
-            who = await keys.lookup(self.pool, bearer.group(1))
+            who = await (read_keys.lookup(self.pool,bearer.group(1)) if bearer.group(1).startswith(read_keys.PREFIX) else keys.lookup(self.pool, bearer.group(1)))
             props, why = (
                 ({**who, "origin": origin}, "")
                 if who
@@ -269,7 +271,11 @@ class App:
             await _cors(resp)(scope, receive, send)
             return
         inner: dict[str, Any] = {**scope, "porchsite.props": props}
-        await self.sessions.handle_request(inner, receive, send)
+        async def protected_send(message):
+            if read_keys.restricted(props) and message['type']=='http.response.start':
+                message={**message,'headers':[(k,v) for k,v in message['headers'] if k.lower()!=b'cache-control']+[(b'cache-control',b'private, no-store, no-transform')]}
+            await send(message)
+        await (self.read_sessions if read_keys.restricted(props) else self.sessions).handle_request(inner, receive, protected_send)
 
 
 def _mcp_origin_allowed(req: Request, site: str) -> bool:

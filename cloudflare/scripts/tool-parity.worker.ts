@@ -1,3 +1,5 @@
+import {createToolHandlers} from "../src/mcp";
+import {withToolContext} from "../src/tool-context";
 // Run only by vitest.parity.config.ts. Actual D1 + MCP handlers, fixed data.
 import { env } from "cloudflare:workers";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
@@ -89,6 +91,16 @@ it("compares all sample tool answers with deterministic fixtures", async () => {
           }
           answers[key] = { error: !!rpc.result.isError, value: decoded(rpc.result.content[0].text) };
         }
+        await e.DB.prepare('DELETE FROM agent_read_keys').run();
+        await e.DB.prepare("INSERT INTO agent_read_keys(id,name,key_hash,created_at,expires_at,owner_epoch) SELECT 'read_parity','Reader','fixture','2026-10-10T12:00:00.000Z','2099-01-01T00:00:00.000Z',owner_epoch FROM auth_state WHERE id=1").run();
+        const epoch=await e.DB.prepare('SELECT owner_epoch FROM auth_state WHERE id=1').first<number>('owner_epoch');
+        const props={scope:'published_read',readKeyId:'read_parity',ownerEpoch:epoch,origin:'https://example.invalid'};
+        for(const [key,name,args] of [['ag_state','site_state',{}],['ag_state_guide','site_state',{guide:{}}],['ag_state_full','site_state',{full:true}],['ag_check','site_check',{}],['ag_check_deep','site_check',{deep:true}],['ag_pages','pages_list',{}],['ag_pages_one','pages_list',{limit:1}],['ag_pages_tag','pages_list',{tag:'missing'}],['ag_search','search',{query:'site'}],['ag_search_unicode','search',{query:'ΟΣ İ CAFE\u0301'}],['ag_page_home','page_get',{path:'/'}],['ag_page_missing','page_get',{path:'/not-published/'}]] as [string,string,any][]){
+          const result=await withToolContext(props,()=>createToolHandlers().get(name)!(args));
+          answers[key]={error:!!result.isError,value:decoded(result.content[0].text)};
+        }
+        const first=(answers.ag_pages_one as any).value;
+        if(first.next_cursor){const result=await withToolContext(props,()=>createToolHandlers().get('pages_list')!({limit:1,cursor:first.next_cursor}));answers.ag_pages_next={error:!!result.isError,value:decoded(result.content[0].text)};}
       } finally { await server.close(); }
       // Vitest's snapshot bridge writes to the host, outside the Worker. These
       // are fresh temporary files, never committed snapshots or expectations.
