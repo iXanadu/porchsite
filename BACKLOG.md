@@ -90,7 +90,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PAR-1** OPEN: on /mcp, a bad bearer key gets a 401 without a
+- **PAR-1** IN-PROGRESS: on /mcp, a bad bearer key gets a 401 without a
   WWW-Authenticate header on the Cloudflare edition; the server edition
   sends one (realm, resource_metadata, error="invalid_token", scope). A
   client that starts sign-in from that header can't recover on Cloudflare.
