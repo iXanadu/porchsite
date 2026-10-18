@@ -27,7 +27,7 @@ Before any Cloudflare API call, say this to your person:
 > - Cloudflare's Workers paid plan removes those daily usage limits, but bills for what's used with no way to set a spending cap.
 > - You can also run Porchsite on your own server for a flat fee.
 >
-> I won't upgrade your plan or add payment without your yes. More detail: https://porchsite.dev/costs
+> I won't upgrade your plan, add payment or turn on a paid feature unless you ask me to, and I'll ask you separately first. More detail: https://porchsite.dev/costs
 
 **Cost rules for the whole job.**
 
@@ -37,8 +37,9 @@ Before any Cloudflare API call, say this to your person:
 4. Before heavy use (a big import, repeated site checks, a crawling loop), tell the owner the free daily limits and how to see usage.
 
 The assistant says this and waits for the person to say "go on". "Go on"
-continues free-plan setup only. It is not yes to upgrade a plan, add a
-payment method or enable a paid feature; each needs a separate explicit yes.
+means continue setting up on the free plan; it is never a yes to upgrade
+the plan, add payment, or turn on a paid feature. Those each need their own
+explicit yes, asked separately.
 
 **Rules for the whole job.**
 
