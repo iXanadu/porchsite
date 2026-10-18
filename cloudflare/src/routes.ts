@@ -1287,11 +1287,14 @@ async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):P
  },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
 }
 const witnessScope=(env:Env)=>env.PUBLIC_ARTIFACTS!=='1'&&env.PUBLIC_RESPONSES!=='1';
+// A conditional attempt must capture the same snapshot before its tag is known.
+// A copies-ON token is never retained for body delivery or admission.
+const conditionalWitnessScope=(req:Request,env:Env)=>env.PUBLIC_RESPONSES!=='1'&&(witnessScope(env)||(['GET','HEAD'].includes(req.method)&&!!req.headers.get('If-None-Match')?.trim()));
 /** Live metadata is never an authorization grant or a prepared body. */
 async function fastPublic(req:Request,env:Env,ctx?:Pick<ExecutionContext,'waitUntil'>):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
   try{
-   const initial=witnessScope(env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1'),pair:null};
+   const initial=conditionalWitnessScope(req,env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1'),pair:null};
    let n0=initial.pair,f=initial.facts;
    if(f.private)return privacy.blankResponse(req);
    readStates.get(env)!.zone=String(f.site.timezone||'UTC');
@@ -1300,6 +1303,7 @@ async function fastPublic(req:Request,env:Env,ctx?:Pick<ExecutionContext,'waitUn
    if(c){
     let now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now),hit=publicRead.conditional(req,f,c,tag);
     if(hit){if(n0!==null&&await readRevision(env.DB)===n0&&timeValid(timePlan(f,c,now)))return hit;n0=null;const current=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&timeValid(timePlan(f,c,now)))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();now=Date.now();tag=await publicRead.tag(f,req,c,RELEASE,now);}
+    if(!witnessScope(env))n0=null; // conditional-only pair cannot authorize a copies-ON body
     readStates.get(env)!.witness=tag&&n0!==null?{pair:n0,facts:f,choice:c,at:now,tag}:undefined;
     readStates.get(env)!.fast=tag?{tag,disabled:f.disabled,now}:undefined;readStates.get(env)!.approved=tag?publicRead.viewProof(f):undefined;readStates.get(env)!.artifact={facts:f,choice:c,tag,now};
    }

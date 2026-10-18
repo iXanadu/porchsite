@@ -136,7 +136,9 @@ async def test_enabled_modes_never_pay_witness(db,http,app,monkeypatch):
     initial=AsyncMock(side_effect=AssertionError('out-of-scope initial witness'))
     monkeypatch.setattr(revision,'initial_facts',initial)
     monkeypatch.setattr(revision,'read_revision',reader)
-    for artifacts,responses in [(True,False),(False,True),(True,True)]:
+    app.settings=replace(app.settings,site_url='https://site.example',public_artifacts=True,public_responses=False)
+    assert (await http.get('/')).status_code==200
+    for artifacts,responses in [(False,True),(True,True)]:
         app.settings=replace(app.settings,site_url='https://site.example',public_artifacts=artifacts,public_responses=responses)
         response=await http.get('/',headers={'If-None-Match':tag})
         assert response.status_code==304
@@ -200,3 +202,17 @@ async def test_initial_failure_falls_back_only_on_known_absence(db):
     class Broken:
         async def fetch(self,sql):raise RuntimeError('disk I/O error')
     with pytest.raises(RuntimeError,match='disk I/O error'):await revision.initial_facts(Broken())
+
+async def test_on_conditional_snapshot_never_supplies_a_stale_tag_body_witness(db,http,app,monkeypatch):
+    from dataclasses import replace
+    await site(db);tag=(await http.get('/')).headers['etag']
+    initial=AsyncMock(wraps=revision.initial_facts);late=AsyncMock(wraps=revision.read_revision)
+    monkeypatch.setattr(revision,'initial_facts',initial);monkeypatch.setattr(revision,'read_revision',late)
+    app.settings=replace(app.settings,site_url='https://site.example',public_artifacts=True,public_responses=False)
+    matching=await http.get('/',headers={'If-None-Match':tag})
+    assert matching.status_code==304 and matching.content==b''
+    assert initial.await_count==1 and late.await_count==1
+    initial.reset_mock();late.reset_mock()
+    stale=await http.get('/',headers={'If-None-Match':'"stale"'})
+    assert stale.status_code==200 and 'Before witness' in stale.text
+    assert initial.await_count==1 and late.await_count==0

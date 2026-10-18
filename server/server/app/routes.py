@@ -2247,10 +2247,17 @@ def witness_scope(cx):
     return not cx.public_artifacts and cx.response_store is None
 
 
+def conditional_witness_scope(req,cx):
+    # Same initial snapshot before the validator's match is known. An ON
+    # pair is discarded before any body/copy proof, including a stale tag.
+    return cx.response_store is None and (witness_scope(cx) or
+        (req.method in ('GET','HEAD') and bool(req.headers.get('if-none-match','').strip())))
+
+
 async def fast_public(req,cx):
     if not session_request(req) and public_read.candidate(req.url.path):
         try:
-            if witness_scope(cx):
+            if conditional_witness_scope(req,cx):
                 f,n0=await content_revision.initial_facts(cx.db)
             else:
                 f,n0=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db),None
@@ -2281,6 +2288,8 @@ async def fast_public(req,cx):
                         return missing if missing is not None else public_read.missing()
                     now=public_read.time.time()*1000
                     tag=public_read.tag(f,req,c,cx.release,now)
+                if not witness_scope(cx):
+                    n0=None  # never authorize a copies-ON body with a conditional witness
                 cx._read['witness']=dict(pair=n0,facts=f,choice=c,at=now,tag=tag) if tag and n0 is not None else None
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
                 cx._read['approved']=public_read.view_proof(f) if tag else None

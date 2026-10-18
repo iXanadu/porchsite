@@ -55,9 +55,10 @@ it('uses full independent facts when the final pair is missing',async()=>{
  await site();const original=revision.readRevision;let calls=0;vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{if(++calls===1)await db.prepare('DELETE FROM content_revision').run();return original(binding);});
  const facts=vi.spyOn(read,'facts'),r=await get();expect(r.status).toBe(200);expect(facts).toHaveBeenCalledTimes(1);expect(await revision.readRevision(db)).toBeNull();
 });
-it('neither enabled reuse mode nor credentials pay a witness read, including ON304',async()=>{
+it('response reuse and credentials pay no witness, while no-validator ON keeps the original body proof',async()=>{
  await site();const tag=(await get()).headers.get('ETag')!;const initial=vi.spyOn(revision,'initialFacts').mockImplementation(async()=>{throw Error('out-of-scope initial witness');});const witness=vi.spyOn(revision,'readRevision').mockImplementation(async()=>{throw Error('out-of-scope witness');});
- for(const settings of [{...e,PUBLIC_ARTIFACTS:'1'},{...e,PUBLIC_RESPONSES:'1'},{...e,PUBLIC_ARTIFACTS:'1',PUBLIC_RESPONSES:'1'}]){expect((await get({'If-None-Match':tag},'GET',settings)).status).toBe(304);}
+ expect((await get({},'GET',{...e,PUBLIC_ARTIFACTS:'1'})).status).toBe(200);
+ for(const settings of [{...e,PUBLIC_RESPONSES:'1'},{...e,PUBLIC_ARTIFACTS:'1',PUBLIC_RESPONSES:'1'}]){expect((await get({'If-None-Match':tag},'GET',settings)).status).toBe(304);}
  for(const headers of ([{Authorization:''},{Cookie:'__Host-sk_owner=expired'},{Cookie:'__Host-sk_reader=invalid'}] as Record<string,string>[]))await get(headers);
  expect(witness).not.toHaveBeenCalled();expect(initial).not.toHaveBeenCalled();
 });
@@ -122,4 +123,14 @@ it('bumps only actual items dependencies and preserves normal version fences and
  // Independent old-runtime SQL still advances for both actual Q_F inputs.
  prior=await pair();await db.prepare("UPDATE items SET created_at='2030-01-01' WHERE id='site'").run();expect(await pair()).toEqual([prior[0],String(BigInt(prior[1])+1n)]);
  prior=await pair();await db.prepare("UPDATE items SET id='renamed-site' WHERE id='site'").run();expect(await pair()).toEqual([prior[0],String(BigInt(prior[1])+1n)]);
+});
+
+it('ON conditional captures the shared snapshot, but a stale validator never supplies a body witness',async()=>{
+ await site();const tag=(await get()).headers.get('ETag')!;
+ const initial=vi.spyOn(revision,'initialFacts'),late=vi.spyOn(revision,'readRevision');
+ const matching=await get({'If-None-Match':tag},'GET',{...e,PUBLIC_ARTIFACTS:'1'});
+ expect(matching.status).toBe(304);expect(await matching.text()).toBe('');expect(initial).toHaveBeenCalledTimes(1);expect(late).toHaveBeenCalledTimes(1);
+ initial.mockClear();late.mockClear();
+ const stale=await get({'If-None-Match':'"stale"'},'GET',{...e,PUBLIC_ARTIFACTS:'1'});
+ expect(stale.status).toBe(200);expect(await stale.text()).toContain('Before witness');expect(initial).toHaveBeenCalledTimes(1);expect(late).not.toHaveBeenCalled();
 });

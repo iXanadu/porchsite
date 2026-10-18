@@ -1,3 +1,4 @@
+import * as revision from '../src/content-revision';
 import {env} from 'cloudflare:workers';
 import {beforeEach,expect,it} from 'vitest';
 import worker from '../src/index';
@@ -80,13 +81,13 @@ it('native first/raw metadata and atomic batch input are transparent on success'
  expect(batch.every(x=>Number.isInteger(x.meta.rows_read)&&Number.isInteger(x.meta.rows_written))).toBe(true);
 });
 // Inject only at a simulated native execution boundary; product auth and handlers run.
-function faultDB(test:(sql:string)=>boolean){
+function faultDB(test:(sql:string)=>boolean|Promise<boolean>){
  const nativeStatements=new WeakMap<object,object>();
  function stmt(native:D1PreparedStatement,sql:string):D1PreparedStatement{
   const wrapped=new Proxy(native,{get(target,key){
    if(key==='bind')return (...args:any[])=>stmt(target.bind(...args),sql);
    const value=Reflect.get(target,key,target);
-   if(['all','first','raw','run'].includes(String(key)))return (...args:any[])=>test(sql)?Promise.reject(provider()):value.apply(target,args);
+   if(['all','first','raw','run'].includes(String(key)))return async (...args:any[])=>(await test(sql))?Promise.reject(provider()):value.apply(target,args);
    return typeof value==='function'?value.bind(target):value;
   }});nativeStatements.set(wrapped,native);return wrapped;
  }
@@ -145,10 +146,17 @@ it('a final-facts daily failure cannot return rendered content, cached validator
  const one=await content.createItem(db,'assistant:test','site',{title:'Content must stay hidden on failure',theme:'personal-homepage'},undefined);
  await approvals.publishNow(db,[{id:one.id,version:one.version}],'',origin);
  const healthy=await worker.fetch(new Request(origin),{...e,SITE_URL:origin},context);expect(healthy.status).toBe(200);const tag=healthy.headers.get('ETag')!;
- for(const conditional of [false,true]){
-  let facts=0,triggered=false;
-  const failed=await worker.fetch(new Request(origin,{headers:conditional?{'If-None-Match':tag}:{}}),{...e,SITE_URL:origin,DB:faultDB(sql=>{if(sql!==read.FACTS_SQL)return false;facts++;if(facts===2){triggered=true;return true;}return false;})},context);
-  expect(triggered).toBe(true);expect(failed.status).toBe(503);expect(failed.headers.has('ETag')).toBe(false);
+ let version=912340;
+ for(const [conditional,on] of [[false,false],[true,false],[true,true]])for(const boundary of ['late-witness','full-facts-fallback']){
+  // Ordinary covered DML repairs a deleted row; no test-only witness token.
+  await db.prepare('INSERT INTO private_approvals(version) VALUES(?)').bind(++version).run();
+  let triggered=false,lateReached=false;
+  const failed=await worker.fetch(new Request(origin,{headers:conditional?{'If-None-Match':tag}:{}}),{...e,SITE_URL:origin,PUBLIC_ARTIFACTS:on?'1':'',DB:faultDB(async sql=>{
+   if(sql===revision.REVISION_SQL){lateReached=true;if(boundary==='late-witness'){triggered=true;return true;}await db.prepare('DELETE FROM content_revision').run();return false;}
+   if(sql===read.FACTS_SQL&&lateReached&&boundary==='full-facts-fallback'){triggered=true;return true;}
+   return false;
+  })},context);
+  expect(lateReached).toBe(true);expect(triggered).toBe(true);expect(failed.status).toBe(503);expect(failed.headers.has('ETag')).toBe(false);
   const text=await failed.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain('Content must stay hidden on failure');
  }
 });
