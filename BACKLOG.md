@@ -80,7 +80,9 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    pass; the merged witness-release tree still needs fresh combined gates.
    HELD on CPU: the original cohort crossed the declared diagnostic bar;
    the one authorized confirmation retains HOLD in three of four classes
-   (all intervals span zero). A separate owner CPU-risk decision is pending.
+   (all intervals span zero). The owner approved shipping with a hosted
+   check: roll back to the witness release if collector CPU rises by more
+   than 0.5 ms or any CPU-limit 1102 error occurs. Both HOLDs stay disclosed.
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
