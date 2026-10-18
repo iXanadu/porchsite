@@ -1855,6 +1855,118 @@ Both must serve HTML, Markdown and the map, refuse unauthenticated MCP,
 and return an empty conditional 304. A startup error or an unexpected
 status fails the release; the smoke check has a 60-second budget.
 
+**Release database-row gate (GATE-2, Cloudflare edition).** Every release
+runs `scripts/d1-rows-check.mjs` under the release coordinator's suite lock,
+before publishing or tagging. This is a local D1/workerd row-cost check,
+not a hosted billing measurement, a CPU benchmark, a server/PostgreSQL cost
+claim, or permission to enable prepared copies. It must complete within
+120 seconds including its local build, seeding, requests and cleanup; an
+error, timeout or incomplete result fails the release. It uses no hosting
+account, remote database, owner credential or public diagnostic endpoint.
+The server's existing correctness and compatibility gates remain required.
+
+The fixed corpus is every `themes/*/sample.json` plus a deterministic
+200-entry services fixture. Record the exact generated seed bytes' hashes,
+the fixture generator version, a fixed UTC clock instant and timezone,
+origin, request headers, compatibility settings and pinned local toolchain.
+The generator, corpus and clock are versioned inputs: changing them is a
+baseline-format change, not an unexplained improvement in database cost.
+Seed published approved content and the existing approval/source receipts;
+never skip the live access gate, either fresh validation, complete tuple
+proofs, final equality, clock checks or normal rendering. Run the real
+Worker entry in local workerd with a measurement-only D1 binding observer;
+no alternate fast handler or product route. Hold PERF-4 response reuse off
+in every cell so it cannot hide prepared-copy cost. Pin SITE_URL and use
+anonymous same-origin HTML GETs without Authorization or session cookies.
+
+For each site, measure both exact `PUBLIC_ARTIFACTS` off and `1`, on separate
+fresh disposable databases and application instances, in this order:
+
+| Request | Required state and result |
+| --- | --- |
+| `cold` | First application GET `/`, empty prepared-copy store, status 200. Count any state initialization, admission and preparation that request causes. |
+| `plain` | Next GET `/` without a validator, after all cold work completes, status 200. With prepared copies on, certify an actual prepared HIT by observed lookup and no live-render query; row presence alone is insufficient. With them off, certify no artifact lookup or write. |
+| `not_modified` | Next GET `/` with the preceding ETag in If-None-Match, status 304 and empty body. Both modes still run their current live facts/conditional checks. |
+
+Read and write totals are sums of D1's `meta.rows_read` and
+`meta.rows_written` for every application statement and each statement in a
+batch, including admitted artifact work and UC9 observation. They are not
+returned-row counts, SQL statement counts, SQLite VM steps or estimates from
+EXPLAIN. Preserve SQL text, binds, ordering, results, errors and batch
+atomicity; observer adapters for `first`/`raw` must prove their equivalence
+to the underlying D1 result. Missing, negative, noninteger or unobservable
+metadata fails closed; it is never recorded as zero. Exclude migration,
+seed, diagnostic-control and host audit queries. Read the full response and
+await every request waitUntil task, including nested tasks, before ending
+that request's scope. Do not use a fixed sleep as evidence of completion;
+unsettled work or a swallowed database error fails this measurement. Each
+request has its own counter scope, with no overlap into its successor.
+Assert public body/headers agree between modes except the intentional
+release field; assert expected statuses, validators, HIT/MISS state and
+traffic effects independently. Do not publish SQL binds or content in the
+committed report; fixtures are synthetic.
+
+`spec/fixtures/d1-rows.json` is the committed measurement record. It contains
+an explicit format version, immutable measurement-input fingerprint,
+artifact/source identity, all 13 sites by both modes by three requests, and
+nonnegative integer read/write totals per cell. A preparation command may
+write this file before committing a release candidate; the release check is
+read-only and reruns the matrix, requiring exact agreement with that
+candidate's committed record. The source fingerprint excludes this record
+and release/changelog labels to avoid a self-referential commit hash, but
+includes all Worker source, migrations, generated theme inputs, dependency
+lock and compatibility settings. It is not an authorization shortcut.
+
+The comparison baseline is the immediately preceding published release in
+changelog order, loaded from that release's git revision of the committed
+JSON, never an arbitrary working-tree replacement. For the introducing
+release only, whose predecessor has no record, commit a separately labelled
+bootstrap record measured on that predecessor's exact archived Worker and
+its own migrations with this same corpus/method. Pin its release id and
+artifact SHA-256 and verify both against the archived release. Never copy
+current numbers into the bootstrap or invent historical numbers. Once a
+previous published record exists, missing or malformed baseline data fails
+the gate. Corpus, runtime/toolchain or measurement-format changes require
+remeasuring the exact predecessor on matching inputs and retaining both
+the old record and explicitly labelled rebased comparison; no silent reset.
+
+Compare EVERY read and write total against its matched previous-release
+cell. No pooling, average, percentage threshold or faster cell cancels an
+increase elsewhere. Any increase makes downloads.sh fail unless the newest
+release's changelog entry has a nonempty plain `rows_justification` string
+(at most 1000 characters, no newlines). Wrong type, whitespace-only or
+unknown cells still fail. This field waives only a measured increase, never
+missing data, identity, correctness or timeout failures. The release log and
+published changelog retain all increases and the justification. A written
+reason permits building for review; it does not grant deployment approval.
+The owner must approve any increase before deployment. Existing changelog
+entries without the new optional field remain valid.
+
+For each cell print old/new reads and writes and both read-limited and
+write-limited daily page-request equivalents, plus the smaller finite bound:
+`floor(5_000_000 / rows_read)` and `floor(100_000 / rows_written)`. A zero
+denominator is explicitly unlimited by that metric, not a divide-by-zero
+or a claim of unlimited traffic. State "about N page views a day per
+account, if all requests cost this much and no other activity uses D1";
+304 cells are request equivalents, not recorded analytics views. Also show
+the cold-plus-plain-plus-304 sequence total and its arithmetic separately.
+These are D1-only illustrative upper bounds: other sites on the account,
+analytics writes, unrelated queries, Workers request/CPU limits and storage
+reduce usable traffic. No paid-plan spending cap or hosted capacity claim.
+The budgets and their verification date are explicit report inputs, sourced
+from https://developers.cloudflare.com/d1/platform/pricing/ (checked
+2026-10-18: Free 5 million rows read and 100,000 rows written per day).
+
+Required gate tests: an increased read OR write in any single cell refuses;
+nonempty justification accepts only that cost increase and remains visible;
+missing/extra cells, stale fingerprints, changed fixture/toolchain, absent
+metadata, unfinished deferred work and mismatched previous release refuse;
+bootstrap archive/hash mismatch refuses; no writes to committed JSON during
+check; zero-cost arithmetic is defined; first/raw/batch metadata accounting
+has no duplicates; real OFF/MISS/HIT/304 paths preserve response identity
+and include deferred traffic/admission work. A native full-matrix proof must
+meet the 120-second budget before this gate is added to every release.
+
 **Stream-settings rollback compatibility.** The public content model has
 up to 64 streams, per-stream sort and the all-stream archive, but the legacy
 site JSON remains readable by the previous release. New writes store the
