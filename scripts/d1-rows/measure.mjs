@@ -5,6 +5,11 @@ import assert from 'node:assert/strict';
 import { CLOCK, ORIGIN, COMPATIBILITY, HEADERS, hash } from './fixtures.mjs';
 import { FORMAT, BUDGETS, REQUESTS, validate } from './record.mjs';
 
+export async function applyMigration(database, sql) {
+  const queries=statements(sql).map(statement=>database.prepare(statement));
+  if(queries.length)await database.batch(queries);
+}
+
 export async function measure({ root, out, bundle, migrations, corpus, source, inputs, Miniflare, convertV4MiniflareOptions }) {
   fs.mkdirSync(out, { recursive: true });
   fs.copyFileSync(bundle, path.join(out, 'application.js'));
@@ -21,7 +26,7 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
         const database = await mf.getD1Database('DB');
         for (const file of fs.readdirSync(migrations).filter(file => file.endsWith('.sql')).sort()) {
           const sql = fs.readFileSync(path.join(migrations, file), 'utf8');
-          for (const statement of statements(sql)) await database.prepare(statement).run();
+          await applyMigration(database,sql);
         }
         await database.exec(site.sql);
         assert.equal(await database.prepare('SELECT count(*) n FROM public_artifacts').first('n'), 0, 'artifact seed must be empty');

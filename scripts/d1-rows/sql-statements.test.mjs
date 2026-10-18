@@ -12,3 +12,13 @@ test('comments and escaped quotes do not terminate a statement', () => {
 test('refuses truncated bodies, strings and comments', () => {
   for(const sql of ["SELECT 'x",'/* x','CREATE TRIGGER t AFTER INSERT ON live BEGIN SELECT 1;']) assert.throws(()=>statements(sql),/unterminated/);
 });
+
+const {applyMigration}=await import('./measure.mjs');
+test('a migration is one atomic batch, never per-statement run',async()=>{
+ const calls=[],prepared=[];
+ const db={prepare(sql){prepared.push(sql);return {sql,run(){throw Error('non-atomic run');}};},async batch(queries){calls.push(queries);}};
+ await applyMigration(db,'CREATE TABLE a(id); INSERT INTO a VALUES(1);');
+ assert.equal(calls.length,1);assert.deepEqual(calls[0].map(x=>x.sql),prepared);assert.equal(prepared.length,2);
+ await applyMigration(db,'-- empty');assert.equal(calls.length,1);
+ const failure=Error('batch rollback');await assert.rejects(()=>applyMigration({...db,batch:async()=>{throw failure;}},'SELECT 1;'),failure);
+});
