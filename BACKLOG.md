@@ -73,7 +73,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    (`POST /collect`) and on owner actions (approvals, imports) are not
    measured. AN-1's +1 write per recorded view passed the gate unseen;
    it shipped on a stated reason and the owner's yes. Add beacon and
-   approval cells (1 and 200 entries) to the gate.
+   approval cells (1 and 200 entries) to the gate. Native proof is blocked
+   by a legacy inline embed-source seed that can change raw live JSON
+   during import without publishing anything. Use canonical owner-write
+   storage before measuring; retain the strict no-publication checks.
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
