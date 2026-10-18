@@ -191,6 +191,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   from 176 to 240. On the free plan's 5 million rows a day per account,
   that is about 10,000 cold page views a day instead of about 23,000.
   Cut the rows a copy's freshness check reads, keeping every check.
+  Candidate dcca6b8 (specs d0e7b74 and d2a2975, both reviews passed) cut
+  rows read in every measured case (304 236 to 178 rows, HIT 480 to 453,
+  cold after an edit 869 to 841, small fixture), but HELD on CPU: HIT
+  median +4.7 ms over 12 fresh pairs (interval -2.5 to +9.8). Next:
+  per-statement attribution of the HIT, and a 304-only candidate.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
