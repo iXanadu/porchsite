@@ -100,12 +100,9 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
    cut the largest cost.
 
-14. **TEST-1** OPEN (2026-10-18 release build): media-sizing.test.ts
-   `perf3_read_only_size` deep-compares the whole D1 result including
-   meta.duration and timings.sql_duration_ms, so it fails when a query takes
-   1 ms instead of 0. It failed in the upgrade check (a55686c's own test on
-   the new schema). Compare only the fields under test. Archived copies stay
-   flaky until they age out of the upgrade window.
+14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
+   archived a55686c and earlier copies still compare timing fields, so the
+   upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
 
