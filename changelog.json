@@ -2,6 +2,18 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-d59afd4",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "An agent you've signed in as yourself (for example in your own browser) can now read your review pages, drafts and previews as plain text instead of picking through the page.",
+        "Passwords, passkeys, invitations, keys and one-time links are never included, and these copies are never stored anywhere.",
+        "Your own writing in drafts is clearly marked as your words, so an agent reads it as content, not as instructions to follow."
+      ]
+    },
+    {
       "release": "2026.10.18-50a15c5",
       "date": "2026-10-18",
       "security": false,
