@@ -25,10 +25,10 @@ class _Body(str):
 class _DeferredEntry(LazyValues):
     """Template-visible body_html without enumerating or serializing a body."""
 
-    def __init__(self, view, source, memo, ids, demote):
+    def __init__(self, view, source, memo, ids, demote, prefix=""):
         super().__init__((key, value) for key, value in view.items() if key != "body_html")
         self._source, self._memo = source, memo
-        self._ids, self._demote = ids, demote
+        self._ids, self._demote, self._prefix = ids, demote, prefix
         self._resolved = None
 
     def _body(self):
@@ -37,7 +37,9 @@ class _DeferredEntry(LazyValues):
             if key not in self._memo:
                 self._memo[key] = body_markdown(self._source, heading_ids=self._ids,
                     body_h1_as_h2=self._demote) if self._source else ""
-            self._resolved = self._memo[key]
+            body = self._memo[key]
+            self._resolved = (_Body(self._prefix + body, body._markers) if isinstance(body, _Body)
+                              else self._prefix + body) if body and self._prefix else body
         return self._resolved
 
     def __contains__(self, key):
@@ -50,8 +52,16 @@ class _DeferredEntry(LazyValues):
         return self._body() if key == "body_html" else super().get(key, default)
 
 
-def deferred_body(view, source, memo=None, ids=False, demote=False):
-    return copy_lazy_values(view, _DeferredEntry(view, source, {} if memo is None else memo, ids, demote))
+def deferred_body(view, source, memo=None, ids=False, demote=False, prefix=""):
+    return copy_lazy_values(view, _DeferredEntry(view, source, {} if memo is None else memo, ids, demote, prefix))
+
+
+def copy_deferred_body(source, view, prefix=None):
+    """Clone deferred fields without consuming bodies or losing provenance."""
+    if isinstance(source, _DeferredEntry):
+        view = deferred_body(view, source._source, source._memo, source._ids,
+                             source._demote, source._prefix if prefix is None else prefix)
+    return copy_lazy_values(source, view)
 
 
 def _render_markers(view, out=None, seen=None):
@@ -113,7 +123,7 @@ def heading_bodies(value, heading_ids=True, body_h1_as_h2=False, bodies=None):
     if isinstance(value, _DeferredEntry):
         metadata = {key: heading_bodies(child, heading_ids, body_h1_as_h2, bodies)
                     for key, child in value.items()}
-        return copy_lazy_values(value, deferred_body(metadata, value._source, bodies, heading_ids, body_h1_as_h2))
+        return copy_lazy_values(value, deferred_body(metadata, value._source, bodies, heading_ids, body_h1_as_h2, value._prefix))
     out = {}
     for key, child in value.items():
         if key == "body_html" and child and isinstance(value.get("body"), str):

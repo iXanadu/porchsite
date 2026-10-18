@@ -5,6 +5,7 @@
  * sections in the layout with nothing in them. Read-only; the server
  * edition's server/app/check.py is the same check.
  */
+import { copyDeferredBody } from "./embeds";
 import { decodeHTMLAttribute } from "entities";
 import type { SiteView } from "./site";
 import { streams, homeView, archiveView, entryView, render } from "./theme";
@@ -143,15 +144,15 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
     return undefined; // A redirect cycle is not a renderable target.
   };
   const marker = `porchsite-check-${crypto.randomUUID()}:`;
+  const indexes = new Map(v.entries.map((e, i) => [e.id, i]));
   // Check-only comments identify full entry bodies that a look emits inline.
   // They never reach the public renderer, and do not change Mustache truthiness.
   const marked = (value: any): any => {
     if (Array.isArray(value)) return value.map(marked);
-    if (!value || typeof value !== "object") return value;
+    if (!value || typeof value !== "object" || value instanceof String) return value;
     const out = Object.fromEntries(Object.entries(value).map(([k, val]) => [k, marked(val)]));
-    const i = v.entries.findIndex((e) => e.id === value.id);
-    if (i >= 0 && value.body_html) out.body_html = `<!--${marker}${i}-->${value.body_html}`;
-    return out;
+    const i = indexes.get(value.id);
+    return copyDeferredBody(value, out, i === undefined ? undefined : `<!--${marker}${i}-->`);
   };
   let links = 0;
   let limit: "pages" | "links" | undefined;

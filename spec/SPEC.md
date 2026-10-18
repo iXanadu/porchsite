@@ -1507,6 +1507,56 @@ fixtures before/after with the same harness. Report actual page/body render
 counts, D1 statements/rows, and local CPU separately from hosted CPU; fewer
 renders alone do not establish a hosted free-plan CPU guarantee.
 
+**SP-S4-C1 — deferred check-only body marking.** Deep reachability must not
+convert an entry body merely while copying, enumerating or decorating a
+home/archive/entry template view. Preserve each existing deferred body and
+other deferred template fields through that check-only projection. Resolving
+`body_html` is permitted when the selected template actually consumes that
+field, including a Mustache truthiness check; unused branches and metadata
+walks must not resolve it. Do not guess which fields a custom look will use.
+
+On consumption, use the existing deferred body's current heading policy,
+Markdown parser and request/view-local source-and-policy memo. Add the
+check-only full-body marker lazily only when that resolved body is nonempty,
+with its own current entry id and invocation nonce. Two entries with the
+same source may reuse the parsed body but must retain distinct proof markers;
+another view, request or principal must not reuse those proof identities.
+An empty body remains empty/falsy. Repeated reads of one marked field reuse
+its resolved marked value. Marker decoration must preserve genuine embed
+capabilities and the existing heading, table, frame-limit and sanitization
+behavior; it must not stringify away provenance, reparse with a different
+policy or promote owner-authored marker-like text into a proof. Check-only
+markers never enter public page bytes, stored content, artifacts or caches.
+
+Keep check projection metadata walks non-consuming, including embed-capability
+collection and the existing lazy date fields. A request-local id index may
+replace repeated linear marker-target searches. No process/isolate cache,
+extra database read, parser bypass, body truncation or stored membership
+proof is introduced. SP-S4 route resolution, document order, cap precedence,
+quick checks and proposed-versus-published graph separation stay unchanged.
+Both editions implement the same lazy consumption and proof behavior.
+
+Required paired cases: `site_check_marker_unused` (DISTINCT 200/500 entry
+bodies; a custom link-only home plus reached engine archive resolves all
+targets with zero body parses, while a look consuming only the latest body
+parses only that body; retain identical-body controls);
+`site_check_marker_inline` (a custom full-body look consumes each distinct
+body once and proves precisely the bodies it emits, while summary-only,
+empty, inert and forged-marker content remains insufficient);
+`site_check_marker_identity` (same-source entries keep distinct ids, repeated
+reads reuse one result, and a new invocation/view cannot reuse proof nonce
+or memo); and `site_check_marker_render_policy` (heading ids/H1 policy,
+pipe tables, genuine embeds versus authored iframe/marker text, frame caps,
+and deferred dates survive the check projection without unused evaluation).
+Retain the SP-S4 graph, redirect and exact-cap tests. Compare semantic deep
+answers before/after and ordinary public bytes across all looks; check-only
+random comments are not public output. Run paired affected suites, full
+parity and the real minified Worker/server startup. Measure real-bundle deep
+CPU and D1 before/after on the same DISTINCT 200/500-entry seeds, retaining
+identical-body controls and recording consumed-body counts separately from
+page renders. Report local and hosted CPU separately; the prior identical-
+body improvement and fewer parses do not establish a hosted 10 ms guarantee.
+
 The server's MCP instructions tell the assistant the rules above in plain
 words, so any assistant can use the site correctly without prior training.
 

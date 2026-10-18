@@ -14,6 +14,7 @@ from server.spec.jsutil import string, trim
 from server.spec.site import SiteView
 from server.spec import theme as views
 from server.spec.theme import streams
+from server.spec.embeds import copy_deferred_body
 
 from . import builtin, themes
 from .theme import Theme, render
@@ -249,9 +250,7 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
             return value
         out = {k: marked(val) for k, val in value.items()}
         i = indexes.get(value.get("id"))
-        if i is not None and value.get("body_html"):
-            out["body_html"] = f"<!--{marker}{i}-->{value['body_html']}"
-        return out
+        return copy_deferred_body(value, out, None if i is None else f"<!--{marker}{i}-->")
 
     links = 0
     limit = None
