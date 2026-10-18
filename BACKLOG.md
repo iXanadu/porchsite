@@ -87,7 +87,7 @@ Found building a single-property listing site on the live release.
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-9** OPEN: The install guide's setup code as a hashed row in the
+- **RA-9** IN-PROGRESS: The install guide's setup code as a hashed row in the
   site's database (as the installer does), not a Worker secret: no secret
   to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant

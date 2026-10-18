@@ -2257,6 +2257,108 @@ private-site contract matrices remain required.
   `409 claimed`, no code can be issued, and `/setup` (with or without a
   code) answers `303` to `/login`.
 
+
+### Stored first-claim codes (RA-9; both editions)
+
+New installations issue the first-claim code into the site's existing
+`setup_codes(code_hash, created_at, expires_at)` table. The assistant install
+guide uses this path, as the browser installer already does. A new
+Cloudflare installation does not create a `SETUP_CODE` secret; a new server
+installation uses `setup-link`, not `PORCHSITE_SETUP_CODE`. This introduces
+no public issuance endpoint, assistant tool, owner grant or schema change.
+Issuance requires the existing install/database authority and refuses once
+an owner exists. Reissuing replaces earlier stored codes; it never replaces
+an owner, passkey, session or published content.
+
+**Credential and hash.** Generate a fresh cryptographically random code,
+with at least 120 bits of entropy, outside database SQL. Do not use a name,
+time, UUID with insufficient randomness or a code returned by a caller.
+The installer and guide may use 24 random bytes encoded as unpadded
+base64url; existing installer and server-generated codes remain valid.
+Store exactly unpadded base64url of SHA-256 over the UTF-8 code bytes,
+matching the existing installer/owner hash scheme (43 ASCII characters).
+Only the hash and UTC creation/expiry instants enter the row. No plaintext
+code is stored in D1/PostgreSQL, Worker bindings, deployment metadata,
+logs, diagnostics or an audit-note field. The claim link necessarily
+contains the plaintext credential; show it only to the owner/installing
+assistant, never in public content, a tool catalog or a shared report.
+
+A submitted code has the existing surrounding-whitespace trimming before
+hashing; case and internal characters remain significant. Hash comparisons
+in application code use fixed-length decoded 32-byte digests or the
+canonical 43-byte encoding with a constant-time comparison primitive or
+full fixed-length XOR accumulation, with no early exit on a differing
+byte. Validate stored encodings before comparison; malformed encodings
+never authenticate. Legacy environment credentials keep the existing
+constant-time comparison. This does not promise that database lookup,
+WebAuthn, missing/expired cases or the entire HTTP request is constant time.
+Do not expose either digest or credential through refusal text.
+
+**Expiry and single use.** The normal guide/installer lifetime is 24 hours
+from issuance. Server `setup-link --hours N` retains its existing explicit
+lifetime override. Expiry is exclusive: a code is usable only while
+`expires_at > now`, including at final claim authorization. Starting
+WebAuthn does not spend the code or extend expiry. A registration failure
+cannot claim the site. A replacement, expiry or removal between setup
+options and verification invalidates the pending registration. The saved
+challenge retains only the credential identity/hash, not the plaintext.
+
+The successful claim atomically establishes the sole owner and passkey
+and deletes all stored setup codes. The credential used for that claim
+must still be present, unexpired and current at the transaction's claim
+authorization point; a check only before asynchronous WebAuthn verification
+is insufficient. Serialize replacement and claim so a replacement committed
+before this point cannot be bypassed by an earlier challenge. The fixed
+owner identity still prevents two racing claims from both succeeding.
+Neither reissuing nor a failed claim can delete an existing owner.
+
+**Existing sites.** No automatic import, copying or rotation of
+`SETUP_CODE`/`PORCHSITE_SETUP_CODE` occurs on upgrade. Existing unclaimed
+sites may continue using that legacy credential beside a stored code;
+issuing a stored code does not silently revoke the legacy credential.
+Already claimed sites remain claimed; every setup credential is inert and
+`/setup` redirects to `/login`. Existing hashed rows, expiry values,
+installer links, server links and in-flight challenges keep their existing
+formats. Stored-code replacement invalidates pending stored-code claims;
+it does not invalidate an independent legacy environment-code challenge.
+An operator may remove an old secret through its existing hosting/admin
+workflow, but RA-9 never deletes a hosting-account secret automatically.
+
+**Guide and refusals.** Before issuing, read the existing owner state and
+refuse to issue for a claimed site. The guide generates the code and hash,
+then replaces the stored row using parameterized database queries in one
+transaction/batch, conditional on the site remaining unclaimed. It uploads
+without a setup-secret binding and sends the owner
+`/setup?code=<code>` at the final site origin. It says the link expires in
+24 hours, may be reused to restart registration until the first successful
+claim, and a fresh link replaces it. No new-install secret deletion or
+secret-list check is required. Existing-site update instructions retain
+legacy-secret cleanup where applicable; audit guidance removes only the
+new-install secret creation/removal operations, not the account audit.
+The server guide uses `setup-link` and its printed expiry. Never interpolate
+the plaintext into SQL, a shell command, an audit note or exception text.
+
+Existing request/header rules and refusal codes remain: wrong credential
+`403 bad_code`, a recognized expired stored credential or invalidated
+pending stored-code claim `403 code_expired`, no configured usable
+credential `503 no_setup_code`, and an already claimed site `409 claimed`.
+A replaced code not recognized at a fresh options request is a wrong
+credential, not a promise of historical-code lookup. `/setup` retains
+`no-store`, `no-referrer` and immediate removal of the code from the address
+bar. WebAuthn origin/RP/challenge/user-verification checks remain mandatory.
+
+**Paired proof before freeze.** Pin shared hash vectors, fresh issuance
+without a secret, database hash-only storage, 24-hour expiry boundary,
+wrong/malformed input, legacy environment coexistence, unchanged claimed
+sites and legacy stored links, replacement during registration, expiry
+while WebAuthn verification is pending, failed registration, two racing
+claims and replacement-versus-claim order. Verify all-or-nothing
+owner/passkey/code consumption, no plaintext in errors/logs/bindings,
+existing no-store/no-referrer/browser-history behavior and guide commands.
+Exercise both native editions and actual HTTP setup/claim flows; retain
+previous-release upgrade/rollback compatibility without rewriting archived
+assertions. Runtime work waits for spec review.
+
 ## 6. Templates
 
 A template is presentation only:
@@ -2388,8 +2490,9 @@ Not part of the contract; one edition has them for how it is run.
   [--hours N]` stores a fresh one-time setup code (§5) and prints
   `<PORCHSITE_SITE_URL>/setup?code=<code>`, so a new link needs no settings
   change or restart. Once the site is claimed it refuses and exits 1. The
-  Cloudflare edition has no admin command: its installer sends the link
-  with the `SETUP_CODE` secret, or stores a code in `setup_codes` itself.
+  Cloudflare edition has no admin command: its installer and new-install
+  guide store a hashed code in `setup_codes` (§5, RA-9). Legacy
+  `SETUP_CODE` installations remain supported as specified there.
 
 ## 10. Agent-friendly public sites (proposed; implementation pending)
 
