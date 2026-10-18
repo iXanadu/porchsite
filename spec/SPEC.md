@@ -2294,6 +2294,23 @@ constant-time comparison. This does not promise that database lookup,
 WebAuthn, missing/expired cases or the entire HTTP request is constant time.
 Do not expose either digest or credential through refusal text.
 
+**Request-URL logging.** Browser history removal and `no-referrer` do not
+remove the initial claim URL from hosting access logs. The new-install
+Cloudflare guide, installer and supported Worker configuration therefore
+set `observability.redact_query_string: true` (at the observability root),
+so request URLs in Workers logs/traces omit the query. Keep application
+console messages free of the code, digest, request body and full claim URL.
+The supported server container disables Uvicorn access logging with
+`--no-access-log`; the supplied reverse proxy keeps access logging off.
+Self-hosting instructions require any operator-added proxy/access tracing
+to omit or redact query strings before issuing a setup link. Application
+code cannot erase an external operator's logs or promise that arbitrary
+hosting instrumentation is safe. These installation defaults do not
+silently mutate an existing hosting account or delete previous logs.
+Existing deployments adopting these settings do so through their normal
+owner-approved update/configuration workflow. Setup links are credentials
+in both editions even though only their hashes are kept in the database.
+
 **Expiry and single use.** The normal guide/installer lifetime is 24 hours
 from issuance. Server `setup-link --hours N` retains its existing explicit
 lifetime override. Expiry is exclusive: a code is usable only while
@@ -2321,6 +2338,10 @@ Already claimed sites remain claimed; every setup credential is inert and
 installer links, server links and in-flight challenges keep their existing
 formats. Stored-code replacement invalidates pending stored-code claims;
 it does not invalidate an independent legacy environment-code challenge.
+For old in-flight `via=env` challenges which predate an identity hash,
+retain the existing configured-secret check for their remaining challenge
+lifetime. New environment-code challenges retain a hash of the same secret;
+rotating to a different secret invalidates them, not merely removing it.
 An operator may remove an old secret through its existing hosting/admin
 workflow, but RA-9 never deletes a hosting-account secret automatically.
 
