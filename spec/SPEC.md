@@ -3257,8 +3257,11 @@ path, never an uncapped fallback. No D1/storage errors are swallowed inside
 the admission transaction to commit half its work.
 
 HTTP remains empty 204, no-store, without cookie, count, retry, billing or
-cap oracle, for accepted/capped/invalid/storage-error cases. No heartbeat
-for a rejected pageview is created. Already-admitted heartbeats remain
+cap oracle, for accepted/capped/invalid and ordinary storage-error cases.
+This does not suppress CO-1's existing Cloudflare native daily-limit
+classification: that edition retains its fixed visitor 503 when a required
+D1 operation exhausts the free allowance. No new classification or quota
+query is added. No heartbeat for a rejected pageview is created. Already-admitted heartbeats remain
 uncapped and retain max-progress/no-progress-write rules. This does not
 solve rotating identity, account quotas or read/heartbeat floods globally.
 
