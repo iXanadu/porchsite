@@ -149,16 +149,17 @@ async def delivery(row,req,c,f,etag):
 
 THIN_FORMAT='public-artifacts/2'
 MAX_FACTS=128*1024
-_tuple='category,ident,value,count(*) AS n'
-PROOF_SQL=f'''WITH current_facts AS ({{facts}}),
+PROOF_SQL='''WITH current_facts AS ({facts}),
  expected AS (SELECT e->>0 AS category,e->>1 AS ident,e->>2 AS value FROM json_array_elements($1::json) e),
- proof AS (SELECT NOT EXISTS(SELECT {_tuple} FROM current_facts GROUP BY category,ident,value EXCEPT SELECT {_tuple} FROM expected GROUP BY category,ident,value)
- AND NOT EXISTS(SELECT {_tuple} FROM expected GROUP BY category,ident,value EXCEPT SELECT {_tuple} FROM current_facts GROUP BY category,ident,value)
+ current_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM current_facts GROUP BY category,ident,value),
+ expected_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM expected GROUP BY category,ident,value),
+ proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
+ AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts)
  AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=$2) AS ok)'''
 
 def proof_sql():
-    from .public_read import FACTS_SQL
-    return PROOF_SQL.format(facts=FACTS_SQL)
+    from .public_read import FACTS_RELATION
+    return PROOF_SQL.format(facts=FACTS_RELATION)
 
 def generation(f,release,origin):
     return digest(json.dumps([THIN_FORMAT,release,origin,f['rows']],ensure_ascii=False,separators=(',',':'),sort_keys=True))

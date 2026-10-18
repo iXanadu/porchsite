@@ -9,7 +9,7 @@ import {markdownPath,pagePath,pageQuery,publicPath,representation,sessionRequest
 // SQL equivalent of media.LOCAL; fixed engine literals, never caller SQL.
 // D1 limits pattern length, so check the fixed shape and use a short hex test.
 const LOCAL_HERO_SQL="substr(json_extract(data,'$.hero'),1,7)='/media/' AND length(substr(json_extract(data,'$.hero'),8,32))=32 AND substr(json_extract(data,'$.hero'),8,32) NOT GLOB '*[^0-9a-f]*' AND substr(json_extract(data,'$.hero'),40) IN ('.jpg','.png','.webp')";
-export const FACTS_SQL=`WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_array(l.kind,l.slug,l.version,l.published_at,i.created_at,json_extract(l.data,'$.status'),json_extract(l.data,'$.stream'),json_extract(l.data,'$.external_url'),CASE WHEN l.item_id='site' THEN l.data ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(json_extract(l.data,'$.status'),'')<>'draft' THEN COALESCE(NULLIF(json_extract(l.data,'$.event.end'),''),json_extract(l.data,'$.event.start')) ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(json_extract(l.data,'$.status'),'')<>'draft' THEN json_extract(l.data,'$.tags') ELSE NULL END) AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
+export const FACTS_RELATION=`WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_array(l.kind,l.slug,l.version,l.published_at,i.created_at,json_extract(l.data,'$.status'),json_extract(l.data,'$.stream'),json_extract(l.data,'$.external_url'),CASE WHEN l.item_id='site' THEN l.data ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(json_extract(l.data,'$.status'),'')<>'draft' THEN COALESCE(NULLIF(json_extract(l.data,'$.event.end'),''),json_extract(l.data,'$.event.start')) ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(json_extract(l.data,'$.status'),'')<>'draft' THEN json_extract(l.data,'$.tags') ELSE NULL END) AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
  UNION ALL SELECT 'field',f.key,json_array(f.value,f.approved) FROM site_fields f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'embed','site',json_array(f.sources,f.approved) FROM site_embed_sources f JOIN live l ON l.version=f.version AND l.item_id='site'),
 facts1(category,ident,value) AS (SELECT 'streams','site',json_array(f.settings,f.approved) FROM site_stream_settings f JOIN live l ON l.version=f.version AND l.item_id='site'
@@ -19,9 +19,12 @@ facts2(category,ident,value) AS (SELECT 'theme',name,json_array(version,sha256) 
  UNION ALL SELECT 'share',c.item_id,json_array(c.version,c.name) FROM share_cards c JOIN live l ON l.item_id=c.item_id AND l.version=c.version
  UNION ALL SELECT 'media',name,json_array(width,height) FROM media WHERE name=(SELECT CASE WHEN ${LOCAL_HERO_SQL} THEN substr(json_extract(data,'$.hero'),8) ELSE NULL END FROM live WHERE item_id='site')
 )
-SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) ORDER BY category,ident`;
+SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2)`;
+export const FACTS_SQL=FACTS_RELATION+' ORDER BY category,ident';
 export type Row={category:string;ident:string;value:string;generation?:string|null;revision?:number|null};
-export const FACTS_STATE_SQL=`SELECT f.*,(SELECT generation FROM public_artifact_state WHERE id=1) AS generation,(SELECT revision FROM public_artifact_state WHERE id=1) AS revision FROM (${FACTS_SQL}) f`;
+export const FACTS_STATE_SQL=`WITH dependency_facts AS (${FACTS_SQL})
+SELECT category,ident,value FROM (SELECT category,ident,value FROM dependency_facts
+UNION ALL SELECT 'artifact_state','site',json_array(generation,revision) FROM public_artifact_state WHERE id=1) AS transport_rows ORDER BY category,ident`;
 
 export type Facts={raw?:string[][];generation?:string|null;revision?:number|null;rows:unknown[];site:Record<string,any>;entries:{id:string;slug:string;stream:string;streamId:string;page:string;external:string;endpoint?:string;tags:string[]}[];hasSite:boolean;themed:boolean;disabled:boolean;private:boolean};
 const ordered=(v:any):any=>Array.isArray(v)?v.map(ordered):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,ordered(v[k])])):v;
@@ -54,7 +57,12 @@ export async function facts(db:D1Database,artifacts=false):Promise<Facts>{
  let rows:Row[];
  try{rows=(await db.prepare(FACTS_STATE_SQL).all<Row>()).results;}
  catch{return decode((await db.prepare(FACTS_SQL).all<Row>()).results);}
- return {...decode(rows),raw:rows.map(r=>[r.category,r.ident,r.value]),generation:rows[0]?.generation,revision:rows[0]?.revision};
+ const state=rows.filter(r=>r.category==='artifact_state'),dependencies=rows.filter(r=>r.category!=='artifact_state');
+ let generation:string|undefined,revision:number|undefined;
+ try{const value=state.length===1&&state[0].ident==='site'?JSON.parse(state[0].value):null;
+  if(Array.isArray(value)&&value.length===2&&typeof value[0]==='string'&&Number.isInteger(value[1]))[generation,revision]=value;
+ }catch{/* An unavailable state is never a matching generation. */}
+ return {...decode(dependencies),raw:dependencies.map(r=>[r.category,r.ident,r.value]),generation,revision};
 }
 
 export type Choice={base:string;query:string;type:string;kind:'html'|'markdown'|'map'|'plain'|'xml'|'feed';direct:boolean};
