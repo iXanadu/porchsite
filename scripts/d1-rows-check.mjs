@@ -42,17 +42,17 @@ async function execute(out) {
   const esbuild = require('esbuild');
   const { Miniflare, convertV4MiniflareOptions } = require('miniflare');
   const corpus = await fixtures(ROOT, esbuild, out);
-  const observerFiles = fs.readdirSync(path.join(ROOT, 'scripts/d1-rows')).sort().map(file => [file, hash(fs.readFileSync(path.join(ROOT, 'scripts/d1-rows', file)))]);
+  const observerFiles = ['fixtures.mjs','harness.mjs','measure.mjs','observer.mjs','record.mjs'].map(file => [file, hash(fs.readFileSync(path.join(ROOT, 'scripts/d1-rows', file)))]);
   const inputs = hash(JSON.stringify({ format: 1, seeds: corpus.map(({ name, sha256 }) => ({ name, sha256 })), clock: CLOCK, origin: ORIGIN, headers: HEADERS, compatibility: COMPATIBILITY, node: process.version, esbuild: esbuild.version, miniflare: require('miniflare/package.json').version, observerFiles }));
   const { current, previous } = entries();
   assert.match(previous.release, /^\d{4}\.\d{2}\.\d{2}-[a-f0-9]{7,40}$/);
   const previousRevision = previous.release.split('-')[1];
-  const archive = path.join(ROOT, 'cloudflare/downloads/releases', previous.release);
+  const archive = path.join(option('--archives') ?? path.join(ROOT, 'cloudflare/downloads/releases'), previous.release);
   const bundle = path.join(archive, 'sitekeeper.js');
   assert(fs.existsSync(bundle), 'previous archived Worker is missing');
   const archivedHash = hash(fs.readFileSync(bundle));
   // Verify the locally restored archive against its published release manifest.
-  const manifestPaths = [path.join(archive, 'files.json'), path.join(ROOT, 'cloudflare/downloads/dist/v', previous.release, 'files.json')];
+  const manifestPaths = [path.join(archive, 'files.json'), path.join(option('--manifests') ?? path.join(ROOT, 'cloudflare/downloads/dist/v'), previous.release, 'files.json')];
   const manifestPath = manifestPaths.find(file => fs.existsSync(file));
   assert(manifestPath, 'previous release files.json required to certify archive');
   const manifest = load(manifestPath);
@@ -68,6 +68,21 @@ async function execute(out) {
   let document = fs.existsSync(path.join(ROOT, FILE)) ? load(path.join(ROOT, FILE)) : null;
   let baseline = prior?.current;
   let bootstrap;
+  let rebased;
+  if (baseline && baseline.inputs_sha256 !== inputs) {
+    validate(baseline);
+    if (flag('--record') && flag('--rebase')) {
+      const measuredPrevious = await measure({ root: ROOT, out: path.join(out, 'previous'), bundle, migrations: path.join(archive, 'migrations'), corpus, source: hash('git:' + git('rev-parse', previousRevision)), inputs, Miniflare, convertV4MiniflareOptions });
+      rebased = { release: previous.release, artifact_sha256: archivedHash, original_record: baseline, record: measuredPrevious };
+    } else {
+      rebased = document?.rebased_previous;
+      assert.equal(rebased?.release, previous.release, 'measurement inputs changed: explicit --record --rebase required');
+      assert.equal(rebased?.artifact_sha256, archivedHash, 'rebased archive mismatch');
+      assert.deepEqual(rebased?.original_record, baseline, 'original previous record must be retained');
+      assert.equal(rebased?.record?.artifact_sha256, archivedHash);
+    }
+    baseline = rebased.record;
+  }
   if (!baseline) {
     if (flag('--record')) {
       baseline = await measure({ root: ROOT, out: path.join(out, 'previous'), bundle, migrations: path.join(archive, 'migrations'), corpus, source: hash('git:' + git('rev-parse', previousRevision)), inputs, Miniflare, convertV4MiniflareOptions });
@@ -90,7 +105,7 @@ async function execute(out) {
   assert.equal(built.length, 1, 'one emitted application module required');
   const measured = await measure({ root: ROOT, out: path.join(out, 'current'), bundle: path.join(out, 'build', built[0]), migrations: path.join(ROOT, 'cloudflare/migrations'), corpus, source: sourceFingerprint(), inputs, Miniflare, convertV4MiniflareOptions });
   if (flag('--record')) {
-    document = { format: 1, current: measured, ...(bootstrap ? { bootstrap_previous: bootstrap } : {}) };
+    document = { format: 1, current: measured, ...(bootstrap ? { bootstrap_previous: bootstrap } : {}), ...(rebased ? { rebased_previous: rebased } : {}) };
     fs.writeFileSync(path.join(ROOT, FILE), JSON.stringify(document, null, 2) + '\n');
     console.log('Prepared committed row record; commit it before the release check.');
   } else {
@@ -117,7 +132,8 @@ async function main() {
   let child, timedOut = false;
   try {
     const code = await new Promise((resolve, reject) => {
-      child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--execute', '--output', out, ...(flag('--record') ? ['--record'] : []), ...(release ? ['--release', release] : [])], { cwd: ROOT, stdio: 'inherit', detached: true });
+      const forwarded = ['--archives', '--manifests'].flatMap(name => option(name) ? [name, path.resolve(option(name))] : []);
+      child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--execute', '--output', out, ...forwarded, ...(flag('--record') ? ['--record'] : []), ...(flag('--rebase') ? ['--rebase'] : []), ...(release ? ['--release', release] : [])], { cwd: ROOT, stdio: 'inherit', detached: true });
       const stop = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } };
       const timer = setTimeout(() => { timedOut = true; stop(); }, 118_000);
       const terminate = () => { timedOut = true; stop(); };
