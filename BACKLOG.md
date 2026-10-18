@@ -95,13 +95,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   registration endpoints). Remove it and prove actual HTTP omission in
   both editions, as RFC 9110 §8.6 requires. Outside the MCP-only PAR-1-C1
   repair. Found 2026-10-18 during its correctness review.
-- **PAR-1-C1** OPEN: the server edition sends `Content-Length: 0` on the
-  /mcp OPTIONS 204; the HTTP standard (RFC 9110 §8.6) says a 204 must not
-  carry Content-Length. The Cloudflare edition's runtime strips it. The
-  preflight constant and the shared fixture set 0 explicitly, which hid the
-  difference. Fix: drop it from the constant and the fixture, and prove it's
-  absent on the wire in both editions. Status, body, CORS and auth are
-  correct. Found 2026-10-18 in PAR-1 acceptance.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it

@@ -1196,7 +1196,9 @@ key-first OPTIONS response from 200 to 204. Both editions' preflight has
 identical status, headers and empty body (with the same release label),
 as pinned by `spec/fixtures/mcp-preflight.json`; it contains no site data
 and performs no database/KV access or credential lookup. It cannot reveal
-whether a supplied key is valid. This contract concerns resource authentication, not OAuth consent/token
+whether a supplied key is valid. The 204 omits Content-Length entirely,
+including on the emitted HTTP wire in both editions (RFC 9110 §8.6);
+a zero value is not an acceptable substitute (PAR-1-C1). This contract concerns resource authentication, not OAuth consent/token
 endpoints, public/private page refusals, or tool errors in an authenticated
 MCP response. It grants no access and does not change writer/read-key scopes.
 

@@ -27,6 +27,6 @@ export function mcpRefusal(origin: string, invalid: boolean, description?: strin
 export function mcpPreflight(): Response {
   return new Response(null, {status: 204, headers: {
     ...MCP_CORS, "Access-Control-Expose-Headers": "mcp-session-id, WWW-Authenticate",
-    "Cache-Control": "private, no-store, no-transform", "Content-Length": "0",
+    "Cache-Control": "private, no-store, no-transform",
   }});
 }
