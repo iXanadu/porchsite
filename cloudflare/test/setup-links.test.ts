@@ -1,4 +1,4 @@
-// Claiming a fresh site from a link: /setup?code=... fills the code in,
+// Claiming a fresh site from fragment links or manually entered codes:
 // codes can be stored in the database with an expiry, a new one replaces the
 // old, and once the site is claimed every code is dead.
 // Port-matched: server/tests/app/test_web_setup_links.py.
@@ -37,24 +37,14 @@ async function refusal(p: Promise<unknown>): Promise<ApiError> {
 }
 
 describe("claiming from a setup link", () => {
-  it("fills the code in from the link and leaks nothing", async () => {
+  it("keeps manual entry credential-free", async () => {
     await unclaimed();
-    const page = await at("/setup?code=abcde-fghjk");
-    expect(page.status).toBe(200);
-    const text = await page.text();
-    expect(text).toContain('name="code" autocomplete="off" required value="abcde-fghjk"');
-    expect(text).toContain("Your setup code is filled in.");
-    expect(text).toContain('history.replaceState(null, "", location.pathname)');
-    expect(page.headers.get("Referrer-Policy")).toBe("no-referrer");
-    expect(page.headers.get("Cache-Control")).toBe("no-store");
     const bare = await at("/setup");
     const bareText = await bare.text();
     expect(bareText).toContain("required><label>Your name");
     expect(bareText).toContain("Enter the setup code you were given");
     expect(bare.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(bare.headers.get("Cache-Control")).toBe("no-store");
-    const odd = await at(`/setup?code=${encodeURIComponent('"><script>')}`);
-    expect(await odd.text()).toContain('value="&#34;&#62;&#60;script&#62;"');
     expect((await at("/login")).status).toBe(303);
   });
 
@@ -113,13 +103,13 @@ describe("claiming from a setup link", () => {
   });
 });
 
-// RA-9 introduces fragment links; query links remain accepted in this release.
+// Fragment links remain usable after the query compatibility cutoff.
 it("keeps the fragment out of server HTML and clears it before submit",async()=>{
  await unclaimed();const code='fragment-only-credential';const r=await at('/setup#code='+code),body=await r.text();
  expect(r.status).toBe(200);expect(body).not.toContain(code);expect(body).toContain('<form method="post" action="/setup/options">');expect(body).toContain('new URLSearchParams(location.hash.slice(1))');expect(body).toContain('input.value = code.trim().slice(0, 200)');
  expect(body.indexOf('history.replaceState')).toBeLessThan(body.indexOf('await fetch('));expect(body).not.toContain('innerHTML');
  expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
- const old=await at('/setup?code=legacy-code');expect(await old.text()).toContain('value="legacy-code"');
+ const old=await at('/setup?code=legacy-code');expect(old.status).toBe(400);expect(await old.text()).not.toContain('legacy-code');
 });
 
 it("pins the next-release query cutoff without reflecting a credential",async()=>{
@@ -128,6 +118,13 @@ it("pins the next-release query cutoff without reflecting a credential",async()=
   expect(r.status).toBe(400);expect(await r.json()).toEqual({error:'code_in_url',message:'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'});
   expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.get('Location')).toBeNull();
  }
- expect(setupQueryRefusal(new Request('https://site.example/setup?code=legacy'))).toBeNull();
+ expect(setupQueryRefusal(new Request('https://site.example/setup?code=legacy'),true)).toBeNull();
  expect(setupQueryRefusal(new Request('https://site.example/setup'),false)).toBeNull();
+});
+it('refuses decoded setup query keys on GET and HEAD before parsing any credential',async()=>{
+ await unclaimed();
+ for(const query of ['code=','%63ode=credential-canary','code=a&code=b','code=%3Cscript%3E'])for(const method of ['GET','HEAD']){
+  const r=await at('/setup?'+query,{method});expect(r.status).toBe(400);expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.has('Location')).toBe(false);
+  if(method==='HEAD')expect(await r.text()).toBe('');else expect(await r.json()).toEqual({error:'code_in_url',message:'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'});
+ }
 });

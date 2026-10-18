@@ -1,3 +1,4 @@
+import {optionalD1} from './daily-limit';
 /** Optional local response reuse. The caller has already run the live gate. */
 import * as read from './public-read';
 import {configuredOrigin,digest,type Proof,type Render} from './public-artifacts';
@@ -70,7 +71,7 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
  const response=await render();
  if(req.method!=='GET'||fills>=2||!storable(response,p,origin!))return response;
  fills++;
- const work=(async()=>{
+ const work=optionalD1(async()=>{
   const body=await boundedBody(response.clone());if(!body)return;
   const hash=await bodyDigest(body),now=Date.now(),until=Math.min(p.now+MAX_AGE,clock.next_change??Infinity);
   const ttl=Math.floor((until-now)/1000);if(ttl<1||!valid(clock))return;
@@ -80,7 +81,7 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
   const clone=new Response(body,{headers});
   if(await current(db,req,p,clock)!=='same'||!valid(clock)||Date.now()>=expires)return;
   await cache.put(request,clone);
- })().catch(()=>{}).finally(()=>{fills--;});
+ }).catch(()=>{}).finally(()=>{fills--;});
  if(waitUntil)waitUntil(work);else await work;
  return response;
 }

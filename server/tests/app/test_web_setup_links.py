@@ -1,4 +1,4 @@
-"""Claiming a fresh site from a link: /setup?code=... fills the code in, codes
+"""Claiming a fresh site through fragment links or manual entry; codes
 can be issued into the database with an expiry (the CLI's setup-link), a new
 one replaces the old, and once the site is claimed every code is dead. Port
 of cloudflare/test/setup-links.test.ts, plus the CLI."""
@@ -19,24 +19,14 @@ async def unclaimed(db):
         await db.execute(f"DELETE FROM {t}")
 
 
-async def test_a_link_fills_in_the_code_and_leaks_nothing(db, http):
+async def test_manual_entry_leaks_nothing(db, http):
     await unclaimed(db)
-    page = await http.get("/setup?code=abcde-fghjk")
-    assert page.status_code == 200
-    assert 'name="code" autocomplete="off" required value="abcde-fghjk"' in page.text
-    assert "Your setup code is filled in." in page.text
-    assert 'history.replaceState(null, "", location.pathname)' in page.text
-    assert page.headers["referrer-policy"] == "no-referrer"
-    assert page.headers["cache-control"] == "no-store"
     # Without a code: an empty field, the same headers.
     bare = await http.get("/setup")
     assert "required><label>Your name" in bare.text
     assert "Enter the setup code you were given" in bare.text
     assert bare.headers["referrer-policy"] == "no-referrer"
     assert bare.headers["cache-control"] == "no-store"
-    # The code is escaped into the page.
-    odd = await http.get('/setup?code="><script>')
-    assert 'value="&#34;&#62;&#60;script&#62;"' in odd.text
     # Other pages keep the usual policy.
     assert (await http.get("/login")).status_code == 303
 
@@ -151,7 +141,7 @@ async def test_fragment_stays_out_of_server_html_and_clears_before_submit(db,htt
     assert 'innerHTML' not in r.text
     assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
     old=await http.get('/setup?code=legacy-code')
-    assert 'value="legacy-code"' in old.text
+    assert old.status_code==400 and 'legacy-code' not in old.text
 
 async def test_next_release_query_cutoff_is_fixed_and_credential_free():
     from server.app.routes import setup_query_refusal
@@ -164,4 +154,15 @@ async def test_next_release_query_cutoff_is_fixed_and_credential_free():
         assert json.loads(r.body)=={'error':'code_in_url','message':'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'}
         assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
         assert 'location' not in r.headers
-        assert setup_query_refusal(req) is None
+        assert setup_query_refusal(req,True) is None
+
+async def test_decoded_setup_query_keys_get_and_head(db,http):
+    await unclaimed(db)
+    for query in ['code=','%63ode=credential-canary','code=a&code=b','code=%3Cscript%3E']:
+        for method in ['GET','HEAD']:
+            r=await http.request(method,'/setup?'+query)
+            assert r.status_code==400
+            assert r.headers['cache-control']=='no-store' and r.headers['referrer-policy']=='no-referrer'
+            assert 'location' not in r.headers
+            if method=='HEAD':assert r.content==b''
+            else:assert r.json()=={'error':'code_in_url','message':'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'}

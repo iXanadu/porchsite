@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /**
  * Assistant keys (SPEC §4): a bearer token the owner makes on
  * /review/assistants for an assistant whose app can't add a connector with
@@ -49,6 +50,7 @@ export async function revoke(db: D1Database, id: string): Promise<void> {
 
 /** The assistant a key stands for, or null when it's unknown, revoked or expired. */
 export async function lookup(db: D1Database, token: string, observe=true): Promise<{ client: string; clientId: string } | null> {
+ return dailyAccess(async()=>{
   if (!token.startsWith(PREFIX)) return null;
   const now = new Date().toISOString();
   const row = await db
@@ -58,4 +60,5 @@ export async function lookup(db: D1Database, token: string, observe=true): Promi
   if (!row) return null;
   if(observe)await db.prepare("UPDATE assistant_keys SET last_used_at = ? WHERE id = ?").bind(now, row.id).run();
   return { client: row.name, clientId: `key:${row.id}` };
+ });
 }

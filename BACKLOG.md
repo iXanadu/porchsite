@@ -69,6 +69,18 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
 
+6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
+   visitor's capped (201st and later) page view still reads about 206 rows
+   in 11 queries, so about 24,000 rejected views a day from one visitor
+   would use the account's free 5 million reads. And /collect CPU measured
+   a mean of 8.6-10 ms (max 22) against the free plan's 10 ms. Make the cap
+   check read one per-visitor-per-day counter row instead of counting
+   views, and measure /collect CPU locally against 315dc35.
+7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
+   `observability.redact_query_string` to false, so an owner's update
+   silently drops the log redaction RA-9 set at install. The update path's
+   upload metadata must carry it (as the installer's does).
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
@@ -138,7 +150,7 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
-- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs staged, owner approval required before merge): a plain free/paid/self-host
+- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs and runtime shipped; left: the porchsite.dev /costs page, drafted by Hand for the owner's review, then the link back into INSTALL.md and llms.txt): a plain free/paid/self-host
   explanation for people and assistants. It covers the Cloudflare free
   plan's limits; what happens when a site goes over (it stops, with no
   bill, and one busy site can stop others on the same account); the risk
@@ -161,17 +173,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **RA-9Q** OPEN (next product release after RA-9): end the one-release
-  setup query compatibility window. Unclaimed `/setup` requests with any
-  `code` query return `400 code_in_url`, with fixed credential-free text,
-  no-store and no-referrer. Claimed sites keep the redirect to login.
-  New links already use fragments; keep archived release tests untouched.
-- **RA-10Q** OPEN (immediately following product release after RA-10):
-  disable recovery-query compatibility. Refuse decoded `code` queries on
-  exactly `/recover`, `/recover/options` and `/recover/verify` after existing
-  method/preflight/origin checks and unclaimed-409 precedence; fixed
-  `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
-  Introducing recovery links already use fragments; keep archived tests.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it

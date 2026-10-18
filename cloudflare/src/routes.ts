@@ -1,4 +1,5 @@
 import {readRevision,initialFacts} from './content-revision';
+import {dailyOwnerAuthorized,optionalD1} from './daily-limit';
 import {plan as timePlan,valid as timeValid} from './public-time';
 import * as ownerReview from './owner-review';
 import {markdownDocument} from './agent-markdown';
@@ -136,7 +137,7 @@ function safeNext(next: string | null): string {
 }
 
 async function requireOwner(req: Request, env: Env): Promise<Response | null> {
-  if (await owner.signedIn(env.DB, req)) return null;
+  if (await owner.signedIn(env.DB, req)) {dailyOwnerAuthorized();return null;}
   if (await owner.readerSignedIn(env.DB, req)) return new Response(null,{status:303,headers:{Location:"/"}});
   const u = new URL(req.url);
   if (!(await owner.hasOwner(env.DB))) return Response.redirect(`${u.origin}/setup`, 303);
@@ -145,18 +146,26 @@ async function requireOwner(req: Request, env: Env): Promise<Response | null> {
 
 // --- owner: claim, sign in ---------------------------------------------------
 
-// New setup links use fragments; legacy queries work for this release.
+// Setup links use fragments; query credentials are refused.
 // Never send the code as a referrer or cache it; clear the address bar.
 const SETUP_HEADERS = { "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
 const SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n";
 const RECOVERY_JS = "(() => {\n  const fragment = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  const code = fragment !== null ? fragment : new URLSearchParams(location.search).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n  }\n})();\n";
 
-// Independent introducing-release window; RA-10Q disables it next release.
-const RECOVERY_QUERY_COMPAT = true;
+// The recovery query compatibility window ended after its introducing release.
+const RECOVERY_QUERY_COMPAT = false;
 export function recoveryQueryRefusal(req: Request, acceptLegacy = RECOVERY_QUERY_COMPAT): Response | null {
-  if (acceptLegacy || !new URL(req.url).searchParams.has("code")) return null;
+  const url = new URL(req.url);
+  const accepted = (url.pathname === "/recover" && ["GET","HEAD"].includes(req.method)) || (["/recover/options","/recover/verify"].includes(url.pathname) && req.method === "POST");
+  if (acceptLegacy || !accepted || !url.searchParams.has("code")) return null;
   const refusal = json({error:"code_in_url",message:"This recovery link is no longer supported. Ask for a fresh link or enter the code manually."},400,SETUP_HEADERS);
   return req.method === "HEAD" ? new Response(null,refusal) : refusal;
+}
+async function recoveryPostQueryRefusal(req: Request, env: Env): Promise<Response | null> {
+  const refusal = recoveryQueryRefusal(req);
+  if (!refusal) return null;
+  if (!(await owner.hasOwner(env.DB))) return json({error:"unclaimed",message:"This site has no owner yet."},409,SETUP_HEADERS);
+  return refusal;
 }
 async function recoveryBody(req: Request): Promise<Record<string,unknown>> {
   if ((req.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase() === "application/x-www-form-urlencoded") {
@@ -168,8 +177,8 @@ async function recoveryBody(req: Request): Promise<Record<string,unknown>> {
 
 const SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n";
 
-// Introducing-release compatibility only. Disable in the next product release.
-const SETUP_QUERY_COMPAT = true;
+// The setup query compatibility window ended after its introducing release.
+const SETUP_QUERY_COMPAT = false;
 export function setupQueryRefusal(req: Request, acceptLegacy = SETUP_QUERY_COMPAT): Response | null {
   if (acceptLegacy || !new URL(req.url).searchParams.has("code")) return null;
   return json({error:"code_in_url",message:"This setup link is no longer supported. Ask for a fresh link or enter the code manually."},400,SETUP_HEADERS);
@@ -1237,7 +1246,7 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   env={...env};
   const access = await privacy.access(env.DB,req);
   readStates.set(env,{access});
-  if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
+  if(access.isPrivate)await optionalD1(()=>publicArtifacts.clear(env.DB)).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
   const agent=access.isPrivate&&access.gated&&new URL(req.url).pathname!=='/robots.txt'?await privateAgent.respond(env.DB,req,(r,g)=>renderPrivateAgent(r,env,g)):null;
@@ -1252,7 +1261,7 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
-  if(!access.isPrivate&&!readStates.get(env)?.responseHit&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
+  if(!access.isPrivate&&!readStates.get(env)?.responseHit&&agentTraffic.countable(req,res)){const work=optionalD1(async()=>agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC'))).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }
@@ -1356,10 +1365,14 @@ async function routeInner(req: Request, env: Env): Promise<Response> {
     if (path === "/.well-known/porchsite-release" && m === "GET") return json({release:RELEASE,private_floor:await privacy.privateFloor(env.DB,RELEASE)},200,privacy.PRIVATE_HEADERS);
     if (path === "/recover" && m === "GET") return await recoveryPage(req,env);
     if (path === "/recover/options" && m === "POST") {
+      const refusal = await recoveryPostQueryRefusal(req,env); if (refusal) return refusal;
       const body = await recoveryBody(req); const r = await owner.recoverOptions(env.DB,req,String(body.code ?? ""));
       return json({options:r.options},200,{"Set-Cookie":r.setCookieHeader,...SETUP_HEADERS});
     }
-    if (path === "/recover/verify" && m === "POST") return signedInJson(await owner.recoverVerify(env.DB,req,await req.json().catch(() => ({}))));
+    if (path === "/recover/verify" && m === "POST") {
+      const refusal = await recoveryPostQueryRefusal(req,env); if (refusal) return refusal;
+      return signedInJson(await owner.recoverVerify(env.DB,req,await req.json().catch(() => ({}))));
+    }
     const invite = /^\/invite\/([A-Za-z0-9_-]{32})(\/options|\/verify)?$/.exec(path);
     if (invite && !invite[2] && m === "GET") return ownerPage("Reader invitation",html`<h1>Read this site</h1><p>Create your own passkey to read published pages. This does not give you owner access.</p><form><p class="error" hidden></p><button>Create reader passkey</button></form>`,{headers:SETUP_HEADERS,script:'history.replaceState(null,"","/login");\n'+PASSKEY_JS("invite","/",`invite/${invite[1]}`)});
     if (invite && invite[2] === "/options" && m === "POST") {

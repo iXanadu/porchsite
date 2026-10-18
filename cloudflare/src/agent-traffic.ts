@@ -1,3 +1,4 @@
+import {databaseIdentity} from './daily-limit';
 /** Aggregate-only request accounting; no request identifiers leave this module. */
 import table from "../../server/server/app/agent-traffic.json";
 import { esc as escapeHTML } from "./html";
@@ -25,8 +26,8 @@ export function countable(req: Request, response: Response): boolean {
 }
 type BufferState={pending:Map<string,number>;last:number;flight?:Promise<void>};
 const buffers=new WeakMap<D1Database,BufferState>();
-function buffer(db:D1Database){let state=buffers.get(db);if(!state){state={pending:new Map(),last:-Infinity};buffers.set(db,state);}return state;}
-export function reset(db:D1Database){buffers.delete(db);}
+function buffer(db:D1Database){db=databaseIdentity(db);let state=buffers.get(db);if(!state){state={pending:new Map(),last:-Infinity};buffers.set(db,state);}return state;}
+export function reset(db:D1Database){buffers.delete(databaseIdentity(db));}
 function add(state:BufferState,key:string,count:number){state.pending.set(key,(state.pending.get(key)??0)+count);while(state.pending.size>8)state.pending.delete(state.pending.keys().next().value!);}
 export async function flush(db:D1Database,now=Date.now()):Promise<void>{
  const state=buffer(db);if(state.flight)return state.flight;if(!state.pending.size||now-state.last<60000)return;

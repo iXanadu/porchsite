@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /** Request-local writer validation. Tokens never enter tool props or results. */
 import {AsyncLocalStorage} from 'node:async_hooks';
 import type {Env} from './env';
@@ -13,7 +14,7 @@ export function previewContext(props:Record<string,unknown>):Context|undefined{
  const request=requests.getStore();if(!request)return;
  markPreviewRead();
  const {req,env}=request;
- return {origin:env.SITE_URL??'',siteOrigin:String(props.origin),release:RELEASE,authorize:async()=>{
+ return {origin:env.SITE_URL??'',siteOrigin:String(props.origin),release:RELEASE,authorize:async()=>dailyAccess(async()=>{
   const refuse=():never=>{throw new ApiError(403,'unauthorized','This tool requires a live drafting connection.');};
   const token=/^Bearer[\t ]+([^\s,]+)$/i.exec(req.headers.get('Authorization')??'')?.[1];if(!token||token.startsWith('prk_')||props.scope==='published_read')return refuse();
   let principal:string;
@@ -24,5 +25,5 @@ export function previewContext(props:Record<string,unknown>):Context|undefined{
    let cursor:string|undefined,found=false;for(let pages=0;pages<8;pages++){const list=await env.OAUTH_PROVIDER.listUserGrants(summary.userId,{limit:100,cursor});if(list.items.some(g=>g.id===summary.grantId&&g.clientId===summary.grant.clientId&&(!g.expiresAt||g.expiresAt>Date.now()/1000))){found=true;break;}cursor=list.cursor;if(!cursor)break;}if(!found)return refuse();principal='oauth:'+summary.userId+':'+summary.grantId;
   }
   const epoch=await env.DB.prepare('SELECT owner_epoch FROM auth_state WHERE id=1').first<number>('owner_epoch');if(epoch===null)return refuse();return {principal,epoch};
- }};
+ })};
 }

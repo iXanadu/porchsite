@@ -233,7 +233,7 @@ function casesFor({ sample, rows }) {
   const tool = (name, args = {}, variant = '') => ({ name: `tool:${name}${variant}`, tool: name, args, status: 200 });
   const png = smallPng.toString('base64');
   return [get('public:home','/'),get('public:entry',path,entry.data.external_url?302:200),get('public:archive',`/${stream.path||stream.id}/`),get('public:tag',`/${stream.path||stream.id}/tags/${entry.data.tags?.[0]??'fixture'}/`),get('public:not_found','/missing-fixture/',404),get('public:feed',`/${stream.path||stream.id}/feed.xml`),get('public:search',`/${stream.path||stream.id}/search.json`),get('public:css','/static/site.css'),get('public:beacon','/static/a.js'),get('public:robots','/robots.txt'),get('public:sitemap','/sitemap.xml'),
-    get('public:login','/login'),{...get('public:setup','/setup?code=fixture'),ownerless:true},get('public:setup:claimed','/setup',303),
+    get('public:login','/login'),{...get('public:setup','/setup'),ownerless:true},get('public:setup:claimed','/setup',303),
     get('public:passkey',`/passkey/${passkeyToken}`),{...get('public:passkey:used',`/passkey/${passkeyToken}`,410),linkState:'used'},{...get('public:passkey:expired',`/passkey/${passkeyToken}`,410),linkState:'expired'},
     get('public:upload',`/upload/${uploadToken}`),{...get('public:upload:used',`/upload/${uploadToken}`,410),linkState:'used'},{...get('public:upload:expired',`/upload/${uploadToken}`,410),linkState:'expired'},
     {...get('public:authorize',()=>'/authorize?'+new URLSearchParams({client_id:oauthClientId,redirect_uri:'https://client.example/callback',response_type:'code',scope:'site:draft',code_challenge:'A'.repeat(43),code_challenge_method:'S256',state:'fixture'})),owner:true},get('public:media',`/media/${hash(smallPng).slice(0,32)}.png`),

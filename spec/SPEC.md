@@ -1970,6 +1970,191 @@ checks. The release metadata test requires reconnect, while the unchanged
 fixed-guide contract keeps its existing revision. Wording and permission
 boundaries receive review before runtime implementation.
 
+### CO-1: bounded tool cost facts and Cloudflare daily-limit responses
+
+This extends the approved cost guidance with two independent changes. The
+writer discovery text is paired across BOTH editions. Daily-limit response
+handling is a Cloudflare-edition extra; the server edition has no Cloudflare
+plan detection or invented quota error. Neither part authorizes installation,
+spending, account access, upgrading, payment, or enabling a paid feature.
+
+#### D: one fixed cost block in writer discovery
+
+In BOTH editions, insert this exact single-line UTF-8 block after AI-5's
+capability block in the writer's theme_list description, separated from the
+capability block and the existing operational suffix by exactly two LF
+characters each:
+
+```text
+Cloudflare cost facts: ask which plan; never assume. Free Workers/D1 have no usage bill; daily limits reset at midnight UTC. Paid usage has no hard spending cap. Never upgrade, add payment or enable a paid feature without the owner's separate explicit yes.
+```
+
+The cost text is exactly 256 UTF-8 bytes, 258 including its two trailing LF
+separators. The complete capability-plus-cost prefix is 962 bytes including
+all four LF separators, still within AI-5's 1,024-byte prefix ceiling. Measure
+the decoded description bytes, not JSON escapes or transport framing. Add it
+once per writer catalog, not once per tool. Existing AI-5 text and complete
+operational suffix remain byte-identical. No description is generated from
+site/account data or the account's assumed plan. The Cloudflare qualifier
+also applies when a server-edition assistant reads the same paired catalog.
+No costs-page URL is included before such a page exists.
+
+Only theme_list.description changes in writer tools/list: names, order,
+schemas, annotations, other descriptions, initialize/server instructions,
+site-state fixed-guide blocks/revision, tool results and public site discovery
+are unchanged. Restricted published-read clients keep their existing five
+tools, descriptions and instructions; they do not gain this block or any
+writer capability. The introducing changelog entry must set reconnect:true
+so cached discovery is refreshed, with no credential rotation. Regenerate
+the paired generated tool contract and only affected discovery snapshots.
+
+Reading the block is not a request, consent, an upgrade recommendation or a
+permission to inspect billing or contact a provider. Any plan/payment/paid
+feature needs the owner's separate explicit yes. Free Workers/D1 usage is
+not a promise about domains or other billed products. Asking about the plan
+must not obstruct an unrelated authorized content task when it is unnecessary.
+
+#### E: what the application can detect
+
+As documented on 2026-10-18, D1 reports separate free-tier daily row-read and
+row-write exceptions to its Worker binding. Their leading sentence has this
+fixed form (the angle-bracket choice is not literal):
+
+```text
+Your account has exceeded D1's free tier daily row <read|write> limit.
+```
+
+See [D1 error list](https://developers.cloudflare.com/d1/observability/debug-d1/)
+and [daily-limit enforcement](https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/).
+Only these two specific provider errors establish this condition. Classify
+exceptions at the native D1 execution boundary, never by scanning request
+bodies, SQL, tool arguments, user content, rendered HTML or arbitrary thrown
+application strings. Match the full leading sentence anchored at the start
+of the binding's message after an optional D1_ERROR prefix. The documented
+trailing provider explanation may follow; never echo it. A bounded cause
+message may be checked for older binding wrappers, without unbounded recursion
+or arbitrary string coercion. Preserve a typed internal daily-read/daily-write
+classification before existing catches can turn a required foreground DB
+failure into a generic error or a failed validation. A plain D1_ERROR prefix,
+429/503 status, storage exhaustion, CPU/memory/subrequest limit, overloaded DB,
+network failure or timeout is not evidence of the free daily allowance.
+
+Workers' separate daily request ceiling is Cloudflare error 1027. Cloudflare
+returns it instead of running this Worker (or bypasses a fail-open route),
+so this app cannot serve its own page or MCP reply at that ceiling. Retain
+fail-closed security routing; no fail-open route, external fallback origin,
+extra Worker or paid/account configuration is introduced. Document this
+boundary rather than claiming all free-limit failures get a Porchsite page.
+See [Workers daily requests](https://developers.cloudflare.com/workers/platform/limits/#daily-requests)
+and [platform errors](https://developers.cloudflare.com/workers/observability/errors/).
+
+Detection is reactive and request-local: no account-plan polling, billing
+API/token, extra D1/KV query/write, global exhaustion flag, per-account usage
+counter or predictive remaining-capacity calculation. No new persistence,
+schema, cache or automatic replay. A later independent request may succeed
+after midnight UTC; neither the error nor recovery automatically upgrades
+anything. The application does not claim an earlier recovery deadline or
+continued availability when a second platform limit remains exhausted.
+
+#### Fixed visitor, owner and tool responses
+
+For a recognized D1 daily failure preventing a required foreground operation,
+return status 503 rather than success, a cached copy, a 304 or partial content.
+No response body uses site data, title, theme, account identifiers, request
+URL/query, credential, SQL, raw exception, HTML from a failed render, or a
+partially constructed owner page. Rendering this response needs no database.
+Visitor text keeps the staged explanation, stating the reset rather than
+promising that every outage ends at that time:
+
+```text
+This site has reached today's free limit on its hosting. The free allowance resets at midnight UTC.
+```
+
+This is the daily reset expectation, not a guarantee that another outage or
+exhausted platform limit is repaired. HEAD has the same status/headers and
+an empty body. HTML uses a small built-in inert document, no site theme,
+script, form, external resource, analytics, auto-refresh or upgrade link.
+All quota responses have Cache-Control: private, no-store, no-transform,
+Referrer-Policy: no-referrer, X-Content-Type-Options: nosniff and a restrictive
+CSP (default-src 'none'; base-uri 'none'; frame-ancestors 'none'). No ETag,
+Last-Modified, Location or Set-Cookie is added. Existing release/CORS header
+rules still apply. Do not cache the response or prepare a public artifact.
+
+Only AFTER existing owner/writer authorization succeeded for this request,
+the review page or a writer tool failure may instead show this fixed text:
+
+```text
+This site has used today's free Cloudflare allowance, so it can't save changes until midnight UTC. Nothing has been charged for Workers or D1 usage on the free plan. Usage is under D1, then Metrics, in the Cloudflare dashboard.
+```
+
+This narrows the staged billing sentence to the products covered by the free
+plan; it makes no statement about domains, other products, prior paid usage
+or an account's total bill. No account metadata is fetched to produce it.
+A cookie, bearer header or owner URL by itself is not authorization. If D1
+failure prevents checking privacy, credentials, revocation, reader scope or
+owner sign-in, fail closed with the fixed visitor variant, never an owner
+page, owner details, authenticated tool result or content. Existing completed
+401/403/Origin/CSRF refusals keep precedence; quota handling cannot grant or
+bypass any access. Restricted read tools retain their existing access boundary
+and may receive only the visitor variant for an authorized read failure.
+
+HTTP JSON endpoints that require JSON return the ordinary refusal shape
+{error:"free_daily_limit",message:<the permitted fixed text>} with 503,
+never HTML or raw provider errors. On a successfully authorized, parsed MCP
+tools/call whose handler hits this limit, return the same error/message in
+the existing text-content tool error shape with isError:true, preserving the
+JSON-RPC request id and ordinary negotiated JSON/SSE envelope. Both fast and
+SDK fallback paths must agree. Do not invent structured success, empty items,
+guide metadata, approval ids or completed-write receipts. A failure before
+authentication/valid MCP parsing keeps the existing transport refusal shape;
+only its fixed safe message may identify the daily-limit condition. Never
+parse extra request bodies just to manufacture a tool reply.
+
+No new rollback or whole-request transaction guarantee is implied: a sequence
+may have committed an earlier valid operation before a later query failed.
+Never report successful publication/save for the failed operation, promise
+that nothing changed, or retry a mutation automatically. Preserve existing
+transaction/atomicity and approval boundaries; a fresh authorized read after
+reset establishes current state. Best-effort analytics, artifact cleanup or
+preparation failures in waitUntil do not replace an already valid response,
+leak a later error into another request, or turn a successful approved write
+into a fabricated failure. They retain existing best-effort semantics.
+
+#### Acceptance and release evidence
+
+Spec and wording review precede runtime changes. Shared exact-text/byte
+fixtures and paired native plus actual-MCP discovery prove only the single
+description leaf changes, exact suffix preservation, total prefix <=1,024,
+restricted catalogs unchanged and reconnect metadata required. Report decoded
+writer-catalog byte delta (+258) separately from GATE-2, which measures rows
+and does not measure discovery payload bytes.
+
+Cloudflare-only native faults inject EACH recognized read/write error at
+first/all/raw/run/batch execution and at privacy/auth, initial/final facts,
+prepared-copy lookup/admission, render, owner review, tool handler and an
+optional background operation. No exhausting a real account. Test bound cause
+wrappers and unrelated lookalikes (including the exact words inside content,
+SQL errors and tool args), all generic resource errors, concurrent unaffected
+requests and next-request recovery without a persisted flag. Preserve every
+existing privacy, CSRF, revocation, restricted-read and approval assertion.
+Prove no extra SQL to diagnose/render, no cached/304 or partial-content leak,
+no identifiers or credentials in response/application logs, no mutation retry,
+HEAD, JSON, and fast/SDK tool-envelope parity. A scratch broad-matcher or
+access-bypass negative control must fail the appropriate safety assertion.
+Workers1027 is a documented platform boundary, not a locally claimed custom
+response test or a reason to change account routing.
+
+Run affected paired discovery suites and full cross-edition ordinary, private,
+owner and tool parity, labeling only injected Cloudflare daily errors as an
+edition extra. Normal runtime entry, actual previous-release tests/archive
+and populated rollback remain required. No schema/dependency changes are
+needed. GATE-2's full record/check must retain unchanged healthy public numeric
+cells; record new source/artifact metadata rather than copy a prior hash.
+Any measured rows increase follows the existing justification/owner gate.
+Healthy public requests gain no quota probe or billing lookup; record catalog
+bytes independently. No CPU, hosted-capacity or billing saving is claimed.
+
+
 ### Updates
 
 **Update policy.** A site never updates itself. Nothing downloads, installs

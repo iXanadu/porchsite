@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /** Authorized private reads exist only in request memory, never artifact storage. */
 import * as owner from './owner';
 import {ApiError} from './errors';
@@ -10,6 +11,7 @@ type Principal={kind:string;id:string;epoch:string;props?:keys.Props};
 type Guard=()=>Promise<void>;
 type Render=(req:Request,guard:Guard)=>Promise<Response>;
 export async function principal(db:D1Database,req:Request):Promise<Principal|null>{
+ return dailyAccess(async()=>{
  if(req.headers.has('Authorization')){
   const token=/^Bearer[\t ]+(prk_[A-Za-z0-9_-]{32})$/i.exec(req.headers.get('Authorization')??'')?.[1];
   const props=token?await keys.lookup(db,token):null;
@@ -28,6 +30,7 @@ export async function principal(db:D1Database,req:Request):Promise<Principal|nul
  if(!row)return null;
  const epoch=kind==='owner'?await db.prepare('SELECT owner_epoch FROM auth_state WHERE id=1').first<number>('owner_epoch'):await db.prepare('SELECT epoch FROM reader_sessions WHERE token_hash=?').bind(hash).first<number>('epoch');
  return epoch===null?null:{kind,id:row.id,epoch:String(epoch)};
+ });
 }
 const identity=(p:Principal)=>JSON.stringify([p.kind,p.id,p.epoch]);
 export async function valid(db:D1Database,req:Request,p:Principal){const fresh=await principal(db,req);return !!fresh&&identity(fresh)===identity(p);}

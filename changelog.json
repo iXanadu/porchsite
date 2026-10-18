@@ -2,6 +2,27 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-8a38af0",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": true,
+      "migrations": [],
+      "changes": [
+        "Connected assistants now see the cost facts in the site's tool description: the free plan's limits, that paid usage has no spending cap, and that the owner's explicit yes is needed for any plan or payment change.",
+        "When the site's database reaches Cloudflare's free daily limit, owners and assistants get a plain explanation (nothing is charged; it resets at midnight UTC) and visitors see \"temporarily unavailable\". Reaching the Workers daily request limit still shows Cloudflare's own error page."
+      ]
+    },
+    {
+      "release": "2026.10.18-9381930",
+      "date": "2026-10-18",
+      "security": true,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "Setup and account-recovery links that carry their one-time code in the web address (the old ?code= form) are now refused. Links issued since the last two releases keep the code after # and work as before; ask for a new link if an old one is refused."
+      ]
+    },
+    {
       "release": "2026.10.18-3f0141a",
       "date": "2026-10-18",
       "security": false,
