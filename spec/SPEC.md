@@ -3484,6 +3484,139 @@ schema plus populated rollback/return remain unchanged and must pass. Audit
 native metadata checks on every affected old statement; no new trigger
 writes on a checked statement. No source result guard may be loosened.
 
+**One-write amendment (supersedes the admission ordering and cost allowance
+above).** The preliminary reconciliation upsert followed by a separate
+increment is rejected. Its cold accepted-view fixtures add three native D1
+writes. This amendment permits at most ONE additional native D1 row write
+per accepted event versus released AN-1, including a new visitor whose
+counter does not exist. A lower read count never waives this limit. Any
+accepted-event cell above +1 makes this optimization WONTFIX; retain the
+measured evidence and the released collector instead of requesting a
+higher write allowance.
+
+The Cloudflare table's exact proposed definition is:
+
+```sql
+CREATE TABLE analytics_visitor_counts (
+ day TEXT NOT NULL,
+ visitor TEXT NOT NULL,
+ views INTEGER NOT NULL CHECK (typeof(views) = 'integer' AND views BETWEEN 0 AND 200),
+ PRIMARY KEY (day, visitor)
+) WITHOUT ROWID;
+```
+
+There is no secondary index. WITHOUT ROWID makes the composite primary key
+the storage tree, avoiding an ordinary rowid table's separate primary-key
+index. This is a storage-design hypothesis, not D1 support or accounting
+proof. Prove this exact definition with the local native D1 binding and
+measure native rows_written for initialization and update. No hosted
+account operation is authorized. PostgreSQL retains its checked composite
+primary key; D1 write accounting is not inferred from PostgreSQL results.
+Only the new, unshipped counter migration may change. Retain every shipped
+migration and index, including 0026; no pageviews trigger or result rewrite.
+
+Keep the existing validation, retirement-horizon check and single counter
+lookup. A valid retained 200 certificate still refuses immediately. For a
+missing or unsaturated usable counter, the D1 admission batch has exactly
+TWO statements, in this order:
+
+1. The released AN-1 source INSERT OR IGNORE INTO pageviews, with all
+   existing fields and the exact actual-source cap guard:
+   `NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)`.
+   The host must not choose admission from a counter below 200. This
+   statement's native result retains `meta.changes === 1` as the success
+   proof; do not use the aggregate batch result or the counter's metadata.
+2. One post-insert counter reconciliation, with parameters respectively
+   derived day, derived visitor, derived day, derived visitor:
+
+```sql
+INSERT INTO analytics_visitor_counts (day, visitor, views)
+SELECT ?, ?, actual.n
+FROM (
+ SELECT COUNT(*) AS n
+ FROM (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 200)
+) AS actual
+WHERE changes() = 1 OR actual.n = 200
+ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views
+WHERE analytics_visitor_counts.views < excluded.views;
+```
+
+The immediately preceding source INSERT is the ONLY DML whose direct SQL
+changes() this statement may observe. No intervening salt, maintenance or
+counter statement is allowed. The SQL current count includes this newly
+inserted view, so initialization or advancement needs no extra increment.
+Do not obtain the count on the host. The batch serializes with old AN-1
+single-statement inserts and rolls both statements back on any required
+failure. An old writer before the batch is included in the source guard
+and post-insert count; an old writer after it keeps its own cap guard.
+Neither a stale counter nor a pre-batch read may admit the 201st view.
+
+If the source inserted one row, the bounded count produces that key's
+new certificate with one counter write. Otherwise a current count of 200
+may initialize or advance ONLY a saturation certificate. An under-cap
+duplicate does not allocate or advance a counter, even if its event id
+belongs to another visitor. A saturated duplicate may certify its actual
+saturated key, but never counts as an accepted view. Historical excess
+saturates at 200 and remains stored. Valid counters never decrease during
+an active retained day. Malformed state, retired days and missing schema
+keep the complete AN-1 fallback above, not this optimized branch with
+unchecked state. Deletion of a counter causes a guarded source insert and
+post-insert reconciliation; it cannot enable counter-only admission.
+
+PostgreSQL implements the same post-insert reconciliation ordering inside
+the existing AN-1 per-key advisory-lock transaction. Acquire that exact
+lock before current source reads; insert under the actual-source cap,
+then perform at most one counter upsert using the current bounded count
+and the real inserted-row result. Do not emulate SQLite changes() with
+batch totals. Duplicate, historical-excess, maintenance, rollback and
+privacy/CO-1 response invariants above remain binding in both editions.
+
+**Gate extension and hard cost proof.** Keep all existing GATE-2a page and
+operation cells and assertions. The existing collect/first_day and
+collect/repeat cells keep their missing-counter seeds: they prove new-key
+initialization, not steady existing-counter cost. Add exactly one named
+operation, `collect/existing_counter`, in copies OFF and ON. It starts
+with one real admitted source view for the derived day/visitor and, only
+when the schema contains the counter table, a matching valid views=1 row
+outside measurement. The released predecessor gets identical source rows
+and no invented schema. Submit a second distinct real /collect event;
+assert actual source count=2, one accepted event, candidate counter=2,
+unchanged empty 204/no-store/no-oracle behavior and complete background
+settlement. The additional operation uses a fresh isolate/database per
+mode like every existing operation. Do not seed a saturated certificate
+into an accepted-event case or change the original cold fixtures.
+
+This explicit method amendment changes 7 operations to 8, 92 cells per
+artifact to 94, and 184 expanded current/archive cells to 188. Version the
+operation manifest/input fingerprint; preserve the old committed record
+and remeasure the exact newest published predecessor for every matching
+cell. Do not copy old partial numbers or compare unlike fixtures. The
+WHOLE gate remains bounded by 120 seconds including setup/build, both
+matrices, audits and cleanup. No old cell, negative control or settlement
+work may be dropped to fit. Failure to fit requires review, not extension.
+
+Native acceptance requires first_day, missing-counter repeat and
+existing_counter, each OFF/ON, to add at most ONE rows_written versus the
+same released AN-1 outcome; retain the full native numeric vectors.
+Measure additional accepted-event diagnostic variants including final
+slot, new/missing counter, existing counter and reconciliation after old
+writes. A failed/refused insert must not be mislabeled accepted to avoid
+the limit. First cold saturated denial and subsequent steady denials are
+reported separately; steady denial still writes zero and scans no
+pageviews. The rest of /collect is never claimed to be one query.
+
+Retain all earlier race, old-runtime, rollback, malformed/missing schema,
+retention, exclusion, heartbeat, 204/visitor-503 and CPU obligations. Add
+negative controls that remove the actual-source guard, insert unrelated
+DML between source and changes(), skip counter reconciliation, or split
+the batch: the relevant original cap/atomicity/counter assertions must
+fail. Prove exact local D1 WITHOUT ROWID support and rows_written through
+the native GATE-2a operation path, not a host SQLite estimate, a fake
+metadata adapter or a source-only SQL inspection. Passing +1 is only the
+optimization's cost bar; any release increase still needs newest-entry
+rows_justification and the owner's separate approval. This specification
+claims no new native measurement, CPU result, implementation or release.
+
 **Preregistered diagnostic CPU comparison.** Before any timing, fix exact
 315dc35 (before AN-1), 3f0141a (AN-1) and the accepted main revision a55686c46d61db26a27813ae4c71bb1626e4f71c
 captured with this spec; build each normal production artifact once and retain its
