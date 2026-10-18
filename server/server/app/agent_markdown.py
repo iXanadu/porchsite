@@ -15,15 +15,22 @@ def inline_text(value):
     return trim(re.sub(r'[ \t\r\n\f]+', ' ', value))
 
 
-def block_text(value):
-    value = re.sub(r'^( {0,3})(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)', lambda m: m[1]+'\\'+m[2], value, flags=re.M)
-    return re.sub(r'^( {0,3}\d{1,9})([.)])(?= |$)', lambda m: m[1]+'\\'+m[2], value, flags=re.M)
+BLOCK = set('p div dl dt dd section article aside figure figcaption header footer summary tr h1 h2 h3 h4 h5 h6 pre ul ol blockquote table hr'.split())
+
+
+def block_text(value, protected_ranges=()):
+    ranges = list(protected_ranges)+[(m.start(),m.end()) for m in re.finditer(r'\\[\s\S]|(`+)[\s\S]*?\1',value) if m[1]]
+    def protect(m):
+        if any(a<=m.start()<b for a,b in ranges):
+            return m[0]
+        return m[1]+(m[3]+'\\'+m[4] if m[3] else '\\'+m[2])
+    return re.sub(r'^( {0,3})(?:(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)|(\d{1,9})([.)])(?= |$))',protect,value,flags=re.M)
 
 
 def md_text(value):
     value = re.sub(r'[\\`*_\[\]|]', lambda m: '\\'+m[0], value)
     value = re.sub(r'~{2,}', lambda m: m[0].replace('~', '\\~'), value)
-    return block_text(value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+    return value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
 def hidden(n):
@@ -82,6 +89,7 @@ def find(n, tag, visible=True):
 
 def children(n, render, markdown=False):
     result, previous = '', None
+    protected_ranges=[]
     # Direct text distinguishes mixed prose from an element-only label group.
     group = not any(not c['tag'] and inline_text(c['text']) for c in n['children'])
     for child in n['children']:
@@ -90,11 +98,22 @@ def children(n, render, markdown=False):
             continue
         if group and previous is not None and previous['tag'] and child['tag'] and result and result[-1] not in ' \t\r\n\f' and value[0] not in ' \t\r\n\f':
             result += ' '
-        if markdown and result.endswith('!') and value.startswith('['):
-            result = result[:-1]+'\\!'
+        if markdown and ((result.endswith('!') and value.startswith('[')) or (result.endswith('~') and value.startswith('~'))):
+            slashes=0
+            for ch in reversed(result[:-1]):
+                if ch!='\\': break
+                slashes+=1
+            if slashes%2==0:
+                result=result[:-1]+'\\'+result[-1]
+        start=len(result)
         result += value
+        if markdown and (child['tag'] in BLOCK or child['tag'] in ('main','body','root','li','code')):
+            protected_ranges.append((start,len(result)))
+        elif markdown and child['tag'] not in ('a','strong','b','em','i'):
+            protected_ranges.extend((start+a,start+b) for a,b in child.get('ranges',()))
         previous = child
-    return result
+    if markdown: n['ranges']=protected_ranges
+    return block_text(result,protected_ranges) if markdown and (n['tag'] in BLOCK or n['tag'] in ('main','body','root','li')) else result
 
 
 def text(n):
@@ -237,11 +256,11 @@ def markdown_document(source, canonical):
                 return '\n\n'+(trim(render(caption, depth+1))+'\n\n' if caption else '')+row(rows[0])+'\n| '+' | '.join(rules)+' |'+''.join('\n'+row(r) for r in rows[1:])+'\n\n'
         value = inner()
         if tag in ('p', 'div', 'dl', 'dt', 'dd', 'section', 'article', 'aside', 'figure', 'figcaption', 'header', 'footer', 'summary', 'tr'):
-            return '\n\n'+(block_text(trim(value)) if tag == 'p' else trim(value))+'\n\n'
+            return '\n\n'+trim(value)+'\n\n'
         return value+' | ' if tag in ('td', 'th') else value
 
     footer = find(body, 'footer')
     extra = render(footer) if footer and not find(main, 'footer') else ''
-    prefix = md_text(description)+'\n\n' if description and description not in inline_text(text(main)) else ''
+    prefix = block_text(md_text(description))+'\n\n' if description and description not in inline_text(text(main)) else ''
     content = re.sub(r'\n{3,}', '\n\n', re.sub(r'[ \t]+\n', '\n', trim(prefix+render(main)+extra)))
     return dict(title=title, description=description, markdown=('# '+md_text(title)+'\n\n' if title else '')+'<'+agent_url(canonical, canonical)+'>\n\n'+content+'\n')

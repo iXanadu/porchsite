@@ -22,6 +22,9 @@ class Visible(HTMLParser):
 @pytest.mark.parametrize('case',CASES,ids=lambda c:c['name'])
 def test_af_markdown_minimal_escaping(case):
     assert markdown_document(case['html'],case['canonical'])['markdown']==case['markdown']
-    rendered=MarkdownIt('commonmark').render(case['content'])
+    rendered=MarkdownIt('commonmark').enable(['strikethrough','table']).render(case['content'])
     assert ' '.join(''.join(Visible(rendered).parts).split())==case['visible']
     assert '<script>' not in rendered and 'href="javascript:' not in rendered
+
+    if case['name'].startswith('joined_'):
+        assert '<ol' not in rendered and '<s>' not in rendered and '<hr' not in rendered

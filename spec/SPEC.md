@@ -1904,7 +1904,12 @@ braces and interior hash/plus/hyphen characters are not blanket-escaped.
 Escape backslashes, square brackets and literal inline-format/code delimiters
 when needed to preserve visible text; encode angle brackets and ampersands
 so published text cannot become raw HTML or an entity. Protect leading
-heading, list, thematic-break and fence markers at a text line boundary.
+heading, list, thematic-break and fence markers after all inline children
+join at each emitted paragraph, root, list-item or quote boundary, regardless
+of the source container tag. Guard delimiter runs joined across inline
+elements too, including GFM strikethrough. Preserve generated child-block
+and code ranges through transparent containers; do not re-escape their
+intentional structure or code contents.
 Literal pipes remain escaped for the GFM table contract. Engine-generated
 links, emphasis, lists, headings and code retain their existing structure;
 code contents and URL serialization do not use prose escaping. Owner text

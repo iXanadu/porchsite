@@ -70,5 +70,173 @@
     "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\![Read.](<https://example.com/next/>) after!\n",
     "content": "\\![Read.](<https://example.com/next/>) after!",
     "visible": "!Read. after!"
+  },
+  {
+    "name": "joined_ordered_div",
+    "html": "<main><h1>Copy. (Title)!</h1><div>12<span>. item</span></div></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_section",
+    "html": "<main><h1>Copy. (Title)!</h1><section>12<span>. item</span></section></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_article",
+    "html": "<main><h1>Copy. (Title)!</h1><article>12<span>. item</span></article></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_aside",
+    "html": "<main><h1>Copy. (Title)!</h1><aside>12<span>. item</span></aside></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_footer",
+    "html": "<main><h1>Copy. (Title)!</h1><footer>12<span>. item</span></footer></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_figure",
+    "html": "<main><h1>Copy. (Title)!</h1><figure>12<span>. item</span></figure></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_header",
+    "html": "<main><h1>Copy. (Title)!</h1><header>12<span>. item</span></header></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_summary",
+    "html": "<main><h1>Copy. (Title)!</h1><summary>12<span>. item</span></summary></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_dl",
+    "html": "<main><h1>Copy. (Title)!</h1><dl>12<span>. item</span></dl></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_dt",
+    "html": "<main><h1>Copy. (Title)!</h1><dt>12<span>. item</span></dt></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_dd",
+    "html": "<main><h1>Copy. (Title)!</h1><dd>12<span>. item</span></dd></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_root",
+    "html": "<main><h1>Copy. (Title)!</h1>12<span>. item</span></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n12\\. item\n",
+    "content": "12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_list",
+    "html": "<main><h1>Copy. (Title)!</h1><ul><li>12<span>. item</span></li></ul></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n- 12\\. item\n",
+    "content": "- 12\\. item",
+    "visible": "12. item"
+  },
+  {
+    "name": "joined_ordered_quote",
+    "html": "<main><h1>Copy. (Title)!</h1><blockquote>12<span>) item</span></blockquote></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n> 12\\) item\n",
+    "content": "> 12\\) item",
+    "visible": "12) item"
+  },
+  {
+    "name": "joined_hr_div",
+    "html": "<main><h1>Copy. (Title)!</h1><div>--<span>--</span></div></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\----\n",
+    "content": "\\----",
+    "visible": "----"
+  },
+  {
+    "name": "joined_hr_section",
+    "html": "<main><h1>Copy. (Title)!</h1><section>--<span>-</span></section></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\---\n",
+    "content": "\\---",
+    "visible": "---"
+  },
+  {
+    "name": "joined_strike",
+    "html": "<main><h1>Copy. (Title)!</h1><p>~<span>~gone~</span>~</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n\\~~gone\\~~\n",
+    "content": "\\~~gone\\~~",
+    "visible": "~~gone~~"
+  },
+  {
+    "name": "joined_line_after_br",
+    "html": "<main><h1>Copy. (Title)!</h1><div>first<br>12<span>. item</span></div></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nfirst\n12\\. item\n",
+    "content": "first\n12\\. item",
+    "visible": "first 12. item"
+  },
+  {
+    "name": "generated_structures",
+    "html": "<main><h1>Copy. (Title)!</h1><div><h2>Deliberate</h2><ul><li>Item</li></ul><pre><code>12. raw\n---\n~~code~~</code></pre></div></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n## Deliberate\n\n- Item\n\n```\n12. raw\n---\n~~code~~\n```\n",
+    "content": "## Deliberate\n\n- Item\n\n```\n12. raw\n---\n~~code~~\n```",
+    "visible": "Deliberate Item 12. raw --- ~~code~~"
+  },
+  {
+    "name": "nested_inline_code",
+    "html": "<main><h1>Copy. (Title)!</h1><div><span><code>line\n12. raw</code></span><p>12<span>. item</span></p></div></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n` line\n12. raw `\n\n12\\. item\n",
+    "content": "` line\n12. raw `\n\n12\\. item",
+    "visible": "line 12. raw 12. item"
+  },
+  {
+    "name": "transparent_block_structure",
+    "html": "<main><h1>Copy. (Title)!</h1><details><summary>Details</summary><h2>Heading</h2><ul><li>Item</li></ul>12<span>. literal</span></details></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nDetails\n\n## Heading\n\n- Item\n\n12\\. literal\n",
+    "content": "Details\n\n## Heading\n\n- Item\n\n12\\. literal",
+    "visible": "Details Heading Item 12. literal"
   }
 ]
