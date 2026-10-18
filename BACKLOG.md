@@ -133,7 +133,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **AN-1** OPEN: the visitor beacon (`POST /collect`) has no rate limit.
+- **AN-1** IN-PROGRESS: the visitor beacon (`POST /collect`) has no rate limit.
   Each accepted page-view event writes at least one database row and runs
   the retention clean-up (a delete plus an aggregate insert) every time.
   On the free plan, a flood of fake events uses up the 100,000 daily

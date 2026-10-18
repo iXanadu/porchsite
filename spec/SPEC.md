@@ -2302,7 +2302,8 @@ makes no progress, but only increasing bounded engagement or scroll writes
 a row. Apply those maxima atomically so duplicate, out-of-order and
 concurrent heartbeats cannot lower recorded values. Keep the current input,
 wall-time, four-hour engagement and six-hour heartbeat limits unchanged.
-There is no visitor sampling or change to report calculations. The owner
+There is no visitor sampling; AN-1 below caps recorded page views without
+changing report calculations. The owner
 stats page and `site_stats` report notes
 say: "Time on page and scroll can lag up to a minute while someone is still
 reading." If a final beacon is lost, recorded time and scroll may be lower.
@@ -2340,6 +2341,201 @@ engaged time, how far down they read, landings, bounce rate, exits),
 sources, referring domains and tagged links, and, for the whole site,
 "Earlier, counts only": the kept days' visits and views by month, newest
 first.
+
+### AN-1: bounded visitor page views and daily retention
+
+This contract applies to both editions' existing `POST /collect`. The
+server edition has the same page-view and heartbeat endpoint. It adds no
+beacon fields, identifier, cookie, personal-data source, reporting tool or
+catalog change. Reconnecting assistants is not required.
+
+**Admission.** Record at most **200 distinct page views per visitor per
+site-local calendar day**. The key is exactly the existing `(day, visitor)`:
+the current daily salt and the existing address/user-agent hash, including
+the current 400-code-unit user-agent limit. Do not accept a client-supplied
+visitor hash, day, salt, counter or cap. Test views share the same cap as
+non-test views. An admitted view's existing heartbeat may still update it
+after the cap is reached; a dropped view has no row for a heartbeat to
+update. No-progress heartbeats still make no row changes. Heartbeat
+engagement, scroll, wall-time and six-hour bounds remain unchanged.
+
+A duplicate page-view id never consumes another slot, changes its original
+row, or resets a visitor's allowance. Invalid input, oversized input,
+excluded paths, opted-out visitors, bots and private-site collection remain
+excluded before the new admission/storage work. Keep the current id grammar
+(`[A-Za-z0-9_-]{8,64}`), path and event validation. Different valid ids do not
+bypass the cap. There is no per-path, content-id or test-flag allowance.
+
+Admission is an atomic check-and-insert, not an application SELECT followed
+by an unconditional INSERT. Add an index on `pageviews(day, visitor)` in
+both editions; retain the existing id primary key and day index. No
+per-event counter row is added. In D1 the existing full page-view INSERT
+becomes `INSERT OR IGNORE ... SELECT <the same bound values> WHERE NOT
+EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET
+199)`. The indexed existence subquery and insertion execute in one
+statement. All values remain bound parameters. No error-catching fallback
+may turn that into an uncapped insertion. At 199 rows, concurrent new ids
+can insert only one more; at 200, none can insert. An upgraded database
+already containing more than 200 rows for the key admits no more, without
+rewriting or deleting history. The index bounds the matching entries
+examined by this subquery to 200, not the whole site's history. SQL plans
+and actual rows-read counters still need verification.
+
+In PostgreSQL, take a transaction-scoped advisory lock derived from the
+existing day and visitor hash before the same indexed existence check and
+conflict-safe insertion. Derive the lock key deterministically with a
+fixed encoding and SHA-256 truncated to a signed 64-bit integer, identical
+for every collector in this edition; collisions only serialize unrelated
+collectors. No lock key or lock mapping is persisted. Acquire this lock
+in a separate statement before the READ COMMITTED admission statement so
+its snapshot sees a completed predecessor's insertion. A transaction
+rollback releases the lock. A bare SELECT/INSERT pair without this
+serialization, or relying on READ COMMITTED alone, does not meet the cap.
+
+**Observable behavior and statistics.** Successful, duplicate, malformed,
+over-cap and unavailable-storage collection responses are all empty 204
+with the existing `Cache-Control: no-store`, no new response headers,
+retry interval, remaining-count value, cookie or explanatory body. Preserve
+the existing private response headers. Catch collection storage failures
+at the analytics boundary, never in the site's mutation/authentication
+handlers; do not fall back to a different database or uncapped writes.
+This is response-shape indistinguishability, not a constant-time request
+claim. The collector's internal accepted boolean is not exposed publicly.
+
+Report calculations, grouping, bounce, engagement and filtering remain
+unchanged. For every visitor below or at 200 admitted views per day, the
+same valid events and heartbeats yield the same reports as before. A real
+visitor exceeding 200 views loses excess views too: do not claim all human
+analytics are unchanged. Append this exact sentence to both editions'
+existing report notes: "At most 200 page views per visitor per day are
+recorded; additional page views are omitted." No public drop counters or
+visitor-specific cap-status endpoint is added.
+
+**Retention once per day.** Add one singleton table row
+`analytics_maintenance(id=1, completed_day)` with an initially empty day.
+It contains only a maintenance date, no visitor information. On an
+otherwise valid public page-view event, read this primary-key row. If its
+stored day is earlier than the event's server-derived site-local day D,
+perform the existing retention work in one transaction/batch: remove salts
+before D; aggregate non-test views before D minus 90 days into the existing
+`analytics_daily` rows; remove those expired page views; finally set
+`completed_day=D`. Keep the existing aggregate columns, conflict behavior,
+90-day cutoff and test exclusion. Each of those statements must check the
+same singleton `completed_day < D` predicate within the transaction.
+The final marker update is conditional on that predicate too. A stale
+outside read cannot authorize a second cleanup after another collector
+commits. In PostgreSQL lock the singleton row before rechecking the
+predicate, and hold it through commit. In D1 use a single transactional
+batch with all four predicates and update the marker last. Failure rolls
+back aggregation, deletion and marker together; never mark incomplete
+cleanup successful or delete rows without their retained aggregate.
+
+There is at most one committed cleanup per increasing site-local date,
+regardless of concurrency, duplicate ids, or visitor cap. With no valid
+page views there is no scheduled job; cleanup is deferred. A clock or
+timezone change moving the day backwards does not lower the watermark or
+repeat prior cleanup; cleanup resumes when a later date arrives. Existing
+hash/day timezone semantics are unchanged. Daily salt creation remains
+conflict-safe and uses the existing cryptographic source; no IP or raw
+user agent is stored. Housekeeping does not create cross-day visitor
+links. Delayed cleanup can retain an old salt until the next valid page
+view, as an idle site already does; historical hashes are never rehashed
+or reassigned. The maintenance transaction must finish before this
+request creates/reads the day's salt and attempts admission.
+
+These are additive migrations. Existing views, salts and daily totals are
+not reset on upgrade. A previous runtime continues to read/write its old
+schema and ignore the marker; while that runtime is running it can exceed
+the cap and repeat cleanup. Do not claim enforcement across a rollback to
+an unaware runtime. On return to the current runtime, existing rows count
+toward the cap and the normal cleanup resumes; no missing-column fallback
+may silently disable it. Test populated rollback and return explicitly.
+
+**Threat boundary.** This limits stored page views for one existing daily
+visitor key, not all events from a person or a distributed attack. Changing
+a user agent, address or day changes that key. NAT users with the same
+user agent already share it. IP input keeps its existing edition trust
+boundary: trusted Cloudflare connecting address on Workers; the server's
+existing trusted-proxy configuration. Arbitrary forwarded headers must
+not become a new client-controlled limiter identity. No new fingerprint,
+IP-only persistent counter, cross-day tracking, request log or rejection
+log is allowed. A flood of distinct keys can still exhaust Workers
+requests, D1 reads/writes or heartbeat writes. This change must not be
+advertised as a site-wide daily billing ceiling or complete denial-of-
+service protection. A global budget or heartbeat admission change needs
+its own owner decision and spec; it is not implicitly authorized here.
+
+**Cloudflare binding assessment.** The Workers Rate Limiting binding is GA
+and supports only 10- or 60-second windows, with eventually consistent,
+location-local counters rather than precise global accounting. Its
+published examples' "free users" describe an application's customers,
+not Workers Free entitlement. The documentation reviewed here does not
+explicitly establish Workers Free availability/pricing for this binding.
+Therefore this proposal uses D1 only and adds no binding or deployment
+requirement; do not infer availability from WAF rules or the GA label.
+Even if availability is established later, this binding cannot replace
+the exact daily database admission rule.
+
+Sources for this assessment and measurement terminology:
+- [Workers Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+- [Workers Rate Limiting GA](https://developers.cloudflare.com/changelog/post/2025-09-19-ratelimit-workers-ga/).
+- [D1 pricing and row metrics](https://developers.cloudflare.com/d1/platform/pricing/).
+
+**Cost and release evidence.** No CPU or D1 billing saving is established
+by this spec-only proposal. Statement counts below describe the analytics
+layer after the existing site-day lookup, whose queries and cost are
+measured separately. "Write" means an SQL mutation statement; changed
+rows and billed `meta.rows_written` are separate quantities.
+
+| Case | Before: statements | Proposed: statements | Expected changed rows in steady state |
+| --- | --- | --- | --- |
+| Valid page view, cleanup already done, salt exists | 3 cleanup + salt insert/select + view insert = 6 | marker read + salt insert/select + guarded view insert = 4 | 1 admitted view; 0 new view on duplicate/cap |
+| First valid page view needing cleanup | same 6 | marker read + 4-statement cleanup batch + salt insert/select + guarded insert = 8 | existing retention rows + 1 marker update, plus salt/view when new |
+| Invalid/opted-out/bot/blocked path | 0 | 0 | 0 |
+| Known heartbeat | 1 read + 1 conditional update | unchanged | 0 without progress; at most 1 view row with progress |
+| Unknown/dropped-view heartbeat | 1 read | unchanged | 0 |
+
+The new covering index increases write/storage cost for admitted inserts
+and retention deletes; it is not free. The cap subquery examines up to
+200 matching index entries per valid page-view attempt, including dropped
+attempts. Marker reads and rejected admissions still consume D1 reads.
+An ignored INSERT is not assumed free without measuring its actual row
+metrics. Salt creation and cleanup are separate daily overhead, not
+charged as a fictitious write on every warm event. For N valid views on
+a stable day, cleanup changes from N attempts to one committed run;
+actual row changes need not have been nonzero on every old attempt.
+
+Before a runtime freeze, retain exact baseline/candidate SQL, query plans,
+statement vectors, `meta.rows_read`, `meta.rows_written`, changes, index
+sizes and rows returned for: empty day/first salt, warm below-cap, 199th/
+200th/201st unique view, duplicate id, repeated denied views, unknown and
+progress/no-progress heartbeats, and a day with representative expired
+rows. Include a flood of 1,000 valid ids for one visitor and an equal-size
+rotating-key control; report total costs as well as per-event medians.
+Do not label SQLite VM steps or Postgres row changes as D1 billing.
+
+Measure CPU on unchanged normal minified Worker entry with actual
+`POST /collect`, both response/prepared caches off: at least 12 interleaved
+fresh-process pairs per above admission/cleanup class, plus warmed repeated
+batches, same seeds/headers/origin and explicit completion/drain accounting.
+Keep timing and SQL observers in separate runs; report startup separately,
+all vectors and any added below-cap cost, not only flood savings. PostgreSQL
+gets paired correctness/transaction proof and separately labelled CPU
+measurements. No invented hosted, zero-overhead or under-10-ms claim.
+
+Paired safety tests cover all cap boundaries; duplicate/malformed ids;
+concurrent claims for the final slot (exactly one insert); test/non-test
+sharing; invalid inputs causing no new database work; daily rollover and
+timezone/backwards clock; no client-selected day/hash; trusted IP boundary;
+maintenance races and transaction fault rollback at every statement; exact
+retained historical aggregates; same below-cap report snapshots; expected
+above-cap omissions and report note; private/owner/bot opt-outs; heartbeats
+on admitted versus dropped ids; and silent 204 on analytics storage errors.
+Temporarily bypass the atomic admission/maintenance guard in scratch copies
+and show the concurrent tests fail. Preserve original assertions and
+negative-control evidence. Full two-edition gates, real public/private
+HTTP, actual previous-release rollback/return and independent acceptance
+remain required. No schema/runtime implementation before spec review.
 
 ## 9. Edition extras
 
