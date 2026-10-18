@@ -23,4 +23,6 @@ versus 20 ms without response reuse, above the 10 ms CPU budget.
 These are local measurements, not hosted or tail-latency results, and are
 not an enablement recommendation. A hosted decision needs the owner's
 approval and measurements for that site's hit rate and hit/miss costs.
+These measurements predate the prepared-copy proof optimization; repeat the
+comparison for the deployment being considered.
 See [the response reuse contract](spec/SPEC.md#perf-4-optional-public-response-reuse).

@@ -4678,6 +4678,9 @@ The unprepared miss median was about 29 ms versus 20 ms without this cache,
 further above the 10 ms CPU budget. Measure the site's hit rate and hit/miss
 costs before any hosted enablement decision; default remains off. Neither
 these observations nor twelve samples establish hosted or tail latency.
+These measurements predate the prepared-copy proof optimization; repeat the
+comparison for the deployment being considered, especially with prepared
+copies enabled.
 
 Eligibility is a successful anonymous public GET or HEAD representation of
 HTML, page Markdown or the public map. Run the existing live private-site gate
