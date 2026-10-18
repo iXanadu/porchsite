@@ -99,6 +99,7 @@ def fresh_tables(test_dsn):
         c = await asyncpg.connect(test_dsn)
         try:
             await c.execute(f"TRUNCATE {TABLES} RESTART IDENTITY")
+            await c.execute("UPDATE analytics_maintenance SET completed_day = '' WHERE id = 1")
             await c.execute("UPDATE auth_state SET owner_epoch = 0, private_floor = '' WHERE id = 1")
         finally:
             await c.close()

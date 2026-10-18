@@ -357,6 +357,15 @@ CREATE TABLE agent_read_session_ids (
 );
 """),
 
+    ("0020_analytics_admission", """
+CREATE INDEX pageviews_day_visitor ON pageviews (day, visitor);
+CREATE TABLE analytics_maintenance (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  completed_day TEXT NOT NULL
+);
+INSERT INTO analytics_maintenance (id, completed_day) VALUES (1, '');
+"""),
+
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

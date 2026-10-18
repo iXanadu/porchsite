@@ -26,3 +26,12 @@ approval and measurements for that site's hit rate and hit/miss costs.
 These measurements predate the prepared-copy proof optimization; repeat the
 comparison for the deployment being considered.
 See [the response reuse contract](spec/SPEC.md#perf-4-optional-public-response-reuse).
+
+Visitor statistics record at most 200 page views per visitor per day. The
+visitor key is the existing daily salted address/user-agent hash; raw
+addresses and user agents are not stored. Rotating IP addresses or user
+agents produces new keys. Database reads and heartbeat writes remain
+uncapped; this is not a site-wide quota or complete denial-of-service
+protection. Views above the cap are omitted, including real visitors'
+views. Retention cleanup runs at most once per increasing site-local date
+when a valid page-view event arrives.
