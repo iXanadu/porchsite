@@ -299,6 +299,24 @@ def _field(form: Any, name: str) -> str:
 # Never send the code as a referrer or cache it; clear the address bar.
 SETUP_HEADERS = [("Referrer-Policy", "no-referrer"), ("Cache-Control", "no-store")]
 SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n"
+RECOVERY_JS = "(() => {\n  const fragment = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  const code = fragment !== null ? fragment : new URLSearchParams(location.search).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n  }\n})();\n"
+
+# Independent introducing-release window; RA-10Q disables it next release.
+RECOVERY_QUERY_COMPAT = True
+
+def recovery_query_refusal(req: Request, accept_legacy: bool = RECOVERY_QUERY_COMPAT) -> Response | None:
+    if accept_legacy or "code" not in req.query_params:
+        return None
+    refusal = json_response({"error": "code_in_url", "message": "This recovery link is no longer supported. Ask for a fresh link or enter the code manually."}, 400, SETUP_HEADERS)
+    return Response(status_code=400, headers=refusal.headers) if req.method == "HEAD" else refusal
+
+async def recovery_body(req: Request) -> dict:
+    if req.headers.get("content-type", "").split(";")[0].strip().lower() == "application/x-www-form-urlencoded":
+        from urllib.parse import parse_qsl
+        return dict(parse_qsl((await req.body()).decode("utf-8", "replace"), keep_blank_values=True))
+    value = await _json_body(req)
+    return value if isinstance(value, dict) else {}
+
 SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n"
 
 
@@ -1703,7 +1721,7 @@ async def _route_inner(req: Request, cx: Context) -> Response:
         if path == "/recover" and m == "GET":
             return await recovery_page(req,cx)
         if path == "/recover/options" and m == "POST":
-            body = await _json_body(req)
+            body = await recovery_body(req)
             options,cookie = await owner.recover_options(cx.db,req,str(body.get("code") or ""))
             return json_response({"options":options},headers=[("Set-Cookie",cookie),("Referrer-Policy","no-referrer")])
         if path == "/recover/verify" and m == "POST":
@@ -1952,9 +1970,11 @@ async def recovery_page(req,cx):
     headers = [("Referrer-Policy","no-referrer")]
     if not await owner.has_owner(cx.db):
         return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
-    code = req.query_params.get("code","")[:200]
-    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
-    return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review/readers?after=recovery"))
+    refusal = recovery_query_refusal(req, RECOVERY_QUERY_COMPAT)
+    if refusal is not None:
+        return refusal
+    body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form method="post" action="/recover/options"><label>Recovery code</label><input type="password" name="code" autocomplete="off" required><p class="error" hidden></p><button>Recover my site</button></form>'
+    return owner_page("Recover owner access",body,headers=headers,script=RECOVERY_JS+passkey_js("recover","/review/readers?after=recovery"))
 
 
 async def readers_page(req,cx):

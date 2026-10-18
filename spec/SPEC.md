@@ -557,6 +557,167 @@ reader epoch. Concurrent completion of one recovery code has one winner.
 Hosting-account control already grants owner-equivalent authority; recovery
 does not protect against a hosting-account compromise.
 
+#### RA-10: recovery codes outside request URLs (both editions)
+
+Recovery remains the existing hosting-account credential flow above; this
+change does not create an assistant tool, issuance endpoint or alternative
+owner approval path. It changes link transport and its transition, not the
+recovery transaction, authority, content or reader-passkey policy.
+
+**Existing storage and issuance.** Both editions already use
+`recovery_codes(code_hash, created_at, expires_at)`. Keep the existing hash:
+SHA-256 of the UTF-8 code, encoded as unpadded base64url (43 characters).
+The hosting scripts/CLI generate 24 random bytes (192 bits) outside SQL and
+store only that digest and timestamps. No plaintext credential, new hash
+scheme, migration, secret binding, cookie or tracking field is introduced.
+Existing digests, expiry values and pending recovery challenges stay valid.
+Recovery remains available only after claim, including when all old owner
+passkeys are lost; an unclaimed site still refuses with `409 unclaimed`.
+The normal lifetime stays 24 hours, with the server CLI's existing explicit
+`--hours` override. Starting options does not consume or extend a code.
+Replacement, expiry and a competing successful recovery still invalidate a
+pending recovery at the existing final transactional authorization point.
+Do not claim that SQL lookup or the whole recovery request is constant time;
+RA-10 does not change that lookup or relax any verification.
+
+**New links.** The Cloudflare hosting-operator
+`cloudflare/scripts/recovery-link.mjs` and server `recovery-link` CLI print
+`/recover#code=<URL-encoded-code>` at the configured site origin. Neither
+prints a `?code=` link or offers a flag to keep generating one. Guides in
+INSTALL, llms.txt and self-hosting explain that the link is a one-use
+credential, expires at the printed time, replaces the previous link, and
+must be given privately to the owner. The code must not be copied into an
+MCP catalog, shared report, application log, shell argument, SQL text or
+exception. Printing the intended private link to the issuing operator is
+not permission to retain it in logs. Existing hosting-account authority and
+parameterized hash-only database writes remain the issuance boundary.
+
+**Browser transport.** The fragment is not part of the HTTP request target.
+On the recovery page, the script reads its own fragment's `code` field and
+assigns the decoded value only through the password input's DOM `value`
+property, never HTML/string interpolation, `innerHTML` or execution. Before
+any fetch, asynchronous ceremony work or form submission, it clears BOTH
+query and fragment with `history.replaceState` to the same `/recover` path.
+The present shared setup/recovery script already supports fragment fill;
+keep that behavior byte-identical across editions or introduce an equally
+paired recovery helper without changing setup's own compatibility flag.
+No code is put into a resource URL, redirect, referrer or success destination.
+
+During query compatibility, a fragment `code` takes precedence, including
+an explicitly empty fragment value. The legacy query code may be read into
+the input by the same DOM-only mechanism when there is no fragment code;
+no credential needs to be server-interpolated into recovery HTML. Preserve
+the existing trim and 200-character UI bound; issuer-generated codes fit
+that bound. Without an automatically filled code the owner can type it.
+The form has explicit `method="post" action="/recover/options"`, preventing
+the browser's default GET submission from putting typed text in a URL if
+JavaScript is unavailable. Actual WebAuthn recovery still requires a
+supported browser and its passkey script; this is not a no-JavaScript
+completion claim. `/recover/options` accepts the existing JSON body and
+the explicit form's URL-encoded body; neither takes a code from the query.
+Malformed JSON becomes a fixed credential-free refusal, never a parser
+message containing submitted text. Verification JSON failures likewise
+must not echo credentials or bodies. Preserve existing refusal classes and
+all origin/RP/challenge/user-verification checks.
+
+The page, options, verification and cutoff refusal retain `no-store` and
+`Referrer-Policy: no-referrer` in public and private mode; HEAD retains its
+empty-body semantics. Successful recovery still navigates to the fixed
+`/review/readers?after=recovery`, after the existing atomic session/passkey
+operation commits. That URL carries no code, fragment or challenge. The
+owner can still review surviving reader access there; no automatic reader
+passkey deletion or assistant permission is added.
+
+**One-release query window.** Add a separate paired
+`RECOVERY_QUERY_COMPAT` flag, `true` only for the release introducing RA-10.
+New issuers always use fragments. That release still accepts old
+`/recover?code=...` links and existing valid recovery rows/challenges.
+A pure/testable cutoff helper can be exercised with compatibility disabled
+without changing the introducing runtime's setting. Do not couple this
+flag to RA-9's setup-query flag: the two introduction/cutoff releases may
+differ, and RA-9Q remains independently due.
+
+At the immediately following product release set this flag to `false`.
+On a claimed site, GET/HEAD `/recover` with ANY decoded `code` query
+parameter then refuses with `400 code_in_url` before using that value.
+This includes empty, repeated or percent-encoded parameter-name forms;
+no historical code lookup, HTML fill or redirect consumes it. Use the exact
+fixed message: "This recovery link is no longer supported. Ask for a fresh
+link or enter the code manually." No value is reflected. `/recover`
+without that query remains available for manual entry and fragment links.
+The existing unclaimed-site check still runs first and returns its fixed
+`409 unclaimed` without reflecting the URL. A fragment cannot override a
+cutoff query refusal because the server never receives the fragment.
+
+The introducing release records an RA-10Q follow-up in the canonical
+BACKLOG, naming the immediately following product release as the cutoff.
+Do not leave compatibility enabled through another product release. Its
+release gate tests disabled-flag behavior before introduction and verifies
+the flag is actually off in the cutoff release. Keep archived tests and
+assertions untouched. The upgrade gate runs old code on the new schema;
+new issuer-text tests belong to the new release. No blanket test exception,
+CLI transition flag, credential rotation or schema change is needed.
+
+**Log boundary.** Keep RA-9's installed
+`observability.redact_query_string: true` at the observability root,
+server `--no-access-log`, and supplied proxy logging defaults. These help
+with legacy query links during transition, but the source fix is fragment
+issuance and POST-only transport. The app cannot erase an initial legacy
+query from external access logs or promise redaction of arbitrary operator,
+Tail, Logpush, third-party or old retained records. Do not silently mutate
+hosting-account settings. No additional console events or credential/body
+logging is introduced by this change.
+
+**Paired acceptance.** Before runtime freeze, prove:
+
+- Both issuers print a fragment-only link, retain 24-byte randomness,
+  exact existing digest/expiry representation and hash-only SQL parameters;
+  no plaintext appears in mocked hosting requests, error output or reports.
+- Actual browser recovery in BOTH editions from a fresh fragment link:
+  all HTTP request URLs omit the code, password `value` is exact,
+  HTML/script canaries never execute, search/hash clear before options,
+  only POST body carries the code, and success reaches the fixed reader
+  page with the intended new owner session. No live hosting-account call
+  or real owner's profile is needed for this local evidence.
+- Introducing-release legacy query links work, including fragment/query
+  disagreement and empty-fragment precedence; only the initial legacy GET
+  can contain that legacy query. Form POST/manual-entry and malformed
+  options/verify bodies cannot move a code into a URL or refusal message.
+- The disabled-compat helper refuses empty/repeated/encoded-name queries
+  with exact fixed status/message/headers and no reflection; unclaimed
+  precedence, private behavior, HEAD and normal fragment/manual paths hold.
+- Existing one-winner recovery, replacement after options, exclusive
+  expiry, old in-flight challenge compatibility, captured-epoch fencing,
+  old-session/passkey invalidation, reader-passkey survival and cancelled
+  invites remain pinned by their original assertions. No removed checks,
+  weaker race observations, skips or new success-on-error fallbacks.
+- Normal minified Worker and actual server entry, paired public/private
+  HTTP and current full safety gates, plus actual previous-release tests,
+  archived Worker and both populated rollback/return paths all pass.
+  No catalog/reconnect, database-query or CPU-saving claim is part of RA-10.
+
+Both security and correctness review of this contract precede
+implementation and release coordination.
+
+#### RA-10Q: recovery query cutoff (the following product release)
+
+This follow-up belongs to the immediately following product release after
+RA-10, not the introducing release. On that cutoff release, disable
+`RECOVERY_QUERY_COMPAT` and refuse a decoded `code` query on exactly
+`/recover`, `/recover/options` and `/recover/verify`, for their existing
+accepted methods. Do not use a `/recover*` prefix or open new methods.
+Preserve method, preflight and origin checks and the existing unclaimed
+`409 unclaimed` precedence. After those checks, the refusal is the fixed
+`400 code_in_url` recovery message above, without using or reflecting the
+query value and with no-store/no-referrer; HEAD has no body.
+
+The cutoff release adds options/verify query-refusal tests to the existing
+page/helper tests, including encoded names, repeated/empty values, body
+credentials alongside a forbidden query, and private/unclaimed cases.
+Those expanded checks and behavior are future RA-10Q work: introducing
+RA-10 keeps compatibility true and changes no POST admission based on a
+query. Record this follow-up in BACKLOG at the introducing runtime freeze.
+
 #### PV-4: readers shown after owner recovery
 
 Both editions show the newly recovered owner the current enrolled readers
@@ -1854,6 +2015,118 @@ local D1/KV and boot the server entry on a disposable local PostgreSQL.
 Both must serve HTML, Markdown and the map, refuse unauthenticated MCP,
 and return an empty conditional 304. A startup error or an unexpected
 status fails the release; the smoke check has a 60-second budget.
+
+**Release database-row gate (GATE-2, Cloudflare edition).** Every release
+runs `scripts/d1-rows-check.mjs` under the release coordinator's suite lock,
+before publishing or tagging. This is a local D1/workerd row-cost check,
+not a hosted billing measurement, a CPU benchmark, a server/PostgreSQL cost
+claim, or permission to enable prepared copies. It must complete within
+120 seconds including its local build, seeding, requests and cleanup; an
+error, timeout or incomplete result fails the release. It uses no hosting
+account, remote database, owner credential or public diagnostic endpoint.
+The server's existing correctness and compatibility gates remain required.
+
+The fixed corpus is every `themes/*/sample.json` plus a deterministic
+200-entry services fixture. Record the exact generated seed bytes' hashes,
+the fixture generator version, a fixed UTC clock instant and timezone,
+origin, request headers, compatibility settings and pinned local toolchain.
+The generator, corpus and clock are versioned inputs: changing them is a
+baseline-format change, not an unexplained improvement in database cost.
+Seed published approved content and the existing approval/source receipts;
+never skip the live access gate, either fresh validation, complete tuple
+proofs, final equality, clock checks or normal rendering. Run the real
+Worker entry in local workerd with a measurement-only D1 binding observer;
+no alternate fast handler or product route. Hold PERF-4 response reuse off
+in every cell so it cannot hide prepared-copy cost. Pin SITE_URL and use
+anonymous same-origin HTML GETs without Authorization or session cookies.
+
+For each site, measure both exact `PUBLIC_ARTIFACTS` off and `1`, on separate
+fresh disposable databases and application instances, in this order:
+
+| Request | Required state and result |
+| --- | --- |
+| `cold` | First application GET `/`, empty prepared-copy store, status 200. Count any state initialization, admission and preparation that request causes. |
+| `plain` | Next GET `/` without a validator, after all cold work completes, status 200. With prepared copies on, certify an actual prepared HIT by observed lookup and no live-render query; row presence alone is insufficient. With them off, certify no artifact lookup or write. |
+| `not_modified` | Next GET `/` with the preceding ETag in If-None-Match, status 304 and empty body. Both modes still run their current live facts/conditional checks. |
+
+Read and write totals are sums of D1's `meta.rows_read` and
+`meta.rows_written` for every application statement and each statement in a
+batch, including admitted artifact work and UC9 observation. They are not
+returned-row counts, SQL statement counts, SQLite VM steps or estimates from
+EXPLAIN. Preserve SQL text, binds, ordering, results, errors and batch
+atomicity; observer adapters for `first`/`raw` must prove their equivalence
+to the underlying D1 result. Missing, negative, noninteger or unobservable
+metadata fails closed; it is never recorded as zero. Exclude migration,
+seed, diagnostic-control and host audit queries. Read the full response and
+await every request waitUntil task, including nested tasks, before ending
+that request's scope. Do not use a fixed sleep as evidence of completion;
+unsettled work or a swallowed database error fails this measurement. Each
+request has its own counter scope, with no overlap into its successor.
+Assert public body/headers agree between modes except the intentional
+release field; assert expected statuses, validators, HIT/MISS state and
+traffic effects independently. Do not publish SQL binds or content in the
+committed report; fixtures are synthetic.
+
+`spec/fixtures/d1-rows.json` is the committed measurement record. It contains
+an explicit format version, immutable measurement-input fingerprint,
+artifact/source identity, all 13 sites by both modes by three requests, and
+nonnegative integer read/write totals per cell. A preparation command may
+write this file before committing a release candidate; the release check is
+read-only and reruns the matrix, requiring exact agreement with that
+candidate's committed record. The source fingerprint excludes this record
+and release/changelog labels to avoid a self-referential commit hash, but
+includes all Worker source, migrations, generated theme inputs, dependency
+lock and compatibility settings. It is not an authorization shortcut.
+
+The comparison baseline is the immediately preceding published release in
+changelog order, loaded from that release's git revision of the committed
+JSON, never an arbitrary working-tree replacement. For the introducing
+release only, whose predecessor has no record, commit a separately labelled
+bootstrap record measured on that predecessor's exact archived Worker and
+its own migrations with this same corpus/method. Pin its release id and
+artifact SHA-256 and verify both against the archived release. Never copy
+current numbers into the bootstrap or invent historical numbers. Once a
+previous published record exists, missing or malformed baseline data fails
+the gate. Corpus, runtime/toolchain or measurement-format changes require
+remeasuring the exact predecessor on matching inputs and retaining both
+the old record and explicitly labelled rebased comparison; no silent reset.
+
+Compare EVERY read and write total against its matched previous-release
+cell. No pooling, average, percentage threshold or faster cell cancels an
+increase elsewhere. Any increase makes downloads.sh fail unless the newest
+release's changelog entry has a nonempty plain `rows_justification` string
+(at most 1000 characters, no newlines). Wrong type, whitespace-only or
+unknown cells still fail. This field waives only a measured increase, never
+missing data, identity, correctness or timeout failures. The release log and
+published changelog retain all increases and the justification. A written
+reason permits building for review; it does not grant deployment approval.
+The owner must approve any increase before deployment. Existing changelog
+entries without the new optional field remain valid.
+
+For each cell print old/new reads and writes and both read-limited and
+write-limited daily page-request equivalents, plus the smaller finite bound:
+`floor(5_000_000 / rows_read)` and `floor(100_000 / rows_written)`. A zero
+denominator is explicitly unlimited by that metric, not a divide-by-zero
+or a claim of unlimited traffic. State "about N page views a day per
+account, if all requests cost this much and no other activity uses D1";
+304 cells are request equivalents, not recorded analytics views. Also show
+the cold-plus-plain-plus-304 sequence total and its arithmetic separately.
+These are D1-only illustrative upper bounds: other sites on the account,
+analytics writes, unrelated queries, Workers request/CPU limits and storage
+reduce usable traffic. No paid-plan spending cap or hosted capacity claim.
+The budgets and their verification date are explicit report inputs, sourced
+from https://developers.cloudflare.com/d1/platform/pricing/ (checked
+2026-10-18: Free 5 million rows read and 100,000 rows written per day).
+
+Required gate tests: an increased read OR write in any single cell refuses;
+nonempty justification accepts only that cost increase and remains visible;
+missing/extra cells, stale fingerprints, changed fixture/toolchain, absent
+metadata, unfinished deferred work and mismatched previous release refuse;
+bootstrap archive/hash mismatch refuses; no writes to committed JSON during
+check; zero-cost arithmetic is defined; first/raw/batch metadata accounting
+has no duplicates; real OFF/MISS/HIT/304 paths preserve response identity
+and include deferred traffic/admission work. A native full-matrix proof must
+meet the 120-second budget before this gate is added to every release.
 
 **Stream-settings rollback compatibility.** The public content model has
 up to 64 streams, per-stream sort and the all-stream archive, but the legacy
@@ -3462,7 +3735,7 @@ All AF-7T access, identity, clock, metadata, admission and fallback rules
 above continue to apply. There is no schema, index, trigger, flag, format,
 key, tool, scope, route or header change. No client reconnect is required.
 
-**Cut 1: one state transport row.** Let `Q_F` be the existing ordered
+**Cut 1: one state transport row (superseded for visitor reads by AF-7T-C2 below).** Let `Q_F` be the existing ordered
 `FACTS_SQL` statement, including its complete category/identity/raw-value
 projection and terminal category/identity ordering. The artifacts-off facts
 query remains `Q_F`, with exactly its existing output, decoding and query
@@ -5040,3 +5313,243 @@ rendering remains a separate cost. Do not claim universal savings from local
 tests or ship default enablement on the strength of local CPU alone.
 
 API reference: [Cloudflare Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/).
+
+#### AF-7T-C2: ordinary conditional facts; atomic copy-state proof
+
+This amendment applies to both editions. It supersedes C1 cut 1 for
+visitor facts reads; C1 cut 2 and every AF-7T/AF-7L authority, complete
+preimage, cardinality, clock and delivery rule remain. No schema, index,
+trigger, flag, default, key, format, public route, response header, tool or
+reconnect change. Stored expected closures are not selected.
+
+**304 must not read copy state.** Let Q_F be the exact ordinary ordered
+facts SQL in the edition's artifacts-OFF path, with its existing binds.
+A stable anonymous conditional request with copies ON executes the same
+statements, in the same order, with identical SQL text and bindings as the
+same request with copies OFF. Both initial and final facts reads use Q_F.
+No state UNION, scalar state subquery, artifact lookup, copy-body read,
+generation synchronization or artifact DML occurs before that 304 return.
+Existing access and request-accounting statements remain identical too.
+This is a statement-identity requirement, not just equal result counts.
+
+The first read still decodes and validates every dependency; the second
+still checks live privacy and complete normalized facts equality. The
+original request's AF-7L plan is checked at the same return boundary.
+If facts drift, the existing bounded refresh/route/existence/tag behavior
+runs; a failed conditional check is not permission to skip the final check
+on a later HIT. Session/Authorization bypass, private and missing pages,
+HEAD, wildcard validators and legacy optional-table fallback remain safe.
+The validator's complete F, AF-2 preimage and response bytes do not depend
+on whether copies are enabled or on state generation/revision values.
+
+An ON nonconditional candidate may retain the exact ordered raw Q_F
+category/identity/value tuples before the existing decoder mutates parsed
+values. This is request-owned data from that same read, not a second source
+fetch, new JSON parse or reduced dependency projection. OFF decoding,
+allocations, query text and statement count stay unchanged. Preserve all
+raw strings, duplicates and cardinality; state is never a dependency tuple.
+Both hashes retain their complete existing preimages and SHA operations.
+
+**One atomic lookup observes state and proves source equality.** Remove
+the visitor's initial state transport. The subsequent artifact statement
+observes current state, proves both raw multiset directions with counts,
+and conditionally selects the keyed body in one database snapshot. It must
+not fetch state separately and then perform an unguarded lookup. The SQL
+shape is the following; bindings remain parameters, never interpolation:
+
+```sql
+WITH current_facts AS (<unchanged Q_F0>),
+expected AS (<unchanged edition-specific captured raw JSON relation>),
+current_counts AS MATERIALIZED (
+ SELECT category,ident,value,count(*) AS n FROM current_facts
+ GROUP BY category,ident,value
+),
+expected_counts AS MATERIALIZED (
+ SELECT category,ident,value,count(*) AS n FROM expected
+ GROUP BY category,ident,value
+),
+tuple_proof AS (
+ SELECT NOT EXISTS (
+  SELECT category,ident,value,n FROM current_counts
+  EXCEPT SELECT category,ident,value,n FROM expected_counts
+ ) AND NOT EXISTS (
+  SELECT category,ident,value,n FROM expected_counts
+  EXCEPT SELECT category,ident,value,n FROM current_counts
+ ) AS facts_ok
+),
+copy_state AS MATERIALIZED (
+ SELECT generation,revision FROM public_artifact_state WHERE id=1
+),
+proof AS (
+ SELECT t.facts_ok,s.generation,s.revision,
+  (<valid singleton state> AND t.facts_ok
+   AND s.generation=<captured G2 parameter>) AS ok
+ FROM tuple_proof t LEFT JOIN copy_state s ON 1=1
+)
+SELECT p.facts_ok,p.generation,p.revision,p.ok,
+       a.key,a.body,a.metadata,a.valid_until
+ FROM proof p LEFT JOIN public_artifacts a
+ ON p.ok AND a.key=<exact key parameter>
+         AND a.generation=<captured G2 parameter>
+```
+
+The existing primary key permits at most one state row. A missing row,
+non-string generation or non-integer revision is invalid state. In D1 the
+valid-state expression checks original SQL types (`typeof` text/integer),
+so malformed state cannot enable the body join; PostgreSQL uses its typed
+schema and non-null presence checks. Validate the returned proof/state
+shape before delivery as well: no duplicate/unexpected result rows,
+coercion, fabricated state or default-true proof. State fields are advisory
+request-local observations, excluded from raw tuples, F, both hashes,
+clock, approved-view proof and public output. Do not add state fields to
+every dependency row. The state relation is read once within this statement.
+
+**Mismatch plumbing, in priority order.** Each branch preserves the prior
+bounded fallback and never serves a withheld body:
+
+1. Unavailable optional state/table/query or malformed proof result: the
+   existing guarded live refresh/unavailable path; no prepared response.
+2. `facts_ok` false: current raw tuples differ in at least one direction or
+   multiplicity. Withhold all body bytes, run existing invalidation/clear
+   and guarded live refresh. This includes old-runtime same-version raw,
+   membership, extension, privacy, media or theme edits without state bumps.
+3. Tuple equality true but state missing/invalid or generation differs:
+   the body join is false. Run the existing atomic synchronize operation
+   (ensure singleton, delete old artifacts, install observed G2/revision),
+   then render a MISS; do not relookup or return an old body. Installing
+   observed G2 alone is not proof for a later insert.
+4. Complete tuples and valid state/G2 match: an absent key is a clean MISS.
+   A present row goes through every existing metadata/body SHA, route,
+   origin, private/session, exclusive-expiry and final AF-7L clock check.
+   Corrupt/expired rows retain deletion and live behavior. No match means
+   no HIT, even if some state fields or total row counts happen to agree.
+
+An artifact row is not selected when state/G2 differs. This is the same
+purge-before-stored-body-use rule as AF-7T: SQL withholds the body before
+synchronization, rather than discovering generation in a prior facts read.
+If source changes after lookup, existing in-flight authorization boundaries
+apply; the same-statement proof and final clock are not moved earlier.
+
+**Admission and preparation.** Keep C1's complete two-way grouped proof
+and matching generation in the same conditional INSERT as today. A
+publication/private-on/old-runtime write between lookup, synchronization,
+render and admission must prevent stale insertion. Preserve D1 batch
+atomicity and PostgreSQL singleton locking, quotas, expiry cleanup and
+transaction/rollback behavior. No separate check-then-insert shortcut.
+
+Scheduled preparation may keep a preparation-only state-aware facts helper
+for its initial generation/lease observation, with C1's malformed-state and
+optional-table fallback rules. It is not callable from visitor validator
+reads. Per-copy respond/lookup uses the atomic statement above. Keep the
+250 ms preparation budget, 30 s lease, private checks, source rechecks,
+completion semantics and release cleanup unchanged. A visitor generation
+observation still cannot suppress pending preparation work.
+
+**Acceptance before implementation freeze.** Shared paired fixtures and
+both editions must prove:
+
+- ON304 versus OFF304 exact statement text/order/binds/count identity on
+  matching stable GET and HEAD (including wildcard), same source and other
+  cache flag. No state/artifact SELECT or artifact DML; unchanged complete
+  F/AF-2 preimages, status, public headers and empty body. OFF controls stay
+  byte/query-identical to the prior release. Include absent optional tables.
+- Atomic lookup branch coverage for tuple match/drift in both directions,
+  duplicates/missing/additional/replacement tuples, null/empty/raw whitespace,
+  state missing/malformed/generation mismatch, corrupt metadata/body,
+  unavailable table and old-runtime in-place writes. A mismatch never returns
+  a body; synchronization does not admit a stale build. Preserve existing
+  strict refusal assertions rather than retargeting them to a weaker guard.
+- Publication/private-on/source races at lookup, synchronization and final
+  admission, plus unknown clocks, event/hours/notice boundaries, DST,
+  rollback of time, session and origin refusal, preparation and actual
+  previous-runtime rollback/return. No skipped access/existence/validation.
+- Before/after native D1 statement-level reads/writes for SQL-certified HIT,
+  clean MISS, stable304 and OFF controls on (a) a small synthetic site whose
+  public dependency counts/categories match the supplied hosted inventory,
+  and (b) the existing identical200-entry fixture. Keep both cache flags
+  explicit, fixtures immutable, original headers/release/origin and due
+  accounting identical; no hidden synchronization or renderer on a HIT.
+  If the exact hosted inventory is unavailable, label the substitute and
+  do not claim its counts reproduce the hosted totals. Retain every SQL
+  statement, plan and result/parameter bytes separately from normal CPU.
+  Verify ON304 and OFF304 equal native query/read counters on the same data.
+  Report measured HIT/304 rows before and after, not EXPLAIN estimates as
+  billed reads or gross avoided work as net savings.
+- Both-edition parity, real normal production startup, full correctness,
+  migration compatibility and old-runtime gates. Existing CPU/rows/clock
+  budgets remain; no CPU target, hosted saving or default enablement is
+  declared from source analysis. Candidate selection is not acceptance.
+
+##### AF-7T-C2 amendment: advisory generation refusal before lookup
+
+This amendment applies to both editions. It permits one cheap state read
+after a visitor has failed the ordinary conditional-return branch and
+passed the existing copy eligibility, complete facts, tag and clock checks.
+It amends C2's prohibition on a separate visitor state observation only
+at this point. Both validator reads remain exact Q_F: ON304 still executes
+exactly the OFF304 statements, with no state read or artifact operation.
+OFF requests, private/session/Authorization bypass and missing pages retain
+their existing behavior. No schema, default, flag, format or preimage changes.
+
+**The observation can refuse a lookup; it cannot authorize a HIT.** Compute
+G2 from the same complete captured F and existing release/origin preimage.
+Before the atomic copy lookup, read only the singleton state columns:
+
+```sql
+SELECT generation,revision FROM public_artifact_state WHERE id=1
+```
+
+This statement has no bindings in either edition. Inspect the complete
+result shape: exactly one row, a string generation and integer revision,
+without coercion (a boolean is not an integer). An unavailable optional
+table/query or malformed result follows the existing guarded live fallback;
+no prepared response is returned. A missing singleton may continue to the
+unchanged atomic lookup so its existing missing-state branch synchronizes.
+There is no synthetic matching generation or default-true result.
+
+For a valid observed generation different from captured G2, skip the
+artifact lookup entirely. Run the existing atomic synchronize operation
+(ensure singleton, delete artifacts, install G2 and advance revision), then
+use the existing live MISS rendering and conditional admission path. Do not
+select a stored body, relookup, return a copy or treat synchronization as
+freshness proof. No new early response or weaker live-render check is added.
+
+For an observed matching generation, execute C2's entire atomic lookup
+unchanged: complete current Q_F0 and captured raw tuples, materialized
+grouped counts, both EXCEPT directions with multiplicity, fresh singleton
+state observation and guarded key/G2 body join in one statement snapshot.
+The preliminary match is not passed as proof to SQL and cannot replace its
+state relation, generation predicate or any tuple check. Returned facts_ok,
+ok and body retain their existing validation and branch priority. State
+remains excluded from raw dependencies, F, both hashes, clocks and output.
+
+**Races remain refusals.** A generation change after a preliminary match
+is observed by the atomic lookup, which withholds the body and runs C2's
+existing mismatch branch. An old-runtime source edit without a state bump
+still fails the lookup's complete counted two-way tuple proof. A change
+after a preliminary mismatch cannot cause stale-copy delivery because that
+branch never reads or serves a copy. Synchronizing an already superseded
+G2 does not authorize insertion: the final conditional INSERT still proves
+the complete captured tuples in both directions and matching generation
+in the same statement. A source/state race rejects stale admission. All
+existing render/tag equality, privacy, origin, metadata/body SHA, exclusive
+expiry and AF-7L clock checks remain at their existing boundaries; D1 batch
+atomicity, PostgreSQL singleton locks, quotas and rollback remain unchanged.
+Preparation leases and the preparation-only state-aware helper are unchanged.
+
+**Acceptance for this amendment.** Both editions must cover valid mismatch
+skipping lookup with purge and complete live body/tag equality; matching
+observation followed by state drift at the actual lookup; unchanged-state
+old-runtime tuple drift; missing/malformed/unavailable state; and mutation
+controls proving that the lookup's G2 and counted tuple guards remain
+effective. Preserve prior strict old-runtime/private assertions. ON304
+versus OFF304 SQL text, bindings, order, statement count and rows must
+remain identical, with and without a stored copy and with optional tables
+absent. The extra observation must be absent from those 304s.
+
+Re-measure only generation-mismatch cold, ON304 and certified HIT diagnostic
+cells on the same labeled small substitute and unchanged 200-entry fixture,
+retaining prior results, query-level rows read/written, statements and plans.
+Report the extra state-read cost on a HIT and any remaining cold increase;
+do not infer net savings from a skipped proof alone. CPU measurement stays
+on hold until this amendment is reviewed and its row comparison is complete.

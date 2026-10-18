@@ -53,14 +53,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    proving freshness with a narrower query, needs a spec and security
    review; revisit only if an owner enables PERF-4.
 
-3. **GATE-2** OPEN (owner, 2026-10-18): every release states database
-   rows read per request (cold page, plain page, "not changed"), before and
-   after, with prepared copies off and on, plus the free daily-limit impact
-   ("about N page views a day per account"). The release build measures it
-   on the sample sites and refuses a release whose rows went up unless its
-   changelog entry carries a written reason. Owner approves any increase
-   before it is deployed. Decision briefings state reads, writes and limit
-   impact, not only speed.
+
+4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
+   read per first page view grow with site size. Small samples read 69-197
+   rows (25k-72k free views a day per account); a 200-entry site reads about
+   1,700 (about 2,900 a day); with prepared copies on, about 6,700 (about
+   750 a day). Find what scales with entries on the ordinary read path and
+   cut it, measured under GATE-2. Until then, prepared copies are a
+   small-site setting.
 
 ## BLOCKING
 
@@ -159,10 +159,12 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   `code` query return `400 code_in_url`, with fixed credential-free text,
   no-store and no-referrer. Claimed sites keep the redirect to login.
   New links already use fragments; keep archived release tests untouched.
-- **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
-  removes from setup links, so the code reaches request logs. Move it to
-  the URL fragment the same way (one release still accepting the query,
-  then refusing). Found 2026-10-18 in RA-9 review.
+- **RA-10Q** OPEN (immediately following product release after RA-10):
+  disable recovery-query compatibility. Refuse decoded `code` queries on
+  exactly `/recover`, `/recover/options` and `/recover/verify` after existing
+  method/preflight/origin checks and unclaimed-409 precedence; fixed
+  `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
+  Introducing recovery links already use fragments; keep archived tests.
 - **AN-1** OPEN: the visitor beacon (`POST /collect`) has no rate limit.
   Each accepted page-view event writes at least one database row and runs
   the retention clean-up (a delete plus an aggregate insert) every time.
@@ -176,13 +178,22 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
-- **AF-7T-C2** OPEN: hosted on porchsite.dev (2026-10-18, e88698b),
+- **AF-7T-C2** IN-PROGRESS (implementation review): hosted on porchsite.dev (2026-10-18, e88698b),
   prepared copies cut a cold page to about 6.5 ms CPU (typical; it was
   about 21 ms), the first time under the free plan's 10 ms. But database
   rows read per cold page rose from 218 to 484, and "not changed" replies
   from 176 to 240. On the free plan's 5 million rows a day per account,
   that is about 10,000 cold page views a day instead of about 23,000.
   Cut the rows a copy's freshness check reads, keeping every check.
+  Candidate implements the reviewed ordinary-304 and advisory-refusal
+  contracts. On the 200-entry fixture, reads fall 6,325 to 6,121 for a cold
+  edit, 3,472 to 3,269 for a HIT and 1,644 to 1,234 for a 304; writes stay
+  unchanged. The first 12-pair HIT CPU cohort triggered a hold: +4.7 ms
+  (interval -2.5 to +9.8). One predeclared final 24-pair confirmation gave
+  -2.0 ms (interval -11.7 to +6.2), clearing the +0.5 ms median stop bar;
+  neither interval establishes a CPU improvement or zero overhead. The
+  release rows gate finds all 39 ON cells lower and all 39 OFF cells
+  unchanged, with no write increase. Independent acceptance is still owed.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;

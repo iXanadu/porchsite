@@ -605,7 +605,7 @@ async def test_af_thin_hit_budget(db,monkeypatch):
             counted.calls.clear();facts.reset_mock();load.reset_mock()
             r=await routes.handle(request('/',method=method),cx);await agent_traffic.settle(counted)
             assert r.status_code==200 and r.body==(b'' if method=='HEAD' else body)
-            assert len(counted.calls)==3 and sum('LEFT JOIN public_artifacts' in q for q in counted.calls)==1
+            assert len(counted.calls)==4 and sum('LEFT JOIN public_artifacts' in q for q in counted.calls)==1
             assert facts.await_count==1 and load.await_count==0 and snap.await_count==0
         counted.calls.clear()
         conditional=await routes.handle(request('/',headers={'If-None-Match':tag}),cx)
@@ -614,7 +614,7 @@ async def test_af_thin_hit_budget(db,monkeypatch):
         miss=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
         assert miss.body==body and load.await_count==1 and facts.await_count==2 and snap.await_count==0
         writes=[q for q in counted.calls if q.lstrip().upper().startswith(('INSERT','DELETE','UPDATE')) or 'INSERT INTO public_artifacts' in q]
-        assert len(counted.calls)-len(writes)<=6 and len([q for q in writes if not q.startswith('INSERT INTO agent_traffic_daily')])==2 and len(counted.calls)<=9
+        assert len(counted.calls)-len(writes)<=7 and len([q for q in writes if not q.startswith('INSERT INTO agent_traffic_daily')])==2 and len(counted.calls)<=10
 
 async def test_af_thin_hit_old_runtime(db,http,monkeypatch):
     await fixture(db)
@@ -627,9 +627,17 @@ async def test_af_thin_hit_old_runtime(db,http,monkeypatch):
         async def refuse(*args,**kwargs):
             pytest.fail('thin path called SNAPSHOT')
         monkeypatch.setattr(artifacts,'snapshot',refuse)
+        f=await public_read.facts(conn,True);g=artifacts.generation(f,cx.release,ORIGIN)
+        stored=await conn.fetchrow('SELECT key FROM public_artifacts LIMIT 1')
+        refused=await conn.fetchrow(artifacts.lookup_sql(),json.dumps(f['raw'],separators=(',',':')),g,stored['key'])
+        assert refused['facts_ok'] is True and refused['ok'] is False and refused['key'] is None and refused['body'] is None
+        live=await routes.handle(request('/'),routes.Context(conn,'',None,site_url=ORIGIN,release=cx.release,public_artifacts=False))
         r=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
         assert b'Old runtime publication' in r.body and r.headers['etag']!=first.headers['etag']
-        assert 'DELETE FROM public_artifacts' in counted.calls and not any('LEFT JOIN public_artifacts' in q for q in counted.calls)
+        assert r.body==live.body and r.headers['etag']==live.headers['etag']
+        lookup=[q for q in counted.calls if 'LEFT JOIN public_artifacts' in q]
+        assert len(lookup)==0 and 'DELETE FROM public_artifacts' in counted.calls
+        assert counted.calls.index(artifacts.STATE_SQL)<counted.calls.index('DELETE FROM public_artifacts')
         assert await db.fetchval('SELECT generation FROM public_artifact_state')!=old['generation']
 
 @pytest.mark.parametrize('change',['private','unpublish','theme','title'])
@@ -725,17 +733,19 @@ async def test_af_thin_hit_query_plan(db,http):
     print(json.dumps({'case':'af_thin_hit_budget','unused_images':500,'image_access':[{k:p.get(k) for k in ['Node Type','Index Name','Actual Rows','Actual Loops']} for p in image_nodes]}))
 
 async def test_af_thin_state_outage(db,http,monkeypatch):
-    from unittest.mock import Mock
+    from server.app import routes
+    from .test_agent_map import Count,request
     one,_=await fixture(db);first=await http.get('/')
     await db.execute('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state')
     try:
-        lookup=Mock(wraps=artifacts.proof_sql);monkeypatch.setattr(artifacts,'proof_sql',lookup)
-        live=await http.get('/')
-        assert live.status_code==200 and live.content==first.content and not lookup.called
-        await db.execute("INSERT INTO site_fields(version,key,value,approved)VALUES($1,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1",one['version'])
-        await db.execute('INSERT INTO private_approvals(version)VALUES($1) ON CONFLICT DO NOTHING',one['version'])
-        denied=await http.get('/')
-        assert denied.status_code==404 and denied.text==SIGN_IN and 'etag' not in denied.headers and not lookup.called
+        async with db.acquire() as conn:
+            counted=Count(conn);cx=routes.Context(counted,'',None,site_url=ORIGIN,public_artifacts=True)
+            live=await routes.handle(request('/'),cx)
+            assert live.status_code==200 and live.body==first.content and counted.calls.count(artifacts.STATE_SQL)==1
+            await db.execute("INSERT INTO site_fields(version,key,value,approved)VALUES($1,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1",one['version'])
+            await db.execute('INSERT INTO private_approvals(version)VALUES($1) ON CONFLICT DO NOTHING',one['version'])
+            denied=await routes.handle(request('/'),cx)
+            assert denied.status_code==404 and denied.body.decode()==SIGN_IN and 'etag' not in denied.headers and counted.calls.count(artifacts.STATE_SQL)==1
     finally:
         await db.execute('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state')
 

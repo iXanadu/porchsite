@@ -588,7 +588,8 @@ async def test_hosting_cli_issues_a_hashed_single_use_recovery_link(db, test_dsn
     link, expires = await cli.recovery_link(test_dsn, ORIGIN, 24)
     parsed = urlsplit(link)
     assert parsed.path == "/recover"
-    code = parse_qs(parsed.query)["code"][0]
+    assert parsed.query == ""
+    code = parse_qs(parsed.fragment)["code"][0]
     assert len(owner.base64url_to_bytes(code)) == 24
     row = await db.fetchrow("SELECT code_hash,expires_at FROM recovery_codes")
     assert row["code_hash"] == owner.hash_token(code)
