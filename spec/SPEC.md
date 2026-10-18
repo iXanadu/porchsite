@@ -5313,3 +5313,213 @@ rendering remains a separate cost. Do not claim universal savings from local
 tests or ship default enablement on the strength of local CPU alone.
 
 API reference: [Cloudflare Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/).
+
+## Amendment: trigger witness for final validation (PERF-9a, phase 1)
+
+Both editions may replace only the final complete dependency-facts read
+on the ordinary anonymous public GET/HEAD path with a database-maintained
+change witness. The initial full facts, decode, tag preimage, ETag bytes,
+representation selection, privacy gate and public-time proof stay as today.
+Prepared-copy state, lookup and admission are out of scope. Response-cache
+reuse keeps its existing proofs too: this first experiment applies only
+when both prepared-copy delivery and response-cache reuse are off. Those
+other modes must not pay an extra witness read or lose an existing check.
+
+This is a reviewed schema/proof change, not the parked SQL-flattening
+experiment. No runtime implementation or deployment follows from a spec
+review alone.
+
+### Feasibility and current measurements
+
+D1 documents SQLite execution and trigger-related PRAGMAs, available through
+the hosted console, CLI and binding. Its maintained tooling has explicit
+remote CREATE TRIGGER migration support, including a structural-CRLF fix.
+Local and hosted migrations remain distinct proof targets; documentation
+is not a claim that this project's migration was run remotely. Before a
+runtime freeze, demonstrate the selected trigger definitions on the local
+D1 runtime and obtain an explicitly authorized disposable hosted D1 probe.
+Do not use an owner's content database for that probe.
+
+SQLite supports row triggers, not statement triggers. PostgreSQL supports
+both. Phase 1 uses row triggers for INSERT/UPDATE/DELETE on both editions;
+PostgreSQL additionally covers TRUNCATE with statement triggers. The extra
+counter write is per affected row, not per client statement or approval.
+A 200-entry publication can therefore add at least 200 counter updates for
+its live-row writes, with further updates for other watched rows it changes.
+Measure the complete one-entry and 200-entry approval paths, including
+triggers and indexes; do not advertise an assumed fixed write allowance.
+
+The measured release corpus has these ordinary OFF reads:
+
+| Services fixture | Cold | Plain | Matching 304 |
+|---|---:|---:|---:|
+| 17 published items | 165 | 164 | 130 |
+| 214 published items, including 200 entries | 1741 | 1740 | 1312 |
+
+At 214 items, the cold request is 656 initial facts + 428 rendering join +
+656 final facts + 1 accounting read. The first accounting flush writes two
+rows. Retaining initial facts and adding two one-row witness reads while
+removing the final 656-read facts statement predicts 1087 cold, 1086 plain
+and 658 matching-304 reads. These are unmeasured arithmetic predictions,
+not new gate records or two total reads per page. Ordinary page reads must
+write no witness row. The initial facts remain necessary for today's tag
+and time-dependent metadata. A tag derived only from n is not selected.
+
+References, checked 2026-10-18:
+[D1 SQL](https://developers.cloudflare.com/d1/sql-api/sql-statements/),
+[D1 integer representation](https://developers.cloudflare.com/d1/worker-api/),
+[remote trigger migration parser fix](https://github.com/cloudflare/workers-sdk/pull/15044),
+[SQLite triggers](https://www.sqlite.org/lang_createtrigger.html),
+[PostgreSQL triggers](https://www.postgresql.org/docs/17/sql-createtrigger.html).
+
+### Complete dependency and trigger inventory
+
+The current complete facts relation reads these ten tables. Both editions
+must cover every INSERT, every UPDATE (all columns), and every DELETE in
+each table. The column list below explains the existing dependency; it is
+not an UPDATE OF filter. Conservative invalidation on other columns is
+allowed. New facts dependencies require a matching schema-witness amendment
+before their use; a missing dependency cannot silently inherit this proof.
+
+| Table | Facts columns, including joins and predicates |
+|---|---|
+| live | item_id, kind, slug, version, published_at, data: complete site JSON; entry status, stream, external_url, event.start, event.end and tags; site theme and hero selectors |
+| items | id and created_at |
+| site_fields | version, key, value, approved |
+| site_embed_sources | version, sources, approved |
+| site_stream_settings | version, settings, approved |
+| private_approvals | version |
+| training_approvals | version |
+| themes | name, version, sha256 |
+| share_cards | item_id, version, name |
+| media | name, width, height |
+
+D1 trigger names are `content_revision__<table>__ai`, `__au` and `__ad`,
+respectively: exactly 30 non-TEMP AFTER row triggers over the listed tables.
+PostgreSQL uses `content_revision__<table>__row` for the combined AFTER
+INSERT OR UPDATE OR DELETE row event and `content_revision__<table>__truncate`
+for AFTER TRUNCATE: exactly 20 triggers. A single fixed, non-SECURITY-DEFINER
+PostgreSQL function, `advance_content_revision`, implements their increment.
+No application tool, public endpoint or assistant key gains counter access.
+
+The triggers advance one singleton `content_revision(id=1,n)` in the same
+transaction as the content write. No-op updates may invalidate conservatively;
+ignored inserts that change no row need not advance. Multi-row writes,
+UPSERT, INSERT OR REPLACE, deletion of all rows, nested trigger execution,
+rollback and PostgreSQL COPY/TRUNCATE need explicit tests. In particular,
+SQLite REPLACE must be caught through its INSERT event even when its implicit
+DELETE does not fire a delete trigger. A source write that fails or rolls
+back must not leave a committed witness for nonexistent content.
+
+This covers ordinary DML by current code, old runtimes and direct SQL against
+the dependency tables while the canonical schema remains installed. It does
+not claim to survive a database administrator dropping/disabling triggers,
+resetting the witness, using replication-role trigger bypass, or replacing
+the database under running requests. Restore/import of a database is a
+maintenance operation: quiesce requests and restart the runtime around it.
+An older snapshot plus a reused counter must not create an in-flight ABA
+proof. Application schemas and their installed migrations remain trusted.
+
+### Witness format, installation and failure
+
+n is a nonnegative signed 64-bit integer in the database, never a floating
+point counter. Read it as canonical decimal TEXT, including on D1 where the
+binding cannot represent every 64-bit integer as a JavaScript Number. Validate
+its type and bounds; compare exact canonical text, without Number conversion.
+Overflow must refuse the triggering write, never wrap or coerce to REAL.
+Missing/invalid witness state must never authorize reuse or a 304.
+
+Install the table and complete trigger set before seeding its usable singleton
+as the final step. The seed never resets an existing counter. Installation
+must be transactional or leave no usable witness on partial failure. A
+trigger must fail its source write if it cannot update exactly one valid
+singleton; absence cannot silently make the write invisible. The migration
+and rollback proofs must include concurrent legacy writes during installation
+and deliberate installation failure. Do not mark the migration complete or
+upload the new runtime before the whole inventory is installed and checked.
+
+If the table, row, value or supported read capability is unavailable, use the
+existing complete-facts validation path, including its final independent
+read and normal failure/refusal behavior. Do not interpret an error as zero,
+reuse an earlier counter, or return a partially validated body. Missing or
+unexpected schema components found by installation/integrity checks disable
+the optimization. Reading from an independently stale replica is forbidden:
+both witness reads and the intervening data reads must retain current primary
+or an equivalently proven consistency model.
+
+### The two independent checks and unchanged tag
+
+After the existing live access gate and before initial full facts, read n0
+from the database. Capture and validate the complete initial facts exactly
+as today. Keep its owned raw tuples, canonical data, complete tag preimage
+and all route/theme/time inputs. Render normally, or prepare a matching
+conditional response using the existing tag and representation rules.
+
+At the existing final-proof point, independently read n1. Only if both reads
+are valid, n1 equals n0, the original privacy conclusion is still justified
+by the covered dependencies, and the existing late clock proof passes may
+this read replace the final full facts. No new early return may bypass that
+point. A 304 has no render but still requires both reads around its initial
+facts/tag computation. HEAD follows the same proof with an empty body.
+
+A changed or unusable witness takes the existing fresh-facts retry/refusal
+path, with the original bounded retry limit. It may fall back to the final
+complete facts comparison where valid, but it cannot compare a cached n or
+share a result object between checks. The two reads are independent current
+DB executions; the initial full facts are never treated as a second read.
+Private-on, unpublish, title/theme changes through old runtime, extension
+approval and clock expiry retain their original safe outcome. The witness
+is not an access grant, a replacement for WebAuthn/session checks, a clock
+revision, or a cache/body key.
+
+ETags remain derived from the existing complete facts preimage, release,
+origin, selected route/query/type, training signal and public-time state.
+n is absent from the outward tag. Thus different mutation histories that
+produce identical current facts keep today's tag semantics; equal n values
+on unrelated databases do not establish identity. No cross-request facts
+cache or digest-only equality is introduced in phase 1.
+
+### Migration tooling and release gates
+
+The compatibility checker currently refuses triggers on existing tables.
+Add a separately reviewed, narrow allowance only for the exact named trigger
+inventory and fixed witness-only function/body above, confined to updating
+the new singleton. Other existing-table triggers and functions remain refused.
+Negative tests must reject an unlisted name/table/event, a forged allowed name
+with a different body, changes to owner/content rows, arbitrary SQL, and a
+missing inventory member. This is not a skip or a blanket trigger allowance.
+The migration history remains append-only and base schema files unchanged.
+
+GATE-2 currently splits migration text at every semicolon. In a separate
+small reviewed tooling commit, replace that with statement parsing that
+preserves complete BEGIN...END trigger bodies, comments, quoted strings,
+escapes and semicolons inside them. Keep every existing metadata and request
+assertion. Include the parser in the gate method fingerprint; follow the
+explicit predecessor-record rebase contract and retain the original record.
+Do not copy current numeric cells into the predecessor or change archived
+tests to accommodate the new schema. Prove the actual installer REST upload,
+local migration runner, previous tests and archived bundle all apply the
+same complete migration bytes, including line-ending and failure cases.
+
+Before runtime freeze, require both-edition safety tests for every table and
+event plus in-place previous-runtime writes with unchanged application stamps.
+Mutate each relevant column between n0 and n1, including private-on and
+unpublish; validate failure, rollback, missing row, malformed value and
+near-overflow. A scratch missing-trigger/bypassed-witness mutation must make
+the intended stale-response test fail without loosening assertions.
+
+Run both suites, full parity and normal production entries, actual previous
+release tests/archive on the new schema, populated rollback with triggers
+left installed, and return to the new runtime. The older application need
+not know the witness: its writes must still advance it. Measure GATE-2 OFF
+and ON cold/plain/304, one- and 200-entry approval reads/writes, failed and
+rolled-back writes, and migration/first-request overhead separately. Do not
+attribute trigger writes to a different request to make a gate pass. Any
+increase requires the release's rows_justification and owner approval under
+the release rule; no CPU or hosted-capacity win is inferred from row counts.
+Use a separately preregistered bounded paired CPU gate before acceptance.
+
+Prepared-copy state, G2, counted tuple proofs and atomic admission remain
+unchanged. The trigger witness may not substitute for their complete proofs
+or authorize cached delivery. Any later phase requires its own reviewed
+amendment and measurements. No catalogue change or reconnect is introduced.

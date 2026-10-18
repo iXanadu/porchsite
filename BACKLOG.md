@@ -54,7 +54,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    review; revisit only if an owner enables PERF-4.
 
 
-4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
+4. **PERF-9** IN-PROGRESS (phase-1 trigger-witness spec; found 2026-10-18 by GATE-2's baseline): database rows
    read per first page view grow with site size. Small samples read 69-197
    rows (25k-72k free views a day per account); a 200-entry site reads about
    1,700 (about 2,900 a day); with prepared copies on, about 6,700 (about
