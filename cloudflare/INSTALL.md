@@ -27,7 +27,7 @@ Before any Cloudflare API call, say this to your person:
 > - Cloudflare's Workers paid plan removes those daily usage limits, but bills for what's used with no way to set a spending cap.
 > - You can also run Porchsite on your own server for a flat fee, about $5 a month for a small server.
 >
-> I won't upgrade your plan, add payment or turn on a paid feature unless you ask me to, and I'll ask you separately first.
+> I won't upgrade your plan, add payment or turn on a paid feature unless you ask me to, and I'll ask you separately first. More detail: https://porchsite.dev/pages/costs/
 
 **Cost rules for the whole job.**
 
