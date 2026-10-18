@@ -696,8 +696,27 @@ logging is introduced by this change.
   archived Worker and both populated rollback/return paths all pass.
   No catalog/reconnect, database-query or CPU-saving claim is part of RA-10.
 
-Implementation waits for both security and correctness spec reviews and
-release coordination. This SHA contains no runtime change.
+Both security and correctness review of this contract precede
+implementation and release coordination.
+
+#### RA-10Q: recovery query cutoff (the following product release)
+
+This follow-up belongs to the immediately following product release after
+RA-10, not the introducing release. On that cutoff release, disable
+`RECOVERY_QUERY_COMPAT` and refuse a decoded `code` query on exactly
+`/recover`, `/recover/options` and `/recover/verify`, for their existing
+accepted methods. Do not use a `/recover*` prefix or open new methods.
+Preserve method, preflight and origin checks and the existing unclaimed
+`409 unclaimed` precedence. After those checks, the refusal is the fixed
+`400 code_in_url` recovery message above, without using or reflecting the
+query value and with no-store/no-referrer; HEAD has no body.
+
+The cutoff release adds options/verify query-refusal tests to the existing
+page/helper tests, including encoded names, repeated/empty values, body
+credentials alongside a forbidden query, and private/unclaimed cases.
+Those expanded checks and behavior are future RA-10Q work: introducing
+RA-10 keeps compatibility true and changes no POST admission based on a
+query. Record this follow-up in BACKLOG at the introducing runtime freeze.
 
 #### PV-4: readers shown after owner recovery
 
