@@ -15,7 +15,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
 1. AF-7L: the change check stays valid across minutes when nothing on
    the page depends on time, so repeat visits skip the full render.
-2. AG-6, the last part of agent access to private sites (read keys, read
+2. PERF-4: reuse a rendered public page for every visitor while nothing
+   on it has changed (cold renders are still about 18 ms typical on the
+   free plan's 10 ms budget).
+3. AG-6, the last part of agent access to private sites (read keys, read
    tools and private pages over HTTP shipped in 2026.10.18-c59bcc9).
 
 ## BLOCKING
@@ -100,6 +103,12 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **LL-3** OPEN: the Markdown copies of pages (/index.md and each page's
+  index.md) backslash-escape ordinary punctuation ("after\.", "it\.**"),
+  the same over-escaping LL-2 fixed in /llms.txt. Agents read these raw,
+  and an escaped domain ("get\.porchsite\.dev") can be copied as a
+  broken address.
+  Found 2026-10-18 on porchsite.dev.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a
