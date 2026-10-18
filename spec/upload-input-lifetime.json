@@ -1,0 +1,79 @@
+[
+  {
+    "name": "single",
+    "args": {
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB"
+    },
+    "images": [
+      {
+        "image": "/media/a0fcadbf6193a36dfa97297fd7c29a60.png",
+        "width": 7,
+        "height": 1
+      }
+    ],
+    "batch": false
+  },
+  {
+    "name": "duplicate batch",
+    "args": {
+      "images": [
+        "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB",
+        "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB"
+      ]
+    },
+    "images": [
+      {
+        "image": "/media/a0fcadbf6193a36dfa97297fd7c29a60.png",
+        "width": 7,
+        "height": 1
+      },
+      {
+        "image": "/media/a0fcadbf6193a36dfa97297fd7c29a60.png",
+        "width": 7,
+        "height": 1
+      }
+    ],
+    "batch": true
+  },
+  {
+    "name": "compatible whitespace",
+    "args": {
+      "data": "iVBORw0K \r\n\tGgoAAAANSUhEUgAAAAcAAAAB"
+    },
+    "images": [
+      {
+        "image": "/media/a0fcadbf6193a36dfa97297fd7c29a60.png",
+        "width": 7,
+        "height": 1
+      }
+    ],
+    "batch": false
+  },
+  {
+    "name": "both fields",
+    "args": {
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB",
+      "images": [
+        "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB"
+      ]
+    },
+    "error": "invalid"
+  },
+  {
+    "name": "bad base64",
+    "args": {
+      "data": "not base64!!"
+    },
+    "error": "invalid"
+  },
+  {
+    "name": "late bad base64",
+    "args": {
+      "images": [
+        "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAB",
+        "not base64!!"
+      ]
+    },
+    "error": "invalid"
+  }
+]

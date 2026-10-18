@@ -17,7 +17,7 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import * as analytics from "./analytics";
 import { PHOTO_ADVICE } from "./photo-advice";
-import { imageAdd } from "./image-add";
+import { imageAdd, IMAGE_INPUT_RELEASE, type OwnedImageInput } from "./image-add";
 import { checkSite, checkSiteDeep } from "./check";
 import * as approvals from "./approvals";
 import * as alerts from "./alerts";
@@ -410,7 +410,10 @@ function registerTools(server: Pick<McpServer, "registerTool">) {
   server.registerTool(
     "image_add",
     TOOL_DEFINITIONS.image_add,
-    async ({ data, images }) => run(() => imageAdd(db, actor(), data, images)),
+    async (args) => run(() => {
+      const input = args as OwnedImageInput;
+      return imageAdd(db, actor(), input.data, input.images, input[IMAGE_INPUT_RELEASE]);
+    }),
   );
 
   server.registerTool(

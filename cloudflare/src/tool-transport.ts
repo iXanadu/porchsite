@@ -8,6 +8,7 @@ import type { Env } from "./env";
 import { withToolContext } from "./tool-context";
 import { reportUploadPhase } from "./upload-diagnostic";
 import { reportMcpDispatch } from "./mcp-dispatch-diagnostic";
+import { IMAGE_INPUT_RELEASE, type OwnedImageInput } from "./image-add";
 
 const listedResult = { tools: Object.entries(TOOL_DEFINITIONS).map(([name, definition]) => ({
   name,
@@ -90,17 +91,32 @@ async function dispatch(req: Request, env: Env, ctx: ExecutionContext): Promise<
     const args = params.arguments as Record<string, unknown> | undefined ?? {};
     const parsed = params.name === "image_add" ? imageArguments(args) ?? check(args) : check(args);
     if (!parsed.success) return fallback();
+    const id = body.id;
+    const name = params.name;
+    if (name === "image_add") {
+      const input = parsed.data as OwnedImageInput;
+      Object.defineProperty(input, IMAGE_INPUT_RELEASE, { configurable: true, value: () => {
+        delete input.data;
+        delete input.images;
+        delete input[IMAGE_INPUT_RELEASE];
+      } });
+      delete args.data;
+      delete args.images;
+      body = undefined;
+      // No later branch can use SDK fallback. Do not await cancellation of a tee.
+      try { void req.body?.cancel().catch(() => {}); } catch { /* cleanup cannot change the tool result */ }
+    }
     const props = (ctx as unknown as {props?: Record<string, unknown>}).props ?? {};
     // A request's owner context lasts only for its callback, across awaited work.
     reportMcpDispatch("fast");
     try {
-      await readKeys.authorize(env.DB,props,params.name);
-      result = await withToolContext(props, () => createToolHandlers().get(params.name as string)!(parsed.data));
+      await readKeys.authorize(env.DB,props,name);
+      result = await withToolContext(props, () => createToolHandlers().get(name)!(parsed.data));
     } catch (error) {
       // The original SDK turns unexpected callback errors into tool errors.
       result = {content:[{type:"text",text:error instanceof Error ? error.message : String(error)}],isError:true};
     }
-    return response(result, body.id, accept);
+    return response(result, id, accept);
   } else return fallback();
   reportMcpDispatch("fast");
   return response(result, body.id, accept);
