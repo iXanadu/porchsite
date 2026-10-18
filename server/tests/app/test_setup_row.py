@@ -80,3 +80,24 @@ async def test_two_valid_claims_have_one_winner(db):
     assert len(errors)==1 and (errors[0].status,errors[0].code)==(409,'claimed')
     assert await owner.passkey_count(db)==1
     assert await db.fetchval('SELECT count(*) FROM setup_codes')==0
+
+async def test_shared_hash_vectors_and_no_plaintext_challenge(db):
+    import json
+    from pathlib import Path
+    vectors=json.loads((Path(__file__).resolve().parents[3]/'spec/fixtures/setup-code-hash.json').read_text())
+    for row in vectors:
+        await unclaimed(db)
+        await owner.issue_setup_code(db,row['code'])
+        assert await db.fetchval('SELECT code_hash FROM setup_codes')==row['code_hash']
+        await owner.setup_options(db,request('/setup/options'),None,' '+row['code']+' ','Owner')
+        assert row['code'] not in await db.fetchval('SELECT challenge FROM challenges')
+
+async def test_exact_exclusive_expiry_boundary(db,monkeypatch):
+    await unclaimed(db)
+    fixed='2026-10-18T12:00:00.000Z'
+    monkeypatch.setattr(owner,'now',lambda:fixed)
+    await owner.issue_setup_code(db,'boundary-code')
+    await db.execute('UPDATE setup_codes SET expires_at=$1',fixed)
+    with pytest.raises(ApiError) as error:
+        await owner.setup_options(db,request('/setup/options'),None,'boundary-code','Owner')
+    assert (error.value.status,error.value.code)==(403,'code_expired')

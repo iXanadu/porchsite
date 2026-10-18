@@ -1,5 +1,6 @@
+import vectors from '../../spec/fixtures/setup-code-hash.json';
 import {env} from 'cloudflare:workers';
-import {beforeEach,expect,it} from 'vitest';
+import {beforeEach,afterEach,expect,it,vi} from 'vitest';
 import type {Env} from '../src/env';
 import * as owner from '../src/owner';
 import {SoftKey} from './softkey';
@@ -44,4 +45,17 @@ it('serializes two valid claims and consumes every stored code once',async()=>{
  const results=await Promise.allSettled([owner.setupVerify(db,a.req,undefined,a.response),owner.setupVerify(db,b.req,undefined,b.response)]);
  expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);const failed=results.find(x=>x.status==='rejected') as PromiseRejectedResult;
  expect(failed.reason).toMatchObject({status:409,code:'claimed'});expect(await owner.passkeyCount(db)).toBe(1);expect(await db.prepare('SELECT count(*) AS n FROM setup_codes').first('n')).toBe(0);
+});
+
+afterEach(()=>vi.useRealTimers());
+for(const row of vectors)it(`matches the shared setup hash vector ${row.code_hash.slice(0,6)}`,async()=>{
+ await owner.issueSetupCode(db,row.code);expect(await db.prepare('SELECT code_hash FROM setup_codes').first('code_hash')).toBe(row.code_hash);
+ const stored=await db.prepare('SELECT challenge FROM challenges').all();expect(stored.results).toEqual([]);
+ await expect(owner.setupOptions(db,new Request(origin+'/setup/options'),undefined,' '+row.code+' ','Owner')).resolves.toHaveProperty('options');
+ const challenge=await db.prepare('SELECT challenge FROM challenges').first<string>('challenge');expect(challenge).not.toContain(row.code);
+});
+it('refuses at the exact exclusive expiry boundary',async()=>{
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-10-18T12:00:00.000Z'));
+ await owner.issueSetupCode(db,'boundary-code');await db.prepare("UPDATE setup_codes SET expires_at='2026-10-18T12:00:00.000Z'").run();
+ await expect(owner.setupOptions(db,new Request(origin+'/setup/options'),undefined,'boundary-code','Owner')).rejects.toMatchObject({status:403,code:'code_expired'});
 });
