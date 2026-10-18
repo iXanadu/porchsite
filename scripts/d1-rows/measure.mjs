@@ -28,13 +28,14 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
         for (const kind of REQUESTS) {
           const response = await mf.dispatchFetch(ORIGIN + '/', { headers: { ...HEADERS, ...(kind === 'not_modified' ? { 'If-None-Match': etag } : {}) } });
           const value = await response.json();
+          fs.writeFileSync(path.join(out, `${site.name}-${mode}-${kind}.json`), JSON.stringify(value, null, 2));
           assert.equal(response.status, 200, 'measurement wrapper failed');
           assert.equal(value.status, kind === 'not_modified' ? 304 : 200, `${site.name}/${mode}/${kind} status`);
           const headers = Object.fromEntries(value.headers.map(([key, val]) => [key.toLowerCase(), val]));
           if (kind === 'not_modified') assert.equal(value.bytes, 0);
           else {
             assert.equal(headers['content-type'], 'text/html; charset=utf-8');
-            assert.equal(headers['cache-control'], 'public, no-cache, must-revalidate, no-transform');
+            assert.equal(headers['cache-control'], 'public, no-cache, must-revalidate, no-transform', `${site.name}/${mode}/${kind} public policy`);
             assert(headers.etag, 'ETag required'); etag = headers.etag;
           }
           const counts = value.counters;

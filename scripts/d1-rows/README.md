@@ -44,7 +44,8 @@ toolchain changes, `--record --rebase` remeasures that archived predecessor
 on the new inputs and retains its original record alongside the labelled
 comparison. Review the rebase; it must not hide a regression.
 
-The fixed application fixture clock is 2100-01-01T12:00:00Z. SQLite's host
+The fixed application fixture clock is 2030-01-01T12:00:00Z, within the
+bundled finite timezone rules. SQLite's host
 clock remains real and its SQL is unchanged; the future application clock
 keeps valid fixture admissions ahead of that host clock. This is a stable
 row-count scenario, not today's event selection or an expiry-race test.

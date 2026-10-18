@@ -5,7 +5,7 @@ export const hash = value => createHash('sha256').update(value).digest('hex');
 // Keep the application clock reproducible and ahead of SQLite's host clock:
 // SQLite's julianday('now') admission guard must remain unchanged. This is a
 // row-count fixture clock, not a claim about today's rendered event selection.
-export const CLOCK = '2100-01-01T12:00:00.000Z';
+export const CLOCK = '2030-01-01T12:00:00.000Z';
 export const ORIGIN = 'https://site.example';
 export const COMPATIBILITY = { compatibilityDate: '2026-08-15', compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'] };
 export const HEADERS = { Accept: 'text/html', 'User-Agent': 'PorchsiteRowsGate/1' };
