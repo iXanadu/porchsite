@@ -1897,6 +1897,28 @@ a link, link label or picture. Embeds become
 ordinary title-and-URL links; never fetch an embed, remote image or linked
 page to build a copy. No LLM, summarizer or external conversion service runs.
 
+LL-3 minimal escaping applies to page Markdown as well as the LL-2 map.
+Ordinary punctuation in visible prose, titles, link labels and image alt
+text stays literal: dots in domains, commas, exclamation marks, parentheses,
+braces and interior hash/plus/hyphen characters are not blanket-escaped.
+Escape backslashes, square brackets and literal inline-format/code delimiters
+when needed to preserve visible text; encode angle brackets and ampersands
+so published text cannot become raw HTML or an entity. Protect leading
+heading, list, thematic-break and fence markers after all inline children
+join at each emitted paragraph, root, list-item or quote boundary, regardless
+of the source container tag. Guard delimiter runs joined across inline
+elements too, including GFM strikethrough. Preserve generated child-block
+and code ranges through transparent containers; do not re-escape their
+intentional structure or code contents.
+Literal pipes remain escaped for the GFM table contract. Engine-generated
+links, emphasis, lists, headings and code retain their existing structure;
+code contents and URL serialization do not use prose escaping. Owner text
+cannot manufacture those structures. Required paired case
+`af_markdown_minimal_escaping` covers domains and ordinary punctuation,
+hostile brackets/HTML, leading block markers, literal inline delimiters,
+formatted text, code, links, images and tables, with round-trip visible-text
+and exact-byte parity checks.
+
 Generated titles, labels and summaries are escaped as Markdown data:
 owner strings cannot open a metadata/header block, inject an extra map
 entry or become an HTTP header. Relative content links resolve using the

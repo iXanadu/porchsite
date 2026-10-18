@@ -15,8 +15,22 @@ def inline_text(value):
     return trim(re.sub(r'[ \t\r\n\f]+', ' ', value))
 
 
+BLOCK = set('p div dl dt dd section article aside figure figcaption header footer summary tr h1 h2 h3 h4 h5 h6 pre ul ol blockquote table hr'.split())
+
+
+def block_text(value, protected_ranges=()):
+    ranges = list(protected_ranges)+[(m.start(),m.end()) for m in re.finditer(r'\\[\s\S]|(`+)[\s\S]*?\1',value) if m[1]]
+    def protect(m):
+        if any(a<=m.start()<b for a,b in ranges):
+            return m[0]
+        return m[1]+(m[3]+'\\'+m[4] if m[3] else '\\'+m[2])
+    return re.sub(r'^( {0,3})(?:(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)|(\d{1,9})([.)])(?= |$))',protect,value,flags=re.M)
+
+
 def md_text(value):
-    return re.sub(r'[\\`*_{}\[\]()#+.!|~-]', lambda m: '\\'+m[0], value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    value = re.sub(r'[\\`*_\[\]|]', lambda m: '\\'+m[0], value)
+    value = re.sub(r'~{2,}', lambda m: m[0].replace('~', '\\~'), value)
+    return value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
 def hidden(n):
@@ -73,8 +87,9 @@ def find(n, tag, visible=True):
     return None
 
 
-def children(n, render):
+def children(n, render, markdown=False):
     result, previous = '', None
+    protected_ranges=[]
     # Direct text distinguishes mixed prose from an element-only label group.
     group = not any(not c['tag'] and inline_text(c['text']) for c in n['children'])
     for child in n['children']:
@@ -83,9 +98,22 @@ def children(n, render):
             continue
         if group and previous is not None and previous['tag'] and child['tag'] and result and result[-1] not in ' \t\r\n\f' and value[0] not in ' \t\r\n\f':
             result += ' '
+        if markdown and ((result.endswith('!') and value.startswith('[')) or (result.endswith('~') and value.startswith('~'))):
+            slashes=0
+            for ch in reversed(result[:-1]):
+                if ch!='\\': break
+                slashes+=1
+            if slashes%2==0:
+                result=result[:-1]+'\\'+result[-1]
+        start=len(result)
         result += value
+        if markdown and (child['tag'] in BLOCK or child['tag'] in ('main','body','root','li','code')):
+            protected_ranges.append((start,len(result)))
+        elif markdown and child['tag'] not in ('a','strong','b','em','i'):
+            protected_ranges.extend((start+a,start+b) for a,b in child.get('ranges',()))
         previous = child
-    return result
+    if markdown: n['ranges']=protected_ranges
+    return block_text(result,protected_ranges) if markdown and (n['tag'] in BLOCK or n['tag'] in ('main','body','root','li')) else result
 
 
 def text(n):
@@ -178,7 +206,7 @@ def markdown_document(source, canonical):
         if not tag:
             return md_text(re.sub(r'[ \t\r\n\f]+', ' ', n['text']))
         def inner():
-            return children(n, lambda c: render(c, depth+1, in_table))
+            return children(n, lambda c: render(c, depth+1, in_table), True)
         if tag == 'head' or (main is body and tag == 'header'):
             return ''
         if tag == 'pre':
@@ -220,7 +248,7 @@ def markdown_document(source, canonical):
             rows = table_rows(n)
             if rows:
                 def cell(c):
-                    return trim(re.sub(r'[\r\n\f]+', ' ', children(c, lambda x: render(x, depth+2, True))))
+                    return trim(re.sub(r'[\r\n\f]+', ' ', children(c, lambda x: render(x, depth+2, True), True)))
                 def row(cells):
                     return '| '+' | '.join(cell(c) for c in cells)+' |'
                 rules = [{'left': ':---', 'center': ':---:', 'right': '---:'}.get(c['attrs'].get('align'), '---') for c in rows[0]]
@@ -233,6 +261,6 @@ def markdown_document(source, canonical):
 
     footer = find(body, 'footer')
     extra = render(footer) if footer and not find(main, 'footer') else ''
-    prefix = md_text(description)+'\n\n' if description and description not in inline_text(text(main)) else ''
+    prefix = block_text(md_text(description))+'\n\n' if description and description not in inline_text(text(main)) else ''
     content = re.sub(r'\n{3,}', '\n\n', re.sub(r'[ \t]+\n', '\n', trim(prefix+render(main)+extra)))
     return dict(title=title, description=description, markdown=('# '+md_text(title)+'\n\n' if title else '')+'<'+agent_url(canonical, canonical)+'>\n\n'+content+'\n')

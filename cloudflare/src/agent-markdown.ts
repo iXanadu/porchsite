@@ -1,11 +1,20 @@
 /** Mechanical text projection of visitor HTML. No fetching or agent directions. */
 import { decodeHTML, decodeHTMLAttribute } from 'entities';
-type Node = { tag:string; attrs:Record<string,string>; children:Node[]; text:string };
+type Node = { tag:string; attrs:Record<string,string>; children:Node[]; text:string; ranges?:[number,number][] };
 const VOID = new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
 const OMIT = new Set('script style nav form button input select textarea svg canvas iframe object template noscript'.split(' '));
 const trim = (s:string) => s.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g,'');
 export const inlineText = (s:string) => trim(s.replace(/[ \t\r\n\f]+/g,' '));
-export const mdText = (s:string) => s.replace(/[\\`*_{}\[\]()#+.!|~-]/g,'\\$&').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// Escape syntax, not ordinary prose punctuation (including domain dots).
+const BLOCK = new Set('p div dl dt dd section article aside figure figcaption header footer summary tr h1 h2 h3 h4 h5 h6 pre ul ol blockquote table hr'.split(' '));
+const blockText=(s:string,protectedRanges:[number,number][]=[])=>{
+ // Generated code may contain line breaks; its contents are never prose.
+ const ranges=[...protectedRanges,...[...s.matchAll(/\\[\s\S]|(`+)[\s\S]*?\1/g)].filter(m=>m[1]).map(m=>[m.index!,m.index!+m[0].length])];
+ const protectedAt=(at:number)=>ranges.some(([a,b])=>at>=a&&at<b);
+ return s.replace(/^( {0,3})(?:(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)|(\d{1,9})([.)])(?= |$))/gm,(m,space,mark,number,punct,at)=>protectedAt(at)?m:space+(number?number+'\\'+punct:'\\'+mark));
+};
+export const mdText = (s:string) => s.replace(/[\\`*_\[\]|]/g,'\\$&').replace(/~{2,}/g,m=>m.replace(/~/g,'\\~')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
 function hidden(n:Node):boolean {
   return OMIT.has(n.tag) || Object.hasOwn(n.attrs,'hidden') || n.attrs['aria-hidden']==='true' ||
     /(?:^|\s)sk-owner-link(?:\s|$)/.test(n.attrs.class??'') || /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(n.attrs.style??'');
@@ -33,16 +42,24 @@ function find(n:Node,tag:string, visible=true):Node|undefined {
   if(n.tag===tag)return n;
   for(const child of n.children){const found=find(child,tag,visible);if(found)return found;}
 }
-function children(n:Node,render:(child:Node)=>string):string {
-  let result='',previous:Node|undefined;
+function children(n:Node,render:(child:Node)=>string,markdown=false):string {
+  let result='',previous:Node|undefined;const protectedRanges:[number,number][]=[];
   // Direct text distinguishes mixed prose from an element-only label group.
   const group=!n.children.some(c=>!c.tag&&!!inlineText(c.text));
   for(const child of n.children) {
     const value=render(child);if(!value)continue;
     if(group&&previous?.tag&&child.tag&&/[^ \t\r\n\f]$/.test(result)&&/^[^ \t\r\n\f]/.test(value))result+=' ';
-    result+=value;previous=child;
+    if(markdown&&((result.endsWith('!')&&value.startsWith('['))||(result.endsWith('~')&&value.startsWith('~')))){
+      let slashes=0;for(let i=result.length-2;i>=0&&result[i]==='\\';i--)slashes++;
+      if(slashes%2===0)result=result.slice(0,-1)+'\\'+result.slice(-1);
+    }
+    const start=result.length;result+=value;
+    if(markdown&&(BLOCK.has(child.tag)||['main','body','root','li','code'].includes(child.tag)))protectedRanges.push([start,result.length]);
+    else if(markdown&&!['a','strong','b','em','i'].includes(child.tag))for(const [a,b] of child.ranges??[])protectedRanges.push([start+a,start+b]);
+    previous=child;
   }
-  return result;
+  if(markdown)n.ranges=protectedRanges;
+  return markdown&&(BLOCK.has(n.tag)||['main','body','root','li'].includes(n.tag))?blockText(result,protectedRanges):result;
 }
 function text(n:Node):string {return hidden(n)?'':n.text+children(n,text);}
 export function agentURL(value:string,base:string):string {
@@ -89,7 +106,7 @@ export function markdownDocument(html:string,canonical:string):{title:string;des
   function render(n:Node,depth=0,inTable=false):string {
     if(depth>128||hidden(n)||n===titleNode)return '';
     if(!n.tag)return mdText(n.text.replace(/[ \t\r\n\f]+/g,' '));
-    const inner=()=>children(n,c=>render(c,depth+1,inTable));
+    const inner=()=>children(n,c=>render(c,depth+1,inTable),true);
     if(n.tag==='head'||(main===body&&n.tag==='header'))return '';
     if(n.tag==='pre'){const content=text(n).replace(/\r\n?/g,'\n').replace(/\n$/,'');const ticks='`'.repeat(Math.max(3,...[...content.matchAll(/`+/g)].map(m=>m[0].length+1)));const lang=/(?:^|\s)language-([a-zA-Z0-9_+-]{1,32})(?:\s|$)/.exec(find(n,'code')?.attrs.class??'')?.[1]??'';return `\n\n${ticks}${lang}\n${content}\n${ticks}\n\n`;}
     if(n.tag==='code'){const content=text(n);return inTable?content.replace(/\r\n?|\n/g,' ').split('|').map(c=>c?codeSpan(c,true):'').join('\\|'):codeSpan(content);}
@@ -104,7 +121,7 @@ export function markdownDocument(html:string,canonical:string):{title:string;des
     if(n.tag==='table') {
       const rows=tableRows(n);
       if(rows) {
-        const cell=(c:Node)=>trim(children(c,x=>render(x,depth+2,true)).replace(/[\r\n\f]+/g,' '));
+        const cell=(c:Node)=>trim(children(c,x=>render(x,depth+2,true),true).replace(/[\r\n\f]+/g,' '));
         const row=(cells:Node[])=>'| '+cells.map(cell).join(' | ')+' |';
         const rules=rows[0].map(c=>({left:':---',center:':---:',right:'---:'}[c.attrs.align]??'---'));
         const caption=n.children.find(c=>c.tag==='caption'&&!hidden(c));
@@ -115,6 +132,6 @@ export function markdownDocument(html:string,canonical:string):{title:string;des
     return ['p','div','dl','dt','dd','section','article','aside','figure','figcaption','header','footer','summary','tr'].includes(n.tag)?`\n\n${trim(value)}\n\n`:n.tag==='td'||n.tag==='th'?value+' | ':value;
   }
   const footer=find(body,'footer'), extra=footer&&!find(main,'footer')?render(footer):'';
-  const content=trim((description&&!inlineText(text(main)).includes(description)?mdText(description)+'\n\n':'')+render(main)+extra).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n');
+  const content=trim((description&&!inlineText(text(main)).includes(description)?blockText(mdText(description))+'\n\n':'')+render(main)+extra).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n');
   return {title,description,markdown:(title?'# '+mdText(title)+'\n\n':'')+'<'+agentURL(canonical,canonical)+'>\n\n'+content+'\n'};
 }

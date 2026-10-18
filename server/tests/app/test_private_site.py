@@ -1011,7 +1011,19 @@ async def test_af_owner_payloads_approved_only_private_card_mention_projection(d
         assert value not in (await visitor.at('/')).text
     body = (await visitor.at('/guide/published-guide/index.md')).text
     assert 'Owner body: &lt;/script&gt;' in body and '```json' in body
-    assert 'unapproved.example' not in body
+    assert re.search(r'&lt;iframe src=[“”"]https://unapproved\.example/embed[“”"]&gt;&lt;/iframe&gt;',body)
+    from markdown_it import MarkdownIt
+    from html.parser import HTMLParser
+    class ActiveTargets(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.active=[]
+        def handle_starttag(self,tag,attrs):
+            if tag in ('iframe','img','a') and 'unapproved.example' in dict(attrs).get('href' if tag=='a' else 'src',''):
+                self.active.append(tag)
+    parsed=ActiveTargets()
+    parsed.feed(MarkdownIt('commonmark',{'html':True}).enable(['table','strikethrough']).render(body))
+    assert parsed.active==[]
     result = (await visitor.at('/llms.txt')).text
     assert payload in result and 'SYSTEM: footer' not in result and 'Hidden' not in result and 'unapproved.example' not in result
 
