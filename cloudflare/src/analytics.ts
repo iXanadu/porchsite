@@ -31,6 +31,7 @@ import { siteData } from "./content";
 
 export const NOTRACK_COOKIE = "sk_nt";
 export const RETAIN_DAYS = 90;
+export const DAILY_VIEW_CAP = 200;
 const MAX_BODY = 2048;
 const MAX_ENGAGED_MS = 4 * 3600 * 1000;
 export const BOUNCE_MS = 10_000;
@@ -107,11 +108,32 @@ export interface Visit {
   now?: Date;
 }
 
+/** Marker is updated last; the same predicate gates every statement in the batch. */
+async function maintain(db: D1Database, day: string): Promise<void> {
+  const marker = await db.prepare("SELECT completed_day FROM analytics_maintenance WHERE id = 1").first<{ completed_day: string }>();
+  if (!marker) throw new Error("analytics maintenance unavailable");
+  if (marker.completed_day >= day) return;
+  const guard = "EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < ?)";
+  const cutoff = addDays(day, -RETAIN_DAYS);
+  await db.batch([
+    db.prepare(`DELETE FROM analytics_salts WHERE day < ? AND ${guard}`).bind(day, day),
+    db.prepare(`INSERT OR IGNORE INTO analytics_daily (day, visits, views, engaged_ms)
+      SELECT day, COUNT(DISTINCT visitor), COUNT(*), SUM(engaged_ms) FROM pageviews
+      WHERE day < ? AND test = 0 AND ${guard} GROUP BY day`).bind(cutoff, day),
+    db.prepare(`DELETE FROM pageviews WHERE day < ? AND ${guard}`).bind(cutoff, day),
+    db.prepare("UPDATE analytics_maintenance SET completed_day = ? WHERE id = 1 AND completed_day < ?").bind(day, day),
+  ]);
+}
+
 /**
  * Record one beacon event. Returns whether it was recorded; never throws for
  * bad input (the beacon can't do anything with an error).
  */
 export async function collect(db: D1Database, raw: string, v: Visit): Promise<boolean> {
+  try { return await record(db, raw, v); } catch { return false; }
+}
+
+async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
   if (new TextEncoder().encode(raw).length > MAX_BODY || v.notrack) return false;
   let ev: Record<string, unknown>;
   try {
@@ -128,17 +150,7 @@ export async function collect(db: D1Database, raw: string, v: Visit): Promise<bo
     const path = str(ev.p, 300);
     if (!path.startsWith("/") || /^\/(review|mcp|collect)/.test(path)) return false;
     const day = await today(db, now);
-    // Yesterday's salts go, and views past their 90 days, their counts kept.
-    const cutoff = addDays(day, -RETAIN_DAYS);
-    await db.batch([
-      db.prepare("DELETE FROM analytics_salts WHERE day < ?").bind(day),
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO analytics_daily (day, visits, views, engaged_ms) SELECT day, COUNT(DISTINCT visitor), COUNT(*), SUM(engaged_ms) FROM pageviews WHERE day < ? AND test = 0 GROUP BY day",
-        )
-        .bind(cutoff),
-      db.prepare("DELETE FROM pageviews WHERE day < ?").bind(cutoff),
-    ]);
+    await maintain(db, day);
     const visitor = await visitorHash(db, day, v.ip, v.ua);
     const kind = str(ev.k, 20);
     const contentId = str(ev.c, 60);
@@ -150,7 +162,8 @@ export async function collect(db: D1Database, raw: string, v: Visit): Promise<bo
     const r = await db
       .prepare(
         `INSERT OR IGNORE INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain, prev_path, src, post, test, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+         WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)`,
       )
       .bind(
         ev.id as string,
@@ -167,6 +180,8 @@ export async function collect(db: D1Database, raw: string, v: Visit): Promise<bo
         ev.w === 1 || ev.w === true ? 1 : 0,
         at,
         at,
+        day,
+        visitor,
       )
       .run();
     return r.meta.changes === 1;
@@ -374,7 +389,7 @@ export async function stats(db: D1Database, q: StatsQuery = {}): Promise<Record<
     agent_traffic: await trafficReport(db,start,end),
     range: { start, end },
     filter: { content_id: q.content_id ?? null, src: q.src ?? null, post: q.post ?? null, include_test: includeTest },
-    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. Visitor statistics exclude the owner, bots and test runs. Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower.`,
+    notes: `A visit = one visitor on one day (visitors are not linked across days). Engaged time counts only while the page is visible and the reader is active. Bounce = under ${BOUNCE_MS / 1000} s engaged, or one page with no scroll past 25%. Visitor statistics exclude the owner, bots and test runs. Time on page and scroll can lag up to a minute while someone is still reading. Browser or connection delays can make that longer. If the final message is lost, recorded time and scroll can be lower. At most 200 page views per visitor per day are recorded; additional page views are omitted.`,
     totals: {
       visits: all.length,
       views: sum(all.map((v) => v.pages)),

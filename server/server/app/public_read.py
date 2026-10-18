@@ -72,6 +72,12 @@ def view_proof(f):
 async def facts(db, artifacts=False):
     if not artifacts:
         return decode(await db.fetch(FACTS_SQL))
+    rows=await db.fetch(FACTS_SQL)
+    raw=[[r['category'],r['ident'],r['value']] for r in rows]
+    return {**decode(rows),'raw':raw}
+
+async def preparation_facts(db):
+    """State transport for scheduled preparation, never visitor validators."""
     try:
         rows=await db.fetch(FACTS_STATE_SQL)
     except Exception:

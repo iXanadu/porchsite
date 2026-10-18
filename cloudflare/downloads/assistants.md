@@ -33,6 +33,11 @@ names. Re-read them at the start of each new task: they change.
   Don't ask me to edit content or upload corrections: make the change
   and send it for approval.
 - Never tell me a change is live before I've approved it.
+
+1. Never upgrade a plan, add a payment method, or turn on a paid feature without the owner's explicit yes.
+2. Never call a budget alert a spending limit. Cloudflare has no hard cap, and alerts are email only, about a day late.
+3. Never promise "you can't be billed" except for Workers and D1 usage on the free plan. Domains and other products are billed separately.
+4. Before heavy use (a big import, repeated site checks, a crawling loop), tell the owner the free daily limits and how to see usage.
 ```
 
 ## Grok Bot (xAI)

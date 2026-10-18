@@ -62,6 +62,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    cut it, measured under GATE-2. Until then, prepared copies are a
    small-site setting.
 
+5. **GATE-2a** OPEN (found 2026-10-18 shipping AN-1): the rows gate
+   measures page requests only, so writes on the visitor beacon
+   (`POST /collect`) and on owner actions (approvals, imports) are not
+   measured. AN-1's +1 write per recorded view passed the gate unseen;
+   it shipped on a stated reason and the owner's yes. Add beacon and
+   approval cells (1 and 200 entries) to the gate.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
@@ -131,7 +138,7 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
-- **CO-1** OPEN (owner, 2026-10-18): a plain free/paid/self-host
+- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs staged, owner approval required before merge): a plain free/paid/self-host
   explanation for people and assistants. It covers the Cloudflare free
   plan's limits; what happens when a site goes over (it stops, with no
   bill, and one busy site can stop others on the same account); the risk
@@ -165,31 +172,26 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   method/preflight/origin checks and unclaimed-409 precedence; fixed
   `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
   Introducing recovery links already use fragments; keep archived tests.
-- **AN-1** OPEN: the visitor beacon (`POST /collect`) has no rate limit.
-  Each accepted page-view event writes at least one database row and runs
-  the retention clean-up (a delete plus an aggregate insert) every time.
-  On the free plan, a flood of fake events uses up the 100,000 daily
-  requests and writes, after which the site's own writes fail until the
-  daily reset. On a paid plan it would raise the bill with no cap. Fix
-  before any wider rollout: a cheap per-visitor or per-IP cap, and the
-  clean-up run at most once per day instead of on every event. Found
-  2026-10-18 on the owner's question.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
-- **AF-7T-C2** OPEN: hosted on porchsite.dev (2026-10-18, e88698b),
+- **AF-7T-C2** IN-PROGRESS (implementation review): hosted on porchsite.dev (2026-10-18, e88698b),
   prepared copies cut a cold page to about 6.5 ms CPU (typical; it was
   about 21 ms), the first time under the free plan's 10 ms. But database
   rows read per cold page rose from 218 to 484, and "not changed" replies
   from 176 to 240. On the free plan's 5 million rows a day per account,
   that is about 10,000 cold page views a day instead of about 23,000.
   Cut the rows a copy's freshness check reads, keeping every check.
-  Candidate dcca6b8 (specs d0e7b74 and d2a2975, both reviews passed) cut
-  rows read in every measured case (304 236 to 178 rows, HIT 480 to 453,
-  cold after an edit 869 to 841, small fixture), but HELD on CPU: HIT
-  median +4.7 ms over 12 fresh pairs (interval -2.5 to +9.8). Next:
-  per-statement attribution of the HIT, and a 304-only candidate.
+  Candidate implements the reviewed ordinary-304 and advisory-refusal
+  contracts. On the 200-entry fixture, reads fall 6,325 to 6,121 for a cold
+  edit, 3,472 to 3,269 for a HIT and 1,644 to 1,234 for a 304; writes stay
+  unchanged. The first 12-pair HIT CPU cohort triggered a hold: +4.7 ms
+  (interval -2.5 to +9.8). One predeclared final 24-pair confirmation gave
+  -2.0 ms (interval -11.7 to +6.2), clearing the +0.5 ms median stop bar;
+  neither interval establishes a CPU improvement or zero overhead. The
+  release rows gate finds all 39 ON cells lower and all 39 OFF cells
+  unchanged, with no write increase. Independent acceptance is still owed.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;

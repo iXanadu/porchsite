@@ -2724,7 +2724,8 @@ makes no progress, but only increasing bounded engagement or scroll writes
 a row. Apply those maxima atomically so duplicate, out-of-order and
 concurrent heartbeats cannot lower recorded values. Keep the current input,
 wall-time, four-hour engagement and six-hour heartbeat limits unchanged.
-There is no visitor sampling or change to report calculations. The owner
+There is no visitor sampling; AN-1 below caps recorded page views without
+changing report calculations. The owner
 stats page and `site_stats` report notes
 say: "Time on page and scroll can lag up to a minute while someone is still
 reading." If a final beacon is lost, recorded time and scroll may be lower.
@@ -2762,6 +2763,221 @@ engaged time, how far down they read, landings, bounce rate, exits),
 sources, referring domains and tagged links, and, for the whole site,
 "Earlier, counts only": the kept days' visits and views by month, newest
 first.
+
+### AN-1: bounded visitor page views and daily retention
+
+This contract applies to both editions' existing `POST /collect`. The
+server edition has the same page-view and heartbeat endpoint. It adds no
+beacon fields, identifier, cookie, personal-data source, reporting tool or
+catalog change. Reconnecting assistants is not required.
+
+**Admission.** Record at most **200 distinct page views per visitor per
+site-local calendar day**. The key is exactly the existing `(day, visitor)`:
+the current daily salt and the existing address/user-agent hash, including
+the current 400-code-unit user-agent limit. Do not accept a client-supplied
+visitor hash, day, salt, counter or cap. Test views share the same cap as
+non-test views. An admitted view's existing heartbeat may still update it
+after the cap is reached; a dropped view has no row for a heartbeat to
+update. No-progress heartbeats still make no row changes. Heartbeat
+engagement, scroll, wall-time and six-hour bounds remain unchanged.
+
+A duplicate page-view id never consumes another slot, changes its original
+row, or resets a visitor's allowance. Invalid input, oversized input,
+excluded paths, opted-out visitors, bots and private-site collection remain
+excluded before the new admission/storage work. Keep the current id grammar
+(`[A-Za-z0-9_-]{8,64}`), path and event validation. Different valid ids do not
+bypass the cap. There is no per-path, content-id or test-flag allowance.
+
+Admission is an atomic check-and-insert, not an application SELECT followed
+by an unconditional INSERT. Add an index on `pageviews(day, visitor)` in
+both editions; retain the existing id primary key and day index. No
+per-event counter row is added. In D1 the existing full page-view INSERT
+becomes `INSERT OR IGNORE ... SELECT <the same bound values> WHERE NOT
+EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET
+199)`. The indexed existence subquery and insertion execute in one
+statement. All values remain bound parameters. No error-catching fallback
+may turn that into an uncapped insertion. At 199 rows, concurrent new ids
+can insert only one more; at 200, none can insert. An upgraded database
+already containing more than 200 rows for the key admits no more, without
+rewriting or deleting history. The index bounds the matching entries
+examined by this subquery to 200, not the whole site's history. SQL plans
+and actual rows-read counters still need verification.
+
+In PostgreSQL, take a transaction-scoped advisory lock derived from the
+existing day and visitor hash before the same indexed existence check and
+conflict-safe insertion. Derive the lock key deterministically with a
+fixed encoding and SHA-256 truncated to a signed 64-bit integer, identical
+for every collector in this edition; collisions only serialize unrelated
+collectors. No lock key or lock mapping is persisted. Acquire this lock
+in a separate statement before the READ COMMITTED admission statement so
+its snapshot sees a completed predecessor's insertion. A transaction
+rollback releases the lock. A bare SELECT/INSERT pair without this
+serialization, or relying on READ COMMITTED alone, does not meet the cap.
+
+**Observable behavior and statistics.** Successful, duplicate, malformed,
+over-cap and unavailable-storage collection responses are all empty 204
+with the existing `Cache-Control: no-store`, no new response headers,
+retry interval, remaining-count value, cookie or explanatory body. Preserve
+the existing private response headers. Catch collection storage failures
+at the analytics boundary, never in the site's mutation/authentication
+handlers; do not fall back to a different database or uncapped writes.
+This is response-shape indistinguishability, not a constant-time request
+claim. The collector's internal accepted boolean is not exposed publicly.
+
+Report calculations, grouping, bounce, engagement and filtering remain
+unchanged. For every visitor below or at 200 admitted views per day, the
+same valid events and heartbeats yield the same reports as before. A real
+visitor exceeding 200 views loses excess views too: do not claim all human
+analytics are unchanged. Append this exact sentence to both editions'
+existing report notes: "At most 200 page views per visitor per day are
+recorded; additional page views are omitted." No public drop counters or
+visitor-specific cap-status endpoint is added.
+
+**Retention once per day.** Add one singleton table row
+`analytics_maintenance(id=1, completed_day)` with an initially empty day.
+It contains only a maintenance date, no visitor information. On an
+otherwise valid public page-view event, read this primary-key row. If its
+stored day is earlier than the event's server-derived site-local day D,
+perform the existing retention work in one transaction/batch: remove salts
+before D; aggregate non-test views before D minus 90 days into the existing
+`analytics_daily` rows; remove those expired page views; finally set
+`completed_day=D`. Keep the existing aggregate columns, conflict behavior,
+90-day cutoff and test exclusion. Each of those statements must check the
+same singleton `completed_day < D` predicate within the transaction.
+The final marker update is conditional on that predicate too. A stale
+outside read cannot authorize a second cleanup after another collector
+commits. In PostgreSQL lock the singleton row before rechecking the
+predicate, and hold it through commit. In D1 use a single transactional
+batch with all four predicates and update the marker last. Failure rolls
+back aggregation, deletion and marker together; never mark incomplete
+cleanup successful or delete rows without their retained aggregate.
+
+There is at most one committed cleanup per increasing site-local date,
+regardless of concurrency, duplicate ids, or visitor cap. With no valid
+page views there is no scheduled job; cleanup is deferred. A clock or
+timezone change moving the day backwards does not lower the watermark or
+repeat prior cleanup; cleanup resumes when a later date arrives. Existing
+hash/day timezone semantics are unchanged. Daily salt creation remains
+conflict-safe and uses the existing cryptographic source; no IP or raw
+user agent is stored. Housekeeping does not create cross-day visitor
+links. Delayed cleanup can retain an old salt until the next valid page
+view, as an idle site already does; historical hashes are never rehashed
+or reassigned. The maintenance transaction must finish before this
+request creates/reads the day's salt and attempts admission.
+
+These are additive migrations. Existing views, salts and daily totals are
+not reset on upgrade. A previous runtime continues to read/write its old
+schema and ignore the marker; while that runtime is running it can exceed
+the cap and repeat cleanup. Do not claim enforcement across a rollback to
+an unaware runtime. On return to the current runtime, existing rows count
+toward the cap and the normal cleanup resumes; no missing-column fallback
+may silently disable it. Test populated rollback and return explicitly.
+
+**Threat boundary.** This limits stored page views for one existing daily
+visitor key, not all events from a person or a distributed attack. Changing
+a user agent, address or day changes that key. NAT users with the same
+user agent already share it. IP input keeps its existing edition trust
+boundary: trusted Cloudflare connecting address on Workers; the server's
+existing trusted-proxy configuration. Arbitrary forwarded headers must
+not become a new client-controlled limiter identity. No new fingerprint,
+IP-only persistent counter, cross-day tracking, request log or rejection
+log is allowed. A flood of distinct keys can still exhaust Workers
+requests, D1 reads/writes or heartbeat writes. This change must not be
+advertised as a site-wide daily billing ceiling or complete denial-of-
+service protection. A global budget or heartbeat admission change needs
+its own owner decision and spec; it is not implicitly authorized here.
+
+**Cloudflare binding assessment.** The Workers Rate Limiting binding is GA
+and supports only 10- or 60-second windows, with eventually consistent,
+location-local counters rather than precise global accounting. Its
+published examples' "free users" describe an application's customers,
+not Workers Free entitlement. The documentation reviewed here does not
+explicitly establish Workers Free availability/pricing for this binding.
+Therefore this proposal uses D1 only and adds no binding or deployment
+requirement; do not infer availability from WAF rules or the GA label.
+Even if availability is established later, this binding cannot replace
+the exact daily database admission rule.
+
+Sources for this assessment and measurement terminology:
+- [Workers Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+- [Workers Rate Limiting GA](https://developers.cloudflare.com/changelog/post/2025-09-19-ratelimit-workers-ga/).
+- [D1 pricing and row metrics](https://developers.cloudflare.com/d1/platform/pricing/).
+
+**Cost and release evidence.** No CPU or D1 billing saving is established
+by this spec-only proposal. Statement counts below describe the analytics
+layer after the existing site-day lookup, whose queries and cost are
+measured separately. "Write" means an SQL mutation statement; changed
+rows and billed `meta.rows_written` are separate quantities.
+
+| Case | Before: statements | Proposed: statements | Expected changed rows in steady state |
+| --- | --- | --- | --- |
+| Valid page view, cleanup already done, salt exists | 3 cleanup + salt insert/select + view insert = 6 | marker read + salt insert/select + guarded view insert = 4 | 1 admitted view; 0 new view on duplicate/cap |
+| First valid page view needing cleanup | same 6 | marker read + 4-statement cleanup batch + salt insert/select + guarded insert = 8 | existing retention rows + 1 marker update, plus salt/view when new |
+| Invalid/opted-out/bot/blocked path | 0 | 0 | 0 |
+| Known heartbeat | 1 read + 1 conditional update | unchanged | 0 without progress; at most 1 view row with progress |
+| Unknown/dropped-view heartbeat | 1 read | unchanged | 0 |
+
+The new covering index increases write/storage cost for admitted inserts
+and retention deletes; it is not free. The cap subquery examines up to
+200 matching index entries per valid page-view attempt, including dropped
+attempts. Marker reads and rejected admissions still consume D1 reads.
+An ignored INSERT is not assumed free without measuring its actual row
+metrics. Salt creation and cleanup are separate daily overhead, not
+charged as a fictitious write on every warm event. For N valid views on
+a stable day, cleanup changes from N attempts to one committed run;
+actual row changes need not have been nonzero on every old attempt.
+
+Before a runtime freeze, retain exact baseline/candidate SQL, query plans,
+statement vectors, `meta.rows_read`, `meta.rows_written`, changes, index
+sizes and rows returned for: empty day/first salt, warm below-cap, 199th/
+200th/201st unique view, duplicate id, repeated denied views, unknown and
+progress/no-progress heartbeats, and a day with representative expired
+rows. Include a flood of 1,000 valid ids for one visitor and an equal-size
+rotating-key control; report total costs as well as per-event medians.
+Do not label SQLite VM steps or Postgres row changes as D1 billing.
+
+Measure CPU on unchanged normal minified Worker entry with actual
+`POST /collect`, both response/prepared caches off: at least 12 interleaved
+fresh-process pairs per above admission/cleanup class, plus warmed repeated
+batches, same seeds/headers/origin and explicit completion/drain accounting.
+Keep timing and SQL observers in separate runs; report startup separately,
+all vectors and any added below-cap cost, not only flood savings. PostgreSQL
+gets paired correctness/transaction proof and separately labelled CPU
+measurements. No invented hosted, zero-overhead or under-10-ms claim.
+
+Local implementation diagnostics (before the setup-link release integration)
+found warm accepted page views changed from 7 reads/3 writes to 7 reads/4
+writes at one existing view, and 205 reads/4 writes at the 200th view. A
+201st attempt used 206 reads/0 writes. First-day overhead changed from
+7 reads/5 writes to 11 reads/7 writes. A 1,000-event fixed-key flood changed
+7,000 reads/3,000 writes to 185,900 reads/800 writes, recording 200 views.
+Rotating user agents recorded all 1,000 and changed 7,000 reads/3,000 writes
+to 6,000 reads/4,000 writes. These are local D1 API metrics, not hosted
+billing guarantees. The index therefore adds cost to ordinary admitted
+views and does not bound account-wide usage.
+
+Twelve interleaved local fresh-process pairs per admission class measured
+Worker paired CPU changes from -0.483 to +0.134 ms; below-cap was -0.348 ms,
+first-day +0.134 ms, and retention cleanup -0.162 ms. Twelve warmed process
+pairs per key pattern (20 requests per process) gave +0.136 ms for one key
+and -0.428 ms for rotating user agents. Results are mixed, not a general
+CPU saving. Separately measured PostgreSQL application-process CPU added
++0.318 ms on first-day and +0.293 ms on cleanup; database-process CPU is
+excluded. No hosted or tail-latency claim follows.
+
+Paired safety tests cover all cap boundaries; duplicate/malformed ids;
+concurrent claims for the final slot (exactly one insert); test/non-test
+sharing; invalid inputs causing no new database work; daily rollover and
+timezone/backwards clock; no client-selected day/hash; trusted IP boundary;
+maintenance races and transaction fault rollback at every statement; exact
+retained historical aggregates; same below-cap report snapshots; expected
+above-cap omissions and report note; private/owner/bot opt-outs; heartbeats
+on admitted versus dropped ids; and silent 204 on analytics storage errors.
+Temporarily bypass the atomic admission/maintenance guard in scratch copies
+and show the concurrent tests fail. Preserve original assertions and
+negative-control evidence. Full two-edition gates, real public/private
+HTTP, actual previous-release rollback/return and independent acceptance
+remain required. No schema/runtime implementation before spec review.
 
 ## 9. Edition extras
 
@@ -3735,7 +3951,7 @@ All AF-7T access, identity, clock, metadata, admission and fallback rules
 above continue to apply. There is no schema, index, trigger, flag, format,
 key, tool, scope, route or header change. No client reconnect is required.
 
-**Cut 1: one state transport row.** Let `Q_F` be the existing ordered
+**Cut 1: one state transport row (superseded for visitor reads by AF-7T-C2 below).** Let `Q_F` be the existing ordered
 `FACTS_SQL` statement, including its complete category/identity/raw-value
 projection and terminal category/identity ordering. The artifacts-off facts
 query remains `Q_F`, with exactly its existing output, decoding and query
@@ -5543,3 +5759,243 @@ Prepared-copy state, G2, counted tuple proofs and atomic admission remain
 unchanged. The trigger witness may not substitute for their complete proofs
 or authorize cached delivery. Any later phase requires its own reviewed
 amendment and measurements. No catalogue change or reconnect is introduced.
+
+#### AF-7T-C2: ordinary conditional facts; atomic copy-state proof
+
+This amendment applies to both editions. It supersedes C1 cut 1 for
+visitor facts reads; C1 cut 2 and every AF-7T/AF-7L authority, complete
+preimage, cardinality, clock and delivery rule remain. No schema, index,
+trigger, flag, default, key, format, public route, response header, tool or
+reconnect change. Stored expected closures are not selected.
+
+**304 must not read copy state.** Let Q_F be the exact ordinary ordered
+facts SQL in the edition's artifacts-OFF path, with its existing binds.
+A stable anonymous conditional request with copies ON executes the same
+statements, in the same order, with identical SQL text and bindings as the
+same request with copies OFF. Both initial and final facts reads use Q_F.
+No state UNION, scalar state subquery, artifact lookup, copy-body read,
+generation synchronization or artifact DML occurs before that 304 return.
+Existing access and request-accounting statements remain identical too.
+This is a statement-identity requirement, not just equal result counts.
+
+The first read still decodes and validates every dependency; the second
+still checks live privacy and complete normalized facts equality. The
+original request's AF-7L plan is checked at the same return boundary.
+If facts drift, the existing bounded refresh/route/existence/tag behavior
+runs; a failed conditional check is not permission to skip the final check
+on a later HIT. Session/Authorization bypass, private and missing pages,
+HEAD, wildcard validators and legacy optional-table fallback remain safe.
+The validator's complete F, AF-2 preimage and response bytes do not depend
+on whether copies are enabled or on state generation/revision values.
+
+An ON nonconditional candidate may retain the exact ordered raw Q_F
+category/identity/value tuples before the existing decoder mutates parsed
+values. This is request-owned data from that same read, not a second source
+fetch, new JSON parse or reduced dependency projection. OFF decoding,
+allocations, query text and statement count stay unchanged. Preserve all
+raw strings, duplicates and cardinality; state is never a dependency tuple.
+Both hashes retain their complete existing preimages and SHA operations.
+
+**One atomic lookup observes state and proves source equality.** Remove
+the visitor's initial state transport. The subsequent artifact statement
+observes current state, proves both raw multiset directions with counts,
+and conditionally selects the keyed body in one database snapshot. It must
+not fetch state separately and then perform an unguarded lookup. The SQL
+shape is the following; bindings remain parameters, never interpolation:
+
+```sql
+WITH current_facts AS (<unchanged Q_F0>),
+expected AS (<unchanged edition-specific captured raw JSON relation>),
+current_counts AS MATERIALIZED (
+ SELECT category,ident,value,count(*) AS n FROM current_facts
+ GROUP BY category,ident,value
+),
+expected_counts AS MATERIALIZED (
+ SELECT category,ident,value,count(*) AS n FROM expected
+ GROUP BY category,ident,value
+),
+tuple_proof AS (
+ SELECT NOT EXISTS (
+  SELECT category,ident,value,n FROM current_counts
+  EXCEPT SELECT category,ident,value,n FROM expected_counts
+ ) AND NOT EXISTS (
+  SELECT category,ident,value,n FROM expected_counts
+  EXCEPT SELECT category,ident,value,n FROM current_counts
+ ) AS facts_ok
+),
+copy_state AS MATERIALIZED (
+ SELECT generation,revision FROM public_artifact_state WHERE id=1
+),
+proof AS (
+ SELECT t.facts_ok,s.generation,s.revision,
+  (<valid singleton state> AND t.facts_ok
+   AND s.generation=<captured G2 parameter>) AS ok
+ FROM tuple_proof t LEFT JOIN copy_state s ON 1=1
+)
+SELECT p.facts_ok,p.generation,p.revision,p.ok,
+       a.key,a.body,a.metadata,a.valid_until
+ FROM proof p LEFT JOIN public_artifacts a
+ ON p.ok AND a.key=<exact key parameter>
+         AND a.generation=<captured G2 parameter>
+```
+
+The existing primary key permits at most one state row. A missing row,
+non-string generation or non-integer revision is invalid state. In D1 the
+valid-state expression checks original SQL types (`typeof` text/integer),
+so malformed state cannot enable the body join; PostgreSQL uses its typed
+schema and non-null presence checks. Validate the returned proof/state
+shape before delivery as well: no duplicate/unexpected result rows,
+coercion, fabricated state or default-true proof. State fields are advisory
+request-local observations, excluded from raw tuples, F, both hashes,
+clock, approved-view proof and public output. Do not add state fields to
+every dependency row. The state relation is read once within this statement.
+
+**Mismatch plumbing, in priority order.** Each branch preserves the prior
+bounded fallback and never serves a withheld body:
+
+1. Unavailable optional state/table/query or malformed proof result: the
+   existing guarded live refresh/unavailable path; no prepared response.
+2. `facts_ok` false: current raw tuples differ in at least one direction or
+   multiplicity. Withhold all body bytes, run existing invalidation/clear
+   and guarded live refresh. This includes old-runtime same-version raw,
+   membership, extension, privacy, media or theme edits without state bumps.
+3. Tuple equality true but state missing/invalid or generation differs:
+   the body join is false. Run the existing atomic synchronize operation
+   (ensure singleton, delete old artifacts, install observed G2/revision),
+   then render a MISS; do not relookup or return an old body. Installing
+   observed G2 alone is not proof for a later insert.
+4. Complete tuples and valid state/G2 match: an absent key is a clean MISS.
+   A present row goes through every existing metadata/body SHA, route,
+   origin, private/session, exclusive-expiry and final AF-7L clock check.
+   Corrupt/expired rows retain deletion and live behavior. No match means
+   no HIT, even if some state fields or total row counts happen to agree.
+
+An artifact row is not selected when state/G2 differs. This is the same
+purge-before-stored-body-use rule as AF-7T: SQL withholds the body before
+synchronization, rather than discovering generation in a prior facts read.
+If source changes after lookup, existing in-flight authorization boundaries
+apply; the same-statement proof and final clock are not moved earlier.
+
+**Admission and preparation.** Keep C1's complete two-way grouped proof
+and matching generation in the same conditional INSERT as today. A
+publication/private-on/old-runtime write between lookup, synchronization,
+render and admission must prevent stale insertion. Preserve D1 batch
+atomicity and PostgreSQL singleton locking, quotas, expiry cleanup and
+transaction/rollback behavior. No separate check-then-insert shortcut.
+
+Scheduled preparation may keep a preparation-only state-aware facts helper
+for its initial generation/lease observation, with C1's malformed-state and
+optional-table fallback rules. It is not callable from visitor validator
+reads. Per-copy respond/lookup uses the atomic statement above. Keep the
+250 ms preparation budget, 30 s lease, private checks, source rechecks,
+completion semantics and release cleanup unchanged. A visitor generation
+observation still cannot suppress pending preparation work.
+
+**Acceptance before implementation freeze.** Shared paired fixtures and
+both editions must prove:
+
+- ON304 versus OFF304 exact statement text/order/binds/count identity on
+  matching stable GET and HEAD (including wildcard), same source and other
+  cache flag. No state/artifact SELECT or artifact DML; unchanged complete
+  F/AF-2 preimages, status, public headers and empty body. OFF controls stay
+  byte/query-identical to the prior release. Include absent optional tables.
+- Atomic lookup branch coverage for tuple match/drift in both directions,
+  duplicates/missing/additional/replacement tuples, null/empty/raw whitespace,
+  state missing/malformed/generation mismatch, corrupt metadata/body,
+  unavailable table and old-runtime in-place writes. A mismatch never returns
+  a body; synchronization does not admit a stale build. Preserve existing
+  strict refusal assertions rather than retargeting them to a weaker guard.
+- Publication/private-on/source races at lookup, synchronization and final
+  admission, plus unknown clocks, event/hours/notice boundaries, DST,
+  rollback of time, session and origin refusal, preparation and actual
+  previous-runtime rollback/return. No skipped access/existence/validation.
+- Before/after native D1 statement-level reads/writes for SQL-certified HIT,
+  clean MISS, stable304 and OFF controls on (a) a small synthetic site whose
+  public dependency counts/categories match the supplied hosted inventory,
+  and (b) the existing identical200-entry fixture. Keep both cache flags
+  explicit, fixtures immutable, original headers/release/origin and due
+  accounting identical; no hidden synchronization or renderer on a HIT.
+  If the exact hosted inventory is unavailable, label the substitute and
+  do not claim its counts reproduce the hosted totals. Retain every SQL
+  statement, plan and result/parameter bytes separately from normal CPU.
+  Verify ON304 and OFF304 equal native query/read counters on the same data.
+  Report measured HIT/304 rows before and after, not EXPLAIN estimates as
+  billed reads or gross avoided work as net savings.
+- Both-edition parity, real normal production startup, full correctness,
+  migration compatibility and old-runtime gates. Existing CPU/rows/clock
+  budgets remain; no CPU target, hosted saving or default enablement is
+  declared from source analysis. Candidate selection is not acceptance.
+
+##### AF-7T-C2 amendment: advisory generation refusal before lookup
+
+This amendment applies to both editions. It permits one cheap state read
+after a visitor has failed the ordinary conditional-return branch and
+passed the existing copy eligibility, complete facts, tag and clock checks.
+It amends C2's prohibition on a separate visitor state observation only
+at this point. Both validator reads remain exact Q_F: ON304 still executes
+exactly the OFF304 statements, with no state read or artifact operation.
+OFF requests, private/session/Authorization bypass and missing pages retain
+their existing behavior. No schema, default, flag, format or preimage changes.
+
+**The observation can refuse a lookup; it cannot authorize a HIT.** Compute
+G2 from the same complete captured F and existing release/origin preimage.
+Before the atomic copy lookup, read only the singleton state columns:
+
+```sql
+SELECT generation,revision FROM public_artifact_state WHERE id=1
+```
+
+This statement has no bindings in either edition. Inspect the complete
+result shape: exactly one row, a string generation and integer revision,
+without coercion (a boolean is not an integer). An unavailable optional
+table/query or malformed result follows the existing guarded live fallback;
+no prepared response is returned. A missing singleton may continue to the
+unchanged atomic lookup so its existing missing-state branch synchronizes.
+There is no synthetic matching generation or default-true result.
+
+For a valid observed generation different from captured G2, skip the
+artifact lookup entirely. Run the existing atomic synchronize operation
+(ensure singleton, delete artifacts, install G2 and advance revision), then
+use the existing live MISS rendering and conditional admission path. Do not
+select a stored body, relookup, return a copy or treat synchronization as
+freshness proof. No new early response or weaker live-render check is added.
+
+For an observed matching generation, execute C2's entire atomic lookup
+unchanged: complete current Q_F0 and captured raw tuples, materialized
+grouped counts, both EXCEPT directions with multiplicity, fresh singleton
+state observation and guarded key/G2 body join in one statement snapshot.
+The preliminary match is not passed as proof to SQL and cannot replace its
+state relation, generation predicate or any tuple check. Returned facts_ok,
+ok and body retain their existing validation and branch priority. State
+remains excluded from raw dependencies, F, both hashes, clocks and output.
+
+**Races remain refusals.** A generation change after a preliminary match
+is observed by the atomic lookup, which withholds the body and runs C2's
+existing mismatch branch. An old-runtime source edit without a state bump
+still fails the lookup's complete counted two-way tuple proof. A change
+after a preliminary mismatch cannot cause stale-copy delivery because that
+branch never reads or serves a copy. Synchronizing an already superseded
+G2 does not authorize insertion: the final conditional INSERT still proves
+the complete captured tuples in both directions and matching generation
+in the same statement. A source/state race rejects stale admission. All
+existing render/tag equality, privacy, origin, metadata/body SHA, exclusive
+expiry and AF-7L clock checks remain at their existing boundaries; D1 batch
+atomicity, PostgreSQL singleton locks, quotas and rollback remain unchanged.
+Preparation leases and the preparation-only state-aware helper are unchanged.
+
+**Acceptance for this amendment.** Both editions must cover valid mismatch
+skipping lookup with purge and complete live body/tag equality; matching
+observation followed by state drift at the actual lookup; unchanged-state
+old-runtime tuple drift; missing/malformed/unavailable state; and mutation
+controls proving that the lookup's G2 and counted tuple guards remain
+effective. Preserve prior strict old-runtime/private assertions. ON304
+versus OFF304 SQL text, bindings, order, statement count and rows must
+remain identical, with and without a stored copy and with optional tables
+absent. The extra observation must be absent from those 304s.
+
+Re-measure only generation-mismatch cold, ON304 and certified HIT diagnostic
+cells on the same labeled small substitute and unchanged 200-entry fixture,
+retaining prior results, query-level rows read/written, statements and plans.
+Report the extra state-read cost on a HIT and any remaining cold increase;
+do not infer net savings from a skipped proof alone. CPU measurement stays
+on hold until this amendment is reviewed and its row comparison is complete.

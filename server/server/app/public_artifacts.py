@@ -161,6 +161,22 @@ def proof_sql():
     from .public_read import FACTS_RELATION
     return PROOF_SQL.format(facts=FACTS_RELATION)
 
+STATE_SQL='SELECT generation,revision FROM public_artifact_state WHERE id=1'
+
+def lookup_sql():
+    from .public_read import FACTS_RELATION
+    return f'''WITH current_facts AS ({FACTS_RELATION}),
+ expected AS (SELECT e->>0 AS category,e->>1 AS ident,e->>2 AS value FROM json_array_elements($1::json) e),
+ current_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM current_facts GROUP BY category,ident,value),
+ expected_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM expected GROUP BY category,ident,value),
+ tuple_proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
+ AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts) AS facts_ok),
+ copy_state AS MATERIALIZED (SELECT generation,revision FROM public_artifact_state WHERE id=1),
+ proof AS (SELECT t.facts_ok,s.generation,s.revision,
+ COALESCE(s.generation IS NOT NULL AND s.revision IS NOT NULL AND t.facts_ok AND s.generation=$2,false) AS ok
+ FROM tuple_proof t LEFT JOIN copy_state s ON 1=1)
+ SELECT p.facts_ok,p.generation,p.revision,p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=$3 AND a.generation=$2'''
+
 def generation(f,release,origin):
     return digest(json.dumps([THIN_FORMAT,release,origin,f['rows']],ensure_ascii=False,separators=(',',':'),sort_keys=True))
 
@@ -201,14 +217,30 @@ async def respond(db,req,configured,release,render,captured=None,refresh=None):
         key=dumps([THIN_FORMAT,origin,g,release,c['base']+c['query'],c['type'],etag])
         if len(key.encode())>2048:
             return await render()
-        if f.get('generation')!=g:
+        observed=await db.fetch(STATE_SQL)
+        if len(observed)>1 or any(not isinstance(row['generation'],str) or type(row['revision']) is not int for row in observed):
+            raise ValueError('Unavailable copy state')
+        # Only a refusal may rely on this observation; a match still proves afresh.
+        if observed and observed[0]['generation']!=g:
             await synchronize(db,g)
         else:
-            row=await db.fetchrow(proof_sql()+''' SELECT p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=$3 AND a.generation=$2''',raw,g,key)
-            if not row or not row['ok']:
+            found=await db.fetch(lookup_sql(),raw,g,key)
+            if len(found)!=1:
+                raise ValueError('Unavailable copy proof')
+            row=found[0]
+            state=isinstance(row['generation'],str) and type(row['revision']) is int
+            if type(row['facts_ok']) is not bool or type(row['ok']) is not bool or row['ok']!=(row['facts_ok'] and state and row['generation']==g):
+                raise ValueError('Unavailable copy proof')
+            if row['key'] is not None and row['key']!=key:
+                raise ValueError('Unavailable copy proof')
+            if (not row['ok'] or row['key'] is None) and any(row[k] is not None for k in ('key','body','metadata','valid_until')):
+                raise ValueError('Unavailable copy proof')
+            if not row['facts_ok']:
                 await clear(db)
                 return await refresh()
-            if row['key']:
+            if not row['ok']:
+                await synchronize(db,g)
+            elif row['key']:
                 if row['valid_until']>time.time()*1000 and public_time.valid(clock):
                     hit=await delivery(row,req,c,f,etag)
                     if hit is not None and row['valid_until']>time.time()*1000 and public_time.valid(clock):
@@ -265,7 +297,7 @@ async def prepare(db,configured,release,render_path,paths):
     if not origin or await live_private(db):
         return
     from . import public_read
-    initial=await public_read.facts(db,True)
+    initial=await public_read.preparation_facts(db)
     if initial['private'] or not initial['hasSite']:
         return
     stamp=initial['rows']
