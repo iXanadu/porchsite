@@ -107,6 +107,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    cut, or prepare copies lazily on the first view instead of on approval.
 
 ## BLOCKING
+- **PERF-9a-VALIDATION** BLOCKED: the revision witness changes ordinary
+  OFF conditional SQL while the copies-ON contract requires identical
+  statements. Extend only the ON conditional proof after a reviewed spec
+  delta, preserve copy lookup/admission, and restore the full current
+  safety suite with actual snapshot/late-proof injections and mutation
+  controls. Do not release until both editions pass their full suites.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
