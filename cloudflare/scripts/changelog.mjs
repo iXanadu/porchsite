@@ -48,7 +48,8 @@ function load(file) {
     const lines = r.changes;
     if (!Array.isArray(lines) || lines.length < 1 || lines.length > 6) fail(`${where}: changes needs 1 to 6 lines (2-6 when the release changes sites)`);
     for (const l of lines) if (typeof l !== "string" || !l.trim() || l.length > 300 || /\n/.test(l)) fail(`${where}: each change is one plain line under 300 characters`);
-    const extra = Object.keys(r).filter((k) => !["release", "date", "security", "reconnect", "migrations", "changes"].includes(k));
+    if (r.rows_justification !== undefined && (typeof r.rows_justification !== 'string' || !r.rows_justification.trim() || r.rows_justification.length > 1000 || /[\r\n]/.test(r.rows_justification))) fail(`${where}: rows_justification must be one nonempty plain line under 1001 characters`);
+    const extra = Object.keys(r).filter((k) => !["release", "date", "security", "reconnect", "migrations", "changes", "rows_justification"].includes(k));
     if (extra.length) fail(`${where}: unknown field ${extra.join(", ")}`);
   }
   return list;
@@ -118,6 +119,7 @@ function markdown(list) {
     out.push(`## ${r.release}`, "");
     if (r.security) out.push("**Security release: update soon.**", "");
     for (const l of r.changes) out.push(`- ${l}`);
+    if (r.rows_justification) out.push('', `Database row increase: ${r.rows_justification}`);
     out.push("");
     out.push(`Database files to apply first (Cloudflare edition): ${r.migrations.length ? r.migrations.join(", ") : "none"}.`);
     out.push(`Reconnect the assistant afterwards: ${r.reconnect ? "yes, the tool list changed" : "no"}.`);
@@ -131,7 +133,7 @@ function htmlPage(list) {
     "body{margin:0;background:#f3f2f2;color:#201e1d;font:17px/1.6 Georgia,serif}main{max-width:46em;margin:0 auto;padding:32px 16px 64px}a{color:#00647f}h2{font-size:20px;margin:2em 0 .2em;overflow-wrap:anywhere}.meta{font:14px/1.5 ui-monospace,Menlo,monospace;color:#5c5755}.sec{background:#fff;border-left:4px solid #a4161a;padding:6px 12px;font-weight:bold}li{margin:.3em 0}";
   const rows = list
     .map(
-      (r) => `<section id="${esc(r.release)}"><h2>${esc(r.release)}</h2>${r.security ? `<p class="sec">Security release: update soon.</p>` : ""}<ul>${r.changes.map((l) => `<li>${esc(l)}</li>`).join("")}</ul><p class="meta">Database files first (Cloudflare): ${r.migrations.length ? esc(r.migrations.join(", ")) : "none"} · Reconnect the assistant: ${r.reconnect ? "yes" : "no"} · <a href="/v/${esc(r.release)}/files.json">files and hashes</a></p></section>`,
+      (r) => `<section id="${esc(r.release)}"><h2>${esc(r.release)}</h2>${r.security ? `<p class="sec">Security release: update soon.</p>` : ""}<ul>${r.changes.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${r.rows_justification ? `<p>Database row increase: ${esc(r.rows_justification)}</p>` : ''}<p class="meta">Database files first (Cloudflare): ${r.migrations.length ? esc(r.migrations.join(", ")) : "none"} · Reconnect the assistant: ${r.reconnect ? "yes" : "no"} · <a href="/v/${esc(r.release)}/files.json">files and hashes</a></p></section>`,
     )
     .join("\n");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Changelog · Porchsite</title><style>${css}</style></head>
