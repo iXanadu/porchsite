@@ -45,13 +45,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      identical.
    - **PERF-7c** OPEN: the database result wrapping allocates more than
      needed; audit before changing.
-3. **PERF-4b** OPEN: cut the cost of storing the page on a first visit
-     (about 8 ms locally). Profiled 2026-10-18 (too sparse to rank
-     precisely): copying and re-reading the page body, re-reading the site
-     facts to prove nothing changed, and hashing the body each showed
-     about 1.6-2.4 ms. First cut: reuse the bytes already built instead of
-     copying and re-reading them. Later, if needed: prove freshness with a
-     narrower query (needs a spec and security review).
+3. **PERF-4b** HELD: the cost of storing a page on a first visit when
+   PERF-4 is on (about 8 ms locally). Reusing the bytes already built
+   (branch c596b06, all checks pass) saved only about 0.4 ms, mixed. Since
+   PERF-4 is off by default, not worth shipping alone. The larger option,
+   proving freshness with a narrower query, needs a spec and security
+   review; revisit only if an owner enables PERF-4.
 
 ## BLOCKING
 
