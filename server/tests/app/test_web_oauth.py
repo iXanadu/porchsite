@@ -74,10 +74,9 @@ async def test_discovery(http):
     assert meta["registration_endpoint"] == "https://site.example/oauth/register"
     assert meta["scopes_supported"] == ["site:draft"]
     assert meta["code_challenge_methods_supported"] == ["S256"]
-    for path in (
-        "/.well-known/oauth-protected-resource",
-        "/.well-known/oauth-protected-resource/mcp",
-    ):
+    bare = await http.get("/.well-known/oauth-protected-resource")
+    assert bare.status_code == 404 and bare.content == b""
+    for path in ("/.well-known/oauth-protected-resource/mcp",):
         r = await http.get(path)
         assert r.json() == {
             "resource": "https://site.example/mcp",
