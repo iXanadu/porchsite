@@ -23,9 +23,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    9%. Cuts, smallest first:
    - **PERF-6a** OPEN: build the sign-in handler only for routes that use
      it; public pages skip it. Same gate, same OAuth/MCP behaviour.
-   - **PERF-6b** OPEN: the same request checks the site data twice (when
-     reading the facts and again for the page). Check once, keeping every
-     freshness, access and clock check.
+   - **PERF-6b** HELD: the same request checks the site data twice (when
+     reading the facts and again for the page). Removing the middle check
+     (branch at d962bfa, all correctness and parity checks pass) saved only
+     about 0 to 1.2 ms (paired medians, 9 of 12 looks faster, 3 slower):
+     the first and final checks are the real cost and must stay. Not worth
+     touching validation for that; revisit only with a larger design.
    - **PERF-6c** OPEN: the page-building step allocates fields the page
      never uses; build only what the theme reads, keeping all escaping.
 2. PERF-4: reuse a rendered public page for every visitor in a location
