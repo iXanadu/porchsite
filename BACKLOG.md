@@ -138,7 +138,7 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
-- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs staged, owner approval required before merge): a plain free/paid/self-host
+- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs owner-approved; runtime cost block/daily-limit responses spec in review): a plain free/paid/self-host
   explanation for people and assistants. It covers the Cloudflare free
   plan's limits; what happens when a site goes over (it stops, with no
   bill, and one busy site can stop others on the same account); the risk
