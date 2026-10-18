@@ -27,7 +27,7 @@ it('validates canonical counter and epoch values without Number rounding',()=>{
 it.each(fixture.tables)('covers every I/U/D and every column on $table',async({table,insert})=>{
  let [epoch,n]=await pair();await db.prepare(insert).run();let current=await pair();expect(current).toEqual([epoch,String(BigInt(n)+1n)]);
  const columns=(await db.prepare(`PRAGMA table_info(${table})`).all<{name:string}>()).results;
- for(const {name} of columns){expect(name).toMatch(/^[a-z_][a-z0-9_]*$/);[epoch,n]=await pair();await db.prepare(`UPDATE ${table} SET ${name}=${name}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+1n)]);}
+ for(const {name} of columns){expect(name).toMatch(/^[a-z_][a-z0-9_]*$/);[epoch,n]=await pair();await db.prepare(`UPDATE ${table} SET ${name}=${name}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+(table==='items'?0n:1n))]);}
  [epoch,n]=await pair();await db.prepare(`DELETE FROM ${table}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+1n)]);
 });
 it('repairs deleted state, rotates overflow and rolls content plus witness back together',async()=>{
@@ -107,4 +107,19 @@ it('falls back only on known missing optional table and propagates unrelated sta
  const result=await revision.initialFacts(binding);expect(result.pair).toBeNull();expect(result.facts).toEqual(await read.facts(db));expect(calls).toEqual([revision.INITIAL_SQL,read.FACTS_SQL]);
  const broken={prepare(){return {all:async()=>{throw Error('disk I/O error');}};}} as unknown as D1Database;
  await expect(revision.initialFacts(broken)).rejects.toThrow('disk I/O error');
+});
+
+it('bumps only actual items dependencies and preserves normal version fences and publication bumps',async()=>{
+ const item=await site(),before=await pair();
+ const original=db.batch.bind(db),counts:number[]=[];vi.spyOn(db,'batch').mockImplementation(async stmts=>{const results=await original(stmts);counts.push(results[0].meta.changes);return results;});
+ const changed=await content.updateItem(db,'assistant:test','site',item.version,{title:'After ordinary edit'});
+ expect(changed.version).toBe(item.version+1);expect(counts.at(-1)).toBe(1);
+ const history=await db.prepare('SELECT data FROM revisions WHERE item_id=? AND version=?').bind('site',changed.version).first<{data:string}>();expect(JSON.parse(history!.data).title).toBe('After ordinary edit');
+ const zero=await db.prepare('UPDATE items SET version=version+1 WHERE id=? AND version=?').bind('site',-1).run();expect(zero.meta.changes).toBe(0);expect((await pair())[0]).toBe(before[0]);
+ let prior=await pair();await approvals.publishNow(db,[{id:changed.id,version:changed.version}],'',origin);expect(BigInt((await pair())[1])).toBeGreaterThan(BigInt(prior[1]));
+ const entry=await content.createItem(db,'assistant:test','entry',{title:'Witness publication',body:'Public body'},undefined);await approvals.publishNow(db,[{id:entry.id,version:entry.version}],'',origin);
+ prior=await pair();const removed=await content.removeItem(db,'assistant:test',entry.id,entry.version);await approvals.publishNow(db,[{id:removed.id,version:removed.version}],'',origin);expect(BigInt((await pair())[1])).toBeGreaterThan(BigInt(prior[1]));
+ // Independent old-runtime SQL still advances for both actual Q_F inputs.
+ prior=await pair();await db.prepare("UPDATE items SET created_at='2030-01-01' WHERE id='site'").run();expect(await pair()).toEqual([prior[0],String(BigInt(prior[1])+1n)]);
+ prior=await pair();await db.prepare("UPDATE items SET id='renamed-site' WHERE id='site'").run();expect(await pair()).toEqual([prior[0],String(BigInt(prior[1])+1n)]);
 });
