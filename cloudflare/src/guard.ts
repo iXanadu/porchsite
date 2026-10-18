@@ -5,6 +5,7 @@
 import { ApiError } from "./errors";
 
 const PATTERNS: [string, RegExp][] = [
+  ["a published-read key", /\bprk_[A-Za-z0-9_-]{32}(?![A-Za-z0-9_-])/],
   ["a private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ["an AWS access key", /\bAKIA[0-9A-Z]{16}\b/],
   ["an API token", /\b(sk|pk|rk)_(live|test)_[A-Za-z0-9]{16,}\b/],

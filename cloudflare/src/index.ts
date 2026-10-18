@@ -13,6 +13,7 @@ import type { Env } from "./env";
 import { RELEASE } from "./home";
 import { livePrivate } from "./privacy";
 import * as keys from "./keys";
+import * as readKeys from "./read-keys";
 import { handle, preparePublic } from "./routes";
 
 const providers = new Map<string, OAuthProvider<Env>>();
@@ -58,13 +59,13 @@ export default {
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;
-    const bearer = /^Bearer[\t ]+(psk_[A-Za-z0-9_-]+)$/i.exec(req.headers.get("Authorization") ?? "");
+    const bearer = /^Bearer[\t ]+((?:psk|prk)_[A-Za-z0-9_-]+)$/i.exec(req.headers.get("Authorization") ?? "");
     const rejected = u.pathname === "/mcp" ? mcpOriginRejection(req, origin) : undefined;
     if (rejected) {
       res = rejected;
     } else if (u.pathname === "/mcp" && bearer) {
       // An assistant key (keys.ts) instead of an OAuth token: the same tools.
-      const who = await keys.lookup(env.DB, bearer[1]);
+      const who = await (bearer[1].startsWith(readKeys.PREFIX)?readKeys.lookup(env.DB,bearer[1]):keys.lookup(env.DB, bearer[1]));
       if (!who) {
         res = new Response(JSON.stringify({ error: "invalid_token", error_description: "This key doesn't work: it was revoked, it expired, or it's mistyped." }), {
           status: 401,
@@ -78,6 +79,9 @@ export default {
       res = await provider(origin).fetch(req, env, ctx);
     }
     if(req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
+    if(u.pathname==='/mcp'&&bearer?.[1].startsWith(readKeys.PREFIX)){
+      res=new Response(res.body,res);res.headers.set('Cache-Control','private, no-store, no-transform');
+    }
     // Which release is running, on every answer.
     const out = new Response(res.body, res);
     out.headers.set("X-Porchsite-Release", RELEASE);

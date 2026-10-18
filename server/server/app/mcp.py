@@ -1,3 +1,4 @@
+from . import read_keys,published_read
 """The assistant's tools (SPEC §4), served at /mcp over streamable HTTP. Every
 tool goes through content.py and approvals.py; none of them can publish (S1).
 Port of cloudflare/src/mcp.ts on the mcp SDK's low-level server, so each
@@ -93,6 +94,11 @@ def _obj(props: dict[str, Any], required: list[str] | None = None) -> dict[str, 
     return out
 
 
+PAGE_GET_DESCRIPTION = 'Read one approved local page as Markdown and visible title/date/tags. Use a same-site absolute path or its index.md copy; no drafts, owner routes, media or external fetch.'
+PAGES_LIST_DESCRIPTION = 'List approved local entry pages, plus home and enabled archives without entry filters. Default 20, maximum 50; continue with next_cursor. A stale cursor requires a fresh first page.'
+SEARCH_DESCRIPTION = 'Search approved page titles and visible text with whitespace-separated AND terms, NFC then lowercase, without ranking claims. Query is 1 to 200 Unicode scalar values after trimming. Default 20, maximum 50; excerpts are at most 240 scalar values.'
+
+
 def _tools() -> list[dict[str, Any]]:
     kinds = kind_guide()
     read_only = {"readOnlyHint": True}
@@ -101,6 +107,24 @@ def _tools() -> list[dict[str, Any]]:
             "name": "site_state",
             "description": "Start here. By default, `items` summarizes every item as id, kind, title, state (see `states`) and version (send it with item_update / item_remove / item_rollback). Title is the item's title, a card's name or a note's text. Send full: true for the complete item shape, including data, slug, deleted, created_at, updated_at, live_version, pending_approval and last_approval. Send ids: [...] for full items only for those ids, in normal item order; ids takes precedence over full; [] returns no items; an unknown id refuses the call with no_such_item. pending_approval is the approval it is waiting in now or null; last_approval is its most recent request and how it ended or null; an item whose last request was denied or superseded and that the owner did not ask about again is best left alone. Without a guide argument, all top-level fields stay present: `states`, `kinds`, `fields`, `site_defaults`, `release` and `update`. `update` says whether a newer release is published (available; when true also latest, security, changes, migrations, reconnect, how): tell your person in plain words and update only when they say so, following `how`. Then change items, approval_request the ids you changed, give the owner the review_url. Opt in with guide: {} to receive the four fixed blocks plus guide {revision,included}. Retain all four blocks in this site/login conversation, then send guide: {known_revision: revision}; a match omits only states/kinds/fields/site_defaults (included:false), while stale or unknown revisions return them all (included:true). Items, release and update are always current. If you do not hold the matching guide, request guide: {} before interpreting it; ids: [] is a no-item handshake. Errors have no guide metadata. Against older code, use a normal full answer without guide metadata, or retry once without an unsupported guide argument.",
             "inputSchema": _obj({"full": {"type": "boolean"}, "ids": {"type": "array", "items": {"type": "string"}}, "guide": {"type":"object", "properties":{"known_revision":{"type":"string","minLength":1,"maxLength":128,"pattern":r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$(?![\s\S])"}},"additionalProperties":False}}),
+            "annotations": read_only,
+        },
+        {
+            "name": "page_get",
+            "description": PAGE_GET_DESCRIPTION,
+            "inputSchema": _obj({"path": {"type": "string"}}, ["path"]),
+            "annotations": read_only,
+        },
+        {
+            "name": "pages_list",
+            "description": PAGES_LIST_DESCRIPTION,
+            "inputSchema": _obj({"stream": {"type": "string"}, "tag": {"type": "string"}, "since": {"type": "string"}, "cursor": {"type": "string", "maxLength": 2048}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}),
+            "annotations": read_only,
+        },
+        {
+            "name": "search",
+            "description": SEARCH_DESCRIPTION,
+            "inputSchema": _obj({"query": {"type": "string"}, "cursor": {"type": "string", "maxLength": 2048}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, ["query"]),
             "annotations": read_only,
         },
         {
@@ -529,11 +553,14 @@ async def state_items(db: Db, full: bool = False, ids: list[str] | None = None) 
 # --- the server ------------------------------------------------------------------------------
 
 
-def create_server(pool: Callable[[], Db], release: Callable[[], str]) -> Server:
+def create_server(pool: Callable[[], Db], release: Callable[[], str], published_only=False) -> Server:
     """The MCP server. `pool` gives the database; `release` the running release."""
 
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=[types.Tool.model_validate(t) for t in TOOLS])
+        req=getattr(ctx,'request',None)
+        props=(req.scope.get('porchsite.props') if req else None) or {}
+        await read_keys.authorize(pool(),props)
+        return types.ListToolsResult(tools=[types.Tool.model_validate(t) for t in TOOLS if not read_keys.restricted(props) or t['name'] in read_keys.ALLOWED])
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         name = params.name
@@ -553,7 +580,7 @@ def create_server(pool: Callable[[], Db], release: Callable[[], str]) -> Server:
     return _Server(
         "porchsite",
         version="0.0.1",
-        instructions=INSTRUCTIONS,
+        instructions=read_keys.INSTRUCTIONS if published_only else INSTRUCTIONS,
         on_list_tools=list_tools,
         on_call_tool=call_tool,
     )
@@ -573,6 +600,21 @@ class _Server(Server):
 async def _call(
     db: Db, name: str, a: dict[str, Any], props: dict[str, Any], release: str
 ) -> types.CallToolResult:
+    if read_keys.restricted(props):
+        async def read_call():
+            await read_keys.authorize(db,props,name)
+            if name=='site_state':value=await published_read.state(db,a,props)
+            elif name=='site_check':value=await published_read.check(db,a,props.get('origin',''))
+            elif name=='page_get':value=await published_read.page_get(db,a,props)
+            elif name=='pages_list':value=await published_read.pages_list(db,a,props)
+            elif name=='search':value=await published_read.search(db,a,props)
+            else:raise ApiError(403,'unauthorized','This read tool is not available.')
+            await read_keys.used(db,props)
+            return value
+        return await _run(read_call)
+    if name in ('page_get', 'pages_list', 'search'):
+        handler = {'page_get': published_read.page_get, 'pages_list': published_read.pages_list, 'search': published_read.search}[name]
+        return await _run(lambda: handler(db, a, props))
     actor = f"assistant:{props.get('client') or 'unknown'}"
     origin = props.get("origin") or ""
 

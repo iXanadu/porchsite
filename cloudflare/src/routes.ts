@@ -1,3 +1,5 @@
+import * as privateAgent from './private-agent';
+import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
 import * as publicRead from "./public-read";
 import {sessionRequest,publicPath,markdownPath} from "./public-http";
@@ -6,8 +8,8 @@ const readStates=new WeakMap<Env,ReadState>();
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
 import { agentPage } from './agent-pages';
+import { publicResponse, privateAgentPath, representation as representationForPrivate } from "./public-http";
 import {mapPages,mapResponse} from './agent-map';
-import { publicResponse, privateAgentPath } from "./public-http";
 import { ownerSitePage } from "./site-owner-link";
 import { archiveFilter } from "./archive";
 import * as pushWire from "./push-crypto";
@@ -182,13 +184,13 @@ function themedHtml(body: string, status = 200, sources?: unknown, origin = ""):
 }
 
 /** Public pages through the site's theme, or null for the built-in look. */
-async function themedPage(req: Request, env: Env, path: string): Promise<Response | null> {
+async function themedPage(req: Request, env: Env, path: string, grant?:()=>Promise<void>): Promise<Response | null> {
   const isPublic =
     path === "/" || path === "/archive" ||
     /^\/(e|static)\//.test(path) ||
     /^\/[a-z][a-z0-9-]{0,29}\/((tags\/[a-z0-9-]{1,30}\/)|search\.json|feed\.xml|[a-z0-9-]{1,80}\/)?$/.test(path);
   if (!isPublic) return null;
-  const v = await contentView(req,env);
+  const v = await contentView(req,env,false,grant);
   const origin = new URL(req.url).origin;
   if ((path === "/archive/" || path === "/archive") && v.site.archive?.enabled) {
     const filters = archiveFilter(new URL(req.url).searchParams);
@@ -225,7 +227,8 @@ async function themedPage(req: Request, env: Env, path: string): Promise<Respons
   return null;
 }
 
-async function contentView(req: Request, env: Env, discovery = false) {
+async function contentView(req: Request, env: Env, discovery = false, grant?:()=>Promise<void>) {
+  if(grant){await grant();return site.liveView(env.DB,discovery);}
   const state=readStates.get(env);
   if(state&&!state.access.isPrivate)return state.view??=site.liveView(env.DB,discovery).then(v=>{if(v.site.private)throw new privacy.PrivateContentDenied();return v;});
   await privacy.requireContent(env.DB,req);
@@ -233,8 +236,8 @@ async function contentView(req: Request, env: Env, discovery = false) {
 }
 
 /** The 404 page, in the site's theme when it has one. */
-async function notFoundPage(req: Request, env: Env): Promise<Response> {
-  const v = await contentView(req,env);
+async function notFoundPage(req: Request, env: Env, grant?:()=>Promise<void>): Promise<Response> {
+  const v = await contentView(req,env,false,grant);
   const u = new URL(req.url);
   const to =
     req.method === "GET"
@@ -576,6 +579,7 @@ async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { 
   const token = await owner.csrf(req);
   const mcpUrl = new URL("/mcp", req.url).href;
   const keyList = await keys.list(env.DB);
+  const readers=await readKeys.list(env.DB),audit=await readKeys.events(env.DB);
   return ownerPage(
     "Assistants",
     html`<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>${
@@ -588,14 +592,17 @@ async function assistantsPage(env: Env, req: Request, revoke?: string, made?: { 
         : html`<p class="meta">None yet. In your assistant, add a connector with this address: <b>${mcpUrl}</b></p>`
     }
 <h1 style="margin-top:36px">Assistant keys</h1>
-<p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
+<p>For an assistant whose app can't add a connector with sign-in. Make a key, then put it in the assistant's secret or API-key field, never in a chat. It reaches the same tools at <b>${mcpUrl}</b> as <code>Authorization: Bearer</code> and the key. A drafting key can read and draft; a read-only key reads published pages only. Neither can publish. A key stops working after ${String(keys.KEY_DAYS)} days, or when you revoke it.</p>
 ${made ? html`<div class="card"><h2>Key for ${made.name}</h2><p class="value"><b>${made.token}</b></p><p>Put it in your assistant's app, in its field for secrets, API keys or connector credentials. <b>Never paste it into a chat</b>, even if your assistant asks: anyone who reads the chat could use it. If you did, revoke it below and make a new one.</p><p class="meta">Copy it now: it isn't shown again. Works until ${made.expires_at.slice(0, 10)}.</p></div>` : ""}
 ${keyList.map(
   (k) =>
     html`<div class="card"><h2>${k.name}</h2><div class="meta">made ${k.created_at.slice(0, 10)} · works until ${k.expires_at.slice(0, 10)} · ${k.last_used_at ? `last used ${k.last_used_at.slice(0, 10)}` : "not used yet"}</div>
 <form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`,
 )}
-<form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><button name="make_key" value="1">Make a key</button></form>`,
+<h2>Published-only read keys</h2><p>These keys read published pages only. They cannot draft, read owner review or publish.</p>
+${readers.map(k=>html`<div class="card"><h2>${k.name}</h2><div class="meta">Read only — published pages · made ${k.created_at.slice(0,10)} · works until ${k.expires_at.slice(0,10)} · ${k.last_used_at?`last used ${k.last_used_at.slice(0,10)}`:'not used yet'}</div><form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_read_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`)}
+<h2>Read-key history</h2>${audit.map(a=>html`<p>${a.created_at} · ${a.actor} · ${a.kind} · ${a.name} · ${a.key_id}</p>`)}
+<form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><label><input type="checkbox" name="read_only" value="1">Read only — published pages</label><button name="make_key" value="1">Make a key</button></form>`,
     { signedIn: true },
   );
 }
@@ -986,13 +993,16 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   if(access.isPrivate)await publicArtifacts.clear(env.DB).catch(()=>{});
   const get = req.method === "HEAD" ? new Request(req,{method:"GET"}) : req;
   let res:Response;
-  if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse(req);
+  const agent=access.isPrivate&&access.gated&&new URL(req.url).pathname!=='/robots.txt'?await privateAgent.respond(env.DB,req,(r,g)=>renderPrivateAgent(r,env,g)):null;
+  if(agent)res=agent;
+  else if(access.isPrivate&&privateAgentPath(req))res=privacy.blankResponse(req);
+
   else if(access.response)res=access.response;
   else if(access.isPrivate)res=await route(get,env);
   else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
   else if(!sessionRequest(req)&&publicRead.unshaped(new URL(req.url).pathname))res=publicRead.missing();
   else res=await fastPublic(req,env);
-  if (access.isPrivate && access.gated) res = privacy.noStore(res);
+  if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
   if(!access.isPrivate&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
@@ -1000,6 +1010,26 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   return res;
 }
 
+/** Internal reader projection; the closure checks the original credential. */
+async function readerPage(req:Request,env:Env,grant:()=>Promise<void>):Promise<Response>{
+ try{
+ await grant();
+ const path=new URL(req.url).pathname;
+ const themed=await themedPage(req,env,path,grant);if(themed)return themed;
+ const view=await contentView(req,env,false,grant),origin=new URL(req.url).origin;
+ if(path==='/')return site.home(view,origin);
+ const entry=site.entryPage(view,path,origin);if(entry)return entry;
+ return await notFoundPage(req,env,grant);
+ }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
+}
+async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):Promise<Response>{
+ const path=new URL(req.url).pathname,read=(r:Request)=>readerPage(new Request(r.url,{method:'GET'}),env,grant);
+ if(path!=='/llms.txt'&&!/\/index\.md$/.test(path)&&representationForPrivate(req.headers.get('Accept'))==='html')return read(req);
+ return agentPage(req,read,async()=>{
+  const v=await contentView(req,env,false,grant);
+  return mapResponse(mapPages(v),new URL(req.url).origin);
+ },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
+}
 /** Live metadata is never an authorization grant or a prepared body. */
 async function fastPublic(req:Request,env:Env):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
@@ -1194,8 +1224,9 @@ async function route(req: Request, env: Env): Promise<Response> {
           if (form.get("csrf") !== (await owner.csrf(req))) return await assistantsPage(env, req);
           if (form.get("make_key")) {
             const name = String(form.get("key_name") ?? "").trim().slice(0, 40) || "Assistant";
-            return await assistantsPage(env, req, undefined, { name, ...(await keys.create(env.DB, name)) });
+            return await assistantsPage(env, req, undefined, { name, ...(await (form.get("read_only")==="1"?readKeys.create(env.DB,name,'owner',req):keys.create(env.DB, name))) });
           }
+          if(form.get('revoke_read_key')){await readKeys.revoke(env.DB,String(form.get('revoke_read_key')),'owner',req);return await assistantsPage(env,req);}
           if (form.get("revoke_key")) {
             await keys.revoke(env.DB, String(form.get("revoke_key")));
             return await assistantsPage(env, req);

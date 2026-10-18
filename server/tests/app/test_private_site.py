@@ -939,7 +939,7 @@ async def test_af_gate_before_representation_all_roles(db, browser_factory, monk
     expired, revoked = browser_factory(), browser_factory()
     expired.http.cookies.set("__Host-sk_owner", "expired", domain="site.example", path="/")
     revoked.http.cookies.set("__Host-sk_reader", "revoked", domain="site.example", path="/")
-    for client in (browser, reader_browser, visitor, expired, revoked):
+    for client in (visitor, expired, revoked):
         for path in ("/index.md", "/index.md/", "/guide/published-guide/index.md", "/missing/index.md", "/llms.txt", "/index.jsonld", "/", "/guide/published-guide/"):
             blank(await client.at(path, headers={"Accept": "text/markdown", "If-None-Match": "*"}))
             head = await client.at(path, method="HEAD", headers={"Accept": "text/markdown"})
