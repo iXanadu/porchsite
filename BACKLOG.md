@@ -82,9 +82,6 @@ Found building a single-property listing site on the live release.
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
   is invalid: it was given the wrong files.
-- **RA-9** IN-PROGRESS: The install guide's setup code as a hashed row in the
-  site's database (as the installer does), not a Worker secret: no secret
-  to delete after the claim, one step fewer, nothing for the audit check.
 - **RA-8** IN-PROGRESS: Each harness at its best. Done: the assistant
   guide (by app), and Grok Bot's Porchsite template, public and linked.
   Left: a Porchsite setup for each other app (a Claude Project or Skill, a
@@ -140,6 +137,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **RA-9Q** OPEN (next product release after RA-9): end the one-release
+  setup query compatibility window. Unclaimed `/setup` requests with any
+  `code` query return `400 code_in_url`, with fixed credential-free text,
+  no-store and no-referrer. Claimed sites keep the redirect to login.
+  New links already use fragments; keep archived release tests untouched.
 - **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
   removes from setup links, so the code reaches request logs. Move it to
   the URL fragment the same way (one release still accepting the query,
