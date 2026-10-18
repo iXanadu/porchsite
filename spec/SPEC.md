@@ -6322,6 +6322,240 @@ tests or ship default enablement on the strength of local CPU alone.
 
 API reference: [Cloudflare Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/).
 
+## Amendment: trigger witness for final validation (PERF-9a, phase 1)
+
+Both editions may replace only the final complete dependency-facts read
+on the ordinary anonymous public GET/HEAD path with a database-maintained
+change witness. The initial full facts, decode, tag preimage, ETag bytes,
+representation selection, privacy gate and public-time proof stay as today.
+Prepared-copy state, lookup and admission are out of scope. Response-cache
+reuse keeps its existing proofs too: this first experiment applies only
+when both prepared-copy delivery and response-cache reuse are off, except
+for the later conditional-only amendment that applies the same witness to
+ON304 to preserve C2 identity. Response reuse retains its exclusion; ON
+HIT/MISS/admission never gain witness body authority. No-validator ON keeps
+its original reads. The conditional amendment explicitly measures any
+stale-validator initial-snapshot overhead; no existing check is removed.
+
+This is a reviewed schema/proof change, not the parked SQL-flattening
+experiment. No runtime implementation or deployment follows from a spec
+review alone.
+
+### Feasibility and current measurements
+
+D1 documents SQLite execution and trigger-related PRAGMAs, available through
+the hosted console, CLI and binding. Its maintained tooling has explicit
+remote CREATE TRIGGER migration support, including a structural-CRLF fix.
+Local and hosted migrations remain distinct proof targets; documentation
+is not a claim that this project's migration was run remotely. Before a
+runtime freeze, demonstrate the selected trigger definitions on the local
+D1 runtime and obtain an explicitly authorized disposable hosted D1 probe.
+Do not use an owner's content database for that probe.
+
+SQLite supports row triggers, not statement triggers. PostgreSQL supports
+both. Phase 1 uses row triggers for INSERT/UPDATE/DELETE on both editions;
+PostgreSQL additionally covers TRUNCATE with statement triggers. The extra
+counter write is per affected row, not per client statement or approval.
+A 200-entry publication can therefore add at least 200 counter updates for
+its live-row writes, with further updates for other watched rows it changes.
+Measure the complete one-entry and 200-entry approval paths, including
+triggers and indexes; do not advertise an assumed fixed write allowance.
+
+The measured release corpus has these ordinary OFF reads:
+
+| Services fixture | Cold | Plain | Matching 304 |
+|---|---:|---:|---:|
+| 17 published items | 165 | 164 | 130 |
+| 214 published items, including 200 entries | 1741 | 1740 | 1312 |
+
+At 214 items, the cold request is 656 initial facts + 428 rendering join +
+656 final facts + 1 accounting read. The first accounting flush writes two
+rows. Retaining initial facts and adding two one-row witness reads while
+removing the final 656-read facts statement predicts 1087 cold, 1086 plain
+and 658 matching-304 reads. These are unmeasured arithmetic predictions,
+not new gate records or two total reads per page. Ordinary page reads must
+write no witness row. The initial facts remain necessary for today's tag
+and time-dependent metadata. A tag derived only from n is not selected.
+
+References, checked 2026-10-18:
+[D1 SQL](https://developers.cloudflare.com/d1/sql-api/sql-statements/),
+[D1 integer representation](https://developers.cloudflare.com/d1/worker-api/),
+[remote trigger migration parser fix](https://github.com/cloudflare/workers-sdk/pull/15044),
+[SQLite triggers](https://www.sqlite.org/lang_createtrigger.html),
+[PostgreSQL triggers](https://www.postgresql.org/docs/17/sql-createtrigger.html).
+
+### Complete dependency and trigger inventory
+
+The current complete facts relation reads these ten tables. Both editions
+must cover every INSERT, every UPDATE (all columns), and every DELETE in
+each table. The column list below explains the existing dependency; it is
+not an UPDATE OF filter. Conservative invalidation on other columns is
+allowed. New facts dependencies require a matching schema-witness amendment
+before their use; a missing dependency cannot silently inherit this proof.
+
+| Table | Facts columns, including joins and predicates |
+|---|---|
+| live | item_id, kind, slug, version, published_at, data: complete site JSON; entry status, stream, external_url, event.start, event.end and tags; site theme and hero selectors |
+| items | id and created_at |
+| site_fields | version, key, value, approved |
+| site_embed_sources | version, sources, approved |
+| site_stream_settings | version, settings, approved |
+| private_approvals | version |
+| training_approvals | version |
+| themes | name, version, sha256 |
+| share_cards | item_id, version, name |
+| media | name, width, height |
+
+D1 trigger names are `content_revision__<table>__ai`, `__au` and `__ad`,
+respectively: exactly 30 non-TEMP AFTER row triggers over the listed tables.
+PostgreSQL uses `content_revision__<table>__row` for the combined AFTER
+INSERT OR UPDATE OR DELETE row event and `content_revision__<table>__truncate`
+for AFTER TRUNCATE: exactly 20 triggers. A single fixed, non-SECURITY-DEFINER
+PostgreSQL function, `advance_content_revision`, implements their increment.
+No application tool, public endpoint or assistant key gains counter access.
+
+The triggers advance one singleton `content_revision(id=1,n)` in the same
+transaction as the content write. No-op updates may invalidate conservatively;
+ignored inserts that change no row need not advance. Multi-row writes,
+UPSERT, INSERT OR REPLACE, deletion of all rows, nested trigger execution,
+rollback and PostgreSQL COPY/TRUNCATE need explicit tests. In particular,
+SQLite REPLACE must be caught through its INSERT event even when its implicit
+DELETE does not fire a delete trigger. A source write that fails or rolls
+back must not leave a committed witness for nonexistent content.
+
+Within that installed-schema contract n is strictly monotonic across committed
+watched writes: a revert increments it again rather than restoring an earlier
+value. Thus n1 == n0 proves that no watched write committed between those two
+current reads, including a write followed by a revert. PostgreSQL TRUNCATE
+must advance it too. No application, legacy-write, migration re-entry or
+rollback path may reset/delete/reseed the singleton; verify those paths and
+the overflow refusal explicitly. Administrative reset or snapshot replacement
+is outside this proof and requires the quiesce/restart procedure below.
+
+This covers ordinary DML by current code, old runtimes and direct SQL against
+the dependency tables while the canonical schema remains installed. It does
+not claim to survive a database administrator dropping/disabling triggers,
+resetting the witness, using replication-role trigger bypass, or replacing
+the database under running requests. Restore/import of a database is a
+maintenance operation: quiesce requests and restart the runtime around it.
+An older snapshot plus a reused counter must not create an in-flight ABA
+proof. Application schemas and their installed migrations remain trusted.
+
+### Witness format, installation and failure
+
+n is a nonnegative signed 64-bit integer in the database, never a floating
+point counter. Read it as canonical decimal TEXT, including on D1 where the
+binding cannot represent every 64-bit integer as a JavaScript Number. Validate
+its type and bounds; compare exact canonical text, without Number conversion.
+Overflow must refuse the triggering write, never wrap or coerce to REAL.
+Missing/invalid witness state must never authorize reuse or a 304.
+
+Install the table and complete trigger set before seeding its usable singleton
+as the final step. The seed never resets an existing counter. Installation
+must be transactional or leave no usable witness on partial failure. A
+trigger must fail its source write if it cannot update exactly one valid
+singleton; absence cannot silently make the write invisible. The migration
+and rollback proofs must include concurrent legacy writes during installation
+and deliberate installation failure. Do not mark the migration complete or
+upload the new runtime before the whole inventory is installed and checked.
+
+If the table, row, value or supported read capability is unavailable, use the
+existing complete-facts validation path, including its final independent
+read and normal failure/refusal behavior. Do not interpret an error as zero,
+reuse an earlier counter, or return a partially validated body. Missing or
+unexpected schema components found by installation/integrity checks disable
+the optimization. Reading from an independently stale replica is forbidden:
+both witness reads and the intervening data reads must retain current primary
+or an equivalently proven consistency model.
+
+### The two independent checks and unchanged tag
+
+After the existing live access gate and before initial full facts, read n0
+from the database. Capture and validate the complete initial facts exactly
+as today. Keep its owned raw tuples, canonical data, complete tag preimage
+and all route/theme/time inputs. Render normally, or prepare a matching
+conditional response using the existing tag and representation rules.
+
+At the existing final-proof point, independently read n1. Only if both reads
+are valid, n1 equals n0, the original privacy conclusion is still justified
+by the covered dependencies, and the existing late clock proof passes may
+this read replace the final full facts. No new early return may bypass that
+point. A 304 has no render but still requires both reads around its initial
+facts/tag computation. HEAD follows the same proof with an empty body.
+
+A changed or unusable witness takes the existing fresh-facts retry/refusal
+path, with the original bounded retry limit. It may fall back to the final
+complete facts comparison where valid, but it cannot compare a cached n or
+share a result object between checks. The two reads are independent current
+DB executions; the initial full facts are never treated as a second read.
+Private-on, unpublish, title/theme changes through old runtime, extension
+approval and clock expiry retain their original safe outcome. The witness
+is not an access grant, a replacement for WebAuthn/session checks, a clock
+revision, or a cache/body key.
+
+ETags remain derived from the existing complete facts preimage, release,
+origin, selected route/query/type, training signal and public-time state.
+n is absent from the outward tag. Thus different mutation histories that
+produce identical current facts keep today's tag semantics; equal n values
+on unrelated databases do not establish identity. No cross-request facts
+cache or digest-only equality is introduced in phase 1.
+
+### Migration tooling and release gates
+
+The compatibility checker currently refuses triggers on existing tables.
+Its current statement splitter also separates semicolons inside SQLite
+trigger bodies and PostgreSQL dollar-quoted function bodies. The separately
+reviewed compatibility-checker allowance commit must first parse complete
+statements: D1 CREATE TRIGGER ... BEGIN ... END, and the fixed PostgreSQL
+advance_content_revision function body inside $$ or matching $tag$ quotes.
+Preserve comments, quoted strings, escaped quotes and embedded semicolons;
+reject unterminated bodies. Validate the entire statement and complete named
+inventory before granting an allowance, never isolated body fragments. Test
+that a forged body cannot become an allowed header plus a leftover UPDATE
+of a same-migration table. Complete-statement parser tests and all named-body
+negative tests below are required for this checker, independently of GATE-2.
+Add a separately reviewed, narrow allowance only for the exact named trigger
+inventory and fixed witness-only function/body above, confined to updating
+the new singleton. Other existing-table triggers and functions remain refused.
+Negative tests must reject an unlisted name/table/event, a forged allowed name
+with a different body, changes to owner/content rows, arbitrary SQL, and a
+missing inventory member. This is not a skip or a blanket trigger allowance.
+The migration history remains append-only and base schema files unchanged.
+
+GATE-2 currently splits migration text at every semicolon. In a separate
+small reviewed tooling commit, replace that with statement parsing that
+preserves complete BEGIN...END trigger bodies, comments, quoted strings,
+escapes and semicolons inside them. Keep every existing metadata and request
+assertion. Include the parser in the gate method fingerprint; follow the
+explicit predecessor-record rebase contract and retain the original record.
+Do not copy current numeric cells into the predecessor or change archived
+tests to accommodate the new schema. Prove the actual installer REST upload,
+local migration runner, previous tests and archived bundle all apply the
+same complete migration bytes, including line-ending and failure cases.
+
+Before runtime freeze, require both-edition safety tests for every table and
+event plus in-place previous-runtime writes with unchanged application stamps.
+Mutate each relevant column between n0 and n1, including private-on and
+unpublish; validate failure, rollback, missing row, malformed value and
+near-overflow. A scratch missing-trigger/bypassed-witness mutation must make
+the intended stale-response test fail without loosening assertions.
+
+Run both suites, full parity and normal production entries, actual previous
+release tests/archive on the new schema, populated rollback with triggers
+left installed, and return to the new runtime. The older application need
+not know the witness: its writes must still advance it. Measure GATE-2 OFF
+and ON cold/plain/304, one- and 200-entry approval reads/writes, failed and
+rolled-back writes, and migration/first-request overhead separately. Do not
+attribute trigger writes to a different request to make a gate pass. Any
+increase requires the release's rows_justification and owner approval under
+the release rule; no CPU or hosted-capacity win is inferred from row counts.
+Use a separately preregistered bounded paired CPU gate before acceptance.
+
+Prepared-copy state, G2, counted tuple proofs and atomic admission remain
+unchanged. The trigger witness may not substitute for their complete proofs
+or authorize cached delivery. Any later phase requires its own reviewed
+amendment and measurements. No catalogue change or reconnect is introduced.
+
 #### AF-7T-C2: ordinary conditional facts; atomic copy-state proof
 
 This amendment applies to both editions. It supersedes C1 cut 1 for
@@ -6334,14 +6568,20 @@ reconnect change. Stored expected closures are not selected.
 facts SQL in the edition's artifacts-OFF path, with its existing binds.
 A stable anonymous conditional request with copies ON executes the same
 statements, in the same order, with identical SQL text and bindings as the
-same request with copies OFF. Both initial and final facts reads use Q_F.
-No state UNION, scalar state subquery, artifact lookup, copy-body read,
-generation synchronization or artifact DML occurs before that 304 return.
+same request with copies OFF. Without the PERF-9a conditional witness,
+both initial and final facts reads use Q_F. With that witness eligible,
+both modes instead use the identical combined complete Q_F/pair0 snapshot
+and identical independent late pair1 statement defined below. The only
+permitted added transport is the content-revision witness, never copy state.
+No copy-state UNION/subquery, artifact lookup, copy-body read, generation
+synchronization or artifact DML occurs before that 304 return.
 Existing access and request-accounting statements remain identical too.
 This is a statement-identity requirement, not just equal result counts.
 
-The first read still decodes and validates every dependency; the second
-still checks live privacy and complete normalized facts equality. The
+The first read still decodes and validates every dependency. The late proof
+is either independent complete normalized facts/privacy validation or the
+PERF-9a independent valid pair equality covering that complete snapshot;
+an absent, invalid or changed pair takes the complete-facts fallback. The
 original request's AF-7L plan is checked at the same return boundary.
 If facts drift, the existing bounded refresh/route/existence/tag behavior
 runs; a failed conditional check is not permission to skip the final check
@@ -6459,8 +6699,11 @@ both editions must prove:
 - ON304 versus OFF304 exact statement text/order/binds/count identity on
   matching stable GET and HEAD (including wildcard), same source and other
   cache flag. No state/artifact SELECT or artifact DML; unchanged complete
-  F/AF-2 preimages, status, public headers and empty body. OFF controls stay
-  byte/query-identical to the prior release. Include absent optional tables.
+  F/AF-2 preimages, status, public headers and empty body. With PERF-9a
+  eligible, both modes use its same joined-snapshot/late-pair sequence;
+  without it both retain C2's ordinary two-Q_F sequence. Prior-release
+  comparison must label the reviewed witness query/row change; bytes and
+  metadata remain identical. Include absent optional tables.
 - Atomic lookup branch coverage for tuple match/drift in both directions,
   duplicates/missing/additional/replacement tuples, null/empty/raw whitespace,
   state missing/malformed/generation mismatch, corrupt metadata/body,
@@ -6494,8 +6737,10 @@ This amendment applies to both editions. It permits one cheap state read
 after a visitor has failed the ordinary conditional-return branch and
 passed the existing copy eligibility, complete facts, tag and clock checks.
 It amends C2's prohibition on a separate visitor state observation only
-at this point. Both validator reads remain exact Q_F: ON304 still executes
-exactly the OFF304 statements, with no state read or artifact operation.
+at this point. ON304 still executes exactly the OFF304 statements:
+ordinary Q_F twice without the PERF-9a conditional witness, or the same
+joined complete-Q_F/pair0 and independent pair1 with it. No copy-state read
+or artifact operation is permitted by either path.
 OFF requests, private/session/Authorization bypass and missing pages retain
 their existing behavior. No schema, default, flag, format or preimage changes.
 
@@ -6561,3 +6806,431 @@ retaining prior results, query-level rows read/written, statements and plans.
 Report the extra state-read cost on a HIT and any remaining cold increase;
 do not infer net savings from a skipped proof alone. CPU measurement stays
 on hold until this amendment is reviewed and its row comparison is complete.
+
+### PERF-9a repair delta: epoch-qualified equality after singleton deletion
+
+This delta supersedes phase 1's scalar-only monotonic witness and its
+missing-row/overflow source-write refusal. It changes no public tag input
+and adds no witness authorization to prepared-copy HIT/MISS/admission,
+response reuse or C3. The later conditional-only amendment permits the
+same ordinary ON/OFF 304 witness proof before copy processing. The full
+phase-1 gates and ten-table/all-column/event inventory still apply.
+
+The witness is now the pair `(epoch, n)`, compared only for exact equality.
+No ordering of epochs or pairs is meaningful. Within one valid epoch,
+committed watched writes increase n. Recreating a deleted singleton, or
+repairing an invalid/exhausted value, chooses a fresh random epoch and
+starts n at 1 in the SAME source transaction. An initial complete install
+may seed n=0 with a fresh epoch, as its last step. Installation/re-entry
+never replaces an existing valid pair. The witness remains absent from
+ETags, body/cache keys, tokens and public output.
+
+Use `lower(hex(randomblob(16)))` for SQLite/D1 and a core PostgreSQL
+`gen_random_uuid()` value, normalized to lowercase hexadecimal without
+hyphens on read. PostgreSQL's epoch column can use UUID storage; D1 uses
+TEXT. Readers require the expected storage type and canonical 32-character
+lowercase hexadecimal epoch, plus the existing exact nonnegative int64
+counter read as canonical decimal TEXT without Number coercion. Reject
+null, boolean, wrong type, malformed, negative, fractional, out-of-range,
+missing or multiple rows. Compare both components without normalization
+that could turn malformed input into a valid witness.
+
+Fresh random epochs provide probabilistic non-repetition, not a mathematical
+"never repeats" guarantee. PostgreSQL v4 UUIDs have 122 random bits; SQLite
+returns 16 pseudorandom bytes. The safety argument assumes independent,
+adequately random generation and negligible collision probability. An epoch
+is an invalidation identity, not a credential or evidence of permission.
+A repeated pair deliberately restored by an administrator remains outside
+the proof; quiesce and restart around database restore/replacement as in
+phase 1. Deleting only the row and then doing ordinary watched DML is now
+covered, including an in-flight reader that captured the old pair.
+
+Each watched source write atomically advances a valid pair, or repairs a
+missing/invalid/exhausted pair with a fresh epoch and n=1. Use a fixed,
+reviewed UPSERT/conditional repair body in every named trigger/function.
+Never calculate int64-max + 1 and then repair it: choose the repair branch
+before arithmetic can overflow. Never wrap, coerce to REAL, reset n within
+the same epoch, or keep an old epoch when validity is uncertain. Reverts
+advance the pair too; transaction rollback restores the prior content and
+pair together. PostgreSQL TRUNCATE/COPY and SQLite REPLACE keep coverage.
+
+There is no policy RAISE/abort merely because the singleton was deleted,
+malformed or exhausted. Those states repair while the source write commits.
+This is not an unconditional availability guarantee: a storage failure,
+missing backing table, unsupported SQL/function or broken trigger cannot
+be swallowed while a previously valid pair remains unchanged. Such a
+failure must preserve atomicity, including source-transaction rollback if
+necessary. Catch-and-ignore of witness errors would allow stale 304s and
+is forbidden. The specification does not promise successful content writes
+through arbitrary database corruption or administrative DDL.
+
+Repair must NOT create a usable singleton during partial trigger
+installation. An unconditional missing-row UPSERT would break the earlier
+"seed last" installation guarantee if an old runtime writes while only
+some triggers exist. Install atomically where supported. For a runner that
+can expose partial installation, the missing/invalid-row repair branch
+must first prove the complete canonical named inventory is installed
+(D1's 30 named row triggers; PostgreSQL's fixed function and 20 named row/
+TRUNCATE triggers). Inventory validity is established by the exact-body
+migration allowance/integrity check; a prefix-only count cannot bless
+unknown bodies. An incomplete inventory leaves the witness unusable and
+source writes proceed without a witness, so readers use complete facts.
+Do not solve this with an unverified ready bit or a row created before all
+required definitions. Installation failure/concurrent old-runtime writes
+must be tested directly. No application may be published after a failed
+migration or incomplete integrity check.
+
+A missing/malformed pair at either reader execution means no witness proof.
+Use the pre-9a independent full final facts read, current privacy/existence
+and original clock/retry behavior. The later trigger recreation does not
+retroactively make a missing initial witness usable. A changed epoch with
+equal n is a mismatch, never a match. Valid n equality without epoch
+equality grants nothing. The final-render shortcut stays both delivery/
+reuse modes OFF. The later conditional amendment additionally applies the
+witness to ordinary ON304, before any copy processing, preserving exact
+ON/OFF SQL identity without witness body authority. Initial pair0 is
+captured with complete facts under the joined-snapshot amendment below;
+pair1 remains at the independent late proof point. Independent primary/
+current reads and late clock remain mandatory.
+
+Compatibility: archived tests and their assertions remain byte-identical.
+Their broad administrative fixture cleanup can delete this singleton.
+The next ordinary watched write repairs it using a new epoch; no harness
+DELETE suppression, schema naming trick or automatic zero reseed is added.
+Current tests must retain intentional missing/malformed reader fallback
+checks rather than making every test reset invisibly restore a witness.
+
+Required additional proofs, both editions:
+
+- Initial install, seed-last ordering, deliberate partial failure and old
+  writes during installation never expose a usable partial witness.
+- Delete after pair0 and before facts, during rendering, and before pair1;
+  do a watched write and verify a fresh epoch, a different pair and the
+  original safe response. A missing row without a write takes full facts.
+- Invalid state and int64-max repair rotate the epoch before incrementing;
+  repeated ordinary writes increment n within the fresh epoch. No silent
+  same-epoch reset, no overflow and no swallowed SQL error.
+- Multi-row writes, UPSERT/REPLACE, COPY/TRUNCATE, revert and transaction
+  rollback retain the original table/event coverage and exact old tags.
+- A scratch implementation that compares only n must fail a stale-response
+  case with equal n and different epochs. Existing missing-trigger/bypass
+  negative controls remain required.
+- Actual old tests/archive/populated rollback with triggers left installed
+  pass unchanged, including dynamic singleton deletion by fixture reset.
+- Measure one-/200-entry approval reads/writes, repair-path schema reads,
+  randomness cost, failed/rolled-back writes and first-request overhead.
+  A straightforward UPSERT may evaluate randomness on every source row
+  even when the existing epoch is retained; do not hide that cost.
+
+Capability evidence before runtime freeze: PostgreSQL 15 documents
+`gen_random_uuid()` as a core UUID function, without requiring an extension.
+SQLite documents `randomblob` and `hex` as core functions; D1 documents
+SQLite SQL compatibility. These establish a documented candidate, not a
+claim that the exact trigger bodies ran on hosted D1. Run the selected
+bodies on the local D1 runtime and PostgreSQL 15+, plus an explicitly
+authorized disposable hosted D1 database, including repair inside a trigger,
+transaction rollback and structural-CRLF installation. Never probe an
+owner's content database. Missing capability disables witness use and
+blocks release of a migration that would break ordinary writes.
+
+Primary references checked 2026-10-18:
+[PostgreSQL 15 UUID functions](https://www.postgresql.org/docs/15/functions-uuid.html),
+[SQLite core functions](https://www.sqlite.org/lang_corefunc.html),
+[D1 SQL statements](https://developers.cloudflare.com/d1/sql-api/sql-statements/).
+
+### PERF-9a initial snapshot transport: facts and pair in one statement
+
+This replaces the separate pair0 execution before the initial facts with
+ONE current primary-consistent statement that returns both the complete
+initial dependency relation and its epoch-qualified witness from the same
+SQL snapshot. The transport applies to the ordinary anonymous path with
+both prepared-copy delivery and response-cache reuse OFF, and to eligible
+anonymous conditional requests with prepared-copy delivery ON and response
+reuse OFF under the conditional amendment. Those ON conditionals use the
+same initial snapshot and independent late pair as OFF, including attempts
+whose validator later misses. No-validator ON keeps its original facts
+path; response reuse, private and session paths remain excluded. The ON
+pair never authorizes HIT/MISS/admission body delivery. The independent
+late pair1 execution and epoch-repair/installation contract remain required.
+
+The approved complete FACTS_SQL relation remains intact inside this new
+initial transport statement: same dependency expressions, tables, joins,
+predicates, order and duplicates. Add a separately identified internal
+witness transport record from content_revision(id=1), with canonical epoch,
+TEXT counter and their required storage-type evidence. The witness is not
+a dependency tuple. Validate cardinality/shape/types and strip ALL transport
+records before passing fresh owned category/ident/value tuples through the
+existing decode and tag code. Original tuple order, multiplicity, raw bytes,
+normalized preimage and outward tags stay exactly the ordinary facts result.
+No state row can collide with, replace or be hashed as a dependency row.
+Bind the selected pair and complete facts to the same request-owned result;
+never combine an earlier pair with separately acquired/cached facts.
+
+A valid transport contains one witness row and the complete facts, all in
+one database statement/snapshot. Missing, malformed or duplicate witness
+rows yield no witness proof, while independently validating the returned
+complete facts normally. They never synthesize a default pair or exclude
+an unexpected dependency row. If the optional witness table/capability is
+absent and the combined statement cannot execute, retry the original plain
+FACTS_SQL and retain the original independent final full facts check. A
+failure of that original query keeps its original refusal/error behavior.
+Do not treat an unrelated SQL failure as a successful partial facts result.
+
+On a matching conditional or after rendering, pair1 is still one separate
+current statement at the old final proof point. Equality to the pair read
+in the initial snapshot plus the original late clock proof may replace
+only the final full facts. Missing/invalid/different pair1 or a clock change
+takes the existing bounded full-facts retry/refusal path. Private-on,
+unpublish, policy, existence, wildcard, origin/representation and immutable
+render dependencies retain all their existing checks. There is no 304 on
+an unproven route or unknown clock. Pair fields stay out of both outward
+hashes, raw dependency tuples, approved-view proofs and public output.
+
+The three-statement budget remains for the stable known-capability OFF
+conditional: access gate + combined initial facts/pair0 + independent
+pair1. Keep zero render, zero copy, zero UC9/write, empty GET/HEAD 304,
+identical bytes/headers and late clock assertions. Canonical missing-page
+metadata can stay within its existing three statements because the initial
+pair requires no extra execution. Response-reuse modes execute their
+original facts statements and no witness transport/read. Prepared-copy ON
+is unchanged except for the later conditional-only ON/OFF identity
+amendment. Archived runtime and unshaped miss behavior stay unchanged. A safe absent-table/capability
+fallback may add one failed optional-statement attempt; that degraded path
+must be measured and labelled separately, never presented as the stable
+three-statement optimization or permission for a stale response.
+
+This is a snapshot-proof change, not a claim that a CTE saves row reads.
+An outer UNION/ORDER or materialization can add a dependency traversal,
+just as prior state transport did. Measure the complete initial statement
+before choosing its final SQL shape; do not quote the earlier separate-read
+1087/1086/658 predictions as its measured cost. Repeated witness columns
+can trade extra transport bytes/CPU for statement count; an appended
+witness record can add query-plan work. Neither variant may drop ordering,
+cardinality, dependencies, type checks or the independent late read to make
+a budget pass. The selected shape must be disclosed with its plans and
+per-statement rows; the original two-statement facts control is retained.
+
+Required paired tests: exact combined-versus-plain original raw tuples and
+decode/tag bytes across all looks, extension cases and duplicate rows;
+absence/malformed/multiple witness records; missing optional table; mutation
+inside/around the initial statement and at the independent late statement;
+equal n/different epoch; private-on/unpublish/clock races; no transport
+record in either hash or approved-view proof; and query spies preserving
+the three-statement and zero-work assertions. Native tests must exercise
+the actual D1 and PostgreSQL statements, not a host-side join of two reads.
+All approval/trigger cost, previous-runtime, rollback, method-rebase and
+CPU gates remain. No new hosted or CPU claim follows from this amendment.
+
+### PERF-9a D1 change-count compatibility: exact items dependencies
+
+This amendment replaces only the Cloudflare `items` UPDATE trigger's
+conservative all-column coverage. It does not approve a runtime change
+until both review axes pass. All prior epoch/snapshot, late proof, install,
+error, restore, accounting and previous-runtime requirements remain.
+
+D1 metadata `changes` is a total-change count, including trigger writes;
+SQL `changes()` is the immediately preceding direct statement's count.
+A successful one-row item update plus one witness UPSERT can therefore
+produce metadata count two while SQL `changes()` remains one. The released
+item write requires metadata count exactly one for its version fence.
+Reporting conflict after committing that update is forbidden. Do not fix
+this by accepting any positive count, changing an old test, or rewriting
+an archived bundle.
+
+#### Exact dependency argument
+
+The complete ordinary Q_F has nine UNION branches, in both editions:
+
+| Branch | Tables read | Dependency on items |
+| --- | --- | --- |
+| live | live LEFT JOIN items i ON i.id=l.item_id | i.id selects the joined row; i.created_at is the sole projected items value |
+| field | site_fields JOIN live | none |
+| embed | site_embed_sources JOIN live | none |
+| streams | site_stream_settings JOIN live | none |
+| private | private_approvals JOIN live | none |
+| training | training_approvals JOIN live | none |
+| theme | themes, live subquery | none |
+| share | share_cards JOIN live | none |
+| media | media, live subquery | none |
+
+The complete relation is FACTS_RELATION/FACTS_SQL in public-read.ts and
+public_read.py. No other items column participates in any branch,
+predicate, ordering, duplicate/cardinality expression or scalar subquery.
+The initial witness transport embeds this same complete relation and adds
+no items dependency. This witness replaces only a comparison of complete
+facts, not the existing immutable-body, approved-view, privacy or clock
+contracts. If Q_F gains another items dependency, this exception must be
+re-reviewed before that dependency ships.
+
+Cloudflare retains unconditional items INSERT and DELETE triggers, but
+its AFTER UPDATE trigger executes its existing epoch UPSERT only WHEN:
+
+```sql
+NEW.id IS NOT OLD.id OR NEW.created_at IS NOT OLD.created_at
+```
+
+This is null-safe value comparison, not an UPDATE-column-name filter:
+an assignment that leaves both values unchanged does not change Q_F. An
+id or created_at change still advances or repairs the pair atomically.
+All columns and I/U/D events on the other nine watched tables remain
+covered conservatively. PostgreSQL may retain the existing conservative
+all-column items trigger; its result contract does not use D1 metadata.
+Both editions retain the identical complete facts/preimage/tag behavior.
+The precise Cloudflare trigger-body allowance must be updated and reviewed;
+this text does not authorize a blanket conditional-trigger allowance.
+
+#### Previous-runtime strict-count inventory
+
+The following inventory applies separately to the current runtime and to
+each archived release in the rollback window: 2026.10.18-8a38af0,
+2026.10.18-9381930 and 2026.10.18-3f0141a. Each has the same eleven check
+sites in these seven modules; the optional new-credential site has two
+strict comparisons. Their checked write statements are:
+
+| Module / check | Checked statement or batch slot | Can the proposed witness trigger fire on that statement? |
+| --- | --- | --- |
+| content.write, expected version not null | slot 0: UPDATE items SET data,slug,deleted,version,updated_at WHERE id AND version | no: neither id nor created_at is assigned; createItem INSERT has no strict-count check |
+| alerts subscription | slot 1: INSERT alert_subscriptions | no: unwatched table |
+| read-keys creation | slot 0: INSERT agent_read_keys | no: unwatched table |
+| owner setup-code issuance (truthiness) | slot 1: INSERT setup_codes | no: unwatched table |
+| owner first claim (truthiness) | slot 0: INSERT owner | no: unwatched table |
+| owner passkey-link creation | INSERT passkey_links | no: unwatched table |
+| owner session issue | slot 0 INSERT auth_operations; optional slot 1 UPDATE passkey_links, UPDATE reader_invites or DELETE recovery_codes | no: each checked statement writes an unwatched table |
+| owner reader-invite issue | slot 0: INSERT auth_operations | no: unwatched table |
+| analytics admission | INSERT OR IGNORE pageviews | no: unwatched table |
+| uploads single-use consume | UPDATE uploads WHERE media IS NULL | no: unwatched table; earlier media.store statements have their own metadata |
+| public artifact admission (truthiness) | slot 1: INSERT public_artifacts | no: unwatched table |
+
+No strict checked statement writes any of the other nine watched tables.
+Later SQL changes() guards on revisions, slug_history and approved site
+extension writes remain direct-row checks; do not replace or relax them.
+Any additional archived release in the supported rollback window must be
+inventoried before installing the migration. If a strict checked statement
+can fire any witness trigger, this exception is insufficient and the
+migration remains blocked; use a separately reviewed prerequisite release
+before attempting conservative triggers instead.
+
+#### Regression and publication proof
+
+Add a source regression guard with a fixed reviewed inventory of metadata
+check sites and their exact checked SQL/update columns. It must refuse a
+new or unclassified strict metadata/rowsAffected comparison, a changed
+checked SQL statement, or a changed Q_F items dependency until reviewed.
+Do not silently infer safety from a table-name substring. Cover property,
+computed-property and aliased/destructured metadata access conservatively:
+unrecognized provenance fails the guard rather than blessing a new check.
+A finite exact function/statement fingerprint inventory is acceptable;
+updates to that inventory require the same dependency/count audit.
+
+Negative controls must add a strict check to a live or media write, change
+the existing items assignment to created_at, and add an items value to Q_F;
+each must fail the guard without weakening runtime tests. Existing allowed
+old item updates must pass. Preserve zero-row and successful-row version
+fence assertions, actual content/history/slug outcomes, and every previous
+release test and archived execution assertion on the new schema.
+
+Publication remains a watched live INSERT/UPDATE or DELETE; the items
+exception does not apply to live. Prove that an approved publication and
+unpublication advance n and invalidate the late witness, including an
+old-runtime publication. Also prove id/created_at changes advance n while
+normal old content updates preserve a one-row metadata result and their
+SQL changes()-guarded history/extension writes. All source/witness changes
+remain in the same atomic transaction. Missing/invalid/overflow repair,
+first/re-entry install visibility and rollback requirements are unchanged.
+Measure the revised per-row write cost; do not reuse the all-column items
+update prediction. No CPU saving, hosted result or shipping authorization
+follows from this amendment.
+
+
+### PERF-9a conditional amendment: retain C2 ON/OFF 304 identity
+
+This paired-edition delta resolves the independent gate's contract conflict:
+phase 1 optimized ordinary OFF while C2 requires ON304 and OFF304 to execute
+identical SQL. Keep C2's identity requirement. Extend only the ordinary
+anonymous conditional proof to prepared-copy ON; no witness may authorize
+copy HIT, MISS response delivery, preparation or admission. Response reuse,
+sessions/Authorization, private, ineligible and unshaped paths retain their
+existing exclusions. No new flag, schema, route, tag input or authority.
+
+When response reuse is OFF and an eligible shaped anonymous GET/HEAD has
+a nonempty If-None-Match validator (including wildcard), both prepared-copy
+ON and OFF capture complete Q_F and pair0 in the same actual database
+statement. Both strip the reserved metadata before decode, raw tuple proof,
+AF-2, G2 and output. A genuinely matching ordinary conditional may return
+304 only after an independent late SELECT validates the complete pair and
+its equality, while the AF-7L clock plan from the initial snapshot remains
+valid and the representation proof is unchanged. Pair equality is the late
+proof standing in for a re-read of access, privacy and existence; those are
+not re-queried on the matching-pair 304 path. The response is a snapshot as
+of that last read. An absent, invalid or changed pair takes the complete
+facts fallback, which re-reads privacy and existence and must return the
+private denial or 404 when the current view is private or absent, never a
+304 or a body. A write after the late pair SELECT is unobservable, as with
+the old second Q_F. Both modes execute identical statement text, order,
+binds, counts and rows, including the same missing/invalid capability
+fallback. Stable known-capability matching 304 stays at most three
+statements, zero render/copy/UC9/write, empty body and unchanged headers.
+The witness table is not public_artifact_state; C2's copy-state prohibition
+continues. No preliminary generation observation or artifact query runs
+before a successful 304.
+
+If no conditional validator is supplied, prepared-copy ON keeps the original
+ordinary facts path and no witness read. On a conditional miss, pair change,
+invalid/missing pair or late clock refusal, never turn the pair into copy
+HIT authority. The complete captured facts may still be consumed by the
+existing ordinary copy proof only with their full raw tuple ownership and
+all existing freshness/privacy rules. Discard the ON conditional witness
+before rendering/copy lookup. ON HIT, live MISS final proof, two-way counted
+lookup/admission, generation/expiry/quota and preparation remain unchanged;
+the OFF final-render witness remains its separately approved phase-1 use.
+A late daily-limit/storage error must not become a successful 304 or a
+rendered response through a witness fallback: existing error/privacy
+mapping and no-validator refusal remain required.
+
+A stale/mismatching If-None-Match cannot be known before the full initial
+snapshot. Consequently an ON conditional that becomes a HIT or MISS may
+pay for combined-snapshot transport even though it cannot use the witness
+for body delivery. This is a cost to measure and disclose, not a saving
+from skipping its normal copy proof. Retain ordinary no-validator ON HIT/
+MISS cells unchanged, and measure stale-conditional ON HIT and MISS
+separately on the same small/200 fixtures, with exact SQL/rows/writes and
+response identity. Any increase follows the existing rows justification
+and owner-approval gate. The normal GATE-2 matrix must now show matching
+ON304/OFF304 identity on identical data; do not assume a measured value.
+No old OFF-only predictions or pre-amendment ON numbers certify this delta.
+
+Before editing current assertions, this delta needs both reviews and the
+implementation go. Retain the original current safety outcomes while
+moving injections to the actual combined snapshot/late witness boundary:
+
+- Conditional removal after initial snapshot returns the current missing
+  response with no stale ETag, for matching GET/HEAD and wildcard controls.
+- Clock deadline crossed before late proof refuses the old 304; body/tag
+  follow current clock and keep strict event/notice boundary semantics.
+- Approved-view proof budget separately counts one complete initial
+  snapshot, one independent late pair and existing live body access, with
+  no accidental duplicate full facts. Invalid/mismatched witness still
+  proves its fresh complete-facts fallback.
+- Same-version extension mutation between those proofs discards the old
+  approved view and renders the freshly approved value. Private-on,
+  unpublish and raw/multiplicity cases retain their strict outcomes.
+- Native late witness daily-limit error and native complete-facts fallback
+  error both return the existing visitor 503 without ETag or private body,
+  for ordinary and matching-conditional requests. Assert each injected
+  boundary was actually reached; a failed observer is not a product PASS.
+
+Each retargeted race/outcome test requires an unchanged control PASS and a
+fresh scratch mutation that breaks its witness guard and causes the actual
+safety/budget assertion to fail. Syntax, import, stale fixture or source
+inventory failure is not the expected mutation proof. No archived test or
+prior assertion about status, body, privacy, tag or late clock is weakened.
+Extend both-edition SQL identity coverage to stable GET/HEAD, wildcard,
+with/without stored copy, response-reuse ON/OFF controls and missing optional
+tables. Retain all original C2 counted-lookup/admission mutation controls.
+
+Run the FULL current suite on both editions before the new runtime freeze;
+selected modules are iteration evidence only. Refresh measured rows and
+runtime source-inventory pins deliberately, then parity/conformance/real
+normal entry and actual previous-runtime gates. The independent gate must
+repeat on the exact new freeze. Existing installer atomicity, watched-write
+cost, CPU and owner-approval requirements are not waived by this delta.

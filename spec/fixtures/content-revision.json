@@ -1,0 +1,77 @@
+{
+  "tables": [
+    {
+      "table": "items",
+      "insert": "INSERT INTO items(id,kind,slug,version,data,created_at,updated_at) VALUES('witness-item','entry','witness-item',1,'{}','2026-10-18','2026-10-18')"
+    },
+    {
+      "table": "live",
+      "insert": "INSERT INTO live(item_id,kind,slug,version,data,published_at) VALUES('witness-live','entry','witness-live',1,'{}','2026-10-18')"
+    },
+    {
+      "table": "site_fields",
+      "insert": "INSERT INTO site_fields(version,key,value,approved) VALUES(7,'private','false',1)"
+    },
+    {
+      "table": "site_embed_sources",
+      "insert": "INSERT INTO site_embed_sources(version,sources,approved) VALUES(7,'[]',1)"
+    },
+    {
+      "table": "site_stream_settings",
+      "insert": "INSERT INTO site_stream_settings(version,settings,approved) VALUES(7,'{}',1)"
+    },
+    {
+      "table": "private_approvals",
+      "insert": "INSERT INTO private_approvals(version) VALUES(7)"
+    },
+    {
+      "table": "training_approvals",
+      "insert": "INSERT INTO training_approvals(version) VALUES(7)"
+    },
+    {
+      "table": "themes",
+      "insert": "INSERT INTO themes(name,version,package,sha256,installed_at,installed_by) VALUES('witness-theme','1','{}','digest','2026-10-18','assistant:test')"
+    },
+    {
+      "table": "share_cards",
+      "insert": "INSERT INTO share_cards(item_id,version,name,created_at) VALUES('witness-share',1,'image.png','2026-10-18')"
+    },
+    {
+      "table": "media",
+      "insert": "INSERT INTO media(name,type,size,chunks,created_at) VALUES('witness.png','image/png',1,1,'2026-10-18')",
+      "insert_pg": "INSERT INTO media(name,type,size,data,created_at) VALUES('witness.png','image/png',1,decode('00','hex'),'2026-10-18')"
+    }
+  ],
+  "counter_valid": [
+    "0",
+    "1",
+    "9007199254740993",
+    "9223372036854775807"
+  ],
+  "counter_invalid": [
+    "",
+    "00",
+    "01",
+    "-1",
+    "+1",
+    "1.0",
+    "1e3",
+    "9223372036854775808",
+    "18446744073709551616",
+    null,
+    true,
+    1,
+    1.5
+  ],
+  "epoch_valid": "0123456789abcdef0123456789abcdef",
+  "epoch_invalid": [
+    "",
+    "ABCDEF0123456789ABCDEF0123456789AB",
+    "gggggggggggggggggggggggggggggggg",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    null,
+    true,
+    1
+  ]
+}

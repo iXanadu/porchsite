@@ -366,6 +366,107 @@ CREATE TABLE analytics_maintenance (
 INSERT INTO analytics_maintenance (id, completed_day) VALUES (1, '');
 """),
 
+    ("0021_content_revision", """
+CREATE TABLE IF NOT EXISTS content_revision (
+ id INTEGER PRIMARY KEY CHECK (id = 1),
+ epoch UUID NOT NULL,
+ n BIGINT NOT NULL CHECK (n >= 0)
+);
+
+CREATE FUNCTION advance_content_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+ INSERT INTO content_revision AS prior (id,epoch,n) VALUES (1,gen_random_uuid(),1)
+ ON CONFLICT (id) DO UPDATE SET
+ epoch = CASE WHEN prior.epoch IS NOT NULL AND prior.n >= 0 AND prior.n < 9223372036854775807 THEN prior.epoch ELSE excluded.epoch END,
+ n = CASE WHEN prior.epoch IS NOT NULL AND prior.n >= 0 AND prior.n < 9223372036854775807 THEN prior.n + 1 ELSE 1 END;
+ RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER content_revision__live__row
+AFTER INSERT OR UPDATE OR DELETE ON live FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__live__truncate
+AFTER TRUNCATE ON live FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__items__row
+AFTER INSERT OR UPDATE OR DELETE ON items FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__items__truncate
+AFTER TRUNCATE ON items FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_fields__row
+AFTER INSERT OR UPDATE OR DELETE ON site_fields FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_fields__truncate
+AFTER TRUNCATE ON site_fields FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_embed_sources__row
+AFTER INSERT OR UPDATE OR DELETE ON site_embed_sources FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_embed_sources__truncate
+AFTER TRUNCATE ON site_embed_sources FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_stream_settings__row
+AFTER INSERT OR UPDATE OR DELETE ON site_stream_settings FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__site_stream_settings__truncate
+AFTER TRUNCATE ON site_stream_settings FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__private_approvals__row
+AFTER INSERT OR UPDATE OR DELETE ON private_approvals FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__private_approvals__truncate
+AFTER TRUNCATE ON private_approvals FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__training_approvals__row
+AFTER INSERT OR UPDATE OR DELETE ON training_approvals FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__training_approvals__truncate
+AFTER TRUNCATE ON training_approvals FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__themes__row
+AFTER INSERT OR UPDATE OR DELETE ON themes FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__themes__truncate
+AFTER TRUNCATE ON themes FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__share_cards__row
+AFTER INSERT OR UPDATE OR DELETE ON share_cards FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__share_cards__truncate
+AFTER TRUNCATE ON share_cards FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__media__row
+AFTER INSERT OR UPDATE OR DELETE ON media FOR EACH ROW
+EXECUTE FUNCTION advance_content_revision();
+
+CREATE TRIGGER content_revision__media__truncate
+AFTER TRUNCATE ON media FOR EACH STATEMENT
+EXECUTE FUNCTION advance_content_revision();
+
+INSERT INTO content_revision (id,epoch,n) VALUES (1,gen_random_uuid(),0) ON CONFLICT (id) DO NOTHING;
+"""),
+
     ("0022_analytics_visitor_counts", """
 CREATE TABLE analytics_visitor_counts (
  day TEXT NOT NULL,
@@ -373,6 +474,7 @@ CREATE TABLE analytics_visitor_counts (
  views INTEGER NOT NULL CHECK (views BETWEEN 0 AND 200),
  PRIMARY KEY (day, visitor)
 );
+
 """),
 
 ]

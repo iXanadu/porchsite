@@ -95,39 +95,8 @@ class Tree:
 # --- SQL -------------------------------------------------------------------------------------
 
 
-def statements(sql: str) -> list[str]:
-    """Split on ; outside quotes, with -- and /* */ comments removed."""
-    out, cur, i, n = [], [], 0, len(sql)
-    quote = ""
-    while i < n:
-        c = sql[i]
-        if quote:
-            cur.append(c)
-            if c == quote:
-                if i + 1 < n and sql[i + 1] == quote:
-                    cur.append(sql[i + 1])
-                    i += 1
-                else:
-                    quote = ""
-        elif c in "'\"":
-            quote = c
-            cur.append(c)
-        elif sql.startswith("--", i):
-            j = sql.find("\n", i)
-            i = n if j < 0 else j
-            continue
-        elif sql.startswith("/*", i):
-            j = sql.find("*/", i + 2)
-            i = n if j < 0 else j + 2
-            continue
-        elif c == ";":
-            out.append("".join(cur))
-            cur = []
-        else:
-            cur.append(c)
-        i += 1
-    out.append("".join(cur))
-    return [" ".join(s.split()) for s in out if s.strip()]
+from sql_statements import statements, canonical
+from content_revision_sql import migration as witness_migration
 
 
 NAME = r'"?([A-Za-z_][A-Za-z0-9_]*)"?'
@@ -204,12 +173,41 @@ def check_schema_sql(sql: str) -> tuple[list[str], set[str]]:
     return errors, tables
 
 
+def witness_allowance(parts: list[str], dialect: str) -> tuple[set, list[str]]:
+    # Any attempt to introduce the witness must install the entire fixed
+    # inventory. Whole token equality includes every body, not just its name.
+    if not any(re.search(r"\b(?:content_revision|advance_content_revision|content_revision__\w+)\b", x, re.I) for x in parts):
+        return set(), []
+    expected = witness_migration(dialect)
+    keys = [canonical(x) for x in parts]
+    required = [canonical(x) for x in expected]
+    if len(keys) != len(required) or set(keys) != set(required):
+        return set(), ['witness migration requires the complete exact table, trigger/function inventory and seed']
+    if keys[0] != required[0] or keys[-1] != required[-1]:
+        return set(), ['witness table must precede triggers and the non-resetting seed must be last']
+    if dialect == 'pg' and keys[1] != required[1]:
+        return set(), ['witness function must precede its triggers']
+    return set(required), []
+
+
 def check_list(label: str, migrations: list[tuple[str, str]], known: set[str]) -> list[str]:
     errors = []
     known = set(known)
     for name, sql in migrations:
         made: set[str] = set()
-        for s in statements(sql):
+        try:
+            parts = statements(sql)
+        except ValueError as error:
+            errors.append(f"{label} {name}: {error}")
+            continue
+        allowed, problems = witness_allowance(parts, 'cf' if label == CF_DIR else 'pg')
+        errors.extend(f"{label} {name}: {why}" for why in problems)
+        for s in parts:
+            if canonical(s) in allowed:
+                if m := CREATE_TABLE.match(s):
+                    if m.group(2).lower() not in known:
+                        made.add(m.group(2).lower())
+                continue
             why = check_statement(s, known, made)
             if why:
                 errors.append(f"{label} {name}: {why}\n    {s[:160]}")
@@ -307,7 +305,8 @@ def self_test() -> int:
     print(
         f"migration-check self-test: {'FAILED' if bad else 'ok'} ({len(MUST_REFUSE)} refused, {len(MUST_ALLOW)} allowed)"
     )
-    return 1 if bad else 0
+    parser_tests = subprocess.run([sys.executable, str(ROOT / 'scripts/test-migration-statements.py'), '-q'], check=False)
+    return 1 if bad or parser_tests.returncode else 0
 
 
 def main() -> int:

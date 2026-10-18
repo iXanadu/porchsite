@@ -37,7 +37,7 @@ async function outcome(db,operation,fixture,before,value,auth='valid') {
   for(const item of items)assert(await q(db,'SELECT 1 FROM items WHERE id=?',item.id).first());
  }
 }
-export async function measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions}) {
+export async function measureWrites({root,out,migrations,corpus,Miniflare,convertV4MiniflareOptions,applyMigration}) {
  fs.copyFileSync(path.join(root,'scripts/d1-rows/write-harness.mjs'),path.join(out,'write-harness.mjs'));
  const seed=corpus.find(x=>x.name==='services-page');assert(seed);const cells={};
  async function run(operation,mode,auth='valid') {
@@ -46,9 +46,10 @@ export async function measureWrites({root,out,migrations,corpus,Miniflare,conver
   const mf=new Miniflare(convertV4MiniflareOptions({rootPath:out,modules,modulesRoot:out,...COMPATIBILITY,d1Databases:['DB'],kvNamespaces:['OAUTH_KV'],bindings:{SITE_URL:ORIGIN,PUBLIC_ARTIFACTS:mode==='on'?'1':'',PUBLIC_RESPONSES:'',ROW_OPERATION:operation,ROW_TOKEN:token,ROW_APPROVAL:fixture.approval,ROW_BODY:fixture.body,ROW_FILE:fixture.file,ROW_AUTH:auth},outboundService:()=>{throw Error('Write fixture attempted outbound request');}}));
   try {
    await mf.ready;const db=await mf.getD1Database('DB');
-   for(const file of fs.readdirSync(migrations).filter(x=>x.endsWith('.sql')).sort())for(const sql of fs.readFileSync(path.join(migrations,file),'utf8').replace(/--[^\n]*/g,'').split(';').map(x=>x.trim()).filter(Boolean))await db.prepare(sql).run();
+   for(const file of fs.readdirSync(migrations).filter(x=>x.endsWith('.sql')).sort())await applyMigration(db,fs.readFileSync(path.join(migrations,file),'utf8'));
    await db.exec(seed.sql);await db.exec(fixture.sql);if(operation==='collect/existing_counter' && await db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analytics_visitor_counts'").first())await q(db,'INSERT INTO analytics_visitor_counts(day,visitor,views) VALUES(?,?,1)',DAY,VISITOR).run();
    const before=await live(db);
+
    const response=await mf.dispatchFetch(ORIGIN+'/');const value=await response.json();
    fs.writeFileSync(path.join(out,`attempt-${operation.replaceAll('/','-')}-${mode}-${auth}.json`),JSON.stringify({operation,mode,auth_control:auth,wrapper_status:response.status,status:value.status,stage:value.stage,counters:value.counters}));
    assert.equal(response.status,200,'write wrapper failed');

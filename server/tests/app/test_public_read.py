@@ -1,3 +1,4 @@
+from server.app import content_revision
 """Public read budgets and boundaries, paired with Worker public-read tests."""
 from unittest.mock import AsyncMock,Mock
 import pytest
@@ -110,24 +111,26 @@ async def test_perf_private_during_view(db,monkeypatch,path):
     assert 'etag' not in response.headers
     assert calls==1
 
-async def test_perf_conditional_race(db,monkeypatch):
+@pytest.mark.parametrize('on',[False,True])
+async def test_perf_conditional_race(db,monkeypatch,on):
     item=await seed(db)
     path='/journal/'+item['slug']+'/'
     cx=routes.Context(db,'',None)
     warm=await routes.handle(request(path),cx)
     assert warm.status_code==200 and 'etag' in warm.headers
-    load=public_read.facts
+    load=content_revision.read_revision
     calls=0
     async def remove(db):
         nonlocal calls
         calls+=1
-        if calls==2:
+        if calls==1:
             gone=await content.remove_item(db,'assistant:test',item['id'],item['version'])
             await approvals.publish_now(db,[{'id':gone['id'],'version':gone['version']}],'',ORIGIN)
         return await load(db)
-    monkeypatch.setattr(public_read,'facts',remove)
-    response=await routes.handle(request(path,headers={'If-None-Match':warm.headers['etag']}),cx)
+    monkeypatch.setattr(content_revision,'read_revision',remove)
+    response=await routes.handle(request(path,headers={'If-None-Match':warm.headers['etag']}),routes.Context(db,'',None,public_artifacts=on))
     assert response.status_code==404 and 'etag' not in response.headers
+    assert calls>0
 
 @pytest.mark.parametrize('data,event,before,after',[
     (dict(timezone='America/New_York',notice=dict(text='Expires tonight',until='2026-10-18')),None,'2026-10-19T03:59:59Z','2026-10-19T04:00:00Z'),
@@ -152,7 +155,8 @@ async def test_af_time_native_boundary(db,monkeypatch,data,event,before,after):
     changed=await routes.handle(request('/',headers={'If-None-Match':old}),cx)
     assert changed.status_code==200 and changed.headers['etag']!=old
 
-async def test_af_time_deadline_race(db,monkeypatch):
+@pytest.mark.parametrize('on',[False,True])
+async def test_af_time_deadline_race(db,monkeypatch,on):
     from datetime import datetime
     await seed(db)
     updated=await content.update_item(db,'assistant:test','site',1,dict(theme='local-business',notice=dict(text='Expires tonight',until='2026-10-18')))
@@ -161,17 +165,18 @@ async def test_af_time_deadline_race(db,monkeypatch):
     monkeypatch.setattr(public_read.time,'time',lambda:now)
     cx=routes.Context(db,'',None)
     first=await routes.handle(request('/'),cx)
-    old=first.headers['etag'];load=public_read.facts;calls=0
+    old=first.headers['etag'];load=content_revision.read_revision;calls=0
     async def raced(db):
         nonlocal calls,now
         f=await load(db);calls+=1
-        if calls==2:
+        if calls==1:
             now=datetime.fromisoformat('2026-10-19T00:00+00:00').timestamp()
         return f
-    monkeypatch.setattr(public_read,'facts',raced)
-    changed=await routes.handle(request('/',headers={'If-None-Match':old}),cx)
+    monkeypatch.setattr(content_revision,'read_revision',raced)
+    changed=await routes.handle(request('/',headers={'If-None-Match':old}),routes.Context(db,'',None,public_artifacts=on))
     assert changed.status_code==200 and changed.headers['etag']!=old
     assert b'Expires tonight' not in changed.body
+    assert calls>0
 
 async def test_af_time_unknown_native(db,monkeypatch):
     from datetime import datetime

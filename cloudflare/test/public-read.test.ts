@@ -1,3 +1,4 @@
+import * as revision from '../src/content-revision';
 import {env} from 'cloudflare:workers';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import type {Env} from '../src/env';
@@ -42,10 +43,10 @@ it.each(['/','/index.md','/llms.txt'])('perf_private_during_view: invalid Author
  const reading=vi.spyOn(site,'liveView').mockImplementation(async(...args)=>{if(once){once=false;const hidden=await content.updateItem(db,who,'site',1,{private:true});await approvals.publishNow(db,[{id:'site',version:hidden.version}],'',origin);}return load(...args);});
  const response=await req(path,{Authorization:'Bearer invalid','If-None-Match':'*'});expect(response.status).toBe(404);expect(await response.text()).toBe('<!doctype html><meta name="robots" content="noindex"><title></title>');expect(response.headers.has('ETag')).toBe(false);expect(reading).toHaveBeenCalledTimes(1);
 });
-it('perf_conditional_race: removal after the first facts read cannot reuse a warm validator',async()=>{
- const item=await seed(),path=`/journal/${item.slug}/`,warm=await req(path),load=read.facts;let calls=0;expect(warm.status).toBe(200);expect(warm.headers.has('ETag')).toBe(true);
- vi.spyOn(read,'facts').mockImplementation(async(db)=>{if(++calls===2){const gone=await content.removeItem(db,who,item.id,item.version);await approvals.publishNow(db,[{id:gone.id,version:gone.version}],'',origin);}return load(db);});
- const response=await req(path,{'If-None-Match':warm.headers.get('ETag')!});expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);
+it.each([false,true])('perf_conditional_race: removal after the first facts read cannot reuse a warm validator, copies=%s',async on=>{
+ const item=await seed(),path=`/journal/${item.slug}/`,warm=await req(path),load=revision.readRevision;let calls=0;expect(warm.status).toBe(200);expect(warm.headers.has('ETag')).toBe(true);
+ vi.spyOn(revision,'readRevision').mockImplementation(async(db)=>{if(++calls===1){const gone=await content.removeItem(db,who,item.id,item.version);await approvals.publishNow(db,[{id:gone.id,version:gone.version}],'',origin);}return load(db);});
+ const response=await handle(new Request(origin+path,{headers:{'If-None-Match':warm.headers.get('ETag')!}}),{...e,PUBLIC_ARTIFACTS:on?'1':''});expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(calls).toBeGreaterThan(0);
 });
 it.each([
  ['notice',{timezone:'America/New_York',notice:{text:'Expires tonight',until:'2026-10-18'}},null,'2026-10-19T03:59:59Z','2026-10-19T04:00:00Z'],
@@ -56,11 +57,11 @@ it.each([
  const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse(before));const first=await req('/');expect(first.status).toBe(200);expect(first.headers.has('ETag')).toBe(true);const old=first.headers.get('ETag')!;
  expect((await req('/',{'If-None-Match':old})).status).toBe(304);clock.mockReturnValue(Date.parse(after));const changed=await req('/',{'If-None-Match':old});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);
 });
-it('af_time_deadline_race: a notice boundary crossed during conditional validation cannot return old304',async()=>{
+it.each([false,true])('af_time_deadline_race: a notice boundary crossed during conditional validation cannot return old304, copies=%s',async on=>{
  await seed();const updated=await content.updateItem(db,who,'site',1,{theme:'local-business',notice:{text:'Expires tonight',until:'2026-10-18'}});await approvals.publishNow(db,[{id:'site',version:updated.version}],'',origin);
- const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-18T23:59:59Z')),first=await req('/'),old=first.headers.get('ETag')!,load=read.facts;let calls=0;
- vi.spyOn(read,'facts').mockImplementation(async(db)=>{const f=await load(db);if(++calls===2)clock.mockReturnValue(Date.parse('2026-10-19T00:00Z'));return f;});
- const changed=await req('/',{'If-None-Match':old});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);expect(await changed.text()).not.toContain('Expires tonight');
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-18T23:59:59Z')),first=await req('/'),old=first.headers.get('ETag')!,load=revision.readRevision;let calls=0;
+ vi.spyOn(revision,'readRevision').mockImplementation(async(db)=>{const pair=await load(db);if(++calls===1)clock.mockReturnValue(Date.parse('2026-10-19T00:00Z'));return pair;});
+ const changed=await handle(new Request(origin+'/',{headers:{'If-None-Match':old}}),{...e,PUBLIC_ARTIFACTS:on?'1':''});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);expect(await changed.text()).not.toContain('Expires tonight');expect(calls).toBeGreaterThan(0);
 });
 it('af_time_unknown_native: out-of-coverage live pages refuse wildcard304 and never gain a public tag',async()=>{
  await seed();const changed=await content.updateItem(db,who,'site',1,{theme:'local-business',hours:{weekly:[{day:'mon',open:'09:00',close:'17:00'}]}});await approvals.publishNow(db,[{id:'site',version:changed.version}],'',origin);

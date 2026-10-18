@@ -3,7 +3,7 @@ import asyncio
 from dataclasses import replace
 import json
 import pytest
-from server.app import approvals,content,site,public_artifacts as artifacts,public_read,agent_traffic
+from server.app import approvals,content,site,public_artifacts as artifacts,public_read,agent_traffic,content_revision
 from server.app.privacy import BLANK,SIGN_IN
 from .conftest import TABLES
 from .test_private_site import browser_factory as browser_factory
@@ -475,13 +475,15 @@ async def test_af_prebuild_failed_builder_keeps_publication(db,http,app,monkeypa
     assert 'Committed despite failed build' in (await http.get('/')).text
 
 
+@pytest.mark.parametrize('boundary',['snapshot','late'])
 @pytest.mark.parametrize('change',['private','unpublish','expiry'])
-async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
+async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change,boundary):
     one,entry=await fixture(db)
     path='/journal/'+entry['slug']+'/'
     first=await http.get(path)
     assert first.status_code==200 and await count(db)==1
-    original=public_read.facts
+    target='initial_facts' if boundary=='snapshot' else 'read_revision'
+    original=getattr(content_revision,target)
     live=site.live_view
     rendered=0
     async def observed(*args,**kwargs):
@@ -492,10 +494,10 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
     calls=0
     async def raced(*args,**kwargs):
         nonlocal calls
-        stamp=await original(*args,**kwargs)
+        stamp=await original(*args,**kwargs) if boundary=='snapshot' else None
         calls+=1
         if calls==1:
-            # Commit after the hit's validation snapshot was read, before delivery.
+            # Commit after the snapshot or immediately before the independent late read.
             if change=='private':
                 hidden=await content.update_item(db,ACTOR,'site',one['version'],{'private':True})
                 await publish(db,hidden)
@@ -505,9 +507,10 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
             else:
                 expired=await db.fetchval('SELECT max(valid_until) FROM public_artifacts')
                 monkeypatch.setattr(artifacts.time,'time',lambda:expired/1000+1)
-        return stamp
-    monkeypatch.setattr(public_read,'facts',raced)
+        return stamp if boundary=='snapshot' else await original(*args,**kwargs)
+    monkeypatch.setattr(content_revision,target,raced)
     response=await http.get(path,headers={'If-None-Match':first.headers['etag']})
+    assert calls>0
     if change=='expiry':
         # Storage expiry is not a dependency; the static hit remains cheap.
         assert rendered==0 and response.status_code==304

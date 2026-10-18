@@ -2,6 +2,21 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-f343361",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0027_content_revision.sql"
+      ],
+      "rows_justification": "Each approved entry writes about one more row (the content counter that triggers keep), and a revisit with an out-of-date validator reads 21 more rows on a small site and 218 more on a 200-entry site when prepared copies are on. In return ordinary first page views on a 200-entry site read about 1,304 rows instead of 1,741, and repeat visits 875. Approved by the owner.",
+      "changes": [
+        "Pages on bigger sites read about a quarter fewer database rows: the site keeps a small content counter instead of scanning every entry to tell whether anything changed.",
+        "A 200-entry site now gets about 3,800 first page views a day from the free database limit instead of about 2,900. Approving an entry writes about one more row.",
+        "Installing the update is all-or-nothing: if it stops partway, nothing is left half-changed, and the previous release still works on the new database."
+      ]
+    },
+    {
       "release": "2026.10.18-1edfb4a",
       "date": "2026-10-18",
       "security": false,
