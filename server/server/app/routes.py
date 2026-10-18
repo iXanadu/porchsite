@@ -30,7 +30,7 @@ from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from .site_fields import training_state
-from . import public_artifacts, public_read, public_time, public_responses
+from . import public_artifacts, public_read, public_time, public_responses, content_revision
 from copy import copy
 from .public_http import session_request,public_path,markdown_path,representation as public_read_representation
 from .agent_pages import agent_page
@@ -2227,10 +2227,15 @@ async def public_paths(req,cx):
     return (['/archive/'] if v.site.get('archive',{}).get('enabled') else [])+[e['page'] for s in v.site['streams'] for e in v.entries if e['stream']==s['id'] and not e.get('external_url')]
 
 
+def witness_scope(cx):
+    return not cx.public_artifacts and cx.response_store is None
+
+
 async def fast_public(req,cx):
     if not session_request(req) and public_read.candidate(req.url.path):
         try:
-            f=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db)
+            n0=await content_revision.read_revision(cx.db) if witness_scope(cx) else None
+            f=await public_read.facts(cx.db,True) if cx.public_artifacts or n0 is not None else await public_read.facts(cx.db)
             if f['private']:
                 return privacy.blank_response(req)
             c=public_read.choice(req,f)
@@ -2243,6 +2248,9 @@ async def fast_public(req,cx):
                 tag=public_read.tag(f,req,c,cx.release,now)
                 hit=public_read.conditional(req,f,c,tag)
                 if hit is not None:
+                    if n0 is not None and await content_revision.read_revision(cx.db)==n0 and public_time.valid(public_time.plan(f,c,now)):
+                        return hit
+                    n0=None
                     current=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db)
                     if current['private']:
                         return privacy.blank_response(req)
@@ -2255,6 +2263,7 @@ async def fast_public(req,cx):
                         return missing if missing is not None else public_read.missing()
                     now=public_read.time.time()*1000
                     tag=public_read.tag(f,req,c,cx.release,now)
+                cx._read['witness']=dict(pair=n0,facts=f,choice=c,at=now,tag=tag) if tag and n0 is not None else None
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
                 cx._read['approved']=public_read.view_proof(f) if tag else None
                 cx._read['artifact']=dict(facts=f,choice=c,tag=tag,now=now)
@@ -2277,11 +2286,13 @@ async def render_public(req,cx):
         access=await privacy.access(cx.db,req)
         cx._read=dict(private=access[0],gated=access[1],response=access[2])
         if not access[0] and not session_request(req):
-            f=await public_read.facts(cx.db)
+            n0=await content_revision.read_revision(cx.db) if witness_scope(cx) else None
+            f=await public_read.facts(cx.db,True) if n0 is not None else await public_read.facts(cx.db)
             c=public_read.choice(req,f)
             if c:
                 now=public_read.time.time()*1000
                 tag=public_read.tag(f,req,c,cx.release,now)
+                cx._read['witness']=dict(pair=n0,facts=f,choice=c,at=now,tag=tag) if tag and n0 is not None and not f['private'] else None
                 cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
                 cx._read['approved']=public_read.view_proof(f) if tag else None
     state=getattr(cx,'_read',None)
@@ -2302,6 +2313,10 @@ async def render_public(req,cx):
         return privacy.blank_response(req)
     stamp=getattr(cx,'_read',{}).get('fast')
     if stamp is not None and rendered.status_code==200:
+        token=cx._read.get('witness')
+        if witness_scope(cx) and token and token['tag']==stamp['tag'] and await content_revision.read_revision(cx.db)==token['pair'] and public_time.valid(public_time.plan(token['facts'],token['choice'],token['at'])):
+            return await public_response(cx.db,req,rendered,origin_of(req),stamp)
+        cx._read.pop('witness',None)
         try:
             f=await public_read.facts(cx.db)
             if f['private']:
