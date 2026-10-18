@@ -2089,7 +2089,7 @@ one HTML/Markdown copy per link. Home uses the published site `title` and
 summary; local entries use their published `title` and `summary`. No tagline,
 intro excerpt, title repeated as a summary, or theme-authored heading is used
 as a substitute. This deliberately makes labels independent of a customized
-heading and may change existing labels/summaries; URLs, order, escaping and
+heading and may change existing labels/summaries; URLs, order and
 caps remain the same. A site with no approved site row has an empty map.
 This metadata consists only of fields approved for public publication, never
 private-card data, pending revisions or owner metadata. The HTML/Markdown
