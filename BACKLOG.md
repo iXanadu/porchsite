@@ -74,13 +74,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    Revised one-write candidate meets +1 native write in all six accepted
    event cells: first-day 20/12 to 23/13, missing-counter repeat 7/4 to
    9/5, existing-counter repeat 7/4 to 11/5 (reads/writes, copies off/on).
-   Cold capped reconciliation rises from 206/0 to 406/1; a fresh steady
-   denial diagnostic is still owed on this revision. The 188-cell gate
-   refuses 16 increased metrics without release justification and owner
-   approval. Current suites, compatibility, parity, normal runtime,
-   negative controls and final read-only gates pass. HELD on the declared
-   local CPU diagnostic: all four paired medians exceed +0.5 ms, with
-   intervals spanning zero; resolve that result before release.
+   Cold capped reconciliation costs 406/1 versus 206/0; steady capped
+   requests use 7/0 without scanning pageviews. The owner approved the
+   added write cost. Prior candidate safety, compatibility and row gates
+   pass; the merged witness-release tree still needs fresh combined gates.
+   HELD on CPU: the original cohort crossed the declared diagnostic bar;
+   the one authorized confirmation retains HOLD in three of four classes
+   (all intervals span zero). A separate owner CPU-risk decision is pending.
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
