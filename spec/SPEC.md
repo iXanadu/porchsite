@@ -1924,6 +1924,16 @@ hostile brackets/HTML, leading block markers, literal inline delimiters,
 formatted text, code, links, images and tables, with round-trip visible-text
 and exact-byte parity checks.
 
+LL-4 leaves underscore runs literal inside ASCII identifiers: the complete
+run must have an ASCII letter or digit immediately on both sides in the
+same prose fragment (for example, `theme_create` and `version_2`). Other
+underscores keep their existing escaping, including word-edge delimiters,
+standalone runs and boundaries next to generated markup. This conservative
+rule is identical in both editions and does not change code or URLs.
+Paired `af_markdown_intraword_underscore` fixtures require exact bytes and
+CommonMark/GFM visible-text and structure round trips, including identifiers
+in titles, labels, image alt text and tables, and literal emphasis attacks.
+
 Generated titles, labels and summaries are escaped as Markdown data:
 owner strings cannot open a metadata/header block, inject an extra map
 entry or become an HTTP header. Relative content links resolve using the
@@ -2249,7 +2259,10 @@ no-store. Private HTML, including AG Bearer reader-view HTML, is live and
 no-store. No private response reads or writes an AF-7 artifact. Authorization
 results, positive or negative, are never cached. Backend errors cannot turn a failed access check into public access.
 
-For an eligible public request, obtain a consistent snapshot identity G from
+AF-7T below replaces legacy SNAPSHOT acquisition with the complete narrow
+facts proof and format-separated G2; references to G in these lifecycle rules
+mean that current format's identity. For an eligible public request, obtain a
+consistent snapshot identity G from
 authoritative database state; never trust an isolate, process or stored row's
 last-seen generation as current. G covers the complete effective published
 state: the ordered live item/version/address/publication-time manifest;
@@ -2344,8 +2357,9 @@ A builder captures G, renders in memory, then atomically rechecks the current
 public state and G before inserting. A concurrent publish/private-on, a time
 boundary or format change discards that build. Use compare-and-insert/transaction
 semantics so a late old builder cannot repopulate rows after invalidation.
-After reconstructing and validating a stored response, recheck its exclusive
-expiry and the authoritative snapshot immediately before delivery; otherwise
+AF-7T performs the final authoritative facts comparison atomically with the
+stored-row SELECT, then validates the bounded response and rechecks exclusive
+expiry/temporal validity immediately before delivery; otherwise
 delete that key and use the live renderer. This applies to warm 200 and 304
 hits as well as fills. Once a
 privacy or unpublish commit has occurred, a request newly authorized after
@@ -2356,6 +2370,208 @@ AF-7L below replaces the blanket minute expiry and the 300-second storage
 cap with a renderer-proven temporal boundary and a separate 24-hour storage
 cap. No expiry rule is a substitute for the current
 access, existence and dependency checks on every request.
+
+#### AF-7T: thin prepared-copy delivery
+
+This contract replaces the legacy SNAPSHOT-based lookup after implementation
+and acceptance; it is not a claim that the deployed runtime has changed.
+Implementation requires explicit authorization after contract review. Hosted
+AF-7H measurements determine release recommendations and default enablement.
+The operator flag remains off by default on both editions.
+No new cache, trigger, migration or public control is required.
+
+**Identity and old-runtime proof.** Let F be the ordered dependency facts
+already specified by PERF-1, PERF-3 and AF-7L. Its exact encoding includes
+current live identities, versions, addresses and publication/creation times;
+the live site source and effective exact-version approved extension values;
+privacy/training receipts and choices; selected theme name/version/digest;
+current-version share-card mappings; and renderer-consumed local hero
+metadata. Event endpoints/tags remain part of the existing temporal proof.
+It never includes pending bodies, sessions, credentials or analytics. Unused
+media and unselected themes remain excluded under PERF-3. Immutable version
+references replace body bytes only under the existing immutability guarantee.
+
+Define G2 as SHA-256 of `["public-artifacts/2", release, origin, F]` using
+the shared normalized facts encoding. It is independent of the state table,
+revision counter, lease, page clock and stored body. Adding the observed state
+row to the facts statement must not add it to F or the AF-2 ETag. Every mutable
+render dependency must still occur directly in F; no counter maintained only
+by new code can replace it. The ordinary dep1 tag, including canonical path,
+Content-Type, training signal and AF-7L state, remains unchanged. Key the row
+by format, origin, G2, release, canonical path/query, representation and dep1;
+keep the existing key/metadata/body limits. A change of clock state selects a
+new key; the exclusive next-change bound and 24-hour storage cap still apply.
+
+The original whole-live SNAPSHOT is no longer the HIT proof. Two fresh
+observations of F replace it: one decoded facts read, and one database-side
+exact equality check inside the artifact SELECT. An unaware old runtime's
+publish, removal, theme change, share-card update, privacy/training change or
+hero-dimension repair changes F even when it never updates the state counter.
+Thus it cannot make an old row eligible. G2 format separation also prevents
+legacy-format rows from becoming thin-path hits. Old runtimes continue to
+ignore new-format rows; a return to either format may evict derived rows,
+never promote the other format's bytes without its own fresh proof.
+
+**Unconditional HIT sequence.** For an eligible anonymous GET/HEAD:
+
+1. Run the current live access gate. Private/denied responses retain exact
+   existing behavior and cleanup; privateAgent remains before any public
+   shortcut. Authorization or owner/reader cookie presence, including invalid
+   credentials, bypasses lookup/fill/delivery. No cached gate decision.
+2. Execute ONE consistent facts statement, also observing the singleton's
+   recorded generation/revision. Decode F once, prove the requested public
+   resource exists, select representation, compute dep1 and G2, and obtain a
+   known AF-7L plan. Do not call liveView, load a theme package, parse entry
+   bodies, scan the media library, call snapshot(), or parse SNAPSHOT JSON.
+   A missing/invalid/unknown proof takes the existing safe path, never a hit.
+3. If the observed generation equals G2, issue ONE indexed artifact SELECT
+   for the exact key/G2. In that SAME database statement, require the current
+   generation still equals G2 AND all captured facts still equal the current
+   authoritative facts. Only then may it return body/metadata. The comparison
+   covers privacy, existence and every dependency, not just version maxima or
+   counts. It returns at most one artifact row, with no second facts document
+   sent to or decoded by the runtime. It cannot be a check-then-SELECT gap.
+4. Validate the bounded row, body integrity digest, exact dep1, format,
+   Content-Type and metadata allowlist against the captured facts/engine policy.
+   Reconstruct CSP, discovery, training and Vary from that same proof; arbitrary
+   stored headers remain forbidden. Immediately recheck the exclusive row
+   expiry and validity of the captured temporal plan, including clock rollback.
+   Return the stored bytes, or an empty HEAD response. No second facts decode,
+   snapshot, render, fill, invalidation write or artifact DELETE on this HIT.
+
+The database-side proof may reuse the PERF-1 facts relation as a CTE and compare
+its complete raw rows with the captured raw rows bound as engine-generated
+JSON, with two-way equality and cardinality checks. Compare actual category,
+identity and values; duplicate rows cannot conceal a removed row. A stable
+within-engine raw encoding may conservatively miss on JSON serialization
+changes. G2/dep1 still use the cross-edition normalized encoding. PostgreSQL
+must use the same statement snapshot for proof and selected row; separate
+READ COMMITTED statements are insufficient. D1 likewise must not split the
+proof and row read. No SHA implementation inside SQL is required. Re-evaluating
+the narrow facts relation in SQL is permitted; returning/parsing the former
+whole manifest or hiding extra statements in a helper is not. Record rows-read
+and query plans as well as statement counts: one statement is not constant work.
+
+This SELECT is the final fresh publication/privacy observation, equivalent
+to the final comparison AF-7 already requires. A dependency committed before
+that statement excludes the old body. A commit after its consistent snapshot
+is an already-authorized in-flight response under the existing race rule;
+there is no claim to recall delivered bytes. If the SQL proof fails, return no
+stored bytes and restart from current facts once or use the safe live path.
+Never use a last-seen isolate generation, a cached plan or a stored ETag as an
+authorization proof. No additional asynchronous gap for work unrelated to
+validation may be inserted between the proof and response construction.
+
+A matching conditional request continues to use PERF-1's gate, facts and fresh
+facts/clock proof for its empty 304 (at most three reads). It need not load any
+artifact body, recompute a body digest or write/fill/delete artifacts. Existence
+precedes wildcard matching. A HIT implementation that elects to use the guarded
+artifact SELECT for conditional metadata must meet the same budget and must
+not load body bytes for a 304; the ordinary cheap 304 path is preferred.
+HEAD may validate the stored body as today, but never renders it or returns it.
+
+**Generation mismatch, MISS and admission.** If observed G differs from G2,
+including after an older runtime writes, do not read any stored artifact.
+Atomically delete all old rows and install the observed G2 using the existing
+state/invalidation mechanism, then proceed as a MISS. Missing state is the same
+case. The synchronization is not a HIT and must not be counted as a zero-write
+HIT. A concurrent change during synchronization or build cannot authorize an
+old body: row delivery and admission still require exact current F and G2.
+Private-on still deletes all public rows atomically with publication; gate-time
+private cleanup still deletes obsolete rows without loading a body, even on
+return from an unaware old runtime. A failed cleanup never weakens denial.
+All existing mutation-time atomic deletes, revision/lease invalidation, session
+bypass and approved-only background preparation remain mandatory with flags
+off as well as on. Do not replace them with key changes or lazy expiry.
+
+An absent, expired, corrupt or proof-mismatched row uses one ordinary anonymous
+live render, reusing the request's already captured approved proof only under
+PERF-5's site-version AND exact-source checks. Keep final live facts, temporal
+checks and bounded retry/denial behavior. Never render once merely to find a
+key or validate a hit. Admission uses conditional INSERT/transaction semantics
+that re-observe complete F, G2, public eligibility and time expiry atomically
+with the insert. A stale builder cannot repopulate rows after invalidation,
+including old-runtime writes that did not increment revision. A failed proof
+admits nothing and follows the existing safe retry/live-denial rule. A body
+integrity hash and metadata validation remain required; dep1 is not a body hash.
+Use narrow facts comparison for admission too; retaining legacy SNAPSHOT on a
+MISS is outside this budget and must be reported rather than called thin.
+
+**Budgets and acceptance.** Count every executed D1 statement, including each
+statement in a batch, conditional insert/cleanup, analytics and background work
+billed to that invocation. PostgreSQL uses the same logical statement ceiling;
+report BEGIN/COMMIT and wire round trips separately, never hide an extra proof
+read inside a transaction. No GET mutation is called maintenance to omit it.
+
+| Case, without concurrent changes | Read statements | Artifact DML | Additional UC9 |
+| --- | --- | --- | --- |
+| Public prepared 200/HEAD HIT | at most 3: gate, facts/state, guarded row | 0 | GET 200: at most one inherited buffered UPSERT when due; HEAD: 0 |
+| Matching public GET/HEAD 304 | at most 3, no body read | 0 | 0 |
+| Clean same-generation MISS and successful fill | at most 6, including live render's existing proofs | at most 2: bounded cleanup plus conditional admission | GET 200: at most 1 |
+| MISS needing generation synchronization | preceding MISS ceiling | at most 3 additional state-init/delete/install statements | same rule |
+
+Thus a stable HIT is three total statements without a due flush, at most four
+with that single inherited UC9 UPSERT; do not advertise three total while
+hiding a write in waitUntil. Clean MISS is at most nine total statements including a due UC9 flush;
+generation-repair MISS at most twelve. Existing artifacts-off public 304/404
+budgets remain unchanged. Exceptional races, invalid rows and bounded retries
+are measured and reported separately; no extra render/query is hidden under
+an ordinary HIT/MISS label. Keep body <=256 KiB, metadata <=8 KiB, 128 rows and
+4 MiB total storage, lease and preparation limits as AF-7 specifies. No claim
+that a MISS meets the free-plan CPU cap: it still pays for live rendering.
+
+Target steady and fresh-isolate HIT invocation CPU <=10 ms at p95 on the same
+quiet small/200-entry fixtures, including validation, body hashing and a due
+UC9 flush; local reused-isolate target <=5 ms at p95. Record time-dependent
+fixtures and maximum-body cases separately. These are acceptance targets,
+not measured results or universal size-independent guarantees. Measure MISS
+lookup/admission incremental CPU versus the identical artifacts-off build,
+target <=1 ms median and <=2 ms p95, while reporting total cold-render CPU even
+when it exceeds 10 ms. Startup CPU remains separate from first-request CPU.
+Actual hosted CPU, D1 reads/rows/writes and sparse requests remain mandatory
+before any default-enable decision. No hosted or billing conclusion follows
+from local process CPU. Report a target miss as an unmet performance criterion;
+correctness acceptance alone does not authorize rollout.
+
+Local implementation measurements improve prepared-copy HIT CPU over live
+rendering, but do not meet the fresh/reused HIT or incremental MISS targets
+on all quiet fixtures. These targets remain unmet; prepared copies stay
+operator opt-in and OFF by default pending further profiling and hosted
+evidence. Correctness and query-budget acceptance do not imply CPU acceptance.
+
+Paired test plan (both editions):
+
+- `af_thin_hit_budget`: cold-isolate and warm HTML/direct+negotiated Markdown/
+  map GET+HEAD byte/header parity with live, one guarded row read, zero
+  liveView/render/SNAPSHOT/body parse, and stated SQL counts. Due UC9 separately.
+- `af_thin_hit_old_runtime`: actually roll back, mutate with the old runtime,
+  return without counter updates, and prove every dependency invalidates:
+  publish/unpublish/whole-site revert, privacy/training, site extensions,
+  selected theme/aliases/digest, share card and selected hero dimensions.
+  Use shared deterministic G2/dep1/key fixtures in both editions. Assert
+  G-mismatch DELETE before any artifact read. Unused media/theme changes
+  preserve the key under PERF-3. Test legacy/new-format isolation both ways.
+- `af_thin_hit_races`: commit publication/removal/private-on before and during
+  the guarded SELECT, between initial facts and lookup, during synchronization
+  and admission. Force old-runtime writes without a revision bump. Never return
+  an obsolete row on a failed SQL proof; no late stale fill or mixed proof.
+- `af_thin_hit_time`: AF-7L boundaries, DST, clock rollback/unknown, storage-cap
+  expiry and long-quiet static sites; no stale body/304 or expiry-derived ETag.
+- `af_thin_hit_metadata`: corrupt key/G/dep1/body hash, duplicate/oversize headers,
+  wrong CSP/embed sources, training, discovery, Vary, format and expiry. Reject
+  safely; encoded hostile owner text never becomes a stored header/instruction.
+- `af_thin_hit_isolation`: private/Authorization/owner/reader/invalid-cookie
+  bypass and denial, no body lookup, private-on atomic deletion/failure, flag
+  off, alternate origin, wildcard missing path, no shared AG/review copy.
+- `af_thin_miss_admission`: clean/repair/expired/corrupt MISS budgets, one view,
+  conditional admission, whole-site caps, builder leases and bounded races;
+  all previous AF-7 rollback, mutation-failure and publication proofs retained.
+  Include insert/delete races in the bound facts relation and prove two-way
+  raw-row comparison cannot pass using duplicate/missing dependency rows.
+- `af_thin_hit_cpu`: unchanged real minified entry, independent normal-entry
+  startup, interleaved ON/OFF local fresh/warm CPU with diagnostic-only SQL/phase
+  copies, then hosted sparse ON/OFF CPU/rows/write evidence. Never substitute
+  wrapper initialization or a locally warmed result for first-request CPU.
 
 #### AF-7L: renderer-proven public time intervals
 

@@ -13,7 +13,7 @@ const blockText=(s:string,protectedRanges:[number,number][]=[])=>{
  const protectedAt=(at:number)=>ranges.some(([a,b])=>at>=a&&at<b);
  return s.replace(/^( {0,3})(?:(#{1,6}(?= |$)|[-+](?= |$)|(?:- *){3,}$|=+ *$)|(\d{1,9})([.)])(?= |$))/gm,(m,space,mark,number,punct,at)=>protectedAt(at)?m:space+(number?number+'\\'+punct:'\\'+mark));
 };
-export const mdText = (s:string) => s.replace(/[\\`*_\[\]|]/g,'\\$&').replace(/~{2,}/g,m=>m.replace(/~/g,'\\~')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+export const mdText = (s:string) => s.replace(/[\\`*\[\]|]|_+/g,(m,at)=>m[0]==='_'&&/[A-Za-z0-9]/.test(s[at-1]??'')&&/[A-Za-z0-9]/.test(s[at+m.length]??'')?m:m.replace(/./g,'\\$&')).replace(/~{2,}/g,m=>m.replace(/~/g,'\\~')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 function hidden(n:Node):boolean {
   return OMIT.has(n.tag) || Object.hasOwn(n.attrs,'hidden') || n.attrs['aria-hidden']==='true' ||

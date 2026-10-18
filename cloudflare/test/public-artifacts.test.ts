@@ -217,7 +217,7 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after c
  const raced=new Proxy(db,{get(target,key){
   if(key==='prepare')return(sql:string)=>{
    const statement=target.prepare(sql);
-   if(sql!==read.FACTS_SQL)return statement;
+   if(sql!==read.FACTS_SQL&&sql!==read.FACTS_STATE_SQL)return statement;
    return new Proxy(statement,{get(t,k){
     if(k==='all')return async(...args:any[])=>{
      const stamp=await (t.all as any)(...args);calls++;
@@ -271,4 +271,79 @@ it('af_time_storage_cap: static copies survive hours; expiry never churns a cond
  const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));expect(until).toBe(start+86400000);
  const load=vi.spyOn(site,'liveView');clock.mockReturnValue(start+7200000);const warm=await get();expect(warm.status).toBe(200);expect(await warm.text()).toBe(body);expect(warm.headers.get('ETag')).toBe(tag);expect(load).not.toHaveBeenCalled();
  clock.mockReturnValue(until+1);const hit=await get('/',{'If-None-Match':tag});expect(hit.status).toBe(304);expect(hit.headers.get('ETag')).toBe(tag);expect(load).not.toHaveBeenCalled();
+});
+
+it('af_thin_hit_budget: one facts decode, atomic row proof and no SNAPSHOT on HIT/MISS',async()=>{
+ await fixture();const first=await get(),body=await first.text(),tag=first.headers.get('ETag')!;
+ const sql=vi.spyOn(db,'prepare'),load=vi.spyOn(site,'liveView'),facts=vi.spyOn(read,'facts'),snap=vi.spyOn(artifacts,'snapshot');
+ for(const method of ['GET','HEAD']){
+  sql.mockClear();load.mockClear();facts.mockClear();const r=await get('/',{},method);expect(r.status).toBe(200);expect(await r.text()).toBe(method==='HEAD'?'':body);
+  expect(sql.mock.calls).toHaveLength(3);expect(sql.mock.calls.filter(([q])=>q===artifacts.lookupSQL())).toHaveLength(1);expect(facts).toHaveBeenCalledTimes(1);expect(load).not.toHaveBeenCalled();expect(snap).not.toHaveBeenCalled();
+ }
+ sql.mockClear();const conditional=await get('/',{'If-None-Match':tag});expect(conditional.status).toBe(304);expect(sql.mock.calls).toHaveLength(3);expect(sql.mock.calls.some(([q])=>q===artifacts.lookupSQL())).toBe(false);
+ sql.mockRestore();await db.prepare('DELETE FROM public_artifacts').run();const queries=vi.spyOn(db,'prepare');load.mockClear();facts.mockClear();
+ const miss=await get();expect(await miss.text()).toBe(body);expect(load).toHaveBeenCalledTimes(1);expect(facts).toHaveBeenCalledTimes(2);expect(snap).not.toHaveBeenCalled();
+ const all=queries.mock.calls.map(([q])=>q),writes=all.filter(q=>q===artifacts.admitSQL()||/^\s*(INSERT|DELETE|UPDATE)/i.test(q));expect(all.length-writes.length).toBeLessThanOrEqual(6);expect(writes.filter(q=>!q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(2);expect(all.length).toBeLessThanOrEqual(9);
+});
+it('af_thin_hit_old_runtime: data-derived generation purges before lookup without a revision bump',async()=>{
+ await fixture();const first=await get(),tag=first.headers.get('ETag'),old=await db.prepare('SELECT revision,generation FROM public_artifact_state').first<any>();
+ await db.prepare("UPDATE live SET data=json_set(data,'$.title','Old runtime publication') WHERE item_id='site'").run();
+ const sql=vi.spyOn(db,'prepare'),snap=vi.spyOn(artifacts,'snapshot');const next=await get();expect(await next.text()).toContain('Old runtime publication');expect(next.headers.get('ETag')).not.toBe(tag);
+ const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls).not.toContain(artifacts.lookupSQL());expect(snap).not.toHaveBeenCalled();sql.mockRestore();
+ expect((await db.prepare('SELECT generation FROM public_artifact_state').first<any>())!.generation).not.toBe(old.generation);
+});
+it.each(['private','unpublish','theme','title'])('af_thin_hit_races: old-runtime %s between facts and row SELECT fails the complete atomic proof',async(change)=>{
+ const {one,entry}=await fixture(),path='/journal/'+entry.slug+'/';await get(path);const original=read.facts;let once=true;
+ vi.spyOn(read,'facts').mockImplementation(async(...args:Parameters<typeof read.facts>)=>{const f=await original(...args);if(once){once=false;
+  if(change==='private'){await db.prepare("INSERT INTO site_fields(version,key,value,approved)VALUES(?,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1").bind(one.version).run();await db.prepare('INSERT OR IGNORE INTO private_approvals(version)VALUES(?)').bind(one.version).run();}
+  else if(change==='unpublish')await db.prepare('DELETE FROM live WHERE item_id=?').bind(entry.id).run();
+  else await db.prepare("UPDATE live SET data=json_set(data,?,?) WHERE item_id='site'").bind(change==='theme'?'$.theme':'$.title',change==='theme'?'local-business':'New approved title').run();
+ }return f;});
+ const r=await get(path);if(change==='private'||change==='unpublish'){expect(r.status).toBe(404);expect(r.headers.has('ETag')).toBe(false);if(change==='private')expect(await r.text()).toBe(SIGN_IN);}
+ else{expect(r.status).toBe(200);if(change==='title')expect(await r.text()).toContain('New approved title');}
+});
+it('af_thin_hit_races: equal counts with duplicate/missing raw tuples cannot authorize a row',async()=>{
+ await fixture();await get();const f=await read.facts(db,true),row=await db.prepare('SELECT key,generation FROM public_artifacts LIMIT 1').first<any>();
+ const raw=f.raw!.map(r=>[...r]);expect(raw.length).toBeGreaterThan(2);raw[0]=raw[1];
+ const result=await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(raw),row.generation,row.key,row.generation).first<any>();expect(result.ok).toBe(0);expect(result.body).toBeNull();
+});
+it('af_thin_miss_admission: generation setup cannot release its own build lease',async()=>{
+ await fixture();let entered!:()=>void,resume!:()=>void;const started=new Promise<void>(r=>entered=r),barrier=new Promise<void>(r=>resume=r);let first=true;
+ const job=artifacts.prepare(db,origin,'test',async()=>{if(first){first=false;entered();await barrier;}return new Response('not stored',{status:404});},async()=>[]);await started;
+ const token=await db.prepare('SELECT preparing FROM public_artifact_state WHERE id=1').first<string>('preparing');expect(token).toBeTruthy();let competing=false;
+ await artifacts.prepare(db,origin,'test',async()=>{competing=true;return new Response('not stored',{status:404});},async()=>[]);expect(competing).toBe(false);expect(await db.prepare('SELECT preparing FROM public_artifact_state WHERE id=1').first('preparing')).toBe(token);
+ resume();await job;expect(await db.prepare('SELECT preparing FROM public_artifact_state WHERE id=1').first('preparing')).toBe('');
+});
+it('af_thin_miss_admission: old-runtime change after live proof cannot admit a stale body',async()=>{
+ await fixture();const original=read.facts;let calls=0;
+ vi.spyOn(read,'facts').mockImplementation(async(...args:Parameters<typeof read.facts>)=>{const f=await original(...args);if(++calls===2)await db.prepare("UPDATE live SET data=json_set(data,'$.title','Admission race title') WHERE item_id='site'").run();return f;});
+ const r=await get();expect(r.status).toBe(200);expect(await r.text()).toContain('Admission race title');expect(await count()).toBe(0);
+});
+it('af_thin_hit_old_runtime: shared G2 encoding excludes mutable observed state counters',async()=>{
+ const {default:cases}=await import('../../spec/fixtures/public-artifacts-thin.json');
+ for(const c of cases){const f={rows:c.rows,generation:'not-authority',revision:99} as unknown as read.Facts;expect(await artifacts.generation(f,'fixture','https://example.com'),c.name).toBe(c.sha256);}
+});
+it('af_thin_hit_budget: indexed row proof does not scan unused image libraries',async()=>{
+ await fixture();await get();const f=await read.facts(db,true),row=await db.prepare('SELECT key,generation FROM public_artifacts LIMIT 1').first<any>(),args=[JSON.stringify(f.raw),row.generation,row.key,row.generation];
+ const before=await db.prepare(artifacts.lookupSQL()).bind(...args).all();
+ await db.prepare("WITH RECURSIVE x(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM x WHERE n<500) INSERT INTO media(name,type,size,chunks,created_at) SELECT printf('%032x',n)||'.png','image/png',1,0,'2026-10-18' FROM x").run();
+ const after=await db.prepare(artifacts.lookupSQL()).bind(...args).all();expect(after.results).toEqual(before.results);expect(after.meta.rows_read).toBe(before.meta.rows_read);expect(after.meta.rows_written).toBe(0);
+ const plan=await db.prepare('EXPLAIN QUERY PLAN '+artifacts.lookupSQL()).bind(...args).all<{detail:string}>();expect(plan.results.some(r=>/SEARCH a USING INDEX.*key=/.test(r.detail))).toBe(true);
+ console.log(JSON.stringify({case:'af_thin_hit_budget',rows_read:after.meta.rows_read,unused_images:500,plan:plan.results.map(r=>r.detail)}));
+});
+it('af_thin_hit_isolation: unavailable artifact state falls back live and never widens private access',async()=>{
+ const {one}=await fixture();const first=await(await get()).text();await db.prepare('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state').run();
+ try{
+  const lookup=vi.spyOn(artifacts,'lookupSQL');const live=await get();expect(live.status).toBe(200);expect(await live.text()).toBe(first);expect(lookup).not.toHaveBeenCalled();
+  await db.prepare("INSERT INTO site_fields(version,key,value,approved)VALUES(?,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1").bind(one.version).run();await db.prepare('INSERT OR IGNORE INTO private_approvals(version)VALUES(?)').bind(one.version).run();
+  const denied=await get();expect(denied.status).toBe(404);expect(await denied.text()).toBe(SIGN_IN);expect(denied.headers.has('ETag')).toBe(false);expect(lookup).not.toHaveBeenCalled();
+ }finally{await db.prepare('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state').run();}
+});
+it('af_thin_hit_time: a boundary after the live render cannot return the expired fill',async()=>{
+ const {one}=await fixture();await publish(await content.updateItem(db,actor,'site',one.version,{theme:'event-page',timezone:'UTC',notice:{text:'Only before midnight',until:'2026-11-01'}}));
+ vi.useFakeTimers({toFake:['Date']});try{
+  vi.setSystemTime(new Date('2026-11-01T23:59:30Z'));const request=new Request(origin+'/'),{RELEASE}=await import('../src/home');let oldTag='';
+  const response=await artifacts.respond(db,request,origin,RELEASE,async()=>{const r=await handle(request,{...e,PUBLIC_ARTIFACTS:''});expect(await r.clone().text()).toContain('Only before midnight');oldTag=r.headers.get('ETag')!;vi.setSystemTime(new Date('2026-11-02T00:00:00Z'));return r;},undefined,()=>handle(request,{...e,PUBLIC_ARTIFACTS:''}));
+  expect(response.status).toBe(200);expect(await response.text()).not.toContain('Only before midnight');expect(response.headers.get('ETag')).not.toBe(oldTag);expect(await count()).toBe(0);
+ }finally{vi.useRealTimers();}
 });

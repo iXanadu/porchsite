@@ -1,9 +1,10 @@
-import {plan as timePlan} from './public-time';
+import {plan as timePlan,valid as timeValid} from './public-time';
 import * as publicRead from './public-read';
 /** Disposable anonymous copies. The router must run the private gate first. */
 import {frameCsp,PERMISSIONS} from './embeds';
 import {markdownPath,pagePath,pageQuery,representation,sessionRequest,matchesTag,PUBLIC_CACHE} from './public-http';
 
+/** Legacy fixture encoding; live lookup/admission uses THIN_FORMAT. */
 export const FORMAT='public-artifacts/1';
 export const MAX_BODY=256*1024, MAX_ROWS=128, MAX_BYTES=4*1024*1024;
 const bytes=(value:string)=>new TextEncoder().encode(value).length;
@@ -58,67 +59,91 @@ const HTML_POLICIES=[
  "default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
  "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 ];
-function safeMetadata(headers:Headers,req:Request,c:Choice,stamp:string):boolean {
+function safeMetadata(headers:Headers,req:Request,c:Choice,f:publicRead.Facts):boolean {
  const md=c.type!=='html',description='</llms.txt>; rel="describedby"';
  if(headers.get('X-Content-Type-Options')!=='nosniff'||(headers.has('Vary')&&headers.get('Vary')!=='Accept'))return false;
  if(headers.get('Link')!==(md?description:`<${c.base}index.md${c.query}>; rel="alternate"; type="text/markdown", ${description}`))return false;
  if(md)return headers.get('Content-Security-Policy')==="default-src 'none'; base-uri 'none'; frame-ancestors 'none'"&&!headers.has('Permissions-Policy')&&!headers.has('Referrer-Policy');
  if(headers.get('Permissions-Policy')!==PERMISSIONS||headers.get('Referrer-Policy')!=='strict-origin-when-cross-origin')return false;
- const state=normalizedState(stamp) as any[],sources=state[2][0]?.[1]===1?state[2][0][0]:[];
+ const sources=f.site.embed_sources;
  if(c.base==='/archive/'&&HTML_POLICIES.some(base=>headers.get('Content-Security-Policy')===base.replace("form-action 'none'","form-action 'self'")))return true;
  return HTML_POLICIES.some(base=>headers.get('Content-Security-Policy')===frameCsp(base,sources,new URL(req.url).origin)||(c.base==='/archive/'&&headers.get('Content-Security-Policy')===frameCsp(base.replace("form-action 'none'","form-action 'self'"),sources,new URL(req.url).origin)));
 }
-async function delivery(db:D1Database,row:{body:string;metadata:string},req:Request,c:Choice,stamp:string,release:string):Promise<Response|null> {
+async function delivery(row:{body:string;metadata:string},req:Request,c:Choice,f:publicRead.Facts,etag:string):Promise<Response|null> {
  if(bytes(row.body)>MAX_BODY||bytes(row.metadata)>8192)return null;
  let entries:[string,string][];
  try{entries=JSON.parse(row.metadata);if(!Array.isArray(entries)||entries.some(p=>!Array.isArray(p)||p.length!==2||p.some(x=>typeof x!=='string')||!ALLOWED.has(p[0])))return null;}catch{return null;}
  if(new Set(entries.map(p=>p[0])).size!==entries.length)return null;
- const headers=new Headers(entries);if(!safeMetadata(headers,req,c,stamp))return null;
+ const headers=new Headers(entries);if(!safeMetadata(headers,req,c,f))return null;
  if(headers.get('Content-Type')!==TYPES[c.type]||headers.get('Cache-Control')!==PUBLIC_CACHE||!/^W\/"dep1-[a-f0-9]{64}"$/.test(headers.get('ETag')??'')||!/^search=yes, ai-input=yes, ai-train=(yes|no)$/.test(headers.get('Content-Signal')??''))return null;
- const f=await publicRead.facts(db),selected=publicRead.choice(req,f);
- if(f.private||!selected||headers.get('ETag')!==await publicRead.tag(f,req,selected,release)||headers.get('x-internal-body-sha256')!==await digest(row.body))return null;
+ if(headers.get('ETag')!==etag||headers.get('Content-Signal')!==publicRead.headers(f,{...c,type:TYPES[c.type],kind:c.type},etag,new URL(req.url).origin).get('Content-Signal')||headers.get('x-internal-body-sha256')!==await digest(row.body))return null;
  headers.delete('x-internal-body-sha256');
  if(c.type==='html'||(c.type==='markdown'&&!c.direct))headers.set('Vary','Accept');else headers.delete('Vary');
  const match=matchesTag(req.headers.get('If-None-Match'),headers.get('ETag')!);
  return new Response(match||req.method==='HEAD'?null:row.body,{status:match?304:200,headers});
 }
 
+export const THIN_FORMAT='public-artifacts/2',MAX_FACTS=128*1024;
+export type Proof={facts:publicRead.Facts;choice:publicRead.Choice;tag:string|null;now:number};
+// Both relations are engine-shaped raw tuples. Grouped multiplicities prevent
+// duplicate tuples from concealing a removed dependency; comparison is atomic
+// with row selection/admission, not a fresh-check followed by a separate read.
+const tuple='category,ident,value,count(*) AS n';
+export function proofSQL(){return `WITH current_facts AS (${publicRead.FACTS_SQL}),
+ expected AS (SELECT json_extract(value,'$[0]') AS category,json_extract(value,'$[1]') AS ident,json_extract(value,'$[2]') AS value FROM json_each(?)),
+ proof AS (SELECT NOT EXISTS(SELECT ${tuple} FROM current_facts GROUP BY category,ident,value EXCEPT SELECT ${tuple} FROM expected GROUP BY category,ident,value)
+ AND NOT EXISTS(SELECT ${tuple} FROM expected GROUP BY category,ident,value EXCEPT SELECT ${tuple} FROM current_facts GROUP BY category,ident,value)
+ AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=?) AS ok)`;}
+export function lookupSQL(){return proofSQL()+` SELECT p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=? AND a.generation=?`;}
+export function admitSQL(){return proofSQL()+` INSERT OR REPLACE INTO public_artifacts(key,generation,body,metadata,valid_until,size)
+ SELECT ?,?,?,?,?,? FROM proof WHERE ok AND ?>((julianday('now')-2440587.5)*86400000)
+ AND (SELECT count(*) FROM public_artifacts WHERE key<>?)<?
+ AND (SELECT COALESCE(sum(size),0) FROM public_artifacts WHERE key<>?)+?<=?`;}
+export async function generation(f:publicRead.Facts,release:string,origin:string){return digest(JSON.stringify([THIN_FORMAT,release,origin,f.rows]));}
+async function synchronize(db:D1Database,g:string){await db.batch([db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)'),db.prepare('DELETE FROM public_artifacts'),db.prepare("UPDATE public_artifact_state SET generation=?,revision=revision+1,preparing='',prepare_until=0 WHERE id=1").bind(g)]);}
 export type Render=()=>Promise<Response>;
-/** No authorization decision is recovered from the derived state row. */
-export async function respond(db:D1Database,req:Request,configured:string|undefined,release:string,render:Render):Promise<Response>{
+/** Caller supplies its request-owned public proof, never a cached access grant. */
+export async function respond(db:D1Database,req:Request,configured:string|undefined,release:string,render:Render,captured?:Proof,refresh:Render=render):Promise<Response>{
  const origin=configuredOrigin(configured);if(!origin)return render();
  let c:Choice|null;try{c=choice(req,origin);}catch{return render();}if(!c)return render();
- let stamp:string,g:string,key:string,until:number;
+ let f:publicRead.Facts,selected:publicRead.Choice,etag:string,raw:string,g:string,key:string,until:number,clock:ReturnType<typeof timePlan>;
  try{
-  stamp=await snapshot(db);if(!JSON.parse(stamp)[0].some((r:unknown[])=>r[0]==='site'))return render();g=await digest(JSON.stringify([FORMAT,release,origin,normalizedState(stamp)]));
-  const f=await publicRead.facts(db),selected=publicRead.choice(req,f);if(f.private||!selected)return render();const clock=timePlan(f,selected);if(clock.kind==='unknown')return render();
-  until=displayBoundary(Date.now(),clock);key=JSON.stringify([origin,g,release,c.base+c.query,c.type]);if(bytes(key)>2048)return render();
-  const observed=await db.prepare('SELECT generation FROM public_artifact_state WHERE id=1').first<string>('generation');
-  if(observed!==g)await db.batch([db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)'),
-   db.prepare('DELETE FROM public_artifacts'),
-   db.prepare('UPDATE public_artifact_state SET generation=?,revision=revision+1 WHERE id=1').bind(g)]);
-  const row=await db.prepare('SELECT body,metadata,valid_until FROM public_artifacts WHERE key=? AND generation=?').bind(key,g).first<{body:string;metadata:string;valid_until:number}>();
-  if(row&&row.valid_until>Date.now()){
-   const current=await snapshot(db);
-   if(current===stamp){const hit=await delivery(db,row,req,c,stamp,release);if(hit&&row.valid_until>Date.now()&&await snapshot(db)===stamp)return hit;}
-   await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
+  f=captured?.facts??await publicRead.facts(db,true);
+  const picked=captured?.choice??publicRead.choice(req,f);
+  if(f.private||!picked||!f.hasSite)return refresh();selected=picked;
+  const at=captured?.now??Date.now();clock=timePlan(f,selected,at);
+  const tag=captured?captured.tag:await publicRead.tag(f,req,selected,release,at);
+  if(!tag||clock.kind==='unknown'||!timeValid(clock))return refresh();etag=tag;
+  raw=JSON.stringify(f.raw);if(!f.raw||bytes(raw)>MAX_FACTS)return render();
+  g=await generation(f,release,origin);until=displayBoundary(Date.now(),clock);
+  key=JSON.stringify([THIN_FORMAT,origin,g,release,c.base+c.query,c.type,etag]);if(bytes(key)>2048)return render();
+  if(f.generation!==g){
+   // Derived state is never authority. Old runtimes may not clear it, so a
+   // mismatch always purges before any stored-row lookup.
+   await synchronize(db,g);
+  }else{
+   const row=await db.prepare(lookupSQL()).bind(raw,g,key,g).first<{ok:number;key:string|null;body:string;metadata:string;valid_until:number}>();
+   if(!row?.ok){await clear(db);return refresh();}
+   if(row.key){
+    if(row.valid_until>Date.now()&&timeValid(clock)){
+     const hit=await delivery(row,req,c,f,etag);
+     if(hit&&row.valid_until>Date.now()&&timeValid(clock))return hit;
+    }
+    // Corrupt/expired rows are exceptional misses, never zero-write HITs.
+    await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
+   }
   }
- }catch{return render();}
+ }catch{return refresh();}
  const response=await render();
- if(response.status!==200||response.headers.get('Content-Type')!==TYPES[c.type]||response.headers.has('Set-Cookie')||response.headers.get('Cache-Control')!==PUBLIC_CACHE)return response;
+ if(response.status!==200||response.headers.get('Content-Type')!==TYPES[c.type]||response.headers.has('Set-Cookie')||response.headers.get('Cache-Control')!==PUBLIC_CACHE||response.headers.get('ETag')!==etag)return response;
  const body=await response.clone().text(),size=bytes(body),metadata=JSON.stringify([...response.headers].filter(([name])=>ALLOWED.has(name)).concat([['x-internal-body-sha256',await digest(body)]]));
- if(size>MAX_BODY||bytes(metadata)>8192||Date.now()>=until)return response;
+ if(Date.now()>=until||!timeValid(clock))return refresh();
+ if(size>MAX_BODY||bytes(metadata)>8192)return response;
  try{
-  // The fingerprint comparison is inside INSERT SELECT, not a check-then-write gap.
-  await db.batch([db.prepare('DELETE FROM public_artifacts WHERE valid_until<=?').bind(Date.now()),
-   db.prepare(`INSERT OR REPLACE INTO public_artifacts(key,generation,body,metadata,valid_until,size)
-    SELECT ?,?,?,?,?,? WHERE (${SNAPSHOT})=? AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=?)
-    AND ?>((julianday('now')-2440587.5)*86400000)
-    AND (SELECT count(*) FROM public_artifacts WHERE key<>?)<?
-    AND (SELECT COALESCE(sum(size),0) FROM public_artifacts WHERE key<>?)+?<=?`).bind(key,g,body,metadata,until,size,stamp,g,until,key,MAX_ROWS,key,size,MAX_BYTES)]);
-  // An in-flight render cannot be delivered as an old artifact after a change.
-  if(await snapshot(db)!==stamp)return render();
- }catch{return render(); /* Re-run the live gate rather than deliver an unverified in-flight body. */}
+  const inserted=await db.batch([db.prepare('DELETE FROM public_artifacts WHERE valid_until<=?').bind(Date.now()),
+   db.prepare(admitSQL()).bind(raw,g,key,g,body,metadata,until,size,until,key,MAX_ROWS,key,size,MAX_BYTES)]);
+  if(!inserted[1].meta.changes||!timeValid(clock))return refresh();
+ }catch{return refresh();}
  return response;
 }
 
@@ -127,16 +152,17 @@ export async function prepare(db:D1Database,configured:string|undefined,release:
  const origin=configuredOrigin(configured);if(!origin)return;
  const {livePrivate}=await import('./privacy');
  if(await livePrivate(db))return;
- const stamp=await snapshot(db);if(!JSON.parse(stamp)[0].some((r:unknown[])=>r[0]==='site'))return;
+ const initial=await publicRead.facts(db,true);if(initial.private||!initial.hasSite)return;const stamp=JSON.stringify(initial.rows);
+ const g=await generation(initial,release,origin);if(initial.generation!==g)await synchronize(db,g);
  const token=crypto.randomUUID(),started=Date.now();
  await db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)').run();
  const claim=await db.prepare("UPDATE public_artifact_state SET preparing=?,prepare_until=? WHERE id=1 AND (preparing='' OR prepare_until<=?) RETURNING id").bind(token,started+30000,started).first();if(!claim)return;
  try{
-  if(await livePrivate(db)||await snapshot(db)!==stamp)return;
+  if(await livePrivate(db)||JSON.stringify((await publicRead.facts(db)).rows)!==stamp)return;
   const pages=[...new Set(['/',...await paths()])].filter(p=>pagePath(p)&&!p.includes('?')).slice(0,50);
   const work=['/','/index.md',...(pages.includes('/archive/')?['/archive/','/archive/index.md']:[]),'/llms.txt',...pages.filter(p=>p!=='/'&&p!=='/archive/').flatMap(p=>[p,p+'index.md'])];
   for(const path of work){
-   if(Date.now()-started>=250||await livePrivate(db)||await snapshot(db)!==stamp)break;
+   if(Date.now()-started>=250||await livePrivate(db)||JSON.stringify((await publicRead.facts(db)).rows)!==stamp)break;
    const request=new Request(origin+path);
    await respond(db,request,origin,release,()=>renderPath(request));
   }
