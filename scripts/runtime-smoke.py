@@ -178,7 +178,10 @@ def main():
                         b'{}' if method == 'POST' else None, method=method, oauth_cors=True)
                     records.append({'edition': edition, 'method': method, 'path': path,
                                     'caller_origin': caller, 'status': status, 'bytes': len(body), 'headers': headers})
-                    expected = 404 if edition == 'worker' and path == '/.well-known/oauth-protected-resource' else 200
+                    expected = 404 if path == '/.well-known/oauth-protected-resource' else 200
+                    if path == '/.well-known/oauth-protected-resource' and method in ('GET', 'HEAD'):
+                        if body or any(k.lower() in ('location', 'www-authenticate', 'set-cookie') for k in headers):
+                            raise RuntimeError(f'{edition} bare metadata must be an empty protocol refusal')
                     if (method != 'POST' and status != expected) or (method == 'POST' and status < 400):
                         raise RuntimeError(f'{edition} {path}: unexpected OAuth protocol status {status}')
                 if path == '/oauth/register':
@@ -189,6 +192,38 @@ def main():
                     if status != 201 or not json.loads(body).get('client_id'):
                         raise RuntimeError(f'{edition}: valid OAuth registration failed')
 
+
+    def metadata_path_probe(edition, base, private_mode):
+        fixture = json.loads((ROOT / 'spec/fixtures/oauth-metadata-path.json').read_text())
+        for row in fixture['cases']:
+            for caller in fixture['origins']:
+                for credential in fixture['credentials']:
+                    headers = {**credential, 'If-None-Match': '*'}
+                    if caller is not None:
+                        headers['Origin'] = caller
+                    status, response_headers, body = request(base, row['path'], headers,
+                        method=row['method'], oauth_cors=True)
+                    records.append({'edition': edition, 'path': row['path'], 'method': row['method'],
+                        'private_site': private_mode, 'caller_origin': caller, 'credential_case': credential,
+                        'status': status, 'bytes': len(body), 'headers': response_headers})
+                    forbidden = ('location', 'www-authenticate', 'set-cookie', 'etag')
+                    if status != row['status'] or any(k.lower() in forbidden for k in response_headers):
+                        raise RuntimeError(f'{edition}: metadata path status or protocol headers differ')
+                    if row['status'] == 404 or row['method'] != 'GET':
+                        if body:
+                            raise RuntimeError(f'{edition}: metadata refusal, HEAD or OPTIONS has a body')
+                    elif json.loads(body).get('resource') != base + '/mcp':
+                        raise RuntimeError(f'{edition}: path-suffixed metadata resource changed')
+                    if status == 204 and any(k.lower() == 'content-length' for k in response_headers):
+                        raise RuntimeError(f'{edition}: metadata preflight has Content-Length')
+
+    async def private_server_fixture(dsn, statement):
+        import asyncpg
+        connection = await asyncpg.connect(dsn, timeout=5)
+        try:
+            await connection.execute(statement)
+        finally:
+            await connection.close()
 
     try:
         address = urlsplit(admin)
@@ -225,7 +260,24 @@ def main():
         for edition, proc, base in [('worker', worker, f'http://127.0.0.1:{worker_port}'),
                                     ('server', server, f'http://127.0.0.1:{server_port}')]:
             ready(proc, base)
-            probe(edition, base.replace('127.0.0.1', 'localhost'))
+            canonical = base.replace('127.0.0.1', 'localhost')
+            probe(edition, canonical)
+            metadata_path_probe(edition, canonical, False)
+            # Disposable fixture: committed private receipt, not a request flag.
+            statement = """INSERT INTO live(item_id,kind,slug,version,data,published_at)
+              VALUES('site','site',NULL,1,'{"title":"Private metadata fixture"}','2026-10-18');
+              INSERT INTO site_fields(version,key,value,approved) VALUES(1,'private','true',1);
+              INSERT INTO private_approvals(version) VALUES(1);"""
+            if edition == 'worker':
+                sql_file = out / 'private-fixture.sql'
+                sql_file.write_text(statement)
+                checked(command + ['d1', 'execute', 'runtime-smoke', '--local', '--config', str(config),
+                    '--persist-to', str(out / 'state'), '--file', str(sql_file)], 'private-fixture.log')
+            else:
+                asyncio.run(private_server_fixture(dsn, statement))
+            if request(canonical, '/')[0] != 404:
+                raise RuntimeError(f'{edition}: private metadata fixture did not close public access')
+            metadata_path_probe(edition, canonical, True)
         result['pass'] = True
     except Exception as error:
         result['error'] = str(error)

@@ -114,12 +114,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PAR-1-C4** OPEN: the bare protected-resource metadata path
-  (`/.well-known/oauth-protected-resource`, no `/mcp`) is 404 on the
-  Cloudflare edition and 200 on the server edition. The advertised `/mcp`
-  form works on both, so sign-in discovery is unaffected. Pin in the spec
-  whether the bare form exists, make both match, and test it. Found
-  2026-10-18 in PAR-1-C3 work.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
