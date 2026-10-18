@@ -125,7 +125,7 @@ it('valid reader credential cannot obtain the owner error variant',async()=>{
  const response=await worker.fetch(request,{...e,DB:faultDB(sql=>/FROM live\b/.test(sql))},context);
  const text=await response.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain(OWNER_LIMIT);expect(text).not.toContain('D1_ERROR');
 });
-it('authenticated real owner review gets owner copy, but invalid Origin still refuses',async()=>{
+it('authenticated real owner review gets owner copy, but invalid CSRF still refuses',async()=>{
  const {SoftKey}=await import('./softkey');const key=await SoftKey.make();let cookie='';
  const post=async(path:string,body:unknown)=>{
   const response=await worker.fetch(new Request(origin+path,{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)}),e,context);
@@ -136,7 +136,7 @@ it('authenticated real owner review gets owner copy, but invalid Origin still re
  const faulted={...e,DB:faultDB(sql=>/FROM items\b/.test(sql))};
  const review=await worker.fetch(new Request(origin+'/review',{headers:{Cookie:cookie}}),faulted,context);
  expect(review.status).toBe(503);const text=await review.text();expect(text).toContain(OWNER_LIMIT);expect(text).not.toContain(cookie);
- const refused=await worker.fetch(new Request(origin+'/review',{method:'POST',headers:{Cookie:cookie,Origin:'https://outside.example','Content-Type':'application/x-www-form-urlencoded'},body:'csrf=invalid'}),faulted,context);
+ const refused=await worker.fetch(new Request(origin+'/review/readers',{method:'POST',headers:{Cookie:cookie,Origin:'https://outside.example','Content-Type':'application/x-www-form-urlencoded'},body:'csrf=invalid'}),faulted,context);
  expect(refused.status).toBe(403);expect(await refused.text()).not.toContain(OWNER_LIMIT);
 });
 it('a final-facts daily failure cannot return rendered content, cached validators or a 304',async()=>{
