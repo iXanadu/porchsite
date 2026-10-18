@@ -93,7 +93,7 @@ export function dailyRequest(req:Request,db:D1Database,fn:(db:D1Database)=>Promi
    // The SDK may create its event stream before an async callback finishes.
    // Wait for callbacks, not response bodies, so large results are not copied.
    for(let count=0;state.pending&&count<state.pending.length;){const pending=state.pending.slice(count);count=state.pending.length;await Promise.all(pending);}
-   if(state.failure)return response(req,state);
+   if(state.failure){try{void result.body?.cancel().catch(()=>{});}catch{/* Cleanup cannot change the refusal. */}return response(req,state);}
    if(!state.toolFailure)return result;
    const out=new Response(result.body,result);
    for(const [name,value] of Object.entries(headers))out.headers.set(name,value);
