@@ -67,9 +67,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    on the 200-entry fixture fall to 1,304/1,303/875, with matching
    conditionals identical for copies ON/OFF. Approvals and imports write
    more, and stale copy validators read more; both costs require the
-   visible release justification. Actual installer atomicity across all
-   deployment paths, latest-release compatibility, CPU and independent
-   acceptance remain required before release.
+   visible release justification. Local installer atomicity, latest-release
+   compatibility and the declared CPU gate pass. Independent acceptance
+   and the hosted installation check or an explicit owner decision on that
+   pending check remain required before release.
 
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
