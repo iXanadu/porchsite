@@ -90,7 +90,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PAR-1-C2** OPEN: the server edition's OAuth protocol preflight still
+- **PAR-1-C2** IN-PROGRESS: the server edition's OAuth protocol preflight still
   explicitly sets Content-Length zero on 204 (metadata, token and client
   registration endpoints). Remove it and prove actual HTTP omission in
   both editions, as RFC 9110 §8.6 requires. Outside the MCP-only PAR-1-C1

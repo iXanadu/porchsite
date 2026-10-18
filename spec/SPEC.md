@@ -1257,6 +1257,21 @@ content write or metadata fetch on authentication refusal. Existing MCP
 wire/error/stream-cancel assertions remain intact. No migration, catalog
 or reconnect change follows from this header repair.
 
+### OAuth protocol preflight framing (PAR-1-C2)
+
+In both editions, OPTIONS on `/.well-known/oauth-authorization-server`,
+`/.well-known/oauth-protected-resource`,
+`/.well-known/oauth-protected-resource/mcp`, `/oauth/token` and
+`/oauth/register` remains an empty 204, but omits Content-Length entirely
+from both the response object and the actual emitted HTTP response. Zero
+is not acceptable (RFC 9110 §8.6). This extends only the framing repair;
+OAuth's existing CORS, Origin handling, metadata, consent, token validation,
+registration and non-OPTIONS responses are unchanged. The preflight does
+not look up credentials, touch database/KV storage or dispatch MCP tools.
+Paired path tests and normal production Worker/server HTTP probes require
+header absence; OPTIONS with absent or arbitrary Authorization stays the
+same preflight, never a credential-validity oracle. No catalog/reconnect.
+
 If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an
 **assistant key** instead: the owner makes one on `/review/assistants`
