@@ -2463,6 +2463,13 @@ clock/fixture changes require an explicit comparison rebase.
 
 Fixture bytes, file bytes, event bodies, item data, prior versions, seed SQL,
 expected statuses and semantic postconditions are immutable hashed inputs.
+Owner-write setup uses the canonical split embed-source representation:
+the versioned extension is present and the site's items, revisions and live
+JSON omit the legacy inline `embed_sources` field. This setup is excluded
+from the measured POST, just like seeding; no migration or repair is hidden
+inside a measured operation. Keep the strict raw live-row equality assertion
+for import, as well as its pending-only semantic checks. Fixture changes
+require the matching archive remeasurement and retained original record.
 Use canonical complete valid entry/card data for the services fixture,
 including any required date, visibility and source receipts; no validation,
 privacy, version check, admission proof, request or publication check is
@@ -2478,10 +2485,10 @@ beacon responses remain empty 204 with the existing no-store policy and no
 count, cookie or retry oracle. A swallowed database error or no-op does not
 satisfy an expected insertion, heartbeat, approval or import.
 
-For this extension, the introducing comparison uses published
-`2026.10.18-3f0141a` once its immutable archive and tag exist; never substitute
-an unfinished build. Thereafter use the immediately preceding published
-release in changelog order, not a permanently fixed release id. If an explicit rebase needs
+For this extension, including its introducing comparison, use the immediately
+preceding published release in changelog order, with its immutable archive
+and tag verified. Never substitute an unfinished build or retain a fixed
+older release after a newer predecessor ships. If an explicit rebase needs
 an archive predating the cap, use the identical at-cap input and record its
 actual uncapped insertion (201 rows); identify that expected disposition in
 the reviewed artifact-specific comparison manifest. Do not simulate a
