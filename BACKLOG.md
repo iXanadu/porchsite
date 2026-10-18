@@ -62,6 +62,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    before it is deployed. Decision briefings state reads, writes and limit
    impact, not only speed.
 
+4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
+   read per first page view grow with site size. Small samples read 69-197
+   rows (25k-72k free views a day per account); a 200-entry site reads about
+   1,700 (about 2,900 a day); with prepared copies on, about 6,700 (about
+   750 a day). Find what scales with entries on the ordinary read path and
+   cut it, measured under GATE-2. Until then, prepared copies are a
+   small-site setting.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
