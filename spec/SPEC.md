@@ -5482,6 +5482,17 @@ cache or digest-only equality is introduced in phase 1.
 ### Migration tooling and release gates
 
 The compatibility checker currently refuses triggers on existing tables.
+Its current statement splitter also separates semicolons inside SQLite
+trigger bodies and PostgreSQL dollar-quoted function bodies. The separately
+reviewed compatibility-checker allowance commit must first parse complete
+statements: D1 CREATE TRIGGER ... BEGIN ... END, and the fixed PostgreSQL
+advance_content_revision function body inside $$ or matching $tag$ quotes.
+Preserve comments, quoted strings, escaped quotes and embedded semicolons;
+reject unterminated bodies. Validate the entire statement and complete named
+inventory before granting an allowance, never isolated body fragments. Test
+that a forged body cannot become an allowed header plus a leftover UPDATE
+of a same-migration table. Complete-statement parser tests and all named-body
+negative tests below are required for this checker, independently of GATE-2.
 Add a separately reviewed, narrow allowance only for the exact named trigger
 inventory and fixed witness-only function/body above, confined to updating
 the new singleton. Other existing-table triggers and functions remain refused.
