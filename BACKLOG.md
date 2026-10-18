@@ -76,11 +76,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    a mean of 8.6-10 ms (max 22) against the free plan's 10 ms. Make the cap
    check read one per-visitor-per-day counter row instead of counting
    views, and measure /collect CPU locally against 315dc35.
-   Measured candidate: steady capped requests use 7 reads/0 writes versus
-   206/0; the first reconciliation uses 207/2. Accepted-view fixture costs
-   rise: first-day 20/12 to 22/15 and repeat 7/4 to 8/7 (reads/writes).
-   The 184-cell gate refuses the increase pending release justification
-   and owner approval; remaining runtime and compatibility gates are open.
+   Revised one-write candidate meets +1 native write in all six accepted
+   event cells: first-day 20/12 to 23/13, missing-counter repeat 7/4 to
+   9/5, existing-counter repeat 7/4 to 11/5 (reads/writes, copies off/on).
+   Cold capped reconciliation rises from 206/0 to 406/1; a fresh steady
+   denial diagnostic is still owed on this revision. The 188-cell gate
+   refuses 16 increased metrics without release justification and owner
+   approval. Full current suites pass; remaining compatibility, parity,
+   runtime, CPU, negative-control and final read-only gates remain open.
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's

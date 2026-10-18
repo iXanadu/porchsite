@@ -1,13 +1,14 @@
 {
   "format": 1,
   "current": {
-    "format": 2,
+    "format": 3,
     "operations": {
-      "version": 2,
+      "version": 3,
       "site_storage": "split_embed_sources",
       "operations": [
         "collect/first_day",
         "collect/repeat",
+        "collect/existing_counter",
         "collect/at_cap",
         "collect/heartbeat",
         "approval/one",
@@ -27,8 +28,8 @@
       "import_items": 3
     },
     "instrumentation": {
-      "product_sha256": "cb3b48f05c4c3d5c368184cdff5ddfec60552178b100cd271e374ba8f81bf7b1",
-      "derived_sha256": "634cdb6bfa37ac6f32e1105b922a529f0ed4d2d587aab939bc719677ea59d583",
+      "product_sha256": "da9b8ec5ee78d0b664e6b15fc3cd0a0141f5022af3854ecab23c385a304c38b1",
+      "derived_sha256": "7938a7e80e2db42b88cbcf36a99f653c4735c53ea4405ab36fb1a7643cd2a5f3",
       "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
       "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
       "mapping": [
@@ -45,16 +46,16 @@
           "to": "./native-workers.mjs"
         },
         {
-          "start": 2025937,
-          "end": 2025955,
+          "start": 2025727,
+          "end": 2025745,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         }
       ]
     },
-    "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
-    "source_sha256": "1b4c1bf82c0de69ccb374b907dfbe94d1da9ed42d35004b9e65eb0ae2d276013",
-    "artifact_sha256": "cb3b48f05c4c3d5c368184cdff5ddfec60552178b100cd271e374ba8f81bf7b1",
+    "inputs_sha256": "a637a1f1b1a13de0e028e6b3cf2f915dd53d2a656a299d8ca54eece6498b4750",
+    "source_sha256": "d92b9cfa58f601966bb644fc6c07f08285661c8652e3bb4336594b00e0b0bcc5",
+    "artifact_sha256": "da9b8ec5ee78d0b664e6b15fc3cd0a0141f5022af3854ecab23c385a304c38b1",
     "budgets": {
       "rows_read": 5000000,
       "rows_written": 100000,
@@ -390,28 +391,36 @@
         "rows_written": 0
       },
       "operations/off/collect/first_day": {
-        "rows_read": 22,
-        "rows_written": 15
+        "rows_read": 23,
+        "rows_written": 13
       },
       "operations/on/collect/first_day": {
-        "rows_read": 22,
-        "rows_written": 15
+        "rows_read": 23,
+        "rows_written": 13
       },
       "operations/off/collect/repeat": {
-        "rows_read": 8,
-        "rows_written": 7
+        "rows_read": 9,
+        "rows_written": 5
       },
       "operations/on/collect/repeat": {
-        "rows_read": 8,
-        "rows_written": 7
+        "rows_read": 9,
+        "rows_written": 5
+      },
+      "operations/off/collect/existing_counter": {
+        "rows_read": 11,
+        "rows_written": 5
+      },
+      "operations/on/collect/existing_counter": {
+        "rows_read": 11,
+        "rows_written": 5
       },
       "operations/off/collect/at_cap": {
-        "rows_read": 207,
-        "rows_written": 2
+        "rows_read": 406,
+        "rows_written": 1
       },
       "operations/on/collect/at_cap": {
-        "rows_read": 207,
-        "rows_written": 2
+        "rows_read": 406,
+        "rows_written": 1
       },
       "operations/off/collect/heartbeat": {
         "rows_read": 2,
@@ -444,6 +453,913 @@
       "operations/on/import/file": {
         "rows_read": 9393,
         "rows_written": 39
+      }
+    }
+  },
+  "rebased_previous": {
+    "release": "2026.10.18-1edfb4a",
+    "artifact_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
+    "original_record": {
+      "format": 2,
+      "operations": {
+        "version": 2,
+        "site_storage": "split_embed_sources",
+        "operations": [
+          "collect/first_day",
+          "collect/repeat",
+          "collect/at_cap",
+          "collect/heartbeat",
+          "approval/one",
+          "approval/200",
+          "import/file"
+        ],
+        "expected_cap": true,
+        "uncapped_archives": [],
+        "heartbeat": {
+          "e": 1000,
+          "d": 25
+        },
+        "approval_counts": [
+          1,
+          200
+        ],
+        "import_items": 3
+      },
+      "instrumentation": {
+        "product_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
+        "derived_sha256": "c2bdb211a36d4f046816c396355ed001ad0a6368d2700ae8aa1adeaa9a951461",
+        "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
+        "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
+        "mapping": [
+          {
+            "start": 368220,
+            "end": 368238,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          },
+          {
+            "start": 1999957,
+            "end": 1999975,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          },
+          {
+            "start": 2024384,
+            "end": 2024402,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          }
+        ]
+      },
+      "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
+      "source_sha256": "a39c2eee8927ee8f10a169f3bf6dce13308095126f8238c2348878901f26e629",
+      "artifact_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
+      "budgets": {
+        "rows_read": 5000000,
+        "rows_written": 100000,
+        "verified": "2026-10-18",
+        "source": "https://developers.cloudflare.com/d1/platform/pricing/"
+      },
+      "sites": [
+        "catalogue-page",
+        "event-page",
+        "group-page",
+        "link-page",
+        "listing-page",
+        "local-business",
+        "menu-page",
+        "personal-homepage",
+        "playbook",
+        "portfolio",
+        "product-page",
+        "services-page",
+        "services-page-200"
+      ],
+      "cells": {
+        "catalogue-page/off/cold": {
+          "rows_read": 149,
+          "rows_written": 2
+        },
+        "catalogue-page/off/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "catalogue-page/off/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "catalogue-page/on/cold": {
+          "rows_read": 541,
+          "rows_written": 5
+        },
+        "catalogue-page/on/plain": {
+          "rows_read": 292,
+          "rows_written": 0
+        },
+        "catalogue-page/on/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "event-page/off/cold": {
+          "rows_read": 149,
+          "rows_written": 2
+        },
+        "event-page/off/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "event-page/off/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "event-page/on/cold": {
+          "rows_read": 541,
+          "rows_written": 5
+        },
+        "event-page/on/plain": {
+          "rows_read": 292,
+          "rows_written": 0
+        },
+        "event-page/on/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "group-page/off/cold": {
+          "rows_read": 141,
+          "rows_written": 2
+        },
+        "group-page/off/plain": {
+          "rows_read": 140,
+          "rows_written": 0
+        },
+        "group-page/off/not_modified": {
+          "rows_read": 112,
+          "rows_written": 0
+        },
+        "group-page/on/cold": {
+          "rows_read": 511,
+          "rows_written": 5
+        },
+        "group-page/on/plain": {
+          "rows_read": 276,
+          "rows_written": 0
+        },
+        "group-page/on/not_modified": {
+          "rows_read": 112,
+          "rows_written": 0
+        },
+        "link-page/off/cold": {
+          "rows_read": 85,
+          "rows_written": 2
+        },
+        "link-page/off/plain": {
+          "rows_read": 84,
+          "rows_written": 0
+        },
+        "link-page/off/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "link-page/on/cold": {
+          "rows_read": 301,
+          "rows_written": 5
+        },
+        "link-page/on/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "link-page/on/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "listing-page/off/cold": {
+          "rows_read": 69,
+          "rows_written": 2
+        },
+        "listing-page/off/plain": {
+          "rows_read": 68,
+          "rows_written": 0
+        },
+        "listing-page/off/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "listing-page/on/cold": {
+          "rows_read": 241,
+          "rows_written": 5
+        },
+        "listing-page/on/plain": {
+          "rows_read": 132,
+          "rows_written": 0
+        },
+        "listing-page/on/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "local-business/off/cold": {
+          "rows_read": 181,
+          "rows_written": 2
+        },
+        "local-business/off/plain": {
+          "rows_read": 180,
+          "rows_written": 0
+        },
+        "local-business/off/not_modified": {
+          "rows_read": 142,
+          "rows_written": 0
+        },
+        "local-business/on/cold": {
+          "rows_read": 661,
+          "rows_written": 5
+        },
+        "local-business/on/plain": {
+          "rows_read": 356,
+          "rows_written": 0
+        },
+        "local-business/on/not_modified": {
+          "rows_read": 142,
+          "rows_written": 0
+        },
+        "menu-page/off/cold": {
+          "rows_read": 197,
+          "rows_written": 2
+        },
+        "menu-page/off/plain": {
+          "rows_read": 196,
+          "rows_written": 0
+        },
+        "menu-page/off/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "menu-page/on/cold": {
+          "rows_read": 721,
+          "rows_written": 5
+        },
+        "menu-page/on/plain": {
+          "rows_read": 388,
+          "rows_written": 0
+        },
+        "menu-page/on/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "personal-homepage/off/cold": {
+          "rows_read": 77,
+          "rows_written": 2
+        },
+        "personal-homepage/off/plain": {
+          "rows_read": 76,
+          "rows_written": 0
+        },
+        "personal-homepage/off/not_modified": {
+          "rows_read": 64,
+          "rows_written": 0
+        },
+        "personal-homepage/on/cold": {
+          "rows_read": 271,
+          "rows_written": 5
+        },
+        "personal-homepage/on/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "personal-homepage/on/not_modified": {
+          "rows_read": 64,
+          "rows_written": 0
+        },
+        "playbook/off/cold": {
+          "rows_read": 69,
+          "rows_written": 2
+        },
+        "playbook/off/plain": {
+          "rows_read": 68,
+          "rows_written": 0
+        },
+        "playbook/off/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "playbook/on/cold": {
+          "rows_read": 241,
+          "rows_written": 5
+        },
+        "playbook/on/plain": {
+          "rows_read": 132,
+          "rows_written": 0
+        },
+        "playbook/on/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "portfolio/off/cold": {
+          "rows_read": 197,
+          "rows_written": 2
+        },
+        "portfolio/off/plain": {
+          "rows_read": 196,
+          "rows_written": 0
+        },
+        "portfolio/off/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "portfolio/on/cold": {
+          "rows_read": 721,
+          "rows_written": 5
+        },
+        "portfolio/on/plain": {
+          "rows_read": 388,
+          "rows_written": 0
+        },
+        "portfolio/on/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "product-page/off/cold": {
+          "rows_read": 85,
+          "rows_written": 2
+        },
+        "product-page/off/plain": {
+          "rows_read": 84,
+          "rows_written": 0
+        },
+        "product-page/off/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "product-page/on/cold": {
+          "rows_read": 301,
+          "rows_written": 5
+        },
+        "product-page/on/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "product-page/on/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "services-page/off/cold": {
+          "rows_read": 165,
+          "rows_written": 2
+        },
+        "services-page/off/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "services-page/off/not_modified": {
+          "rows_read": 130,
+          "rows_written": 0
+        },
+        "services-page/on/cold": {
+          "rows_read": 601,
+          "rows_written": 5
+        },
+        "services-page/on/plain": {
+          "rows_read": 324,
+          "rows_written": 0
+        },
+        "services-page/on/not_modified": {
+          "rows_read": 130,
+          "rows_written": 0
+        },
+        "services-page-200/off/cold": {
+          "rows_read": 1741,
+          "rows_written": 2
+        },
+        "services-page-200/off/plain": {
+          "rows_read": 1740,
+          "rows_written": 0
+        },
+        "services-page-200/off/not_modified": {
+          "rows_read": 1312,
+          "rows_written": 0
+        },
+        "services-page-200/on/cold": {
+          "rows_read": 6511,
+          "rows_written": 5
+        },
+        "services-page-200/on/plain": {
+          "rows_read": 3476,
+          "rows_written": 0
+        },
+        "services-page-200/on/not_modified": {
+          "rows_read": 1312,
+          "rows_written": 0
+        },
+        "operations/off/collect/first_day": {
+          "rows_read": 20,
+          "rows_written": 12
+        },
+        "operations/on/collect/first_day": {
+          "rows_read": 20,
+          "rows_written": 12
+        },
+        "operations/off/collect/repeat": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/on/collect/repeat": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/off/collect/at_cap": {
+          "rows_read": 206,
+          "rows_written": 0
+        },
+        "operations/on/collect/at_cap": {
+          "rows_read": 206,
+          "rows_written": 0
+        },
+        "operations/off/collect/heartbeat": {
+          "rows_read": 2,
+          "rows_written": 1
+        },
+        "operations/on/collect/heartbeat": {
+          "rows_read": 2,
+          "rows_written": 1
+        },
+        "operations/off/approval/one": {
+          "rows_read": 70,
+          "rows_written": 6
+        },
+        "operations/on/approval/one": {
+          "rows_read": 11872,
+          "rows_written": 31
+        },
+        "operations/off/approval/200": {
+          "rows_read": 2060,
+          "rows_written": 404
+        },
+        "operations/on/approval/200": {
+          "rows_read": 1118089,
+          "rows_written": 609
+        },
+        "operations/off/import/file": {
+          "rows_read": 194,
+          "rows_written": 18
+        },
+        "operations/on/import/file": {
+          "rows_read": 9393,
+          "rows_written": 39
+        }
+      }
+    },
+    "record": {
+      "format": 3,
+      "operations": {
+        "version": 3,
+        "site_storage": "split_embed_sources",
+        "operations": [
+          "collect/first_day",
+          "collect/repeat",
+          "collect/existing_counter",
+          "collect/at_cap",
+          "collect/heartbeat",
+          "approval/one",
+          "approval/200",
+          "import/file"
+        ],
+        "expected_cap": true,
+        "uncapped_archives": [],
+        "heartbeat": {
+          "e": 1000,
+          "d": 25
+        },
+        "approval_counts": [
+          1,
+          200
+        ],
+        "import_items": 3
+      },
+      "instrumentation": {
+        "product_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
+        "derived_sha256": "eb4e6d0b3667ab555535c7f3de79cd8f8a8eb782d46b821baabb8e40fa9eb112",
+        "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
+        "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
+        "mapping": [
+          {
+            "start": 368226,
+            "end": 368244,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          },
+          {
+            "start": 1999963,
+            "end": 1999981,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          },
+          {
+            "start": 2024390,
+            "end": 2024408,
+            "from": "cloudflare:workers",
+            "to": "./native-workers.mjs"
+          }
+        ]
+      },
+      "inputs_sha256": "a637a1f1b1a13de0e028e6b3cf2f915dd53d2a656a299d8ca54eece6498b4750",
+      "source_sha256": "97e3b746349e51c7079c3c67a11e3b6e4725e39b81ea5974430c360d7401b40d",
+      "artifact_sha256": "3b1a49e18b1617501e2c04a69af2a63adf194975719b050bf09c6b1cb504b1ff",
+      "budgets": {
+        "rows_read": 5000000,
+        "rows_written": 100000,
+        "verified": "2026-10-18",
+        "source": "https://developers.cloudflare.com/d1/platform/pricing/"
+      },
+      "sites": [
+        "catalogue-page",
+        "event-page",
+        "group-page",
+        "link-page",
+        "listing-page",
+        "local-business",
+        "menu-page",
+        "personal-homepage",
+        "playbook",
+        "portfolio",
+        "product-page",
+        "services-page",
+        "services-page-200"
+      ],
+      "cells": {
+        "catalogue-page/off/cold": {
+          "rows_read": 149,
+          "rows_written": 2
+        },
+        "catalogue-page/off/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "catalogue-page/off/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "catalogue-page/on/cold": {
+          "rows_read": 541,
+          "rows_written": 5
+        },
+        "catalogue-page/on/plain": {
+          "rows_read": 292,
+          "rows_written": 0
+        },
+        "catalogue-page/on/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "event-page/off/cold": {
+          "rows_read": 149,
+          "rows_written": 2
+        },
+        "event-page/off/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "event-page/off/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "event-page/on/cold": {
+          "rows_read": 541,
+          "rows_written": 5
+        },
+        "event-page/on/plain": {
+          "rows_read": 292,
+          "rows_written": 0
+        },
+        "event-page/on/not_modified": {
+          "rows_read": 118,
+          "rows_written": 0
+        },
+        "group-page/off/cold": {
+          "rows_read": 141,
+          "rows_written": 2
+        },
+        "group-page/off/plain": {
+          "rows_read": 140,
+          "rows_written": 0
+        },
+        "group-page/off/not_modified": {
+          "rows_read": 112,
+          "rows_written": 0
+        },
+        "group-page/on/cold": {
+          "rows_read": 511,
+          "rows_written": 5
+        },
+        "group-page/on/plain": {
+          "rows_read": 276,
+          "rows_written": 0
+        },
+        "group-page/on/not_modified": {
+          "rows_read": 112,
+          "rows_written": 0
+        },
+        "link-page/off/cold": {
+          "rows_read": 85,
+          "rows_written": 2
+        },
+        "link-page/off/plain": {
+          "rows_read": 84,
+          "rows_written": 0
+        },
+        "link-page/off/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "link-page/on/cold": {
+          "rows_read": 301,
+          "rows_written": 5
+        },
+        "link-page/on/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "link-page/on/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "listing-page/off/cold": {
+          "rows_read": 69,
+          "rows_written": 2
+        },
+        "listing-page/off/plain": {
+          "rows_read": 68,
+          "rows_written": 0
+        },
+        "listing-page/off/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "listing-page/on/cold": {
+          "rows_read": 241,
+          "rows_written": 5
+        },
+        "listing-page/on/plain": {
+          "rows_read": 132,
+          "rows_written": 0
+        },
+        "listing-page/on/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "local-business/off/cold": {
+          "rows_read": 181,
+          "rows_written": 2
+        },
+        "local-business/off/plain": {
+          "rows_read": 180,
+          "rows_written": 0
+        },
+        "local-business/off/not_modified": {
+          "rows_read": 142,
+          "rows_written": 0
+        },
+        "local-business/on/cold": {
+          "rows_read": 661,
+          "rows_written": 5
+        },
+        "local-business/on/plain": {
+          "rows_read": 356,
+          "rows_written": 0
+        },
+        "local-business/on/not_modified": {
+          "rows_read": 142,
+          "rows_written": 0
+        },
+        "menu-page/off/cold": {
+          "rows_read": 197,
+          "rows_written": 2
+        },
+        "menu-page/off/plain": {
+          "rows_read": 196,
+          "rows_written": 0
+        },
+        "menu-page/off/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "menu-page/on/cold": {
+          "rows_read": 721,
+          "rows_written": 5
+        },
+        "menu-page/on/plain": {
+          "rows_read": 388,
+          "rows_written": 0
+        },
+        "menu-page/on/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "personal-homepage/off/cold": {
+          "rows_read": 77,
+          "rows_written": 2
+        },
+        "personal-homepage/off/plain": {
+          "rows_read": 76,
+          "rows_written": 0
+        },
+        "personal-homepage/off/not_modified": {
+          "rows_read": 64,
+          "rows_written": 0
+        },
+        "personal-homepage/on/cold": {
+          "rows_read": 271,
+          "rows_written": 5
+        },
+        "personal-homepage/on/plain": {
+          "rows_read": 148,
+          "rows_written": 0
+        },
+        "personal-homepage/on/not_modified": {
+          "rows_read": 64,
+          "rows_written": 0
+        },
+        "playbook/off/cold": {
+          "rows_read": 69,
+          "rows_written": 2
+        },
+        "playbook/off/plain": {
+          "rows_read": 68,
+          "rows_written": 0
+        },
+        "playbook/off/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "playbook/on/cold": {
+          "rows_read": 241,
+          "rows_written": 5
+        },
+        "playbook/on/plain": {
+          "rows_read": 132,
+          "rows_written": 0
+        },
+        "playbook/on/not_modified": {
+          "rows_read": 58,
+          "rows_written": 0
+        },
+        "portfolio/off/cold": {
+          "rows_read": 197,
+          "rows_written": 2
+        },
+        "portfolio/off/plain": {
+          "rows_read": 196,
+          "rows_written": 0
+        },
+        "portfolio/off/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "portfolio/on/cold": {
+          "rows_read": 721,
+          "rows_written": 5
+        },
+        "portfolio/on/plain": {
+          "rows_read": 388,
+          "rows_written": 0
+        },
+        "portfolio/on/not_modified": {
+          "rows_read": 154,
+          "rows_written": 0
+        },
+        "product-page/off/cold": {
+          "rows_read": 85,
+          "rows_written": 2
+        },
+        "product-page/off/plain": {
+          "rows_read": 84,
+          "rows_written": 0
+        },
+        "product-page/off/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "product-page/on/cold": {
+          "rows_read": 301,
+          "rows_written": 5
+        },
+        "product-page/on/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "product-page/on/not_modified": {
+          "rows_read": 70,
+          "rows_written": 0
+        },
+        "services-page/off/cold": {
+          "rows_read": 165,
+          "rows_written": 2
+        },
+        "services-page/off/plain": {
+          "rows_read": 164,
+          "rows_written": 0
+        },
+        "services-page/off/not_modified": {
+          "rows_read": 130,
+          "rows_written": 0
+        },
+        "services-page/on/cold": {
+          "rows_read": 601,
+          "rows_written": 5
+        },
+        "services-page/on/plain": {
+          "rows_read": 324,
+          "rows_written": 0
+        },
+        "services-page/on/not_modified": {
+          "rows_read": 130,
+          "rows_written": 0
+        },
+        "services-page-200/off/cold": {
+          "rows_read": 1741,
+          "rows_written": 2
+        },
+        "services-page-200/off/plain": {
+          "rows_read": 1740,
+          "rows_written": 0
+        },
+        "services-page-200/off/not_modified": {
+          "rows_read": 1312,
+          "rows_written": 0
+        },
+        "services-page-200/on/cold": {
+          "rows_read": 6511,
+          "rows_written": 5
+        },
+        "services-page-200/on/plain": {
+          "rows_read": 3476,
+          "rows_written": 0
+        },
+        "services-page-200/on/not_modified": {
+          "rows_read": 1312,
+          "rows_written": 0
+        },
+        "operations/off/collect/first_day": {
+          "rows_read": 20,
+          "rows_written": 12
+        },
+        "operations/on/collect/first_day": {
+          "rows_read": 20,
+          "rows_written": 12
+        },
+        "operations/off/collect/repeat": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/on/collect/repeat": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/off/collect/existing_counter": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/on/collect/existing_counter": {
+          "rows_read": 7,
+          "rows_written": 4
+        },
+        "operations/off/collect/at_cap": {
+          "rows_read": 206,
+          "rows_written": 0
+        },
+        "operations/on/collect/at_cap": {
+          "rows_read": 206,
+          "rows_written": 0
+        },
+        "operations/off/collect/heartbeat": {
+          "rows_read": 2,
+          "rows_written": 1
+        },
+        "operations/on/collect/heartbeat": {
+          "rows_read": 2,
+          "rows_written": 1
+        },
+        "operations/off/approval/one": {
+          "rows_read": 70,
+          "rows_written": 6
+        },
+        "operations/on/approval/one": {
+          "rows_read": 11872,
+          "rows_written": 31
+        },
+        "operations/off/approval/200": {
+          "rows_read": 2060,
+          "rows_written": 404
+        },
+        "operations/on/approval/200": {
+          "rows_read": 1118089,
+          "rows_written": 609
+        },
+        "operations/off/import/file": {
+          "rows_read": 194,
+          "rows_written": 18
+        },
+        "operations/on/import/file": {
+          "rows_read": 9393,
+          "rows_written": 39
+        }
       }
     }
   }
