@@ -12,6 +12,10 @@ export const HEADERS = { Accept: 'text/html', 'User-Agent': 'PorchsiteRowsGate/1
 const stamp = '2026-10-10T12:00:00.000Z';
 const quote = value => value === null ? 'NULL' : "'" + String(value).replaceAll("'", "''") + "'";
 export async function fixtures(root, esbuild, out) {
+  let zones = JSON.parse(fs.readFileSync(path.join(root, 'shared/porchsite_shared/public-time-zones.json'), 'utf8'));
+  if (typeof zones === 'string') zones = JSON.parse(zones);
+  const at = Date.parse(CLOCK);
+  if (!(at >= zones.start * 1000 && zones.rules.every(rule => at < JSON.parse(rule)[0] * 1000))) throw Error('Fixture clock outside finite timezone rules; explicit baseline rebase required');
   const modelFile = path.join(out, 'models.mjs');
   await esbuild.build({ stdin: { contents: 'export {validate} from "./src/content"; export {PREFIX} from "./src/models";', resolveDir: path.join(root, 'cloudflare') }, bundle: true, platform: 'node', format: 'esm', outfile: modelFile, logLevel: 'silent' });
   const { validate, PREFIX } = await import('file://' + modelFile);
