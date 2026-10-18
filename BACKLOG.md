@@ -19,3 +19,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    versions, protected like any other private data (the last part of
    agent access to private sites; keys, read tools and private pages
    over HTTP shipped).
+
+## DEGRADING
+- **LL-2** OPEN: `/llms.txt` backslash-escapes ordinary punctuation in raw
+  text. Escape only characters that break its list lines, in both editions.
+  Found 2026-10-18; after PERF-3.
