@@ -61,6 +61,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    750 a day). Find what scales with entries on the ordinary read path and
    cut it, measured under GATE-2. Until then, prepared copies are a
    small-site setting.
+   PERF-9a (trigger-maintained change counter, specs 84df93e + 0413180,
+   both reviews passed) HELD 2026-10-18: locally a trigger's write raises
+   D1's meta.changes, so every earlier release, the rollback target
+   included, would report a false version conflict after a successful
+   save. A hosted D1 probe decides; if hosted counts trigger rows too, the
+   trigger design is not viable on the Cloudflare edition as specified.
 
 5. **GATE-2a** OPEN (found 2026-10-18 shipping AN-1): the rows gate
    measures page requests only, so writes on the visitor beacon
