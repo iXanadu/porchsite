@@ -295,15 +295,29 @@ def _field(form: Any, name: str) -> str:
 # --- owner: claim, sign in ---------------------------------------------------------------
 
 
-# /setup may carry the code in its address (/setup?code=...): never send it on
-# as a referrer, never keep it in a cache, and take it out of the address bar.
+# New setup links use fragments; legacy queries work for this release.
+# Never send the code as a referrer or cache it; clear the address bar.
 SETUP_HEADERS = [("Referrer-Policy", "no-referrer"), ("Cache-Control", "no-store")]
-SETUP_JS = 'if (location.search) history.replaceState(null, "", location.pathname);\n'
+SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n"
+SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n"
+
+
+# Introducing-release compatibility only. Disable in the next product release.
+SETUP_QUERY_COMPAT = True
+
+
+def setup_query_refusal(req: Request, accept_legacy: bool = SETUP_QUERY_COMPAT) -> Response | None:
+    if accept_legacy or "code" not in req.query_params:
+        return None
+    return json_response({"error": "code_in_url", "message": "This setup link is no longer supported. Ask for a fresh link or enter the code manually."}, 400, [("Referrer-Policy", "no-referrer")])
 
 
 async def setup_page(req: Request, cx: Context) -> Response:
     if await owner.has_owner(cx.db):
         return redirect(f"{origin_of(req)}/login", 303, headers=dict(SETUP_HEADERS))
+    refusal = setup_query_refusal(req, SETUP_QUERY_COMPAT)
+    if refusal is not None:
+        return refusal
     code = u16slice((req.query_params.get("code") or "").strip(), 0, 200)
     intro = (
         "Your setup code is filled in. Add your name if you like, then create a passkey."
@@ -313,7 +327,7 @@ async def setup_page(req: Request, cx: Context) -> Response:
     )
     return owner_page(
         "Set up your site",
-        f"""<h1>Make this site yours</h1><p class="meta">{esc(origin_of(req).split("://", 1)[-1])}</p><p>{intro} From then on, your passkey is the only way to approve what goes live.</p>
+        f"""<h1>Make this site yours</h1><p class="meta">{esc(origin_of(req).split("://", 1)[-1])}</p><p data-setup-intro>{intro} From then on, your passkey is the only way to approve what goes live.</p>
 <form><label>Setup code</label><input type="password" name="code" autocomplete="off" required{f' value="{esc(code)}"' if code else ""}><label>Your name (optional: your passkey is saved under it, next to this site&#39;s address)</label><input type="text" name="name" autocomplete="name" maxlength="80">
 <p class="error" hidden></p><button>Create my passkey</button></form>""",
         script=SETUP_JS + passkey_js("setup", "/review"),
@@ -328,7 +342,7 @@ async def login_page(req: Request, cx: Context) -> Response:
     return owner_page(
         "Sign in",
         '<h1>Sign in</h1><p>Use your passkey.</p><form><p class="error" hidden></p><button>Sign in with passkey</button></form>',
-        script=passkey_js("login", nxt),
+        script=SETUP_LOGIN_JS + passkey_js("login", nxt),
     )
 
 

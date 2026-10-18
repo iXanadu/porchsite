@@ -144,22 +144,32 @@ async function requireOwner(req: Request, env: Env): Promise<Response | null> {
 
 // --- owner: claim, sign in ---------------------------------------------------
 
-// /setup may carry the code in its address (/setup?code=...): never send it on
-// as a referrer, never keep it in a cache, and take it out of the address bar.
+// New setup links use fragments; legacy queries work for this release.
+// Never send the code as a referrer or cache it; clear the address bar.
 const SETUP_HEADERS = { "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
-const SETUP_JS = 'if (location.search) history.replaceState(null, "", location.pathname);\n';
+const SETUP_JS = "(() => {\n  const code = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n    const intro = document.querySelector('[data-setup-intro]');\n    if (intro) intro.textContent = (input && input.value ? \"Your setup code is filled in. Add your name if you like, then create a passkey.\" : \"Enter the setup code you were given, then create a passkey.\") + \" From then on, your passkey is the only way to approve what goes live.\";\n  }\n})();\n";
+const SETUP_LOGIN_JS = "if (new URLSearchParams(location.hash.slice(1)).has(\"code\")) history.replaceState(null, \"\", location.pathname + location.search);\n";
+
+// Introducing-release compatibility only. Disable in the next product release.
+const SETUP_QUERY_COMPAT = true;
+export function setupQueryRefusal(req: Request, acceptLegacy = SETUP_QUERY_COMPAT): Response | null {
+  if (acceptLegacy || !new URL(req.url).searchParams.has("code")) return null;
+  return json({error:"code_in_url",message:"This setup link is no longer supported. Ask for a fresh link or enter the code manually."},400,SETUP_HEADERS);
+}
 
 async function setupPage(req: Request, env: Env): Promise<Response> {
   if (await owner.hasOwner(env.DB)) {
     return new Response(null, { status: 303, headers: { ...SETUP_HEADERS, Location: new URL("/login", req.url).href } });
   }
+  const refusal = setupQueryRefusal(req);
+  if (refusal) return refusal;
   const code = (new URL(req.url).searchParams.get("code") ?? "").trim().slice(0, 200);
   const intro = code
     ? "Your setup code is filled in. Add your name if you like, then create a passkey."
     : "Enter the setup code you were given, then create a passkey. No code? If the site was installed at get.porchsite.dev/install/, run it again with the same name and token: it keeps everything and gives you a new claim link. Otherwise, ask whoever set it up.";
   return ownerPage(
     "Set up your site",
-    html`<h1>Make this site yours</h1><p class="meta">${new URL(req.url).host}</p><p>${intro} From then on, your passkey is the only way to approve what goes live.</p>
+    html`<h1>Make this site yours</h1><p class="meta">${new URL(req.url).host}</p><p data-setup-intro>${intro} From then on, your passkey is the only way to approve what goes live.</p>
 <form><label>Setup code</label><input type="password" name="code" autocomplete="off" required${code ? raw(` value="${esc(code)}"`) : ""}><label>Your name (optional: your passkey is saved under it, next to this site's address)</label><input type="text" name="name" autocomplete="name" maxlength="80">
 <p class="error" hidden></p><button>Create my passkey</button></form>`,
     // Owner pages are already no-store.
@@ -173,7 +183,7 @@ async function loginPage(req: Request, env: Env): Promise<Response> {
   return ownerPage(
     "Sign in",
     html`<h1>Sign in</h1><p>Use your passkey.</p><form><p class="error" hidden></p><button>Sign in with passkey</button></form>`,
-    { script: PASSKEY_JS("login", next) },
+    { script: SETUP_LOGIN_JS + PASSKEY_JS("login", next) },
   );
 }
 

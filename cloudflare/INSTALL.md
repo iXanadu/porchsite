@@ -193,10 +193,15 @@ two parts:
       {"type": "d1", "name": "DB", "id": "DB"},
       {"type": "kv_namespace", "name": "OAUTH_KV", "namespace_id": "KV"}
     ],
-    "observability": {"enabled": true}
+    "observability": {"enabled": true, "redact_query_string": true}
   }
   ```
   with your `DB` and `KV` values in place of the quoted names.
+  Keep `redact_query_string` at the observability root as shown: it strips
+  request queries from Workers logs/traces. Do not assume it sanitizes
+  Logpush, Tail Workers, third-party traces or previously retained logs.
+  Existing deployments adopt this through their normal approved update;
+  do not change an existing account's logging settings silently.
   For a known stable site address, also include the plain-text binding
   `{"type":"plain_text","name":"SITE_URL","text":"https://example.com"}`,
   using that site's actual canonical origin with no path. Account subdomain
@@ -346,7 +351,7 @@ token (or to choose on Cloudflare's consent screen), and wait.
 
 ## 8. Your person claims it
 
-Send your person the link `https://…/setup?code=CODE` and tell them: "Your
+Send your person the link `https://…/setup#code=CODE` and tell them: "Your
 site is ready. Open this link, add your name, and tap Create my passkey. That
 passkey is how you approve what I write." The page fills the code in; they
 need no terminal and no code to type. Wait until they say it's done. (If the

@@ -186,7 +186,7 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
             { type: "kv_namespace", name: "OAUTH_KV", namespace_id: kvId },
             ...(!claimed ? [{ type: "plain_text", name: "SITE_URL", text: url }] : []),
           ],
-          observability: { enabled: true },
+          observability: { enabled: true, redact_query_string: true },
         }),
       ],
       { type: "application/json" },
@@ -202,7 +202,7 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   if (!on.a.success) throw new Stop(`Cloudflare wouldn't turn the address on: ${why(on.a)}.`);
   steps.push(`Address: ${url} (a new address can take a minute or two to answer).`);
 
-  return { ok: true, url, setup: code ? `${url}/setup?code=${code}` : "", claimed, release: latest.version, steps };
+  return { ok: true, url, setup: code ? `${url}/setup#code=${code}` : "", claimed, release: latest.version, steps };
 }
 
 const PAGE = (nonce: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

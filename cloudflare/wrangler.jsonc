@@ -8,7 +8,7 @@
     { "binding": "DB", "database_name": "sitekeeper", "migrations_dir": "migrations" }
   ],
   "kv_namespaces": [{ "binding": "OAUTH_KV" }],
-  "observability": { "enabled": true }
-  // Secrets (wrangler secret put): SETUP_CODE, the one-time code that lets
-  // the owner create their passkey on a fresh site.
+  "observability": { "enabled": true, "redact_query_string": true }
+  // New installs issue a hashed setup_codes row; no setup secret is needed.
+  // Existing SETUP_CODE deployments remain compatible until claimed.
 }

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Env } from "../src/env";
 import { ApiError } from "../src/errors";
 import * as owner from "../src/owner";
-import { handle } from "../src/routes";
+import { handle, setupQueryRefusal } from "../src/routes";
 
 const e = env as unknown as Env;
 const db = e.DB;
@@ -111,4 +111,23 @@ describe("claiming from a setup link", () => {
     expect(page.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(page.headers.get("Cache-Control")).toBe("no-store");
   });
+});
+
+// RA-9 introduces fragment links; query links remain accepted in this release.
+it("keeps the fragment out of server HTML and clears it before submit",async()=>{
+ await unclaimed();const code='fragment-only-credential';const r=await at('/setup#code='+code),body=await r.text();
+ expect(r.status).toBe(200);expect(body).not.toContain(code);expect(body).toContain('new URLSearchParams(location.hash.slice(1))');expect(body).toContain('input.value = code.trim().slice(0, 200)');
+ expect(body.indexOf('history.replaceState')).toBeLessThan(body.indexOf('await fetch('));expect(body).not.toContain('innerHTML');
+ expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
+ const old=await at('/setup?code=legacy-code');expect(await old.text()).toContain('value="legacy-code"');
+});
+
+it("pins the next-release query cutoff without reflecting a credential",async()=>{
+ for(const query of ['code=','code=credential-canary','code=%3Cscript%3E','code=a&code=b']){
+  const r=setupQueryRefusal(new Request('https://site.example/setup?'+query),false)!;
+  expect(r.status).toBe(400);expect(await r.json()).toEqual({error:'code_in_url',message:'This setup link is no longer supported. Ask for a fresh link or enter the code manually.'});
+  expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.get('Location')).toBeNull();
+ }
+ expect(setupQueryRefusal(new Request('https://site.example/setup?code=legacy'))).toBeNull();
+ expect(setupQueryRefusal(new Request('https://site.example/setup'),false)).toBeNull();
 });
