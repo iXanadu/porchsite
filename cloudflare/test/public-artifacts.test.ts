@@ -337,9 +337,9 @@ it('af_thin_hit_budget: indexed row proof does not scan unused image libraries',
 it('af_thin_hit_isolation: unavailable artifact state falls back live and never widens private access',async()=>{
  const {one}=await fixture();const first=await(await get()).text();await db.prepare('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state').run();
  try{
-  const lookup=vi.spyOn(artifacts,'lookupSQL');const live=await get();expect(live.status).toBe(200);expect(await live.text()).toBe(first);expect(lookup).toHaveBeenCalledTimes(1);
+  const lookup=artifacts.lookupSQL(),sql=vi.spyOn(db,'prepare');const live=await get();expect(live.status).toBe(200);expect(await live.text()).toBe(first);expect(sql.mock.calls.filter(([query])=>query===lookup)).toHaveLength(1);
   await db.prepare("INSERT INTO site_fields(version,key,value,approved)VALUES(?,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1").bind(one.version).run();await db.prepare('INSERT OR IGNORE INTO private_approvals(version)VALUES(?)').bind(one.version).run();
-  const denied=await get();expect(denied.status).toBe(404);expect(await denied.text()).toBe(SIGN_IN);expect(denied.headers.has('ETag')).toBe(false);expect(lookup).toHaveBeenCalledTimes(1);
+  const denied=await get();expect(denied.status).toBe(404);expect(await denied.text()).toBe(SIGN_IN);expect(denied.headers.has('ETag')).toBe(false);expect(sql.mock.calls.filter(([query])=>query===lookup)).toHaveLength(1);
  }finally{await db.prepare('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state').run();}
 });
 it('af_thin_hit_time: a boundary after the live render cannot return the expired fill',async()=>{
