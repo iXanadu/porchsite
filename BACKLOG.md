@@ -53,14 +53,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    proving freshness with a narrower query, needs a spec and security
    review; revisit only if an owner enables PERF-4.
 
-3. **GATE-2** OPEN (owner, 2026-10-18): every release states database
-   rows read per request (cold page, plain page, "not changed"), before and
-   after, with prepared copies off and on, plus the free daily-limit impact
-   ("about N page views a day per account"). The release build measures it
-   on the sample sites and refuses a release whose rows went up unless its
-   changelog entry carries a written reason. Owner approves any increase
-   before it is deployed. Decision briefings state reads, writes and limit
-   impact, not only speed.
+
+4. **PERF-9** OPEN (found 2026-10-18 by GATE-2's baseline): database rows
+   read per first page view grow with site size. Small samples read 69-197
+   rows (25k-72k free views a day per account); a 200-entry site reads about
+   1,700 (about 2,900 a day); with prepared copies on, about 6,700 (about
+   750 a day). Find what scales with entries on the ordinary read path and
+   cut it, measured under GATE-2. Until then, prepared copies are a
+   small-site setting.
 
 ## BLOCKING
 
@@ -183,6 +183,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   from 176 to 240. On the free plan's 5 million rows a day per account,
   that is about 10,000 cold page views a day instead of about 23,000.
   Cut the rows a copy's freshness check reads, keeping every check.
+  Candidate dcca6b8 (specs d0e7b74 and d2a2975, both reviews passed) cut
+  rows read in every measured case (304 236 to 178 rows, HIT 480 to 453,
+  cold after an edit 869 to 841, small fixture), but HELD on CPU: HIT
+  median +4.7 ms over 12 fresh pairs (interval -2.5 to +9.8). Next:
+  per-statement attribution of the HIT, and a 304-only candidate.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;

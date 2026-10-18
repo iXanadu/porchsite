@@ -69,6 +69,8 @@ PYTHON="${PYTHON:-python3}" bash ../scripts/conformance-mutations.sh
 
 # The changelog entry, checked against what changed; prints the previous release.
 PREV="$(node scripts/changelog.mjs check ../changelog.json "$VERSION")"
+echo "gates: D1 rows read and written (previous release comparison)"
+node ../scripts/d1-rows-check.mjs --lock-held --release "$VERSION"
 if [ -n "$PREV" ]; then
   sh ../scripts/upgrade-check.sh "$PREV"
 else
