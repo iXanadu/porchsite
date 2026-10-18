@@ -1345,6 +1345,32 @@ boundaries. Any recorded transcript update must be restricted to the
 specified CORS/Vary leaves on these paths with a structural delta audit.
 No catalog, reconnect, schema, default or migration change.
 
+### Protected-resource metadata path (PAR-1-C4)
+
+The advertised protected-resource metadata URL is exactly
+`/.well-known/oauth-protected-resource/mcp`. The bare
+`/.well-known/oauth-protected-resource` is not a metadata alias: GET and
+HEAD return the existing empty protocol 404 in both editions, with no
+site HTML, metadata document, redirect or authentication challenge. This
+applies on public and private sites, with or without Authorization,
+owner/reader cookies or any Origin; those inputs grant no alias.
+
+Keep the bare path in the existing open protocol-route allowlist. Its
+OPTIONS remains the same storage-free empty 204, with Content-Length
+absent, and its responses retain PAR-1-C3's exact CORS map. Do not route
+this refusal through the site renderer or the private-page gate. The
+`/mcp`-suffixed metadata document and the advertised MCP challenge URL,
+authorization-server discovery, consent, token and registration behavior
+remain unchanged. No new alias or redirect, catalog or reconnect change.
+
+Paired native and normal-entry HTTP tests cover bare GET/HEAD/OPTIONS and
+the successful `/mcp` metadata control, public/private sites, absent and
+foreign Origin, and absent/invalid Authorization and owner/reader cookies.
+Require empty protocol refusals without Location, WWW-Authenticate or
+Set-Cookie; prove no content, credential lookup or external fetch on the
+bare refusal and OPTIONS. Preserve the fixed CORS and preflight framing
+checks and the existing open-route allowlist byte for byte.
+
 If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an
 **assistant key** instead: the owner makes one on `/review/assistants`

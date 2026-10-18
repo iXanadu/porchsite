@@ -229,10 +229,7 @@ class App:
                 )
             if is_meta:
                 return _cors(oauth.server_metadata(origin))
-            if path not in (
-                "/.well-known/oauth-protected-resource",
-                "/.well-known/oauth-protected-resource/mcp",
-            ):
+            if path != "/.well-known/oauth-protected-resource/mcp":
                 return _cors(Response(None, status_code=404))
             return _cors(oauth.resource_metadata(origin))
         if m != "POST":
