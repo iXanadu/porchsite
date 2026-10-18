@@ -631,8 +631,10 @@ async def test_af_thin_hit_old_runtime(db,http,monkeypatch):
         stored=await conn.fetchrow('SELECT key FROM public_artifacts LIMIT 1')
         refused=await conn.fetchrow(artifacts.lookup_sql(),json.dumps(f['raw'],separators=(',',':')),g,stored['key'])
         assert refused['facts_ok'] is True and refused['ok'] is False and refused['key'] is None and refused['body'] is None
+        live=await routes.handle(request('/'),routes.Context(conn,'',None,site_url=ORIGIN,release=cx.release,public_artifacts=False))
         r=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
         assert b'Old runtime publication' in r.body and r.headers['etag']!=first.headers['etag']
+        assert r.body==live.body and r.headers['etag']==live.headers['etag']
         lookup=[q for q in counted.calls if 'LEFT JOIN public_artifacts' in q]
         assert len(lookup)==1 and 'DELETE FROM public_artifacts' in counted.calls
         assert counted.calls.index(lookup[0])<counted.calls.index('DELETE FROM public_artifacts')

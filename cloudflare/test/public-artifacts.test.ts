@@ -290,7 +290,8 @@ it('af_thin_hit_old_runtime: atomic lookup withholds stale generation before pur
  await db.prepare("UPDATE live SET data=json_set(data,'$.title','Old runtime publication') WHERE item_id='site'").run();
  const f=await read.facts(db,true),{RELEASE}=await import('../src/home'),g=await artifacts.generation(f,RELEASE,origin),stored=await db.prepare('SELECT key FROM public_artifacts LIMIT 1').first<any>();
  const refused=await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(f.raw),g,stored.key,g).first<any>();expect(refused.facts_ok).toBe(1);expect(refused.ok).toBe(0);expect(refused.key).toBeNull();expect(refused.body).toBeNull();
- const sql=vi.spyOn(db,'prepare'),snap=vi.spyOn(artifacts,'snapshot');const next=await get();expect(await next.text()).toContain('Old runtime publication');expect(next.headers.get('ETag')).not.toBe(tag);
+ const live=await handle(new Request(origin+'/'),{...e,PUBLIC_ARTIFACTS:''}),liveBody=await live.text();
+ const sql=vi.spyOn(db,'prepare'),snap=vi.spyOn(artifacts,'snapshot');const next=await get(),nextBody=await next.text();expect(nextBody).toContain('Old runtime publication');expect(next.headers.get('ETag')).not.toBe(tag);expect(nextBody).toBe(liveBody);expect(next.headers.get('ETag')).toBe(live.headers.get('ETag'));
  const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls.filter(q=>q===artifacts.lookupSQL())).toHaveLength(1);expect(calls.indexOf(artifacts.lookupSQL())).toBeLessThan(calls.indexOf('DELETE FROM public_artifacts'));expect(snap).not.toHaveBeenCalled();sql.mockRestore();
  expect((await db.prepare('SELECT generation FROM public_artifact_state').first<any>())!.generation).not.toBe(old.generation);
 });
