@@ -122,15 +122,16 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
-- **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
+- **AF-7T-C1** IN-PROGRESS (spec review): local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
   hosted measurements and further profiling determine release settings.
   Profiled 2026-10-18 (one sample each): a prepared page took 11.3 ms and
   a fresh build 24.0 ms. The prepared page skips rendering but still reads
   3,480 rows, moves 65 KB of site facts and hashes 76 KB to serve a 3.6 KB
-  page. Next: find a cheaper equivalent proof (shared digest, narrower
-  facts, cheaper SQL plan) without weakening any check.
+  page. Selected cuts: return generation/revision once and materialize
+  grouped tuple counts once, retaining both equality directions. Spec
+  review before code; single-digest and stored-closure designs excluded.
 - **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.
