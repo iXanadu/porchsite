@@ -3453,3 +3453,50 @@ one parse for a consumed repeated body under one policy; no memo reuse across
 requests or heading policies. Measure unconditional home and stream 200s on
 the same 200-entry fixture against a local CPU target below 5 ms, reporting
 local timing separately from hosted CPU. The real emitted Worker must start.
+
+### PERF-5: request-local date and approved-metadata reuse
+
+The public read path may reuse formatted dates and the request's already-read
+approved metadata. Both editions preserve exact rendered bytes and the current
+public/private gate, proof, clock and validator contract.
+
+A render context owns a date-result memo keyed by timestamp, locale, zone and
+canonical format options. It is created for one request/view, never stored in
+an isolate/process map, and discarded on retry or completion. Invalid dates,
+timezone handling and heading/template policy keep their existing behavior.
+Entry projections may defer date fields until a consuming template uses them;
+reflection, metadata and capability walks must not force unused fields. A
+consumed field is evaluated once per context. No body, fragment or response
+cache is introduced.
+
+Only anonymous public requests with a successful current facts proof may pass
+that exact proof into the live-view builder. Approved site, extension and share
+metadata already included by that proof may replace redundant reads only when
+the selected live site version and raw site data match the rows being rendered.
+A version match alone must not authorize reuse if the source data differs.
+Reusing the site model must preserve the same approved extension/default rules
+as the existing source-data decoder; reusing share metadata must retain its
+item/version match. Metadata objects may not be mutated by a renderer. Pending/deleted/hidden/draft fields cannot become input.
+The final live facts and clock checks remain mandatory before delivery; a
+mismatch discards the context and follows the current retry/denial behavior.
+Owner/reader/private and Authorization-bearing requests retain their existing
+principal-specific path and never receive metadata from a public proof context.
+There is no broad SQL rewrite, reduced authority check or cross-request metadata
+cache. If a needed field/dependency is absent from the proof, use the existing
+read path.
+
+Proof: all twelve looks and public/direct/negotiated Markdown keep exact bytes,
+including repeated dates, different zones, invalid dates, custom formats,
+headings, tables and embeds. Paired spies prove repeated equal dates format once,
+unused dates never format, a fresh request formats again, and a changed zone or
+options uses a distinct result. Race checks cover publication/removal,
+private-on and proof mismatch; private and session-bearing behavior stays
+unchanged. Statement/row profiles must identify each removed redundant read.
+
+Measure the same real minified production entries, same fixtures/machine and
+interleaved baseline/candidate: fresh-isolate startup/first GET and reused-isolate
+home, entry, stream and direct Markdown. Report regressions by route and distinguish
+workerd process CPU from hosted invocation CPU. Target fresh cold home below
+10 ms locally on the 200-entry fixture; correctness and scope do not depend on
+meeting a timing threshold. No hosted/default-enablement claim follows local
+measurements.
