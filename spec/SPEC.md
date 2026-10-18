@@ -212,11 +212,12 @@ The response is `application/xml; charset=utf-8`, with the same
 `Cache-Control: public, max-age=300` as Atom feeds. HEAD follows GET's status
 and headers without the body. Both editions return identical sitemap bytes.
 
-`GET /robots.txt` retains `User-agent: *` and `Allow: /`, and appends
-`Sitemap: <site origin>/sitemap.xml` with a final newline. This intentionally
-changes robots bytes; its existing one-hour cache policy is unchanged.
-No content/schema/tool contract changes are needed for discovery. Sample
-parity includes sitemap and robots at a fixed origin and approval clock.
+Public `GET /robots.txt` follows AF-4D's four explicit crawler groups,
+then `Sitemap: <site origin>/sitemap.xml` with a final newline. Its public
+validators and revalidation policy follow AF-2; private robots retain the
+private-mode contract. No schema/tool contract changes are needed for
+discovery. Sample parity includes sitemap and robots at a fixed origin
+and approval clock.
 
 **Card visibility.** A card is `public` (the default: the whole card shows),
 `mention` (only its name and description show: no link, no link text, no
@@ -3605,14 +3606,13 @@ Named acceptance cases, required in both editions:
 | `af_training_receipt_old_runtime` | Run the actual previous released runtimes on the additive schema: approve/edit a newer-code draft, then return. Bulk-approved true remains allowed without a receipt; an existing receipt survives unchanged and cannot qualify another version. Prior pages, sign-in and approval still operate. |
 | `af_training_receipt_http_parity` | Identical robots, Content-Signal and AF-2 tags across editions before/after genuine receipt-bearing publication; old approval alone cannot activate off. Private denials/robots and authenticated no-store remain unchanged. |
 
-Public `/robots.txt` starts with `User-agent: *`, `Allow: /`. When training
-is off append three groups, in this order, each with `Disallow: /`:
-GPTBot, ClaudeBot, Google-Extended. When on omit these denial groups.
-Always finish with the existing absolute Sitemap line and final newline;
-separate groups by one blank line. Search and user-triggered fetchers,
-including Googlebot, OAI-SearchBot, Claude-SearchBot, ChatGPT-User and
-Claude-User, remain allowed. This is a declared preference, not access
-control or a guarantee about crawler compliance; private mode still wins.
+Public `/robots.txt` always emits AF-4D's four groups in order: search,
+user-triggered agents, training crawlers, then wildcard. Search,
+user-triggered and wildcard groups always allow; the training group
+(GPTBot, ClaudeBot, Google-Extended, CCBot) allows or denies according to
+the receipted effective choice. AF-4D pins exact bytes, names, Sitemap
+and newlines. This is a declared preference, not access control or a
+guarantee about crawler compliance; private mode still wins.
 
 Public content, copies, discovery files and their 304s also state the
 origin's choice with `Content-Signal: search=yes, ai-input=yes,
@@ -3631,7 +3631,8 @@ owner's choice; no requirement depends on a paid plan or Cloudflare service.
 
 #### AF-4D: explicit crawler tiers and discoverable choice (BACKLOG AF-8)
 
-This subsection replaces only AF-4's public robots group layout above.
+This subsection defines the public robots layout used throughout this
+specification, including security invariant 32 and its acceptance case.
 It implements the crawler-discovery backlog item; the later AF-8 section,
 "content is data, never agent authority", retains its separate security
 contract unchanged. Both editions implement the same bytes and owner copy.
@@ -4793,7 +4794,7 @@ Routing
 31. Both editions: identical bytes and headers for the same published site (parity includes Markdown, llms.txt, robots with the training switch, JSON-LD).
 
 AF-4 training switch
-32. Public default: today's robots (`User-agent: *` Allow: / plus Sitemap). Training-off adds well-known training-crawler Disallow groups; `User-agent: *` Allow: / stays for search and user-triggered agents.
+32. Public robots always use AF-4D's four groups in order: search crawlers, user-triggered agents, training crawlers (GPTBot, ClaudeBot, Google-Extended, CCBot), then `User-agent: *`, followed by Sitemap. Search, user-triggered and wildcard groups always Allow: /. The training group emits Allow: / unless the AF-C1 receipted effective choice is disabled, then Disallow: /. No draft or unreceipted proposal changes those rules; private robots stay exactly as invariant 10.
 33. The switch is an exact-version approved site_fields key plus the matching training_approvals receipt (AF-C1), never a legacy JSON key the previous release would parse into SiteData (S4-11 BLOCK 1). Absent, false or unreceipted = training allowed. Private robots ignore it (10).
 
 Protocol leftovers
@@ -4841,7 +4842,7 @@ The named cases implement the corresponding numbered invariant above.
 | 29 | `af_copy_route_matrix` | Copies exist only for real pages; reserved and missing paths remain misses. |
 | 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public anonymous misses stay fixed HTML 404. |
 | 31 | `af_cross_edition_http_parity` | Bytes and headers match for every new representation and training setting. |
-| 32 | `af_public_robots_choices` | Default unchanged; off adds training-only denial groups. |
+| 32 | `af_public_robots_choices` | Exact AF-4D four-group layout always; all four training names including CCBot Allow or Disallow from the receipted effective choice; search/user/wildcard Allow. Keep private invariant 10 exact. |
 | 33 | `af_training_additive_approval` | Exact-version field and owner-publication receipt; absent/false/unreceipted allowed; legacy JSON unchanged; private ignores it. Include AF-C1 receipt cases above. |
 | 34 | `af_protocol_routes_unchanged` | Release, OAuth, sign-in and MCP behavior stays unchanged. |
 
