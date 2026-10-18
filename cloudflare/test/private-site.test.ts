@@ -405,3 +405,36 @@ it('pv6_protocol_unchanged: collect, robots, and MCP keep their existing refusal
  const ctx={waitUntil(){},passThroughOnException(){}} as unknown as ExecutionContext;
  const mcp=await worker.fetch(new Request(origin+'/mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),e,ctx);expect(mcp.status).toBe(401);
 });
+
+// PV-4: the recovery destination is a view, never a credential or grant.
+import recoveryReaders from '../../spec/fixtures/recovery-readers.json';
+it.each([false,true])('pv4_recovery_readers: fresh owner, removal and stale authority private=%s',async privateMode=>{
+ const f=await fixture(privateMode),a=await reader(),b=await reader(),removed=await reader();
+ for(const r of [a,b])await db.prepare('UPDATE readers SET name=? WHERE id=?').bind(recoveryReaders.name,r.invite.id).run();
+ await owner.revokeReader(db,removed.invite.id);await owner.createReaderInvite(db,'Unused invitation');
+ const oldPage=await(await f.browser.at('/review/readers')).text(),oldCsrf=/name="csrf" value="([^"]+)"/.exec(oldPage)![1];
+ const recover=new Browser(),key=await SoftKey.make(),code='v'.repeat(32);await owner.issueRecoveryCode(db,code);
+ const ceremony=await(await recover.at('/recover?code='+code)).text();expect(ceremony).toContain('location.href = "/review/readers?after=recovery"');
+ expect(await(await f.browser.at('/login')).text()).not.toContain('location.href = "/review/readers?after=recovery"');
+ const options=await recover.options('/recover/options',{code});const verified=await recover.post('/recover/verify',await key.create(options,origin));expect(verified.status).toBe(200);expect(await verified.text()).not.toContain(recoveryReaders.name);
+ const first=await recover.at(recoveryReaders.path),body=await first.text();expect(first.status).toBe(200);expect(first.headers.get('Cache-Control')).toContain('no-store');expect(first.headers.has('ETag')).toBe(false);
+ expect(body).toContain(recoveryReaders.note);expect(body).toContain('&#60;script&#62;Same &#38; reader&#60;/script&#62;');expect(body).not.toContain('<script>Same');expect(body).not.toContain('Create invitation');expect(body).not.toContain('Unused invitations');expect(body).not.toContain('Removed</p>');expect(body).toContain('Continue to Review');expect(body.match(/name="action" value="revoke"/g)).toHaveLength(2);expect(body).not.toMatch(/<form[^>]+action=/);
+ const csrf=/name="csrf" value="([^"]+)"/.exec(body)![1];
+ for(const stale of [f.browser,a.browser,new Browser()]){const r=await stale.at(recoveryReaders.path);expect(r.status).toBe(privateMode?404:303);expect(await r.text()).not.toContain('Same');}
+ for(const bad of ['','wrong',oldCsrf]){const r=await recover.at(recoveryReaders.path,{method:'POST',body:new URLSearchParams({action:'revoke',id:a.invite.id,csrf:bad})});expect(r.status).toBe(403);}
+ for(const authorization of ['', 'Bearer unknown']){const r=await recover.at(recoveryReaders.path,{headers:{Authorization:authorization}});expect(r.status).toBe(privateMode?404:303);expect(await r.text()).not.toContain('Same');}
+ const login=await a.browser.options('/login/options');expect((await a.browser.post('/login/verify',await a.key.get(login,origin))).status).toBe(200);
+ const md=await recover.at(recoveryReaders.path,{headers:{Accept:'text/markdown'}}),text=await md.text();expect(md.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');expect(text).toContain(recoveryReaders.note);for(const secret of ['name="csrf"','action=revoke','/invite/','/recover?'])expect(text).not.toContain(secret);
+ const before=await db.prepare('SELECT count(*) n FROM reader_passkeys').first('n');await recover.at(recoveryReaders.path,{method:'HEAD'});expect(await db.prepare('SELECT count(*) n FROM reader_passkeys').first('n')).toBe(before);
+ let r=await recover.at(recoveryReaders.path,{method:'POST',body:new URLSearchParams({action:'revoke',id:a.invite.id,csrf})});expect(r.status).toBe(200);expect((await r.text()).match(/name="action" value="revoke"/g)).toHaveLength(1);
+ const denied=await a.browser.at('/');if(privateMode)await blank(denied);const attempt=await a.browser.options('/login/options');expect((await a.browser.post('/login/verify',await a.key.get(attempt,origin))).status).toBe(403);
+ const good=await b.browser.options('/login/options');expect((await b.browser.post('/login/verify',await b.key.get(good,origin))).status).toBe(200);
+ for(const id of [a.invite.id,b.invite.id]){r=await recover.at(recoveryReaders.path,{method:'POST',body:new URLSearchParams({action:'revoke',id,csrf})});expect(r.status).toBe(200);}
+ const empty=await r.text();expect(empty).toContain(recoveryReaders.empty);expect(empty).not.toContain(recoveryReaders.note);expect(empty).not.toContain('name="action" value="revoke"');expect(await(await recover.at('/review/readers')).text()).not.toContain(recoveryReaders.note);
+ expect(await db.prepare('SELECT count(*) n FROM public_artifacts').first('n')).toBe(0);
+});
+it('pv4_selector: only exact recovery mode, fresh empty state, and no direct alias',async()=>{
+ const f=await fixture();for(const path of ['/review/readers?after=other','/review/readers?after=%3Cscript%3E']){const body=await(await f.browser.at(path)).text();expect(body).toContain('Create invitation');expect(body).not.toContain(recoveryReaders.note);}
+ const md=await f.browser.at(recoveryReaders.path,{headers:{Accept:'text/markdown'}});expect(await md.text()).toContain(recoveryReaders.empty);
+ const alias=await f.browser.at('/review/readers/index.md?after=recovery',{headers:{Accept:'text/markdown'}});expect(alias.status).not.toBe(200);
+});

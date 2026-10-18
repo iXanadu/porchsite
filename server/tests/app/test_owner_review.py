@@ -39,7 +39,7 @@ def light(r):
 @pytest.mark.parametrize('is_private',[False,True])
 async def test_ag_review_route_inventory(db,http,is_private):
     f=await fixture(db,is_private)
-    paths=['/review','/review/'+f['approval']['id'],'/review/history','/review/history/'+str(f['history']),'/review/write','/review/write/new','/review/write/'+f['entry']['id'],'/review/'+f['approval']['id']+'/preview','/review/'+f['approval']['id']+'/preview/journal/','/review/write/'+f['entry']['id']+'/preview','/review/stats?days=30','/review/assistants','/review/passkeys','/review/readers','/review/alerts','/review/import']
+    paths=['/review','/review/'+f['approval']['id'],'/review/history','/review/history/'+str(f['history']),'/review/write','/review/write/new','/review/write/'+f['entry']['id'],'/review/'+f['approval']['id']+'/preview','/review/'+f['approval']['id']+'/preview/journal/','/review/write/'+f['entry']['id']+'/preview','/review/stats?days=30','/review/assistants','/review/passkeys','/review/readers','/review/readers?after=recovery','/review/alerts','/review/import']
     records=[]
     for path in paths:
         response=await http.get(path,headers={'Cookie':COOKIE,'Accept':'text/markdown','If-None-Match':'*'})
@@ -48,6 +48,12 @@ async def test_ag_review_route_inventory(db,http,is_private):
         def normalized(s):
             return s.replace(f['approval']['id'],'approval00').replace(f['entry']['id'],'ent_0000').replace('/history/'+str(f['history']),'/history/1')
         records.append(dict(path=normalized(path),body=normalized(body),headers=dict(sorted(response.headers.items()))))
+    for id,revoked,used in [('reader-a',0,True),('reader-b',0,True),('reader-removed',1,True),('reader-unused',0,False)]:
+        await db.execute("INSERT INTO readers(id,name,revoked,created_at) VALUES($1,$2,$3,'2026-10-17T10:00:00.000Z')",id,'<script>Same & reader</script>',revoked)
+        await db.execute("INSERT INTO reader_invites(token_hash,reader_id,created_at,expires_at,used_at) VALUES($1,$2,'2026-10-17T10:00:00.000Z','2099-01-01',$3)",id,id,'2026-10-17T10:00:00.000Z' if used else None)
+    focused=await http.get('/review/readers?after=recovery',headers={'Cookie':COOKIE,'Accept':'text/markdown'})
+    body=light(focused);assert 'These readers can still sign in.' in body
+    records.append(dict(path='/review/readers?after=recovery',case='active',body=body,headers=dict(sorted(focused.headers.items()))))
     import os,json
     from pathlib import Path
     output=os.environ.get('OWNER_REVIEW_PARITY_OUTPUT')

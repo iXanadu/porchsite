@@ -1509,9 +1509,11 @@ async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;da
 async function recoveryPage(req: Request,env: Env): Promise<Response> {
   if (!(await owner.hasOwner(env.DB))) return ownerPage("Recovery",html`<h1>This site has no owner yet.</h1>`,{status:409,headers:SETUP_HEADERS});
   const code = (new URL(req.url).searchParams.get("code") ?? "").slice(0,200);
-  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review")});
+  return ownerPage("Recover owner access",html`<h1>Recover owner access</h1><p>Use this if you can't sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can't get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="${code}" required><p class="error" hidden></p><button>Recover my site</button></form>`,{headers:SETUP_HEADERS,script:SETUP_JS+PASSKEY_JS("recover","/review/readers?after=recovery")});
 }
 async function readersPage(req: Request,env: Env): Promise<Response> {
+  const recovered=new URL(req.url).searchParams.get("after")==="recovery";
+  if(recovered&&req.headers.has("Authorization"))return reviewRefusal(req,env);
   const csrf = await owner.csrf(req); let link = "";
   if (req.method === "POST") {
     const form = await req.formData(); if (form.get("csrf") !== csrf) throw new ApiError(403,"csrf","This form expired. Try again.");
@@ -1524,6 +1526,12 @@ async function readersPage(req: Request,env: Env): Promise<Response> {
   const timeZone = String((await contentView(req,env,true)).site.timezone || "UTC");
   const date = (value: string) => dateString(new Date(value),{month:"long",day:"numeric",year:"numeric"},timeZone);
   const form = (r: any, invite: boolean) => html`<form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}">${invite ? html`<button class="second" name="action" value="revoke-invite">Cancel invitation</button>` : html`<button class="warn" name="action" value="revoke">Remove ${r.name}</button>`}</form>`;
+  if(recovered){
+    const active=readers.filter(r=>r.used_at&&!r.revoked),note=active.length?"These readers can still sign in.":"No readers.";
+    return ownerPage("Readers",html`<h1>Readers</h1><p>${note}</p>${active.map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${form(r,false)}</section>`)}<p><a href="/review">Continue to Review</a></p>`,{review:()=>[
+      rv("Readers",note),...active.flatMap(r=>[rh(r.name),rv("Added",date(r.created_at)),rv("Last signed in",r.last_signed_in?date(r.last_signed_in):"Not signed in yet")]),rl("Continue to Review","/review"),
+    ],signedIn:true,headers:SETUP_HEADERS});
+  }
   return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form><h2>Readers</h2>${readers.filter(r=>r.used_at).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${r.revoked ? html`<p>Removed</p>` : form(r,false)}</section>`)}<h2>Unused invitations</h2>${readers.filter(r=>!r.used_at && r.expires_at && !r.revoked).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Expires ${date(r.expires_at)}</p>${r.expires_at <= new Date().toISOString() ? html`<p>Expired</p>` : ""}${form(r,true)}</section>`)}`,{review:() => [
       rv(
         "Readers",
