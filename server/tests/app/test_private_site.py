@@ -1076,3 +1076,52 @@ async def test_pv6_protocol_unchanged(db,browser_factory):
     robots=await visitor.at('/robots.txt')
     assert robots.text=='User-agent: *\nDisallow: /\n' and 'etag' not in robots.headers
     assert (await visitor.at('/mcp',method='POST',json={})).status_code==401
+
+RECOVERY_READERS=json.loads((Path(__file__).parents[3]/'spec/fixtures/recovery-readers.json').read_text())
+@pytest.mark.parametrize('private_mode',[False,True])
+async def test_pv4_recovery_readers(db,browser_factory,private_mode):
+    f,_,_,_,_=await fixture(db,browser_factory,private_mode)
+    a,ak,ai=await reader(db,browser_factory);b,bk,bi=await reader(db,browser_factory);_,_,removed=await reader(db,browser_factory)
+    for item in (ai,bi):await db.execute('UPDATE readers SET name=$1 WHERE id=$2',RECOVERY_READERS['name'],item['id'])
+    await owner.revoke_reader(db,removed['id']);await owner.create_reader_invite(db,'Unused invitation')
+    old_csrf=re.search(r'name="csrf" value="([^"]+)"',(await f.at('/review/readers')).text)[1]
+    recovery,key=browser_factory(),SoftKey();code='v'*32;await owner.issue_recovery_code(db,code)
+    ceremony=await recovery.at('/recover?code='+code)
+    assert 'location.href = "/review/readers?after=recovery"' in ceremony.text
+    assert 'location.href = "/review/readers?after=recovery"' not in (await f.at('/login')).text
+    options=await recovery.options('/recover/options',{'code':code});verified=await recovery.post('/recover/verify',key.create(options,ORIGIN))
+    assert verified.status_code==200 and RECOVERY_READERS['name'] not in verified.text
+    path=RECOVERY_READERS['path'];response=await recovery.at(path);body=response.text
+    assert response.status_code==200 and 'no-store' in response.headers['cache-control'] and 'etag' not in response.headers
+    assert RECOVERY_READERS['note'] in body and '&#60;script&#62;Same &#38; reader&#60;/script&#62;' in body and '<script>Same' not in body
+    assert 'Create invitation' not in body and 'Unused invitations' not in body and 'Removed</p>' not in body and 'Continue to Review' in body
+    assert body.count('name="action" value="revoke"')==2 and not re.search(r'<form[^>]+action=',body)
+    csrf=re.search(r'name="csrf" value="([^"]+)"',body)[1]
+    for stale in (f,a,browser_factory()):
+        r=await stale.at(path);assert r.status_code==(404 if private_mode else 303) and 'Same' not in r.text
+    for bad in ('','wrong',old_csrf):
+        r=await recovery.at(path,method='POST',data={'action':'revoke','id':ai['id'],'csrf':bad});assert r.status_code==403
+    for authorization in ('','Bearer unknown'):
+        r=await recovery.at(path,headers={'Authorization':authorization});assert r.status_code==(404 if private_mode else 303) and 'Same' not in r.text
+    login=await a.options('/login/options');assert (await a.post('/login/verify',ak.get(login,ORIGIN))).status_code==200
+    md=await recovery.at(path,headers={'Accept':'text/markdown'})
+    assert md.headers['content-type']=='text/markdown; charset=utf-8' and RECOVERY_READERS['note'] in md.text
+    assert all(secret not in md.text for secret in ('name="csrf"','action=revoke','/invite/','/recover?'))
+    before=await db.fetchval('SELECT count(*) FROM reader_passkeys');await recovery.at(path,method='HEAD');assert await db.fetchval('SELECT count(*) FROM reader_passkeys')==before
+    r=await recovery.at(path,method='POST',data={'action':'revoke','id':ai['id'],'csrf':csrf});assert r.status_code==200 and r.text.count('name="action" value="revoke"')==1
+    denied=await a.at('/')
+    if private_mode:blank(denied)
+    attempt=await a.options('/login/options');assert (await a.post('/login/verify',ak.get(attempt,ORIGIN))).status_code==403
+    good=await b.options('/login/options');assert (await b.post('/login/verify',bk.get(good,ORIGIN))).status_code==200
+    for item in (ai,bi):
+        r=await recovery.at(path,method='POST',data={'action':'revoke','id':item['id'],'csrf':csrf});assert r.status_code==200
+    assert RECOVERY_READERS['empty'] in r.text and RECOVERY_READERS['note'] not in r.text and 'name="action" value="revoke"' not in r.text
+    assert RECOVERY_READERS['note'] not in (await recovery.at('/review/readers')).text
+    assert await db.fetchval('SELECT count(*) FROM public_artifacts')==0
+
+async def test_pv4_selector(db,browser_factory):
+    f,_,_,_,_=await fixture(db,browser_factory)
+    for path in ('/review/readers?after=other','/review/readers?after=%3Cscript%3E'):
+        r=await f.at(path);assert 'Create invitation' in r.text and RECOVERY_READERS['note'] not in r.text
+    assert RECOVERY_READERS['empty'] in (await f.at(RECOVERY_READERS['path'],headers={'Accept':'text/markdown'})).text
+    assert (await f.at('/review/readers/index.md?after=recovery',headers={'Accept':'text/markdown'})).status_code!=200

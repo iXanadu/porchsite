@@ -557,14 +557,13 @@ reader epoch. Concurrent completion of one recovery code has one winner.
 Hosting-account control already grants owner-equivalent authority; recovery
 does not protect against a hosting-account compromise.
 
-#### PV-4: readers shown after owner recovery (proposed)
+#### PV-4: readers shown after owner recovery
 
 Both editions show the newly recovered owner the current enrolled readers
 at the end of a successful recovery. Reader passkeys survive recovery, so a
 reader enrolled from a lost or stolen owner device can still sign in until
 the owner removes that reader. This is a factual recovery-time check, not a
 warning on normal sign-in, ordinary review pages or public content.
-Implementation waits for security review of this section.
 
 **Successful destination.** After `/recover/verify` has successfully committed
 the existing recovery transaction and issued the new owner cookie, the
