@@ -101,9 +101,10 @@ security invariants written before the spec.
   so, compare markers on read and fingerprint only at write (both reviewers
   agreed to this, given complete marker lists and the audit); if not, check
   a bounded slice per call. Correctness reference: branch at f1bafb2.
-- **AI-5** OPEN (decided 2026-10-16: capability facts only, no coaching;
+- **AI-5** IN-PROGRESS (decided 2026-10-16: capability facts only, no coaching;
   Porchsite stays passive): a short block in the tool descriptions saying
   what Porchsite builds, which look suits whom and how approval works.
+  Spec-only capability prefix is under review; runtime work waits both reviews.
 Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 

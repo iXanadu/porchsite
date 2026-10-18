@@ -1753,6 +1753,61 @@ body improvement and fewer parses do not establish a hosted 10 ms guarantee.
 The server's MCP instructions tell the assistant the rules above in plain
 words, so any assistant can use the site correctly without prior training.
 
+### AI-5: bounded capability facts in tool discovery
+
+Porchsite is passive. Capability facts describe the engine, built-in look
+purposes and the existing approval boundary; they do not recommend an
+activity, select a look, request consent or authorize work.
+
+**Exact text and placement.** In BOTH editions, the writer's `theme_list`
+tool description begins with the following exact single-line UTF-8 block,
+followed by exactly two LF characters (`\n\n`) and the complete existing
+`theme_list` description. The block has no leading or trailing whitespace:
+
+```text
+Porchsite builds a website from pages, dated entries, photos, links and cards. Built-in looks: personal-homepage for a personal site and journal; portfolio for a gallery of work; services-page for services and prices; local-business for business details and opening hours; link-page for a profile and links; event-page for gatherings and schedules; group-page for clubs and teams; listing-page for one property; product-page for one product; menu-page for food and drink menus; catalogue-page for a collection of things for sale without checkout; playbook for a handbook and how-tos. Item additions, edits and removals change the published site only after owner approval. Approval links open only for the signed-in owner.
+```
+
+The added prefix, INCLUDING its two LF separators, MUST be at most 1,024
+UTF-8 bytes. Measure the decoded description value, not JSON escaping or
+transport framing. The implementation uses the exact text above, not a
+summary generated from theme manifests or owner data. It appears once per
+writer tool catalog, not in another tool, MCP server instructions, tool
+results, the site-state fixed guide, or public pages. Both editions expose
+byte-identical decoded description values.
+
+**Scope and authority.** The look-purpose pairs are capability facts, not
+rankings, endorsements, suitability decisions or instructions to choose,
+create, edit, publish, install, share, contact, fetch, or recommend anything.
+The block grants no permission and cannot substitute for the owner's
+request or approval. Existing authority, proposal/approval separation,
+private access, tools, input schemas, annotations, response shapes and
+runtime behavior are unchanged. It contains no site-specific content,
+owner or visitor identifiers, URLs, interpolation or dynamic advice.
+Existing operational tool text after the prefix is unchanged by AI-5.
+
+`theme_list` remains writer-only. Restricted published-read principals keep
+exactly their existing five tools, descriptions and server instructions;
+they gain no theme or mutation capability. This is a writer tool-catalog
+description change. The introducing release MUST set `reconnect: true`
+so clients refresh cached descriptions; no credential rotation is needed.
+The site-state fixed-guide revision does not change because none of its
+four fixed blocks changes. Regenerate the generated paired tool contract
+and affected discovery snapshots; no blanket refresh of other wire records.
+
+**Acceptance.** A shared exact-prefix fixture and paired native/real-MCP
+`tools/list` tests prove the prefix, separators, UTF-8 byte budget and
+complete description equality; the old `theme_list` description remains
+an exact suffix. Compare before/after catalogs: only this writer tool's
+`description` leaf changes; names, order, input schemas, annotations and
+all other descriptions stay unchanged. Restricted catalogs and initialize
+instructions are byte-identical, and direct restricted `theme_list` calls
+still refuse. No tool call, write, approval or publication follows from
+reading this text. Retain ordinary MCP parity and normal-entry startup
+checks. The release metadata test requires reconnect, while the unchanged
+fixed-guide contract keeps its existing revision. Wording and permission
+boundaries receive review before runtime implementation.
+
 ### Updates
 
 **Update policy.** A site never updates itself. Nothing downloads, installs
