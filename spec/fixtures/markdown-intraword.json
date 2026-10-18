@@ -1,0 +1,73 @@
+[
+  {
+    "name": "identifiers",
+    "html": "<main><h1>Copy</h1><p>theme_create version_2 a__b a___b 1_2</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\ntheme_create version_2 a__b a___b 1_2\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\ntheme\\_create version\\_2 a\\_\\_b a\\_\\_\\_b 1\\_2\n"
+  },
+  {
+    "name": "delimiter_edges",
+    "html": "<main><h1>Copy</h1><p>_leading trailing_ __strong__ a_ _b ___ a__b_ _a_b_</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\n\\_leading trailing\\_ \\_\\_strong\\_\\_ a\\_ \\_b \\_\\_\\_ a__b\\_ \\_a_b\\_\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\n\\_leading trailing\\_ \\_\\_strong\\_\\_ a\\_ \\_b \\_\\_\\_ a\\_\\_b\\_ \\_a\\_b\\_\n"
+  },
+  {
+    "name": "unicode_conservative",
+    "html": "<main><h1>Copy</h1><p>café_name é_x é_x 中文_名 é_a_b</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\ncafé\\_name é\\_x é\\_x 中文\\_名 é\\_a_b\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\ncafé\\_name é\\_x é\\_x 中文\\_名 é\\_a\\_b\n"
+  },
+  {
+    "name": "formatting_boundaries",
+    "html": "<main><h1>Copy</h1><p>theme_<em>create</em> <strong>page_get</strong> _<span>literal</span>_</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\ntheme\\_*create* **page_get** \\_literal\\_\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\ntheme\\_*create* **page\\_get** \\_literal\\_\n"
+  },
+  {
+    "name": "title_label_alt",
+    "html": "<main><h1>theme_create</h1><p><a href=\"/read\">page_get</a> <img src=\"/image.png\" alt=\"file_name\"></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# theme_create\n\n<https://example.com/>\n\n[page_get](<https://example.com/read>) ![file_name](<https://example.com/image.png>)\n",
+    "legacy": "# theme\\_create\n\n<https://example.com/>\n\n[page\\_get](<https://example.com/read>) ![file\\_name](<https://example.com/image.png>)\n",
+    "rendered": "<h1>theme_create</h1>\n<p><a href=\"https://example.com/\">https://example.com/</a></p>\n<p><a href=\"https://example.com/read\">page_get</a> <img src=\"https://example.com/image.png\" alt=\"file_name\" /></p>\n"
+  },
+  {
+    "name": "table",
+    "html": "<main><h1>Copy</h1><table><tr><th>tool_name</th></tr><tr><td>theme_create</td></tr></table></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\n| tool_name |\n| --- |\n| theme_create |\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\n| tool\\_name |\n| --- |\n| theme\\_create |\n"
+  },
+  {
+    "name": "code_and_url",
+    "html": "<main><h1>Copy</h1><pre><code>theme_create _x_</code></pre><p><code>theme_create</code> <a href=\"/theme_create\">theme_create</a></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\n```\ntheme_create _x_\n```\n\n` theme_create ` [theme_create](<https://example.com/theme_create>)\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\n```\ntheme_create _x_\n```\n\n` theme_create ` [theme\\_create](<https://example.com/theme_create>)\n"
+  },
+  {
+    "name": "punctuation",
+    "html": "<main><h1>Copy</h1><p>a_b.c_d a_b! _x_ a_b__c</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\na_b.c_d a_b! \\_x\\_ a_b__c\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\na\\_b.c\\_d a\\_b! \\_x\\_ a\\_b\\_\\_c\n"
+  },
+  {
+    "name": "mixed_runs",
+    "html": "<main><h1>Copy</h1><p>a__b__c a___b___c __a__b__</p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\na__b__c a___b___c \\_\\_a__b\\_\\_\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\na\\_\\_b\\_\\_c a\\_\\_\\_b\\_\\_\\_c \\_\\_a\\_\\_b\\_\\_\n"
+  },
+  {
+    "name": "split_fragment",
+    "html": "<main><h1>Copy</h1><p>theme<span>_</span>create and theme_<span>create</span></p></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy\n\n<https://example.com/>\n\ntheme\\_create and theme\\_create\n",
+    "legacy": "# Copy\n\n<https://example.com/>\n\ntheme\\_create and theme\\_create\n"
+  }
+]

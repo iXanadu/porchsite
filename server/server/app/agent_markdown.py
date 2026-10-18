@@ -28,7 +28,11 @@ def block_text(value, protected_ranges=()):
 
 
 def md_text(value):
-    value = re.sub(r'[\\`*_\[\]|]', lambda m: '\\'+m[0], value)
+    def escape(m):
+        if m[0][0]=='_' and m.start()>0 and m.end()<len(value) and re.fullmatch(r'[A-Za-z0-9]',value[m.start()-1]) and re.fullmatch(r'[A-Za-z0-9]',value[m.end()]):
+            return m[0]
+        return ''.join('\\'+c for c in m[0])
+    value = re.sub(r'[\\`*\[\]|]|_+', escape, value)
     value = re.sub(r'~{2,}', lambda m: m[0].replace('~', '\\~'), value)
     return value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
