@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 import * as owner from './owner';
 /** Published-only credentials; never stored in assistant_keys. */
 import {ApiError} from './errors';
@@ -34,18 +35,26 @@ export async function revoke(db:D1Database,keyId:string,actor='owner',req?:Reque
  ]);
 }
 export async function lookup(db:D1Database,token:string):Promise<Props|null>{
+ return dailyAccess(async()=>{
  if(!/^prk_[A-Za-z0-9_-]{32}$/.test(token))return null;
  const row=await db.prepare('SELECT id,name,owner_epoch FROM agent_read_keys WHERE key_hash=? AND revoked_at IS NULL AND expires_at>? AND owner_epoch=(SELECT owner_epoch FROM auth_state WHERE id=1)').bind(await hash(token),new Date().toISOString()).first<{id:string;name:string;owner_epoch:number}>();
  return row?{scope:'published_read',readKeyId:row.id,ownerEpoch:row.owner_epoch,client:row.name,clientId:'read:'+row.id}:null;
+ });
 }
 export async function valid(db:D1Database,props:Record<string,unknown>){
+ return dailyAccess(async()=>{
  return !!await db.prepare('SELECT id FROM agent_read_keys WHERE id=? AND owner_epoch=? AND owner_epoch=(SELECT owner_epoch FROM auth_state WHERE id=1) AND revoked_at IS NULL AND expires_at>?').bind(props.readKeyId,props.ownerEpoch,new Date().toISOString()).first();
+ });
 }
 export async function authorize(db:D1Database,props:Record<string,unknown>,name?:string){
+ return dailyAccess(async()=>{
  if(restricted(props)&&(!await valid(db,props)||(name!==undefined&&!ALLOWED.has(name))))throw new ApiError(403,'unauthorized','This connection can only read published pages.');
+ });
 }
 export async function used(db:D1Database,props:Record<string,unknown>){
+ return dailyAccess(async()=>{
  await authorize(db,props);
  const row=await db.prepare('UPDATE agent_read_keys SET last_used_at=? WHERE id=? AND revoked_at IS NULL AND owner_epoch=? AND owner_epoch=(SELECT owner_epoch FROM auth_state WHERE id=1) AND expires_at>? RETURNING id').bind(new Date().toISOString(),props.readKeyId,props.ownerEpoch,new Date().toISOString()).first();
  if(!row)throw new ApiError(403,'unauthorized','This connection can only read published pages.');
+ });
 }

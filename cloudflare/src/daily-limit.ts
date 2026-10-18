@@ -7,7 +7,7 @@ export const COST_FACTS = "Cloudflare cost facts: ask which plan; never assume. 
 export const VISITOR_LIMIT = "This site has reached today's free limit on its hosting. The free allowance resets at midnight UTC.";
 export const OWNER_LIMIT = "This site has used today's free Cloudflare allowance, so it can't save changes until midnight UTC. Nothing has been charged for Workers or D1 usage on the free plan. Usage is under D1, then Metrics, in the Cloudflare dashboard.";
 type Limit = 'read'|'write';
-type State = {failure?:Limit; authorized?:boolean; optional?:boolean; db?:D1Database; pending?:Promise<void>[]; toolFailure?:boolean};
+type State = {failure?:Limit; authorized?:boolean; optional?:boolean; db?:D1Database; pending?:Promise<void>[]; toolFailure?:boolean; proofDepth?:number; proofFailed?:boolean};
 const requests = new AsyncLocalStorage<State>();
 class DailyLimit extends Error {constructor(){super(VISITOR_LIMIT);}}
 const message = (state:State) => state.authorized ? OWNER_LIMIT : VISITOR_LIMIT;
@@ -36,12 +36,12 @@ export function dailyDatabase<T extends D1Database|D1DatabaseSession>(db:T):T {
  const statements=new WeakMap<object,object>();
  async function execute(target:object,key:PropertyKey,args:unknown[]){
   const state=requests.getStore();
-  if(state?.failure)throw new DailyLimit();
+  if(state?.failure){if(state.proofDepth){state.proofFailed=true;state.authorized=false;}throw new DailyLimit();}
   try{return await Reflect.get(target,key,target).apply(target,args);}
   catch(error){
    const kind=bindingLimit(error);
    if(!kind)throw error;
-   if(state&&!state.optional)state.failure=kind;
+   if(state&&!state.optional){state.failure=kind;if(state.proofDepth){state.proofFailed=true;state.authorized=false;}}
    throw new DailyLimit();
   }
  }
@@ -65,7 +65,13 @@ export function dailyDatabase<T extends D1Database|D1DatabaseSession>(db:T):T {
 }
 /** Optional work owns a separate context, even while its caller is still active. */
 export function optionalD1<T>(fn:()=>T):T {return requests.run({optional:true,db:requests.getStore()?.db},fn);}
-export function dailyOwnerAuthorized(){const state=requests.getStore();if(state)state.authorized=true;}
+/** Explicit privacy/auth/revocation proofs fail closed even after earlier auth. */
+export async function dailyAccess<T>(fn:()=>Promise<T>):Promise<T>{
+ const state=requests.getStore();if(!state)return fn();
+ state.proofDepth=(state.proofDepth??0)+1;
+ try{return await fn();}finally{state.proofDepth!--;}
+}
+export function dailyOwnerAuthorized(){const state=requests.getStore();if(state&&!state.proofFailed)state.authorized=true;}
 const headers={
  'Cache-Control':'private, no-store, no-transform','Referrer-Policy':'no-referrer',
  'X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
@@ -102,7 +108,7 @@ export function dailyTool(fn:()=>Promise<any>):Promise<any>{
  const parent=requests.getStore();
  const task=requests.run({db:parent?.db},async()=>{
   const state=requests.getStore()!;
-  const failed=()=>{if(parent)parent.toolFailure=true;return {content:[{type:'text' as const,text:JSON.stringify(refusal(state))}],isError:true};};
+  const failed=()=>{if(parent){parent.toolFailure=true;if(state.proofFailed){parent.failure=state.failure;parent.authorized=false;}}return {content:[{type:'text' as const,text:JSON.stringify(refusal(state))}],isError:true};};
   try{const value=await fn();return state.failure?failed():value;}
   catch(error){if(state.failure)return failed();throw error;}
  });

@@ -151,3 +151,26 @@ it('a final-facts daily failure cannot return rendered content, cached validator
   const text=await failed.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain('Content must stay hidden on failure');
  }
 });
+it.each([false,true])('late privacy proof after writer authorization is visitor 503, SDK=%s',async fallback=>{
+ const {token}=await keys.create(db,'Fixture');let triggered=false;
+ const request=new Request(origin+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:'late-privacy',method:'tools/call',params:{name:'site_state',arguments:{},...(fallback?{_meta:{fixture:true}}:{})}})});
+ const response=await worker.fetch(request,{...e,DB:faultDB(sql=>{if(!sql.startsWith('SELECT f.value FROM live'))return false;triggered=true;return true;})},context);
+ expect(triggered).toBe(true);expect(response.status).toBe(503);
+ expect(await response.json()).toEqual({error:'free_daily_limit',message:VISITOR_LIMIT});
+ expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
+});
+it.each([false,true])('late preview revocation proof is visitor 503, SDK=%s',async fallback=>{
+ const {token}=await keys.create(db,'Fixture');let lookups=0,triggered=false;
+ const request=new Request(origin+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:'late-revocation',method:'tools/call',params:{name:'preview_read',arguments:{approval_id:'abcdefgh'},...(fallback?{_meta:{fixture:true}}:{})}})});
+ const response=await worker.fetch(request,{...e,DB:faultDB(sql=>{if(!sql.startsWith('SELECT id, name FROM assistant_keys'))return false;lookups++;if(lookups===2){triggered=true;return true;}return false;})},context);
+ expect(triggered).toBe(true);expect(response.status).toBe(503);
+ expect(await response.json()).toEqual({error:'free_daily_limit',message:VISITOR_LIMIT});
+});
+it('a late reader revocation proof cannot retain an earlier writer authorization marker',async()=>{
+ const native=fake(provider('write'));
+ const response=await dailyRequest(new Request(origin+'/mcp'),native.database,async wrapped=>{
+  await dailyTool(async()=>{dailyOwnerAuthorized();await readKeys.valid(wrapped,{readKeyId:'fixture',ownerEpoch:0});});
+  return new Response('would be authenticated result');
+ });
+ expect(response.status).toBe(503);expect(await response.json()).toEqual({error:'free_daily_limit',message:VISITOR_LIMIT});
+});

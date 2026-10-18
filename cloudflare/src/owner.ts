@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /**
  * The owner: one person, signed in with a passkey. A fresh site is claimed
  * once, with a setup code (the one given at deploy time, or a one-time code
@@ -366,9 +367,11 @@ export async function ownerSessionGuard(req:Request):Promise<{sql:string;args:st
 }
 
 export async function signedIn(db: D1Database, req: Request): Promise<boolean> {
+ return dailyAccess(async()=>{
   const token = cookie(req, SESSION_COOKIE);
   if (!token) return false;
   return !!await db.prepare(OWNER_SESSION_QUERY).bind(await hash(token), iso(now())).first();
+ });
 }
 
 const READER_SESSION_QUERY = `SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
@@ -378,9 +381,11 @@ export async function readerSessionGuard(req:Request):Promise<{sql:string;args:s
   return {sql:'EXISTS ('+READER_SESSION_QUERY+')',args:[await hash(cookie(req,READER_COOKIE)??''),iso(now())]};
 }
 export async function readerSignedIn(db: D1Database, req: Request): Promise<boolean> {
+ return dailyAccess(async()=>{
   if(!cookie(req,READER_COOKIE))return false;
   const guard=await readerSessionGuard(req);
   return !!await db.prepare('SELECT 1 WHERE '+guard.sql).bind(...guard.args).first();
+ });
 }
 
 export async function signOut(db: D1Database, req: Request): Promise<string> {

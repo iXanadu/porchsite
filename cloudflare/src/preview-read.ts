@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /** Same-principal inspection only. No owner wrapper, stored graph or HTTP grant. */
 import {ApiError} from './errors';
 import {esc} from './html';
@@ -46,7 +47,7 @@ export const SNAPSHOT_SQL=`WITH a AS (SELECT id,items,status FROM approvals WHER
 ), parts4(category,ident,value) AS MATERIALIZED (
  SELECT 'share',item_id,json_array(version,name) FROM share_cards
 ), combined AS MATERIALIZED (SELECT * FROM parts0 UNION ALL SELECT * FROM parts1 UNION ALL SELECT * FROM parts2), facts AS (SELECT * FROM combined UNION ALL SELECT * FROM parts3 UNION ALL SELECT * FROM parts4) SELECT category,ident,value FROM facts ORDER BY category,ident`;
-export async function capture(db:D1Database,id:string){return (await db.prepare(SNAPSHOT_SQL).bind(id).all<Row>()).results.map(r=>[r.category,r.ident,JSON.parse(r.value)] as [string,string,any[]]);}
+export async function capture(db:D1Database,id:string){return dailyAccess(async()=>(await db.prepare(SNAPSHOT_SQL).bind(id).all<Row>()).results.map(r=>[r.category,r.ident,JSON.parse(r.value)] as [string,string,any[]]));}
 type Snapshot=Awaited<ReturnType<typeof capture>>;
 function logical(data:Record<string,any>,version:number,live:boolean,rows:Snapshot){
  const at=(kind:string)=>rows.find(r=>r[0]===kind&&r[2][0]===version)?.[2];
