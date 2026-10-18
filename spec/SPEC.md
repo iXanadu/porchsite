@@ -1765,9 +1765,10 @@ followed by exactly two LF characters (`\n\n`) and the complete existing
 `theme_list` description. The block has no leading or trailing whitespace:
 
 ```text
-Porchsite builds a website from pages, dated entries, photos, links and cards. Built-in looks: personal-homepage for a personal site and journal; portfolio for a gallery of work; services-page for services and prices; local-business for business details and opening hours; link-page for a profile and links; event-page for gatherings and schedules; group-page for clubs and teams; listing-page for one property; product-page for one product; menu-page for food and drink menus; catalogue-page for a collection of things for sale without checkout; playbook for a handbook and how-tos. Item additions, edits and removals change the published site only after owner approval. Approval links open only for the signed-in owner.
+Porchsite builds a website from pages, dated entries, photos, links and cards. Built-in looks: personal-homepage for a personal site and journal; portfolio for a gallery of work; services-page for services and prices; local-business for business details and opening hours; link-page for a profile and links; event-page for gatherings and schedules; group-page for clubs and teams; listing-page for one property; product-page for one product; menu-page for food and drink menus; catalogue-page for a collection of things for sale without checkout; playbook for a handbook and how-tos. Changes to the site and its items go live only after owner approval. Approval links open only for the signed-in owner.
 ```
 
+The exact prefix is 704 UTF-8 bytes including its two LF separators.
 The added prefix, INCLUDING its two LF separators, MUST be at most 1,024
 UTF-8 bytes. Measure the decoded description value, not JSON escaping or
 transport framing. The implementation uses the exact text above, not a
