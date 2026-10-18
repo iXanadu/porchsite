@@ -1,3 +1,6 @@
+import * as ownerReview from './owner-review';
+import {markdownDocument} from './agent-markdown';
+const rv=ownerReview.value, rs=ownerReview.source, rh=ownerReview.heading, rl=ownerReview.link;
 import * as privateAgent from './private-agent';
 import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
@@ -73,7 +76,7 @@ button.warn{background:#efe7dc;color:#6b3f12;border:1px solid #6b3f12}button.sec
 header>span{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:100%}header>span a{margin-left:0}
 ${changes.CHANGES_CSS}`;
 
-function ownerPage(title: string, body: Raw, opts: { signedIn?: boolean; script?: string; status?: number; headers?: HeadersInit } = {}): Response {
+function ownerPage(title: string, body: Raw, opts: { signedIn?: boolean; script?: string; status?: number; headers?: HeadersInit; review?:()=>ownerReview.Block[] } = {}): Response {
   const n = nonce();
   const r = respond(
     html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -88,7 +91,7 @@ ${body}</div>${opts.script ? raw(`<script nonce="${n}">${opts.script}</script>`)
   );
   // Analytics never counts a browser the owner is signed in on.
   if (opts.signedIn) r.headers.append("Set-Cookie", analytics.NOTRACK_SET);
-  return r;
+  return opts.review ? ownerReview.attach(r,()=>({title,blocks:opts.review!()})) : r;
 }
 
 /** A sign-in's answer also marks the browser as not counted by analytics. */
@@ -306,12 +309,18 @@ async function importPage(req: Request, error = "", problems: string[] = []): Pr
     "Import",
     html`<h1>Import from an assistant</h1><p>For an assistant that can't reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here.</p>${error ? html`<p class="error">${error}</p>` : ""}${problems.length ? html`<ul class="meta">${problems.map((p) => html`<li>${p}</li>`)}</ul>` : ""}
 <form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><label>The file (.json)</label><input type="file" name="file" accept=".json,application/json" required><button>Import and review</button></form>`,
-    { signedIn: true, status: error ? 422 : 200 },
+    { review:() => [
+      rv(
+        "Import from an assistant",
+        "For an assistant that cannot reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here.",
+      ),
+    ], signedIn: true, status: error ? 422 : 200 },
   );
 }
 
-async function trainingNotice(db: D1Database): Promise<Raw> {
+async function trainingNotice(db: D1Database, read?:ownerReview.Block[]): Promise<Raw> {
   const state = await trainingState(db);
+  if(state.needs_publication)read?.push(rv("Warning",state.note));
   return state.needs_publication ? html`<p class="warn">${state.note}</p>` : raw("");
 }
 
@@ -325,15 +334,51 @@ async function reviewIndex(env: Env, req: Request): Promise<Response> {
     html`<a class="card" href="/review/${a.id}"><div class="meta">${a.requested_by} · ${a.created_at.slice(0, 16).replace("T", " ")} UTC</div>${a.items.map(
       (i) => html`<h2>${i.label}</h2><div class="meta">${i.kind} · ${i.change} · ${i.status.replace("_", " ")}</div>`,
     )}<span class="go">${a.items.some((i) => i.status === "pending") ? "Review and decide →" : "See details →"}</span></a>`;
+  const read:ownerReview.Block[]=[];
+  const currentUpdate=await update.check(env.OAUTH_KV);
+  const training=await trainingNotice(env.DB,read),unsent=await approvals.unsent(env.DB);
+  if(currentUpdate.available)read.push(rv("Update",`${currentUpdate.security?'Security update: ':''}A newer Porchsite is available (${currentUpdate.latest}). Ask your assistant to update it.`));
   return ownerPage(
     "Review",
-    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>Waiting for you</h1>${await trainingNotice(env.DB)}${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(await approvals.unsent(env.DB))}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
+    html`${raw(update.noticeHtml(currentUpdate, esc))}<h1>Waiting for you</h1>${training}${alertControls(await owner.csrf(req),device?.id??"",device?.fingerprint??"")}${unsentLine(unsent)}${open.length ? open.map(row) : html`<p class="meta">Nothing is waiting.</p>`}
 <h1 style="margin-top:36px">Decided</h1>${done.length ? done.map(row) : html`<p class="meta">Nothing yet.</p>`}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="${await owner.csrf(req)}"></div>`,
-    { signedIn: true, script: sharecards.CARD_JS+"\n"+ALERT_JS },
+    { review:() => [
+      ...read,
+      rv("Alerts", `Alerts are ${device ? "on" : "off"} for this device`),
+      ...(unsent
+        ? [
+            rv(
+              "Not yet sent",
+              `${unsent} changes not yet sent for review. Nothing goes live until you approve it.`,
+            ),
+          ]
+        : []),
+      rh("Waiting for you"),
+      ...(!open.length ? [rv("Status", "Nothing is waiting.")] : []),
+      ...open.flatMap((a) => approvalRead(a)),
+      rh("Decided"),
+      ...(!done.length ? [rv("Status", "Nothing yet.")] : []),
+      ...done.flatMap((a) => approvalRead(a)),
+      rl("Import it", "/review/import"),
+    ], signedIn: true, script: sharecards.CARD_JS+"\n"+ALERT_JS },
   );
+}
+
+function approvalRead(a: approvals.Approval): ownerReview.Block[] {
+  return [
+    rv("Requested by", a.requested_by),
+    rv("When", a.created_at.slice(0, 16).replace("T", " ") + " UTC"),
+    ...a.items.flatMap((i) => [
+      rh(i.label),
+      rv("Kind", i.kind),
+      rv("Change", i.change),
+      rv("Status", i.status.replace("_", " ")),
+    ]),
+    rl("See details", `/review/${a.id}`),
+  ];
 }
 
 const KIND_WORD: Record<string, string> = { site: "your site's text and look", entry: "page", card: "card", note: "note" };
@@ -358,6 +403,8 @@ const busyWord = (n: number, what: string) => `${what} ${n} change${n === 1 ? ""
 async function reviewShow(env: Env, req: Request, id: string, error = ""): Promise<Response> {
   const a = await approvals.get(env.DB, id);
   const blocks: Raw[] = [];
+  const read:ownerReview.Block[]=[];
+  const itemReads:(()=>ownerReview.Block[])[]=[];
   const embedChanges: {id:string;kind:string;data:Record<string,any>;deleted:boolean}[] = [];
   // The whole request in three queries, however many items it has.
   const ids = a.items.map((it) => it.id);
@@ -383,9 +430,10 @@ async function reviewShow(env: Env, req: Request, id: string, error = ""): Promi
       };
       const from = pageOf(JSON.parse(live.data).stream, live.slug);
       const to = pageOf(shown.stream, item.slug);
-      if (from !== to) moves.push(changes.addressRow(from, to));
+      if (from !== to) {moves.push(changes.addressRow(from, to));read.push(rv("Old address",from),rv("New address",to));}
     }
     const what = it.kind === "site" ? (it.change === "new" ? "Your site's text and look" : "Changes to your site's text and look") : `${it.change === "new" ? "New" : it.change === "removed" ? "Removing the" : "Changed"} ${KIND_WORD[it.kind] ?? it.kind}: ${it.label}`;
+    itemReads.push(()=>[rh(what),rv("Status",it.status.replace("_"," ")),...changes.reviewFields(it.kind,shown,live?JSON.parse(live.data):undefined,it.change==='removed'),...(it.note?[rv("Your note",it.note)]:[])]);
     const status = it.status === "pending" ? "" : html`<span class="tag">${it.status.replace("_", " ")}</span>`;
     blocks.push(html`<div class="card">${status}<h2 style="margin-top:4px">${what}</h2>
 ${it.change === "removed" ? changes.takenOff(it.label) : live ? changes.whatChanged(it.kind, shown, JSON.parse(live.data), moves) : changes.whatItSays(it.kind, shown, it.kind !== "site")}
@@ -405,17 +453,30 @@ ${it.status === "pending"
   const parts = [n("new") && `add ${n("new")}`, n("changed") && `change ${n("changed")}`, n("removed") && `remove ${n("removed")}`].filter(Boolean);
   const sentence = parts.length ? `${who} wants to ${parts.join(", ").replace(/, ([^,]*)$/, " and $1")} thing${count === 1 ? "" : "s"} on your site.` : "";
   const raised = await visibility.raises(env.DB, waiting);
+  const currentUpdate=await update.check(env.OAUTH_KV);
+  const training=await trainingNotice(env.DB,read);
+  const embedWarning=await embedReviewFor(env.DB,embedChanges,new URL(req.url).origin,read);
+  const privateWarning=await privateReviewWarning(env.DB,embedChanges,read);
+  if(currentUpdate.available)read.push(rv("Update",`${currentUpdate.security?'Security update: ':''}A newer Porchsite is available (${currentUpdate.latest}). Ask your assistant to update it.`));
   return ownerPage(
     "Review changes",
-    html`${raw(update.noticeHtml(await update.check(env.OAUTH_KV), esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
-${await trainingNotice(env.DB)}${raw(await embedReviewFor(env.DB, embedChanges, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,embedChanges))}
+    html`${raw(update.noticeHtml(currentUpdate, esc))}<h1>${pending ? html`${who} has ${count} change${count === 1 ? "" : "s"} for your site` : "Decided"}</h1>${a.note ? html`<p>${a.note}</p>` : ""}${error ? html`<p class="error">${error}</p>` : ""}
+${training}${raw(embedWarning)}${raw(privateWarning)}
 ${raised.map((r) => html`<p class="warn">${raiseLine(r)}</p>`)}
 ${pending ? html`<p>${sentence} Nothing changes until you approve. Look first:</p><p><a class="button" href="/review/${a.id}/preview">See the site as it will look</a></p>` : ""}
 <form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}">
 ${pending ? html`<button name="all" value="approve" data-busy="${busyWord(count, "Publishing")}">Approve and publish</button>
 <details id="changes" style="margin-top:12px"><summary class="meta" style="cursor:pointer">Ask for changes instead</summary><label>What should your assistant change?</label><textarea name="note_all" rows="3"></textarea><button class="ghost" name="all" value="changes" data-busy="Sending your note to your assistant…">Send back for changes</button></details>
 <h2 style="margin-top:28px">What's in it</h2>` : ""}${blocks}${pending ? html`<button class="ghost" name="all" value="each" data-busy="Saving your choices…">Save my separate choices</button>` : ""}</form>`,
-    { signedIn: true, script: BUSY_JS },
+    { review:() => [
+      rv("Status", pending ? `${who} has ${count} changes for your site` : "Decided"),
+      ...(a.note ? [rv("Note", a.note)] : []),
+      ...raised.map((r) => rv("Warning", raiseLine(r))),
+      ...(sentence ? [rv("Request", sentence + " Nothing changes until you approve.")] : []),
+      ...read,
+      ...itemReads.flatMap((read) => read()),
+      ...(pending ? [rl("See the site as it will look", `/review/${a.id}/preview`)] : []),
+    ], signedIn: true, script: BUSY_JS },
   );
 }
 
@@ -603,7 +664,41 @@ ${keyList.map(
 ${readers.map(k=>html`<div class="card"><h2>${k.name}</h2><div class="meta">Read only — published pages · made ${k.created_at.slice(0,10)} · works until ${k.expires_at.slice(0,10)} · ${k.last_used_at?`last used ${k.last_used_at.slice(0,10)}`:'not used yet'}</div><form method="post"><input type="hidden" name="csrf" value="${token}"><input type="hidden" name="revoke_read_key" value="${k.id}"><button class="ghost">Revoke</button></form></div>`)}
 <h2>Read-key history</h2>${audit.map(a=>html`<p>${a.created_at} · ${a.actor} · ${a.kind} · ${a.name} · ${a.key_id}</p>`)}
 <form method="post"><input type="hidden" name="csrf" value="${token}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><label><input type="checkbox" name="read_only" value="1">Read only — published pages</label><button name="make_key" value="1">Make a key</button></form>`,
-    { signedIn: true },
+    { review:() => [
+      rv("Connected assistants", "Each can read your site and draft changes. None can publish."),
+      ...items.flatMap((g) => [
+        rh(String((g.metadata as { client?: string })?.client || "Connected assistant")),
+        rv("Since", new Date(g.createdAt * 1000).toISOString().slice(0, 10)),
+      ]),
+      rv("Connection address", mcpUrl),
+      rh("Assistant keys"),
+      rv(
+        "Scope",
+        `Drafting keys read and draft; read-only keys read published pages only. Neither can publish. Keys expire after ${keys.KEY_DAYS} days or when revoked.`,
+      ),
+      ...keyList.flatMap((k) => [
+        rh(k.name),
+        rv("Scope", "Read and draft"),
+        rv("Made", k.created_at.slice(0, 10)),
+        rv("Works until", k.expires_at.slice(0, 10)),
+        rv("Last used", k.last_used_at ? k.last_used_at.slice(0, 10) : "Not used yet"),
+      ]),
+      rh("Published-only read keys"),
+      ...readers.flatMap((k) => [
+        rh(k.name),
+        rv("Scope", "Read only — published pages"),
+        rv("Made", k.created_at.slice(0, 10)),
+        rv("Works until", k.expires_at.slice(0, 10)),
+        rv("Last used", k.last_used_at ? k.last_used_at.slice(0, 10) : "Not used yet"),
+      ]),
+      rh("Read-key history"),
+      ...audit.flatMap((a) => [
+        rv("When", a.created_at),
+        rv("Actor", a.actor),
+        rv("Event", a.kind),
+        rv("Name", a.name),
+      ]),
+    ], signedIn: true },
   );
 }
 
@@ -630,6 +725,7 @@ async function reviewPreview(env: Env, req: Request, id: string, path = "/"): Pr
   const origin = new URL(req.url).origin;
   const page = await previewBody(t, v, path, origin);
   if (page === null) return await notFoundPage(req, env);
+  const readPreview=()=>markdownDocument(page,new URL(path,origin).href).markdown;
   const base = `/review/${a.id}/preview`;
   const body = (await inlineCss(t, v, page)).replace(/(href=")\/(?!\/|static\/|media\/|review\/)([^"]*")/g, `$1${base}/$2`);
   const pending = a.items.some((i) => i.status === "pending");
@@ -645,10 +741,10 @@ async function reviewPreview(env: Env, req: Request, id: string, path = "/"): Pr
       : ""
   }</span></div>`;
   const html = body.replace(/<body([^>]*)>/, `<body$1>${bar}`);
-  return respond(raw(html), {
+  return ownerReview.attach(respond(raw(html), {
     headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
     csp: THEME_CSP.replace("form-action 'none'", "form-action 'self'"),
-  });
+  }),()=>({title:"Preview",blocks:[rv("Warning","Preview: nothing is live yet."),...raised.map(r=>rv("Warning",raiseLine(r))),rs("Proposed page",readPreview()),rl("Back",`/review/${a.id}`)]}));
 }
 
 /**
@@ -674,7 +770,12 @@ ${
     ? html`<div class="card"><h2>Your link</h2><p>Open it on the device, or at the address, where you want the new passkey. Swap the start of the link for the new address if the site is moving (for example <b>https://example.com</b>). It works once, until ${made.expires_at.slice(11, 16)} UTC.</p><p class="value"><b>${here}/passkey/${made.token}</b></p></div>`
     : html`<form method="post"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><button>Make a link to add a passkey</button></form>`
 }`,
-    { signedIn: true },
+    { review:() => [
+      rv(
+        "Passkeys",
+        `You have ${n} passkey${n === 1 ? "" : "s"} for this site. A passkey works only on the device and the address where it was made, so add one for each phone or computer you approve from, and again if the site moves to a new address.`,
+      ),
+    ], signedIn: true },
   );
 }
 
@@ -718,6 +819,58 @@ const STATS_CSS = `.ranges{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px}
 .drop-step{display:flex;flex-direction:column;align-items:center;gap:4px;font:12px ui-monospace,Menlo,monospace;color:var(--muted)}.drop-bar{width:100%;height:56px;background:var(--bg);border-radius:4px;display:flex;align-items:flex-end;overflow:hidden}
 .drop-bar span{display:block;width:100%;background:var(--accent)}.drop-num{color:var(--ink)}.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--rule);overflow-wrap:anywhere}
 .row:last-child{border-bottom:0}.sub-row{font-size:14px;color:var(--muted);padding-left:12px}`;
+
+function statsRead(s: any): ownerReview.Block[] {
+  const t = s.totals;
+  return [
+    rv("Range", `${s.range.start} to ${s.range.end}`),
+    rv(
+      "Scope",
+      "Visitor statistics exclude you, bots and test runs. Time on page and scroll may lag or be lower if the final message is lost.",
+    ),
+    rv("Visitors", t.visits),
+    rv("Pages read", t.views),
+    rv("Typical stay", duration(t.median_visit_engaged_ms)),
+    rv("Left right away", `${whole(t.bounce_rate)}%`),
+    ...(t.visits ? [rv("Read more than one page", `${whole(t.multi_page_rate)}%`)] : []),
+    rh("By day"),
+    ...(s.daily.length > 1 ? s.daily.map((d: any) => rv(d.day.slice(5), d.visits)) : []),
+    rh("Requests by agent kind"),
+    rv("Coverage", s.agent_traffic.coverage),
+    rv("Classification", s.agent_traffic.classification),
+    rv("Scope", s.agent_traffic.scope),
+    ...s.agent_traffic.totals.map((r: any) => rv(r.label, `${r.requests} requests`)),
+    ...s.agent_traffic.daily.flatMap((r: any) => [
+      rv("Day", r.day),
+      rv("Kind", s.agent_traffic.totals.find((k: any) => k.kind === r.kind)?.label ?? ""),
+      rv("Requests", r.requests),
+    ]),
+    rh("What they read"),
+    ...s.pages.flatMap((p: any) => [
+      rh(p.title || PAGE_WORD[p.kind] || p.path),
+      rv("Kind", p.kind),
+      rv("Path", p.path),
+      rv("Readers", p.readers),
+      rv("Typical", duration(p.median_engaged_ms)),
+      rv("Average", duration(p.mean_engaged_ms)),
+      ...(p.bounce_rate === null ? [] : [rv("Left right away", `${whole(p.bounce_rate)}%`)]),
+      ...["25", "50", "75", "100"].map((k) => rv(`Reached ${k}%`, `${whole(p.reached[k])}%`)),
+      rv("Exits", p.exits),
+    ]),
+    ...(!s.pages.length ? [rv("Status", "No visitors yet in this range.")] : []),
+    rh("Where they came from"),
+    ...s.sources.map((r: any) =>
+      rv(SOURCE_WORD[r.source] ?? r.source, `${r.visits} · ${duration(r.engaged_ms)}`),
+    ),
+    ...(s.sources.length ? s.referring_domains.map((d: any) => rv(d.domain, d.visits)) : []),
+    rh("Tagged links"),
+    ...s.tagged.map((r: any) =>
+      rv(r.src + (r.post ? " · " + r.post : ""), `${r.visits} · ${duration(r.visit_engaged_ms)}`),
+    ),
+    rh("Earlier, counts only"),
+    ...s.earlier.map((r: any) => rv(r.month, `${r.visits} visits · ${r.views} views`)),
+  ];
+}
 
 async function statsPage(env: Env, req: Request): Promise<Response> {
   const asked = new URL(req.url).searchParams.get("days") ?? "7";
@@ -768,7 +921,7 @@ ${s.earlier.length
   : ""}
 <p class="meta" style="margin-top:32px">This browser isn't counted because you're signed in. To leave another device out without signing in, open any page of the site with <code>?sk_notrack=1</code> on the end.</p>
 <style>${raw(STATS_CSS)}</style>`,
-    { signedIn: true },
+    { review:() => statsRead(s), signedIn: true },
   );
 }
 
@@ -814,7 +967,23 @@ ${list.length
       (e) => html`<a class="card" href="/review/write/${e.id}"><span class="tag">${e.state}</span><h2 style="margin-top:8px">${String(e.data.title)}</h2><div class="meta">${String(e.data.date)} · ${streamTitle(String(e.data.stream ?? ""))}${((e.data.tags ?? []) as string[]).map((t) => ` #${t}`).join("")}</div></a>`,
     )
   : html`<p class="meta">Nothing yet.</p>`}`,
-    { signedIn: true },
+    { review:() => [
+      rv(
+        "Writing",
+        "Every entry on your site, newest first. Your assistant’s drafts show up here too: finish one and publish it yourself.",
+      ),
+      ...(published ? [rv("Status", "Published. It is live on the site.")] : []),
+      rl("Write something new", "/review/write/new"),
+      ...list.flatMap((e) => [
+        rh(String(e.data.title)),
+        rv("Status", e.state),
+        rv("Date", String(e.data.date)),
+        rv("Section", streamTitle(String(e.data.stream ?? ""))),
+        rv("Tags", ((e.data.tags ?? []) as string[]).join(" ")),
+        rl("Read entry", `/review/write/${e.id}`),
+      ]),
+      ...(!list.length ? [rv("Status", "Nothing yet.")] : []),
+    ], signedIn: true },
   );
 }
 
@@ -842,7 +1011,19 @@ ${opts.error ? html`<p class="error">${opts.error}</p>` : ""}${opts.saved ? html
 <button class="second" name="action" value="preview">Save and preview</button>
 <button class="second" name="action" value="save">Save${!item || item.state === "draft" ? " as a draft" : ""}</button>
 <p class="meta">Publishing makes this entry live at once. Nothing else that's waiting goes with it.</p></form>`,
-    { signedIn: true, status: opts.status },
+    { review:() => [
+      ...(item ? [rv("Status", item.state)] : []),
+      rv("Where it goes", streams.find((x) => x.id === chosen)?.title ?? ""),
+      rv("Title", v.title),
+      rv("One or two sentences, shown in lists", v.summary),
+      rv("Date", v.date),
+      rv("Tags", v.tags),
+      rv("Picture", v.cover),
+      rv("What the picture shows", v.cover_alt),
+      rs("Text", v.body),
+      ...(opts.error ? [rv("Error", opts.error)] : []),
+      ...(opts.saved ? [rv("Status", "Saved. Not live until you publish.")] : []),
+    ], signedIn: true, status: opts.status },
   );
 }
 
@@ -889,14 +1070,15 @@ async function writePreview(env: Env, req: Request, id: string): Promise<Respons
   let body: string;
   if (t) body = e ? theme.render(t, "entry", theme.entryView(v, e, "preview", origin)) : theme.render(t, "home", theme.homeView(v, "preview", origin));
   else body = await (e ? site.entryPage(v, e.page)! : site.home(v)).text();
+  const contentOnly=body;
   body = await inlineCss(t, v, body);
   const btn = "font:600 15px/1 -apple-system,sans-serif;border-radius:6px;padding:12px 16px;border:0;cursor:pointer";
   const bar = `<div style="position:sticky;top:0;z-index:99;background:#1c1f1d;color:#fff;font:15px/1.4 -apple-system,sans-serif;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
 <span>Preview: not live until you publish.</span><a style="${btn};background:#fff;color:#1c1f1d;text-decoration:none" href="/review/write/${esc(id)}">Back to writing</a></div>`;
-  return respond(raw(body.replace(/<body([^>]*)>/, `<body$1>${bar}`)), {
+  return ownerReview.attach(respond(raw(body.replace(/<body([^>]*)>/, `<body$1>${bar}`)), {
     headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
     csp: THEME_CSP,
-  });
+  }),()=>({title:"Preview",blocks:[rv("Warning","Preview: not live until you publish."),rs("Proposed page",markdownDocument(contentOnly,new URL(e?.page??"/",origin).href).markdown),rl("Back to writing",`/review/write/${id}`)]}));
 }
 
 // --- owner: the site's history, and putting it back -------------------------------------
@@ -922,16 +1104,38 @@ ${list.length
       )}${i === 0 ? html`<p class="meta">This is the site now.</p>` : html`<a class="go" href="/review/history/${String(p.id)}">Put the site back to this →</a>`}</div>`,
     )
   : html`<p class="meta">Nothing has been published yet.</p>`}`,
-    { signedIn: true },
+    { review:() => [
+      rv(
+        "History",
+        "Every time the site changed, newest first. Putting the site back is a new change and can be undone the same way.",
+      ),
+      ...list.flatMap((p, i) => [
+        rh(when(p.created_at)),
+        rv("By", byWhom(p)),
+        ...(p.note ? [rv("Note", p.note)] : []),
+        ...p.items.flatMap((it) => [
+          rv("Item", it.label),
+          rv("Kind", KIND_NAME[it.kind] ?? it.kind),
+          rv("Status", it.removed ? "Taken off" : "Published"),
+        ]),
+        ...(i === 0
+          ? [rv("Status", "This is the site now.")]
+          : [rl("Restore confirmation", `/review/history/${p.id}`)]),
+      ]),
+      ...(!list.length ? [rv("Status", "Nothing has been published yet.")] : []),
+    ], signedIn: true },
   );
 }
 
 async function revertPage(env: Env, req: Request, id: number, error = ""): Promise<Response> {
   const { publish, changes: plan } = await history.plan(env.DB, id);
+  const read:ownerReview.Block[]=[];
+  const embedWarning=await embedReviewFor(env.DB,plan,new URL(req.url).origin,read);
+  const privateWarning=await privateReviewWarning(env.DB,plan,read);
   return ownerPage(
     "Put the site back",
     html`<h1>Put the site back?</h1><p>Back to how it was after the change on ${when(publish.created_at)}.</p>${error ? html`<p class="error">${error}</p>` : ""}
-${raw(await embedReviewFor(env.DB, plan, new URL(req.url).origin))}${raw(await privateReviewWarning(env.DB,plan))}
+${raw(embedWarning)}${raw(privateWarning)}
 ${plan.length
   ? html`<div class="card">${plan.map(
       (c) =>
@@ -943,7 +1147,18 @@ ${plan.length
 <p class="meta">This goes live at once. Anything your assistant was drafting on these items is set aside; it stays in each item's history.</p>`
   : html`<p>The site already matches this.</p>`}
 <p><a href="/review/history">Back to the history</a></p>`,
-    { signedIn: true, script: BUSY_JS },
+    { review:() => [
+      rv("Restore confirmation", `Back to how it was after the change on ${when(publish.created_at)}.`),
+      ...read,
+      ...plan.flatMap((c) => [
+        rh(c.label),
+        rv("Kind", KIND_NAME[c.kind] ?? c.kind),
+        rv("Status", c.action === "take off" ? "Taken off" : "Put back"),
+        ...changes.reviewFields(c.kind, c.data, c.live ?? undefined, c.deleted),
+      ]),
+      ...(!plan.length ? [rv("Status", "The site already matches this.")] : []),
+      rl("Back to the history", "/review/history"),
+    ], signedIn: true, script: BUSY_JS },
   );
 }
 
@@ -1076,7 +1291,24 @@ export async function preparePublic(env:Env):Promise<void>{
 
 // Every handler is awaited inside the try, so a refusal it throws reaches the
 // catch below and becomes the owner's "Something's wrong" page, not a 500.
-async function route(req: Request, env: Env): Promise<Response> {
+async function reviewRefusal(req: Request, env: Env): Promise<Response> {
+  if (readStates.get(env)?.access.isPrivate) return privacy.blankResponse(req);
+  if (!req.headers.has("Authorization")) return (await requireOwner(req, env))!;
+  const headers = new Headers(req.headers);
+  headers.delete("Cookie");
+  return (await requireOwner(new Request(req, { headers }), env))!;
+}
+async function route(req:Request,env:Env):Promise<Response>{
+  const path=new URL(req.url).pathname;
+  if(path==='/review'||path.startsWith('/review/')){
+    const gate=await requireOwner(req,env);if(gate)return gate;
+    if(req.method==='GET'&&ownerReview.eligible(path)&&representationForPrivate(req.headers.get('Accept'))==='markdown'&&req.headers.has('Authorization'))return reviewRefusal(req,env);
+    const response=await routeInner(req,env);
+    return ownerReview.negotiate(req,response,()=>owner.signedIn(env.DB,req),()=>reviewRefusal(req,env));
+  }
+  return routeInner(req,env);
+}
+async function routeInner(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
   const m = req.method;
@@ -1178,8 +1410,6 @@ async function route(req: Request, env: Env): Promise<Response> {
     }
 
     if (path === "/review" || path.startsWith("/review/")) {
-      const gate = await requireOwner(req, env);
-      if (gate) return gate;
       if (path === "/review/readers") return await readersPage(req,env);
       if (path === "/review/alerts" || path.startsWith("/review/alerts/")) return await alertsPage(env,req,path);
       if (path === "/review" && m === "GET") return await reviewIndex(env, req);
@@ -1266,11 +1496,11 @@ async function route(req: Request, env: Env): Promise<Response> {
 
 export { esc };
 
-async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;data:Record<string,any>;deleted?:boolean}[], origin:string):Promise<string> {
+async function embedReviewFor(db: D1Database, changes: {id:string;kind:string;data:Record<string,any>;deleted?:boolean}[], origin:string,read?:ownerReview.Block[]):Promise<string> {
   if (!changes.some(c=>c.kind === "site" || (c.kind === "entry" && String(c.data.body??"").includes("!embed[")))) return "";
   const live = await approvals.liveWith(db, []), proposed = new Map(live.map(r=>[r.id,r]));
   for(const c of changes) { if(c.deleted) proposed.delete(c.id); else proposed.set(c.id,c); }
-  return embedReview(live,[...proposed.values()],changes,origin);
+  return embedReview(live,[...proposed.values()],changes,origin,text=>read?.push(rv("Warning",text)));
 }
 
 async function recoveryPage(req: Request,env: Env): Promise<Response> {
@@ -1291,15 +1521,37 @@ async function readersPage(req: Request,env: Env): Promise<Response> {
   const timeZone = String((await contentView(req,env,true)).site.timezone || "UTC");
   const date = (value: string) => dateString(new Date(value),{month:"long",day:"numeric",year:"numeric"},timeZone);
   const form = (r: any, invite: boolean) => html`<form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${r.id}">${invite ? html`<button class="second" name="action" value="revoke-invite">Cancel invitation</button>` : html`<button class="warn" name="action" value="revoke">Remove ${r.name}</button>`}</form>`;
-  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form><h2>Readers</h2>${readers.filter(r=>r.used_at).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${r.revoked ? html`<p>Removed</p>` : form(r,false)}</section>`)}<h2>Unused invitations</h2>${readers.filter(r=>!r.used_at && r.expires_at && !r.revoked).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Expires ${date(r.expires_at)}</p>${r.expires_at <= new Date().toISOString() ? html`<p>Expired</p>` : ""}${form(r,true)}</section>`)}`,{signedIn:true,headers:SETUP_HEADERS});
+  return ownerPage("Readers",html`<h1>Readers</h1><p>Invite someone to read this site with their own passkey. An invitation link works once and lasts seven days. Revoking someone stops their access right away; pages they already opened stay on their device.</p>${link ? html`<p class="ok">Give this one-time link privately: <a href="${link}">${link}</a></p>` : ""}<form method="post"><input type="hidden" name="csrf" value="${csrf}"><label>Reader name</label><input type="text" name="name" maxlength="80" required><button>Create invitation</button></form><h2>Readers</h2>${readers.filter(r=>r.used_at).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Added ${date(r.created_at)}</p><p>${r.last_signed_in ? `Last signed in ${date(r.last_signed_in)}` : "Not signed in yet"}</p>${r.revoked ? html`<p>Removed</p>` : form(r,false)}</section>`)}<h2>Unused invitations</h2>${readers.filter(r=>!r.used_at && r.expires_at && !r.revoked).map(r=>html`<section class="card"><h3>${r.name}</h3><p>Expires ${date(r.expires_at)}</p>${r.expires_at <= new Date().toISOString() ? html`<p>Expired</p>` : ""}${form(r,true)}</section>`)}`,{review:() => [
+      rv(
+        "Readers",
+        "Invite someone to read this site with their own passkey. An invitation works once and lasts seven days. Revocation stops access right away; previously opened pages remain on their device.",
+      ),
+      rh("Readers"),
+      ...readers
+        .filter((r) => r.used_at)
+        .flatMap((r) => [
+          rh(r.name),
+          rv("Added", date(r.created_at)),
+          rv("Last signed in", r.last_signed_in ? date(r.last_signed_in) : "Not signed in yet"),
+          ...(r.revoked ? [rv("Status", "Removed")] : []),
+        ]),
+      rh("Unused invitations"),
+      ...readers
+        .filter((r) => !r.used_at && r.expires_at && !r.revoked)
+        .flatMap((r) => [
+          rh(r.name),
+          rv("Expires", date(r.expires_at)),
+          ...(r.expires_at <= new Date().toISOString() ? [rv("Status", "Expired")] : []),
+        ]),
+    ],signedIn:true,headers:SETUP_HEADERS});
 }
 
-async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:Record<string,any>;deleted?:boolean}[]): Promise<string> {
+async function privateReviewWarning(db: D1Database, proposed: {kind:string;data:Record<string,any>;deleted?:boolean}[],read?:ownerReview.Block[]): Promise<string> {
   const live = await privacy.livePrivate(db);let out="";
   for (const item of proposed) if (item.kind === "site") {
     const mode = !!item.data.private && !item.deleted;
-    if (live && !mode) out += '<h2 class="warn">This makes the site public.</h2>';
-    else if (mode && !live) out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>';
+    if (live && !mode) {read?.push(rv('Warning','This makes the site public.'));out += '<h2 class="warn">This makes the site public.</h2>';}
+    else if (mode && !live) {read?.push(rv('Warning','Passkeys will be required to read this site. Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.'));out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>';}
   }
   return out;
 }
@@ -1399,6 +1651,16 @@ async function alertsPage(
           </section>`,
       )}`,
     {
+      review:() => [
+      rv("Alerts", ALERT_HELP),
+      rv("This device", `Alerts are ${device ? "on" : "off"} for this device`),
+      rv("Site icon", "Open your site from its Home Screen icon, then choose Turn alerts on."),
+      ...devices.flatMap((d) => [
+        rh(d.label + (d.id === device?.id ? " (this device)" : "")),
+        rv("Added", date(d.created_at)),
+        rv("Last used", d.last_used_at ? date(d.last_used_at) : "Not used yet"),
+      ]),
+    ],
       signedIn: true,
       script:
         ALERT_JS +

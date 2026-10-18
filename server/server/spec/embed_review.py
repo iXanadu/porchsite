@@ -23,7 +23,7 @@ def _count(rows, source):
     )
 
 
-def _label(source):
+def _source_text(source):
     u = embed_url(source, True)
     unicode = idna.decode(u.hostname.encode()) if not u.hostname.startswith("[") else u.hostname
     if isinstance(unicode, bytes):
@@ -33,10 +33,13 @@ def _label(source):
         if unicode == u.hostname
         else f"https://{unicode}{':' + u.port if u.port else ''} ({source})"
     )
-    return f'<bdi dir="ltr">{esc(display)}</bdi>'
+    return display
+
+def _label(source):
+    return f'<bdi dir="ltr">{esc(_source_text(source))}</bdi>'
 
 
-def embed_review(live, proposed, changes, origin):
+def embed_review(live, proposed, changes, origin, read=None):
     before, after = _sources(live), _sources(proposed)
     lines = []
     for source in [s for s in after if s not in before] + [s for s in before if s not in after]:
@@ -46,6 +49,8 @@ def embed_review(live, proposed, changes, origin):
             if added
             else "Its players become normal links."
         )
+        if read is not None:
+            read(f'{"Add embed source" if added else "Remove embed source"}: {_source_text(source)}. Published embeds: {_count(live, source)}; after this approval: {_count(proposed, source)}. {advice}')
         lines.append(
             f'<p class="warn">{"Add embed source" if added else "Remove embed source"}: {_label(source)}. Published embeds: {_count(live, source)}; after this approval: {_count(proposed, source)}. {advice}</p>'
         )
@@ -62,6 +67,8 @@ def embed_review(live, proposed, changes, origin):
                 if e["origin"] in after
                 else "source not approved"
             )
+            if read is not None:
+                read(f'Embed: {e["title"]} — {e["url"]}. Source: {_source_text(e["origin"])}; {status}.')
             lines.append(
                 f'<p class="meta">Embed: {esc(e["title"])} — <bdi dir="ltr">{esc(e["url"])}</bdi>. Source: {_label(e["origin"])}; {status}.</p>'
             )

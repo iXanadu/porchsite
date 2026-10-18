@@ -326,3 +326,65 @@ def taken_off(label: str) -> str:
 
 # The owner's styles for the above (part of OWNER_CSS).
 CHANGES_CSS = ".diff del{background:#f3dcd6;color:var(--deny)}.diff ins{background:#dcefe4;color:#1f4034;text-decoration:none}.field .warn{margin:6px 0 0}"
+
+
+# Same visible list changes and bounded word-diff context as the HTML renderer.
+def review_fields(kind, now, before=None, removed=False):
+    from server.spec.models import MODELS
+    from .owner_review import value, source, heading
+    if removed:
+        return [value('Status', 'This will be taken off the site.')]
+    out = []
+    if before is not None:
+        now, before = _full(kind, now), _full(kind, before)
+    unchanged = 0
+    for k in MODELS[kind].model_fields:
+        if before is not None and _same(before.get(k), now.get(k)):
+            if k not in SILENT: unchanged += 1
+            continue
+        if before is None and (k in SILENT or now.get(k) is None or now.get(k) == '' or now.get(k) == []):
+            continue
+        out.append(heading(label_for(kind, k)))
+        old, current = before.get(k) if before is not None else None, now.get(k)
+        if before is not None and k != 'ai_training_disabled' and (isinstance(old, (dict,list)) or isinstance(current, (dict,list))):
+            a, b = _entries(old), _entries(current)
+            had, has = {_dumps(x) for x in a}, {_dumps(x) for x in b}
+            added = [_entry_name(x) for x in b if _dumps(x) not in had]
+            removed = [_entry_name(x) for x in a if _dumps(x) not in has]
+            if added: out.append(value('Added', ' · '.join(added)))
+            if removed: out.append(value('Removed', ' · '.join(removed)))
+            if not added and not removed: out.append(value('Status','Same entries, in a new order.'))
+            continue
+        o, n = string(old), string(current)
+        if before is not None and o and n and (k in ('body','about') or len(o)>LONG or len(n)>LONG):
+            runs = word_diff(o,n)
+            for i,(op,words) in enumerate(runs):
+                text = ' '.join(words)
+                if op == 'same' and len(words)>2*KEEP+1:
+                    text = '… '+' '.join(words[-KEEP:]) if i==0 else ' '.join(words[:KEEP])+' …' if i==len(runs)-1 else ' '.join(words[:KEEP])+' … '+' '.join(words[-KEEP:])
+                out.append(source('Before' if op=='del' else 'After' if op=='ins' else 'Unchanged context',text))
+            continue
+        def show(label, v):
+            if k in ('body', 'about') and isinstance(v, str):
+                out.append(source(label, v))
+            elif k == 'ai_training_disabled':
+                out.append(value(label, 'Blocked for GPTBot, ClaudeBot and Google-Extended' if v is True else 'Allowed'))
+            elif k == 'streams' and isinstance(v, list):
+                out.append(value(label, ' · '.join(_entry_name(x) for x in v)))
+            elif k == 'archive' and isinstance(v, dict):
+                out.append(value(label, ('On' if v.get('enabled') else 'Off') + ' · ' + str(v.get('title', 'All entries'))))
+            elif isinstance(v, list):
+                named = [str(x.get('label', x.get('title', x.get('value', '')))) if isinstance(x, dict) else string(x) for x in v]
+                named = [x for x in named if x]
+                out.append(value(label, ' · '.join(named) if named else str(len(v)) + (' item' if len(v) == 1 else ' items')))
+            else:
+                out.append(value(label, 'updated' if isinstance(v, dict) else string(v)))
+        if before is not None: show('Before', old)
+        show('After' if before is not None else 'Value', current)
+        if before is not None and kind=='card' and k=='visibility' and RANK.get(string(current) or 'public',2)>RANK.get(string(old) or 'public',2):
+            out.append(value('Warning','Shows more of this card than your site does now.'))
+    if before is not None and not out:
+        out.append(value('Status', 'Nothing you would see differs from what is live.'))
+    if before is not None and unchanged:
+        out.append(value('Unchanged',f"{unchanged} other field{'' if unchanged==1 else 's'} unchanged"))
+    return out

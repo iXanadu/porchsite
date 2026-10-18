@@ -15,8 +15,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
 1. AF-7L: the change check stays valid across minutes when nothing on
    the page depends on time, so repeat visits skip the full render.
-2. AG-6, the last part of agent access to private sites (read keys, read
-   tools and private pages over HTTP shipped in 2026.10.18-c59bcc9).
 
 ## BLOCKING
 
@@ -84,10 +82,6 @@ the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-6** IN-PROGRESS (scope proposal, no implementation): owner review
-  pages give a signed-in agent the same light
-  versions, protected like any other private data; no separate owner
-  review step (the owner approves content once).
 
 ## OWNER REQUESTS (2026-10-16)
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's

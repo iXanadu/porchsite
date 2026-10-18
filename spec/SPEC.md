@@ -2917,7 +2917,7 @@ as they are. This read view adds no approval buttons, automatic approval,
 second approval request, agent mode or duplicate revision. The one owner
 publication creates the published page and all its read representations.
 
-#### AG-6 implementation scope proposal (not implementation approval)
+#### AG-6 review representation contract
 
 The purpose is to let an agent already signed in as the owner inspect the
 same review state without scraping controls or receiving another permission.
