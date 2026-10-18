@@ -1,4 +1,5 @@
 """AF-C1 acceptance, paired with native Worker training-receipt tests."""
+from server.spec.sitemap import robots
 import json
 import pytest
 from server.app import approvals, content, history, oauth, importer
@@ -122,14 +123,14 @@ async def test_af_training_receipt_http_parity(db, http):
     before = await http.get('/')
     tag = before.headers['etag']
     assert 'ai-train=yes' in before.headers['content-signal']
-    assert 'GPTBot' not in (await http.get('/robots.txt')).text
+    assert (await http.get('/robots.txt')).text == robots(ORIGIN)
     await db.execute('UPDATE site_fields SET approved=1')
     assert (await http.get('/', headers={'If-None-Match':tag})).status_code == 304
     await approvals.publish_now(db, [{'id':'site','version':one['version']}], '', ORIGIN)
     after = await http.get('/', headers={'If-None-Match':tag})
     assert after.status_code == 200 and after.headers['etag'] != tag
     assert 'ai-train=no' in after.headers['content-signal']
-    assert 'GPTBot' in (await http.get('/robots.txt')).text
+    assert (await http.get('/robots.txt')).text == robots(ORIGIN, True)
     auth = await http.get('/', headers={'Authorization':'Bearer fixture'})
     assert 'no-store' in auth.headers['cache-control'] and 'etag' not in auth.headers
     assert 'training_approvals' not in (await http.get('/')).text
@@ -139,3 +140,45 @@ async def test_af_training_receipt_import_does_not_certify(db):
     await importer.import_file(db, json.dumps({'porchsite_import':1,'from':'Fixture','items':[{'kind':'site','data':{'title':'Imported','theme':'personal-homepage','ai_training_disabled':True}}],'training_approvals':[1]}))
     assert await count(db) == 0 and not await training_disabled(db)
     assert (await content.get_item(db, 'site'))['data']['ai_training_disabled']
+
+
+async def test_af_crawler_tiers_bytes_and_validators(db, http):
+    one = await site(db)
+    await old_approve(db, one)
+    response = await http.get('/robots.txt', headers={'User-Agent':'GPTBot'})
+    tag = response.headers['etag']
+    assert response.text == robots(ORIGIN)
+    assert (await http.get('/robots.txt', headers={'User-Agent':'unlisted-agent'})).text == response.text
+    assert (await http.get('/robots.txt', headers={'If-None-Match':tag})).status_code == 304
+    await approvals.publish_now(db, [{'id':'site','version':one['version']}], '', ORIGIN)
+    blocked = await http.get('/robots.txt', headers={'If-None-Match':tag})
+    assert blocked.status_code == 200 and blocked.text == robots(ORIGIN, True)
+    assert blocked.headers['etag'] != tag
+    head = await http.head('/robots.txt')
+    assert head.status_code == 200 and head.content == b'' and head.headers['etag'] == blocked.headers['etag']
+    auth = await http.get('/robots.txt', headers={'Authorization':'Bearer fixture'})
+    assert 'no-store' in auth.headers['cache-control'] and 'etag' not in auth.headers
+    assert auth.text == robots(ORIGIN, True) and await count(db) == 1
+
+
+async def test_af_training_discovery(db, http):
+    one = await site(db)
+    await old_approve(db, one)
+    http.cookies.update(await signed_in(db))
+    for accept in ('text/html', 'text/markdown'):
+        response = await http.get('/review', headers={'Accept':accept})
+        assert response.status_code == 200
+        for text in ('Site settings','Allowed','Pending owner publication.',fields.TRAINING_NOTE,'Search and user-triggered agents stay allowed.'):
+            assert text in response.text
+    assert await count(db) == 0
+    await approvals.publish_now(db, [{'id':'site','version':one['version']}], '', ORIGIN)
+    await content.update_item(db, ACTOR, 'site', one['version'], {'ai_training_disabled':False})
+    for accept in ('text/html', 'text/markdown'):
+        text = (await http.get('/review', headers={'Accept':accept})).text
+        assert 'Blocked for training crawlers' in text
+        assert 'Proposed: Allowed. Pending owner publication.' in text
+        assert fields.TRAINING_NOTE not in text
+    assert await count(db) == 1 and (await fields.training_state(db))['effective_disabled']
+    http.cookies.clear()
+    for headers in ({}, {'Cookie':'__Host-sk_owner=invalid'}):
+        assert 'Site settings' not in (await http.get('/review', headers=headers)).text

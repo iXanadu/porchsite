@@ -1,3 +1,4 @@
+import robotsCases from '../../spec/robots-cases.json';
 // A photo from the person's phone, through a one-time link.
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -77,6 +78,6 @@ describe("robots.txt", () => {
   it("lets every crawler and agent in", async () => {
     const r = await handle(new Request(`${site}/robots.txt`), e);
     expect(r.status).toBe(200);
-    expect(await r.text()).toBe(`User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
+    expect(await r.text()).toBe(robotsCases.allowed.replaceAll(robotsCases.origin,site));
   });
 });
