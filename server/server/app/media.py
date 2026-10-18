@@ -261,17 +261,14 @@ async def published(db: Db, name: str) -> bool:
 
 
 async def size_of(db: Db, name: str) -> tuple[int, int]:
-    """An image's pixel size, measured now if it was stored before sizes were kept."""
+    """Read-only pixel size; legacy dimensions are measured without persisting."""
     r = await db.fetchrow("SELECT width, height FROM media WHERE name = $1", name)
     if not r:
         return 0, 0
     if r["width"]:
         return r["width"], r["height"]
     data = await db.fetchval("SELECT data FROM media WHERE name = $1", name)
-    w, h = size(bytes(data))
-    if w:
-        await public_change(db, "UPDATE media SET width = $1, height = $2 WHERE name = $3", w, h, name)
-    return w, h
+    return size(bytes(data))
 
 
 async def serve(db: Db, name: str, is_public: bool) -> dict[str, Any] | None:

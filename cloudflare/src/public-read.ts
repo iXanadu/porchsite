@@ -4,15 +4,18 @@ import {validate} from './content';
 import {isBuiltIn,ALIASES} from './themes';
 import {frameCsp,PERMISSIONS} from './embeds';
 import {markdownPath,pagePath,pageQuery,publicPath,representation,sessionRequest,matchesTag,PUBLIC_CACHE,trainingSignal} from './public-http';
+// SQL equivalent of media.LOCAL; fixed engine literals, never caller SQL.
+// D1 limits pattern length, so check the fixed shape and use a short hex test.
+const LOCAL_HERO_SQL="substr(json_extract(data,'$.hero'),1,7)='/media/' AND length(substr(json_extract(data,'$.hero'),8,32))=32 AND substr(json_extract(data,'$.hero'),8,32) NOT GLOB '*[^0-9a-f]*' AND substr(json_extract(data,'$.hero'),40) IN ('.jpg','.png','.webp')";
 export const FACTS_SQL=`WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_array(l.kind,l.slug,l.version,l.published_at,i.created_at,json_extract(l.data,'$.status'),json_extract(l.data,'$.stream'),json_extract(l.data,'$.external_url'),CASE WHEN l.item_id='site' THEN l.data ELSE NULL END) AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
  UNION ALL SELECT 'field',f.key,json_array(f.value,f.approved) FROM site_fields f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'embed','site',json_array(f.sources,f.approved) FROM site_embed_sources f JOIN live l ON l.version=f.version AND l.item_id='site'),
 facts1(category,ident,value) AS (SELECT 'streams','site',json_array(f.settings,f.approved) FROM site_stream_settings f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'private','site',json_array(a.version) FROM private_approvals a JOIN live l ON l.version=a.version AND l.item_id='site'
  UNION ALL SELECT 'training','site',json_array(a.version) FROM training_approvals a JOIN live l ON l.version=a.version AND l.item_id='site'),
-facts2(category,ident,value) AS (SELECT 'theme',name,json_array(version,sha256) FROM themes
+facts2(category,ident,value) AS (SELECT 'theme',name,json_array(version,sha256) FROM themes WHERE name=(SELECT CASE json_extract(data,'$.theme') WHEN 'classic' THEN 'personal-homepage' WHEN 'broadsheet' THEN 'product-page' ELSE COALESCE(json_extract(data,'$.theme'),'built-in') END FROM live WHERE item_id='site')
  UNION ALL SELECT 'share',c.item_id,json_array(c.version,c.name) FROM share_cards c JOIN live l ON l.item_id=c.item_id AND l.version=c.version
- UNION ALL SELECT 'media',name,json_array(width,height) FROM media
+ UNION ALL SELECT 'media',name,json_array(width,height) FROM media WHERE name=(SELECT CASE WHEN ${LOCAL_HERO_SQL} THEN substr(json_extract(data,'$.hero'),8) ELSE NULL END FROM live WHERE item_id='site')
 )
 SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) ORDER BY category,ident`;
 type Row={category:string;ident:string;value:string};

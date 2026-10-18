@@ -225,14 +225,12 @@ async function bytesOf(db: D1Database, name: string): Promise<Uint8Array> {
   return out;
 }
 
-/** An image's pixel size, measured now if it was stored before sizes were kept. */
+/** Read-only pixel size. Legacy dimensions are measured without persisting them. */
 export async function sizeOf(db: D1Database, name: string): Promise<[number, number]> {
   const r = await db.prepare("SELECT width, height FROM media WHERE name = ?").bind(name).first<{ width: number; height: number }>();
   if (!r) return [0, 0];
   if (r.width) return [r.width, r.height];
-  const [w, h] = size(await bytesOf(db, name));
-  if (w) await db.batch([...invalidation(db), db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ?").bind(w, h, name)]);
-  return [w, h];
+  return size(await bytesOf(db, name));
 }
 
 /**
