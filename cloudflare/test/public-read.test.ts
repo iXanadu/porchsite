@@ -24,10 +24,10 @@ it('perf_missing_budget: path-shaped and unshaped misses never load views or bec
  await seed();const load=vi.spyOn(site,'liveView'),sql=vi.spyOn(db,'prepare');
  for(const path of ['/wp-admin/install.php','/journal/absent/','/journal/absent/index.md']){sql.mockClear();const r=await req(path,{'If-None-Match':'*'});expect(r.status).toBe(404);expect(r.headers.has('ETag')).toBe(false);expect(load).not.toHaveBeenCalled();expect(sql.mock.calls.length).toBeLessThanOrEqual(3);}
 });
-it('perf_stamp_changes: old-runtime-style live version changes and minute boundary invalidate tags without stored state',async()=>{
+it('perf_stamp_changes: old-runtime-style live version changes invalidate tags while elapsed minutes do not without stored state',async()=>{
  const item=await seed();const first=await req('/');const tag=first.headers.get('ETag')!;
  await db.prepare('UPDATE live SET version=version+1 WHERE item_id=?').bind(item.id).run();const edited=await req('/',{'If-None-Match':tag});expect(edited.status).toBe(200);expect(edited.headers.get('ETag')).not.toBe(tag);
- const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now+60000);const timed=await req('/',{'If-None-Match':edited.headers.get('ETag')!});expect(timed.status).toBe(200);expect(timed.headers.get('ETag')).not.toBe(edited.headers.get('ETag'));
+ const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now+7200000);const timed=await req('/',{'If-None-Match':edited.headers.get('ETag')!});expect(timed.status).toBe(304);expect(timed.headers.get('ETag')).toBe(edited.headers.get('ETag'));
 });
 it('perf_one_view_and_metadata: first render reuses a view and produces inert facts without full Markdown projection',async()=>{
  await seed();const load=vi.spyOn(site,'liveView'),copy=vi.spyOn(markdown,'markdownDocument'),sql=vi.spyOn(db,'prepare');const r=await req('/archive/');expect(r.status).toBe(200);expect(load).toHaveBeenCalledTimes(1);expect(copy).not.toHaveBeenCalled();expect(sql.mock.calls.filter(([q])=>q.includes("f.key = 'private'"))).toHaveLength(1);expect(await r.text()).toContain('application/ld+json');
@@ -46,4 +46,24 @@ it('perf_conditional_race: removal after the first facts read cannot reuse a war
  const item=await seed(),path=`/journal/${item.slug}/`,warm=await req(path),load=read.facts;let calls=0;expect(warm.status).toBe(200);expect(warm.headers.has('ETag')).toBe(true);
  vi.spyOn(read,'facts').mockImplementation(async(db)=>{if(++calls===2){const gone=await content.removeItem(db,who,item.id,item.version);await approvals.publishNow(db,[{id:gone.id,version:gone.version}],'',origin);}return load(db);});
  const response=await req(path,{'If-None-Match':warm.headers.get('ETag')!});expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);
+});
+it.each([
+ ['notice',{timezone:'America/New_York',notice:{text:'Expires tonight',until:'2026-10-18'}},null,'2026-10-19T03:59:59Z','2026-10-19T04:00:00Z'],
+ ['event',{timezone:'America/New_York'}, {start:'2026-11-01T01:15'},'2026-11-01T05:59:59Z','2026-11-01T06:00:00Z'],
+] as const)('af_time_native_%s: published clock facts invalidate the public tag at the real boundary',async(_name,data,event,before,after)=>{
+ const item=await seed();const updated=await content.updateItem(db,who,'site',1,{theme:'event-page',...data});await approvals.publishNow(db,[{id:'site',version:updated.version}],'',origin);
+ if(event){const changed=await content.updateItem(db,who,item.id,1,{event});await approvals.publishNow(db,[{id:item.id,version:changed.version}],'',origin);}
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse(before));const first=await req('/');expect(first.status).toBe(200);expect(first.headers.has('ETag')).toBe(true);const old=first.headers.get('ETag')!;
+ expect((await req('/',{'If-None-Match':old})).status).toBe(304);clock.mockReturnValue(Date.parse(after));const changed=await req('/',{'If-None-Match':old});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);
+});
+it('af_time_deadline_race: a notice boundary crossed during conditional validation cannot return old304',async()=>{
+ await seed();const updated=await content.updateItem(db,who,'site',1,{theme:'local-business',notice:{text:'Expires tonight',until:'2026-10-18'}});await approvals.publishNow(db,[{id:'site',version:updated.version}],'',origin);
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-18T23:59:59Z')),first=await req('/'),old=first.headers.get('ETag')!,load=read.facts;let calls=0;
+ vi.spyOn(read,'facts').mockImplementation(async(db)=>{const f=await load(db);if(++calls===2)clock.mockReturnValue(Date.parse('2026-10-19T00:00Z'));return f;});
+ const changed=await req('/',{'If-None-Match':old});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);expect(await changed.text()).not.toContain('Expires tonight');
+});
+it('af_time_unknown_native: out-of-coverage live pages refuse wildcard304 and never gain a public tag',async()=>{
+ await seed();const changed=await content.updateItem(db,who,'site',1,{theme:'local-business',hours:{weekly:[{day:'mon',open:'09:00',close:'17:00'}]}});await approvals.publishNow(db,[{id:'site',version:changed.version}],'',origin);
+ vi.spyOn(Date,'now').mockReturnValue(Date.parse('2200-01-01T12:00Z'));
+ const response=await req('/',{'If-None-Match':'*'});expect(response.status).toBe(200);expect(response.headers.has('ETag')).toBe(false);expect(response.headers.get('Cache-Control')).toContain('no-store');
 });

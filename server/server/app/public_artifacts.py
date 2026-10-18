@@ -2,6 +2,7 @@
 import hashlib
 import json
 import time
+from . import public_time
 from urllib.parse import urlsplit
 from starlette.responses import Response
 from .db import transaction
@@ -71,8 +72,8 @@ def configured_origin(value):
     except ValueError:
         return None
 
-def display_boundary(now):
-    return (int(now)//60000+1)*60000
+def display_boundary(now,plan=None):
+    return now if plan and plan['kind']=='unknown' else min(now+86400000,plan['next_change'] if plan and plan['next_change'] is not None else float('inf'))
 
 def choice(req,origin):
     from .public_http import markdown_path,page_path,page_query,representation,session_request
@@ -149,6 +150,7 @@ async def delivery(db,row,req,c,stamp,release):
     return Response(None if match or req.method=='HEAD' else row['body'],status_code=304 if match else 200,headers=headers)
 
 async def respond(db,req,configured,release,render):
+    from . import public_read
     from .public_http import PUBLIC_CACHE
     origin=configured_origin(configured)
     if not origin:
@@ -165,8 +167,15 @@ async def respond(db,req,configured,release,render):
         if not any(row[0]=='site' for row in json.loads(stamp)[0]):
             return await render()
         generation=digest(dumps([FORMAT,release,origin,normalized_state(stamp)]))
-        until=display_boundary(time.time()*1000)
-        key=dumps([origin,generation,release,c['base']+c['query'],c['type'],until])
+        f=await public_read.facts(db)
+        selected=public_read.choice(req,f)
+        if f['private'] or not selected:
+            return await render()
+        clock=public_time.plan(f,selected)
+        if clock['kind']=='unknown':
+            return await render()
+        until=int(display_boundary(time.time()*1000,clock))
+        key=dumps([origin,generation,release,c['base']+c['query'],c['type']])
         if len(key.encode())>2048:
             return await render()
         observed=await db.fetchval('SELECT generation FROM public_artifact_state WHERE id=1')
@@ -243,7 +252,7 @@ async def prepare(db,configured,release,render_path,paths):
         work=['/','/index.md',*(['/archive/','/archive/index.md'] if '/archive/' in pages else []),'/llms.txt']
         work.extend(path for p in pages if p not in ('/','/archive/') for path in (p,p+'index.md'))
         for path in work:
-            if time.time()*1000-started>=250 or time.time()*1000>=display_boundary(started) or await live_private(db) or await snapshot(db)!=stamp:
+            if time.time()*1000-started>=250 or await live_private(db) or await snapshot(db)!=stamp:
                 break
             request=request_for(origin,path)
             async def render():

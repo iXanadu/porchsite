@@ -1799,8 +1799,9 @@ redirects, errors, sign-in, review and capability URLs gain no AF validator.
 For public text representations, the ETag is `W/"dep1-<64 lowercase hex>"`.
 Compute SHA-256 over canonical JSON of the current render-dependency document,
 engine release, canonical origin/path and normalized archive query, selected
-Content-Type, approved training signal and UTC minute, as defined by PERF-1
-below. No body is rendered or hashed for a matching conditional read. One
+Content-Type, approved training signal and the renderer-proven temporal state
+defined by AF-7L below. No body is rendered or hashed for a matching
+conditional read. One
 current-data statement must prove that the requested canonical path is still
 a public resource before any 304, including `*`. A maximum version plus count
 is insufficient: include all live identities and versions. Theme identity
@@ -1811,7 +1812,7 @@ bounded address lookup and never become conditional successes.
 Direct and negotiated Markdown use the same canonical HTML URL and type,
 so their validators agree. HTML and Markdown have different types and tags.
 Both editions canonicalize keys, row order and timestamp strings identically.
-A body change must imply a changed dependency or minute; conservatively
+A body change must imply a changed dependency or temporal state; conservatively
 changing a validator without a body change is allowed. No pending body,
 credential or session value enters a public validator. This algorithm also
 applies to prepared public text copies; PUBLIC_ARTIFACTS does not select a
@@ -2260,8 +2261,8 @@ request-specific Vary/HEAD behavior is reconstructed on delivery.
 Use new `public_artifact_state` and `public_artifacts` tables. The former is a
 singleton recording the observed G and a bounded build lease; neither is an
 authorization or display-clock cache. Leases coalesce one snapshot job and
-expire after 30 seconds; jobs check a 250 ms wall budget and the current
-minute boundary before starting each next copy. An in-flight render may
+expire after 30 seconds; jobs check a 250 ms wall budget and each copy's
+AF-7L temporal boundary before starting that copy. An in-flight render may
 finish after that budget, but cannot admit an expired copy. Later requests
 safely fill unfinished work. A visitor fill recording G is not a completion
 marker: it must not suppress scheduled preparation of home, archive or map.
@@ -2324,19 +2325,174 @@ privacy or unpublish commit has occurred, a request newly authorized after
 that commit cannot serve an old body or 304. Already delivered or previously
 authorized in-flight public bytes cannot be recalled, as in the existing rule.
 
-Time-dependent hours, notices, events and date labels are rendering inputs.
-The current helpers observe timezone-local date and minute; both editions
-conservatively expire at the next UTC minute boundary (at most 60 seconds),
-with paired timezone/DST tests proving the display contract. A new helper
-that can change between those boundaries must supply an earlier boundary or
-bypass storage.
-A prepared row expires before the earliest point when displayed bytes can
-change in the site's timezone, including schedule endpoints and DST changes;
-never assume a UTC day is that interval. The renderer must supply that
-boundary, or decline storage for that response. As an additional bound,
-`valid_until` is no later than 300 seconds after the snapshot clock. At or
-after the boundary, no stored body or tag is reused; rebuild from the current
-clock. Tests advance clocks through each boundary without a content write.
+AF-7L below replaces the blanket minute expiry and the 300-second storage
+cap with a renderer-proven temporal boundary and a separate 24-hour storage
+cap. No expiry rule is a substitute for the current
+access, existence and dependency checks on every request.
+
+#### AF-7L: renderer-proven public time intervals
+
+This amends AF-2 and PERF-1's clock component, and AF-7's stored-copy
+lifetime, in both editions. PUBLIC_ARTIFACTS remains
+operator opt-in and OFF by default; the validator improvement also applies
+when no public copies are stored. Private principal validators, AG cursors,
+approval authority, publication semantics and UC9 accounting are unchanged.
+
+##### Proof and encoding
+
+For one canonical path/query and selected representation, the renderer owns
+a versioned temporal plan: `{kind, state, next_change}`. `kind` is `static`,
+`bounded` or `unknown`; `state` is a small canonical, named projection of
+clock-dependent values and visibility/order selectors; `next_change` is an
+exclusive UTC instant or null. A static plan proves the representation's
+bytes cannot change solely because time passes while its data dependencies
+are fixed. A bounded plan proves the same until `next_change`. An unknown
+plan is also required when a non-static producer has no provable finite
+future boundary; null is reserved for the proven-static plan. An unknown
+plan has no such proof and uses the live/no-store path without a public
+ETag or stored copy. A known conservative earlier boundary is allowed; an arbitrary
+minute is not proof for an unregistered clock reader.
+
+Replace the UTC-minute hash input with `["public-time/1", kind, state]`.
+Static state is the fixed empty list, with no current time, date, year,
+rolling TTL or expiry bucket. Bounded state contains only registered
+renderer inputs that can influence that path's representation, including
+conditional branches, attributes, list membership and ordering. It is not
+the full HTML/Markdown body and never includes private or pending data.
+`next_change` and the administrative storage cap are not hash inputs: moving
+a rebuild deadline must not churn an otherwise identical validator. Keep
+the existing dep1 prefix, canonical encoding, release, origin, path/query,
+Content-Type and training signal. Direct and negotiated Markdown still agree.
+
+At every request, after the existing gate and resource-existence proof,
+recompute the temporal state from current dependency facts at one pinned
+request clock. Compare a supplied tag only after that computation. At or
+after a prior deadline, recompute; an unchanged state may retain the same
+tag, but a changed rendered byte must change data dependencies or state.
+There is no session/cookie/Authorization exception to the existing bypass:
+those requests never use the public shortcut or a shared copy.
+
+Before returning a matching 304, recheck the current dependency facts and
+that the pinned plan has not crossed its exclusive boundary. A boundary
+crossing retries the cheap plan at the fresh clock, not the old 304. Bound
+retries; repeated instability uses the safe live/no-store path. A render or
+fill uses the same pinned clock as its plan and is rejected for caching if
+the clock crosses its boundary before admission/delivery. Clock rollback
+also invalidates a cached time interval: never assume process time is monotonic.
+
+##### Complete renderer inventory
+
+The inventory below follows `blocks.ts` / `server.spec.blocks`,
+`theme.ts` / `server.spec.theme`, the built-in site/archive renderers,
+agent-map, structured-data and discovery/feed builders at this spec's base.
+All current wall-clock-dependent public producers are hours, notice expiry
+and event grouping. Reading a stored date is not itself a clock dependency.
+
+| Producer/input | State and earliest possible next visible boundary |
+|---|---|
+| Hours: `open_now`, status and next opening | Current open/closed status and the exact displayed next-open/until value. Weekly and exception intervals use open-inclusive, close-exclusive HH:MM comparisons. Include the next opening/closing, local date change, or timezone-offset transition that can alter these values; overlapping/split spans retain the renderer's actual first-match behavior. |
+| Hours: today's row, exceptions and lookahead | Today's weekday marker; identities/order of exceptions in the inclusive local-date-to-date+60-day window; any next-opening search result over the following seven dates. Include local midnight and exception start/end and lookahead-entry boundaries, even when currently closed. These can change without an open/close transition. |
+| Notice/banner | `shown` depends on nonempty text and `until >= local date`. A dated notice expires at the first valid local midnight AFTER its inclusive `until` date, not at the start of that date. Empty or undated notices are static. |
+| Event `is_past`, upcoming/earlier buckets | The current helper compares the stored end (or start when end is empty) strictly less than local YYYY-MM-DDTHH:MM. Equality remains upcoming: the transition is the first displayed local minute STRICTLY AFTER that endpoint. Preserve this existing behavior; do not replace it with start/end >= comparisons. Include every visible event that could move into/out of a rendered bucket, not just today's first three or the currently visible bucket. |
+| Event dates, time labels, RSVP deadlines and schedule rows | Formatting the stored start/end, date, RSVP deadline and schedule time is static. The existing zone abbreviation is calculated at the stored start date, not from the current instant. Event `status` is an approved field, not an automatic timer. Only consumers of `is_past`/bucket selectors require a clock state today. |
+| Stored entry/note date; approval-based updated label | Fixed date formatting and `site.updated` from visible publication timestamps do not advance with now. No current relative-date helper or current-year footer exists. Literal “3 days ago” or a literal copyright year in approved text/template is static text. |
+| Future relative dates or generated current year | A new helper must register its actual next label-change boundary: elapsed-time thresholds for duration-based labels; valid local calendar boundaries for Today/Yesterday/day labels; the declared clock's New Year for a generated year. Do not claim one midnight rule covers all relative-date functions. It is not an existing feature added by this amendment. |
+| Future scheduled publish/unpublish or timed visibility | Future-dated entry metadata is NOT scheduled publication today: approved live entries already appear. Do not hide them until their date. If scheduling is later introduced, its next effective visibility/access change must be represented in current facts and evaluated before any 304 or body, including wildcard conditionals; ownership/approval may never be bypassed by the time plan. |
+| Feed, robots, sitemap, map and structured metadata | Current feed timestamps come from stored entry dates (empty-feed epoch is fixed); sitemap dates come from approvals; robots from approved policy; map/JSON-LD from published fields. These have no clock component merely because the site has hours or events elsewhere. Static/unshaped 404 bodies likewise gain no clock input. |
+
+For HTML, include time-dependent classes/attributes as well as visible text.
+Mechanical Markdown copies follow the actual visitor HTML projection:
+visibility/text/link changes count; an attribute the projection discards
+may be excluded only with a projection proof. The combined archive's fixed
+dates do not inherit a themed home page's unrelated hours/notice clock.
+Resolve enabled stream/tag filters and the representation before selecting
+the footprint. A different page or an invisible draft/private card must not
+create a temporal dependency for this resource.
+
+The proof is renderer-side, never an owner-provided “static” flag, a user-agent
+claim, a cached successful sample, or a scan for date-looking strings. Cover
+every producer that can reach the emitted response, including inactive and
+inverted template sections, list selection, shared head/footer partials,
+escaping/projection and any lazy body access. Merely logging fields read by
+one successful render is insufficient: a presently hidden branch may later
+become visible. Engine-owned template analysis may narrow a conservative
+footprint; it must be bound to the selected theme digest and renderer release.
+Without that proof, use all registered clock producers possibly reachable
+from that route. If those producers are absent/inert, static is still
+provable, including for a custom look. Unrecognized producers or unsupported
+analysis yield unknown, never static. A new clock reader cannot ship without
+a named dependency/boundary contract and paired tests.
+
+##### Timezones, cheap reads and stored copies
+
+Compute boundaries as real UTC instants by evaluating the SAME site-local
+calendar and comparison rules as the renderer, using IANA timezone rules.
+Never add 24 hours to mean tomorrow, or add one UTC minute to a local event
+endpoint without resolving the actual wall-clock predicate. Spring gaps,
+autumn folds, repeated local times, non-hour offsets and skipped dates must
+include any intervening timezone transition that changes the projection.
+The state can change more than once across a fold; evaluate both occurrences.
+Malformed/unsupported zones or an unprovable conversion yield unknown.
+The renderer and planner share a packaged IANA transition table with an
+explicit finite UTC coverage interval per zone. Within that interval, both
+use its exact offsets and transition instants, independent of host ICU or
+zoneinfo updates. Outside coverage the existing live renderer remains
+available, but clock-dependent public validators/storage are unknown.
+The artifact is an inert bundled string: its index and selected timeline
+are parsed only when a clock-dependent producer needs them. Sites with no
+time inputs do not read or parse it. It records its source tzdb version and
+is regenerated from TZif;
+no sampled-offset or minute-by-minute search substitutes for transitions.
+
+The cheap facts statement may project required event endpoints/selection
+metadata from visible live rows, alongside the approved site hours/notice
+already in site data. It must not load entry bodies, themes.package, images,
+full liveView or a stored response just to prove time. No N+1 lookups, no
+clock-proof write on GET/HEAD, no materialized private state. Preserve the
+three-statement and 10 ms hosted-CPU acceptance target for a stable matching
+public conditional, and the one-statement unshaped miss. Do not replace the
+saved render cost with repeated timezone conversion or template compilation
+on every conditional hit. Temporal state and facts use identical canonical
+ordering in both editions. A proof cache is only a compiler optimization;
+its key includes renderer release/theme identity and it is never authority
+for access, existence, current data or the request clock.
+
+For enabled AF-7 public copies, `valid_until` is at most the earlier of
+`next_change` and build-clock+24 hours; null static boundaries use the latter.
+This cap bounds the reuse age of a derived copy over a daily operating cycle
+while permitting sparse visits to reuse it across minutes/hours.
+It is not HTTP freshness permission: public Cache-Control still requires
+revalidation, and current access/G/snapshot checks still run on every hit.
+Storage expiry alone does not change the dep1 tag: a static conditional may
+return a cheap 304 even when its stored row has expired or is absent, without
+rebuilding it. Delete/replace expired public rows only on the existing safe
+maintenance/fill paths, never on the matching-304 path. No private prebuild.
+No new table, trigger or migration is required by this temporal proof; a
+later stored-revision optimization requires its own reviewed change.
+
+##### Paired acceptance plan
+
+| Case | Required proof in both editions |
+|---|---|
+| `af_time_static_sparse` | For every look plus built-in and a custom look with no active clock producer, home/entry/stream/tag/direct+negotiated Markdown/map retain exact bytes and dep1 across minute, hour, day and year boundaries. Warm GET/HEAD return empty 304, at most three statements and no view/parse/body hash/UC9/write. |
+| `af_time_hours_boundaries` | Before/at/after open/close, split/overlapping spans, closed weeks, exceptions, date+60-day window and seven-day next-open search: state/body changes agree, otherwise tags remain stable. Include the today CSS class separately from Markdown text. |
+| `af_time_notice_inclusive` | Empty/undated notice is static; dated notice remains shown throughout `until`, disappears only at next valid local date; no old-tag 304 across that visible transition. |
+| `af_time_events_strict` | Event with/without end remains upcoming at exact endpoint minute, moves only when renderer's strict comparison changes; home buckets, entry, filtered archive/tag and absent buckets covered. Future-dated live entries remain visible. |
+| `af_time_zone_transitions` | Paired UTC, spring gap, autumn repeated hour, non-hour transition/offset and skipped-date fixtures. Freeze just before/at/after every affected UTC instant; deadlines/state agree with independently rendered bodies, including a fold that reverses is_past/open status. |
+| `af_time_projection_scope` | Map/feed/robots/sitemap/JSON-LD remain static despite unrelated active site hours/events. Test custom partials, hidden/inverted branches, attributes, projection-stripped fields and lazy body paths; no single-render tracing shortcut. |
+| `af_time_unknown_and_races` | Unknown helper/zone/proof cannot authorize 304/storage; deadline crossing during render or final check discards stale work. Clock rollback recomputes. Concurrent private-on/unpublish, cookies/Authorization and wildcard conditions retain existing gate/existence isolation. |
+| `af_time_complete_registry` | Maintain a paired inventory of all wall-clock reads reaching public rendering. A deliberately added unregistered reader fails the contract check; mutations omitting notice/event/hour/lookahead/DST dependencies are caught by a body-vs-state differential oracle. |
+| `af_time_storage_cap` | Static/dynamic enabled prepared copies survive two-minute sparse hits until actual boundary or 24-hour cap, never after private-on/removal. Absent/expired row does not prevent static cheap 304. Old runtime writes still invalidate through current data; rollback never widens access. |
+| `af_time_sparse_measurement` | On unchanged real production Worker bundle and server, issue GETs at least two minutes apart, including old tags across minute boundaries. Compare existing minute behavior to this candidate: status/body/tag, hosted CPU, D1 statements/rows read/rows written per request, render calls, artifacts OFF and separately explicitly ON. Report cold/conditional/warm separately; local CPU is not hosted evidence. |
+
+Acceptance enumerates ALL computed boundaries in the fixture horizon,
+samples interval interiors, and compares independently rendered actual
+HTML/Markdown/map bytes with state transitions. It also sweeps fixed-clock
+grids and timezone transitions not chosen by the candidate scheduler, so
+testing only its reported deadlines cannot conceal an omitted boundary.
+Do not advance production clocks or publish to real sites to create fixtures.
+Hosted sparse testing uses an explicitly authorized disposable public site;
+no default enablement or performance claim follows from local tests alone.
 
 #### Build scheduling, limits and delivery
 
@@ -2418,7 +2574,7 @@ Required named paired acceptance cases:
 | `af_prebuild_dependency_matrix` | Each listed effective mutation clears old copies before use across home/entries/archives/map; drafts and analytics preserve valid copies. Include theme, share cards, training receipts and private/public transitions. |
 | `af_prebuild_publication_atomic` | Force invalidation failure: live mutation and deletion roll back together. Force build failure after commit: approved content stays live and ordinary rendering succeeds. |
 | `af_prebuild_races` | Barrier-test fills/preparation against private-on, unpublish, changed visibility, newer publish and time expiry; no late insert, old body or stale 304 after the corresponding commit/authorization point. |
-| `af_prebuild_clock` | Fixed clock tests for hours/notices/events, local midnight and DST; just before/at/after expiry matches live text/tags without a content mutation. Unknown boundaries bypass storage. |
+| `af_prebuild_clock` | AF-7L registered state/boundaries for hours/notices/events, local midnight and DST; before/at/after expiry matches live text/tags without mutation. Unknown proof bypasses 304/storage; static storage cap does not churn the validator. |
 | `af_prebuild_negotiation` | Valid and invalid Accept/query variants, equivalent filters, distinct HTML/Markdown, GET/HEAD/304, unknown parameters and deliberate key-poisoning inputs keep existing semantics and bounded keys. |
 | `af_prebuild_bounded_failure` | Concurrent fills, eviction, 256 KiB body/128-row/4 MiB limits, interruption, absent/corrupt/unavailable storage and gate failure; no truncation, stale fallback, public authorization fallback or leaked row metadata. |
 | `af_prebuild_accounting` | Warm/cold GET 200 count once; HEAD/304 count zero under UC9, authenticated/private traffic does not; preparation creates no request count or page view. |
@@ -2473,7 +2629,7 @@ Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
 13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in published Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap. AG-6 alone may show owner-authorized review prose in a no-store copy; secrets and public/published surfaces remain excluded.
-14. A public AF-2 ETag, when present, hashes only anonymous published render dependencies plus release, origin, canonical path, Content-Type, approved training signal and UTC minute, with nothing from any session, using AF-2's dependency encoding. Media retains its binary-body encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+14. A public AF-2 ETag, when present, hashes only anonymous published render dependencies plus release, origin, canonical path, Content-Type, approved training signal and AF-7L temporal state, with nothing from any session, using AF-2's dependency encoding. Media retains its binary-body encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
 15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on authenticated HTML (SV-PV1); only §11 private published Markdown/map may use principal-bound private revalidation. Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
@@ -2529,7 +2685,7 @@ The named cases implement the corresponding numbered invariant above.
 | 11 | `af_cache_anonymous_view` | Every public artifact derives from the anonymous approved view. |
 | 12 | `af_authenticated_cache_bypass` | Owner/reader/AG requests bypass shared copies and public 304s; private HTML is no-store, only §11 private Markdown/map may revalidate with a principal-bound private tag. |
 | 13 | `af_no_owner_surface_leak` | Owner-only fields occur in neither public cacheable bytes nor published agent copies; AG-6 review copies remain valid-owner-only, secret-free and no-store. |
-| 14 | `af_etag_public_input` | Hash current published dependencies, release, canonical URL, Content-Type, approved training signal and minute using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
+| 14 | `af_etag_public_input` | Hash current published dependencies, release, canonical URL, Content-Type, approved training signal and AF-7L temporal state using AF-2; changing only training changes the tag; owner/visitor validators cannot cross roles. |
 | 15 | `af_owner_then_visitor` | Owner request followed by visitor request never transfers owner decoration. |
 | 16 | `af_invalidate_before_serve` | Unpublish, private-on and card visibility invalidate copies and old tags. |
 | 17 | `af_accept_cache_separation` | Vary: Accept plus canonical direct copy; no owner bytes under either variant. |
@@ -3210,9 +3366,8 @@ share-card references and media dimensions consumed by rendering (PERF-3).
 A count or maximum
 version alone is insufficient. The identity also includes engine release, canonical
 origin and path with normalized archive query, selected Content-Type, approved
-training signal, and the current UTC minute. The minute is conservative: this
-amendment does not claim the clock-independence proof proposed for longer-lived
-prepared copies. A theme, media/share-card metadata, approved extension or
+training signal, and AF-7L temporal state.
+A theme, media/share-card metadata, approved extension or
 receipt change must invalidate the identity as well as a live item change.
 Derive these facts from committed data on every request, so writes by an older
 runtime also change the identity without a migration or trigger.
@@ -3221,7 +3376,7 @@ the canonical JSON encoding of these facts and identity fields with SHA-256;
 use W/"dep1-<64 lowercase hex digits>". This is a dependency hash, not a body
 hash. Equivalent direct and negotiated Markdown use the same canonical URL
 and type. Canonical object keys, row ordering and timestamp strings agree in
-both editions. A changed body must imply changed dependencies or minute.
+both editions. A changed body must imply changed dependencies or temporal state.
 
 A matching public GET/HEAD returns an empty 304 without liveView, HTML or
 Markdown parsing, body hashing, a prepared-copy snapshot/read/fill, or request

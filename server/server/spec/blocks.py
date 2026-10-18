@@ -4,12 +4,13 @@ timezone. Time-dependent answers take `now`, so a page can be made at a fixed
 clock."""
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from .jsutil import add_days, long_day, num, round2, short_day, string, zone_short_name
 from .jsutil import local as _local
 from .strings import BLOCK_STRINGS
+from .public_time_clock import wall
 
 Data = dict[str, Any]
 
@@ -28,6 +29,11 @@ DAY_NAMES = {
 
 def local_now(now: datetime, tz: str) -> Data:
     """Now, as the site's wall clock: date YYYY-MM-DD, time HH:MM, weekday mon..sun."""
+    if now.tzinfo is None:
+        now=now.replace(tzinfo=UTC)
+    pinned=wall(now.timestamp()*1000,tz)
+    if pinned is not None:
+        return pinned
     t = _local(now, tz)
     return {"date": t.strftime("%Y-%m-%d"), "time": t.strftime("%H:%M"), "day": DAYS[t.weekday()]}
 

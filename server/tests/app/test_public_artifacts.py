@@ -150,7 +150,7 @@ async def test_af_prebuild_clock(db,http,monkeypatch):
     monkeypatch.setattr(site,'live_view',observed)
     assert (await http.get('/')).status_code==200 and calls>0
     assert await count(db)==1
-    assert artifacts.display_boundary(1793512799000)==1793512800000
+    assert artifacts.display_boundary(1793512799000)==1793599199000
 
 async def test_af_prebuild_bounded_failure(db,http):
     await fixture(db)
@@ -509,9 +509,9 @@ async def test_af_prebuild_warm_hit_race(db,http,monkeypatch,change):
     monkeypatch.setattr(public_read,'facts',raced)
     response=await http.get(path,headers={'If-None-Match':first.headers['etag']})
     if change=='expiry':
-        # A new conservative minute changes the dependency validator.
-        assert rendered>0 and response.status_code==200
-        assert response.headers['etag']!=first.headers['etag']
+        # Storage expiry is not a dependency; the static hit remains cheap.
+        assert rendered==0 and response.status_code==304
+        assert response.headers['etag']==first.headers['etag']
     else:
         assert response.status_code==404 and 'etag' not in response.headers
         assert await count(db)==0
@@ -570,3 +570,22 @@ async def test_af_pipe_table_access(db,http,browser_factory):
     for method in ['GET','HEAD']:
         response=await http.request(method,path+'index.md',headers={'If-None-Match':tag})
         assert response.status_code==404 and response.content==(SIGN_IN.encode() if method=='GET' else b'')
+
+async def test_af_time_storage_cap(db,http,monkeypatch):
+    await fixture(db)
+    start=int(artifacts.time.time()*1000)
+    now=start
+    monkeypatch.setattr(artifacts.time,'time',lambda:now/1000)
+    first=await http.get('/')
+    tag=first.headers['etag'];body=first.content
+    until=await db.fetchval('SELECT max(valid_until) FROM public_artifacts')
+    assert until==start+86400000
+    async def refused(*args,**kwargs):
+        pytest.fail('static copy or cheap conditional must not render')
+    monkeypatch.setattr(site,'live_view',refused)
+    now=start+7200000
+    warm=await http.get('/')
+    assert warm.status_code==200 and warm.content==body and warm.headers['etag']==tag
+    now=until+1
+    hit=await http.get('/',headers={'If-None-Match':tag})
+    assert hit.status_code==304 and hit.headers['etag']==tag

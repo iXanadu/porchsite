@@ -3,13 +3,14 @@ import hashlib
 import json
 import re
 import time
+from .public_time import plan
 from starlette.responses import Response
 from .content import validate
 from .errors import ApiError
 from server.spec.embeds import PERMISSIONS, frame_csp
 from . import themes
 from .public_http import markdown_path, page_path, page_query, public_path, representation, session_request, matches_tag, PUBLIC_CACHE, training_signal
-FACTS_SQL = '''WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_build_array(l.kind,l.slug,l.version,l.published_at,i.created_at,l.data::json->>'status',l.data::json->>'stream',l.data::json->>'external_url',CASE WHEN l.item_id='site' THEN l.data ELSE NULL END)::text AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
+FACTS_SQL = '''WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_build_array(l.kind,l.slug,l.version,l.published_at,i.created_at,l.data::json->>'status',l.data::json->>'stream',l.data::json->>'external_url',CASE WHEN l.item_id='site' THEN l.data ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN COALESCE(NULLIF(l.data::json->'event'->>'end',''),l.data::json->'event'->>'start') ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN l.data::json->>'tags' ELSE NULL END)::text AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
  UNION ALL SELECT 'field',f.key,json_build_array(f.value,f.approved)::text FROM site_fields f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'embed','site',json_build_array(f.sources,f.approved)::text FROM site_embed_sources f JOIN live l ON l.version=f.version AND l.item_id='site'),
 facts1(category,ident,value) AS (SELECT 'streams','site',json_build_array(f.settings,f.approved)::text FROM site_stream_settings f JOIN live l ON l.version=f.version AND l.item_id='site'
@@ -26,6 +27,9 @@ def decode(rows):
     for kind,ident,value in data:
         if kind in ('field','embed','streams'):
             value[0]=json.loads(value[0]) if value[1] else None
+    for kind,ident,value in data:
+        if kind=='live' and len(value)>10 and isinstance(value[10],str):
+            value[10]=json.loads(value[10])
     def at(kind,ident='site'):
         return next((r[2] for r in data if r[0]==kind and r[1]==ident),None)
     live=at('live')
@@ -44,7 +48,7 @@ def decode(rows):
         if kind!='live' or v[0]!='entry' or v[5]=='draft':
             continue
         st=next((s for s in streams if s['id']==v[6]),streams[0])
-        entries.append(dict(id=ident,slug=str(v[1]),stream=st.get('path') or st['id'],streamId=st['id'],page='/'+(st.get('path') or st['id'])+'/'+str(v[1])+'/',external=str(v[7] or '')))
+        entries.append(dict(id=ident,slug=str(v[1]),stream=st.get('path') or st['id'],streamId=st['id'],page='/'+(st.get('path') or st['id'])+'/'+str(v[1])+'/',external=str(v[7] or ''),endpoint=v[9] if len(v)>9 else None,tags=v[10] if len(v)>10 and v[10] else []))
     theme=themes.ALIASES.get(s['theme'],s['theme'])
     return dict(rows=data,site=s,entries=entries,hasSite=bool(live),themed=themes.is_built_in(theme) or any(r[0]=='theme' and r[1]==theme for r in data),disabled=s['ai_training_disabled'] is True,private=s['private'] is True)
 
@@ -84,7 +88,10 @@ def choice(req,f):
 
 def tag(f,req,c,release,now=None):
     now=time.time()*1000 if now is None else now
-    value=[f['rows'],release,f'{req.url.scheme}://{req.url.netloc}',c['base']+c['query'],c['type'],training_signal(f['disabled']),int(now//60000)]
+    clock=plan(f,c,now)
+    if clock['kind']=='unknown':
+        return None
+    value=[f['rows'],release,f'{req.url.scheme}://{req.url.netloc}',c['base']+c['query'],c['type'],training_signal(f['disabled']),['public-time/1',clock['kind'],clock['state']]]
     raw=json.dumps(value,ensure_ascii=False,separators=(',',':'),sort_keys=True)
     return 'W/"dep1-'+hashlib.sha256(raw.encode()).hexdigest()+'"'
 
@@ -100,7 +107,7 @@ def headers(f,c,etag,origin):
     return h
 
 def conditional(req,f,c,etag):
-    return Response(status_code=304,headers=headers(f,c,etag,f'{req.url.scheme}://{req.url.netloc}')) if matches_tag(req.headers.get('if-none-match'),etag) else None
+    return Response(status_code=304,headers=headers(f,c,etag,f'{req.url.scheme}://{req.url.netloc}')) if etag and matches_tag(req.headers.get('if-none-match'),etag) else None
 
 def unshaped(path):
     return not public_path(path+'/') and not re.fullmatch(r'/[a-z][a-z0-9-]{0,29}/search\.json',path) and not public_path(path) and not markdown_path(path) and path not in ('/archive','/llms.txt') and not re.match(r'^/(?:mcp|authorize|oauth|review|login|setup|recover|invite|passkey|upload|collect|media|static|alerts|app-icon|sw\.js|manifest\.webmanifest|\.well-known)(?:[/.]|$)',path)

@@ -1,3 +1,4 @@
+import {plan as timePlan} from './public-time';
 import * as publicRead from './public-read';
 /** Disposable anonymous copies. The router must run the private gate first. */
 import {frameCsp,PERMISSIONS} from './embeds';
@@ -50,8 +51,8 @@ export function configuredOrigin(value:string|undefined):string|null {
  if(!value||!/^https?:\/\/[^/?#]+\/?$/.test(value))return null;
  try{const url=new URL(value);return ['http:','https:'].includes(url.protocol)&&!url.username&&!url.password&&url.pathname==='/'&&!url.search&&!url.hash?url.origin:null;}catch{return null;}
 }
-/** All current display-clock helpers observe local date/minute only. */
-export function displayBoundary(now:number){return (Math.floor(now/60000)+1)*60000;}
+/** A storage age bound, never an input to the public validator. */
+export function displayBoundary(now:number,p?:ReturnType<typeof timePlan>){return p?.kind==='unknown'?now:Math.min(now+86400000,p?.next_change??Infinity);}
 // Stored metadata is reconstructed/validated against engine policy, never trusted as arbitrary headers.
 const HTML_POLICIES=[
  "default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -90,7 +91,8 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
  let stamp:string,g:string,key:string,until:number;
  try{
   stamp=await snapshot(db);if(!JSON.parse(stamp)[0].some((r:unknown[])=>r[0]==='site'))return render();g=await digest(JSON.stringify([FORMAT,release,origin,normalizedState(stamp)]));
-  until=displayBoundary(Date.now());key=JSON.stringify([origin,g,release,c.base+c.query,c.type,until]);if(bytes(key)>2048)return render();
+  const f=await publicRead.facts(db),selected=publicRead.choice(req,f);if(f.private||!selected)return render();const clock=timePlan(f,selected);if(clock.kind==='unknown')return render();
+  until=displayBoundary(Date.now(),clock);key=JSON.stringify([origin,g,release,c.base+c.query,c.type]);if(bytes(key)>2048)return render();
   const observed=await db.prepare('SELECT generation FROM public_artifact_state WHERE id=1').first<string>('generation');
   if(observed!==g)await db.batch([db.prepare('INSERT OR IGNORE INTO public_artifact_state(id) VALUES(1)'),
    db.prepare('DELETE FROM public_artifacts'),
@@ -134,7 +136,7 @@ export async function prepare(db:D1Database,configured:string|undefined,release:
   const pages=[...new Set(['/',...await paths()])].filter(p=>pagePath(p)&&!p.includes('?')).slice(0,50);
   const work=['/','/index.md',...(pages.includes('/archive/')?['/archive/','/archive/index.md']:[]),'/llms.txt',...pages.filter(p=>p!=='/'&&p!=='/archive/').flatMap(p=>[p,p+'index.md'])];
   for(const path of work){
-   if(Date.now()-started>=250||Date.now()>=displayBoundary(started)||await livePrivate(db)||await snapshot(db)!==stamp)break;
+   if(Date.now()-started>=250||await livePrivate(db)||await snapshot(db)!==stamp)break;
    const request=new Request(origin+path);
    await respond(db,request,origin,release,()=>renderPath(request));
   }

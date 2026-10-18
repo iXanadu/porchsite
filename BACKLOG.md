@@ -91,6 +91,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **AF-7L-C1** OPEN: fresh quiet-site HTML GET CPU regresses in the local
+  six-process comparison (200 entries: median 16.49 to 19.60 ms). Startup
+  CPU did not increase in that sample; hosted impact is unmeasured. Keep
+  this first-render cost in the next performance investigation.
 - **LL-3** OPEN: the Markdown copies of pages (/index.md and each page's
   index.md) backslash-escape ordinary punctuation ("after\.", "it\.**"),
   the same over-escaping LL-2 fixed in /llms.txt. Agents read these raw,
