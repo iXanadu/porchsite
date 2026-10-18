@@ -88,7 +88,8 @@ security invariants written before the spec.
   and even checking per-item fingerprints on read cost 2-4 ms (up to
   about 13 ms on large sites). Next, when resumed: prove that every write
   path in every supported release changes each item's version marker; if
-  so, compare markers on read and fingerprint only at write; if not, check
+  so, compare markers on read and fingerprint only at write (both reviewers
+  agreed to this, given complete marker lists and the audit); if not, check
   a bounded slice per call. Correctness reference: branch at f1bafb2.
 - **AI-5** OPEN (decided 2026-10-16: capability facts only, no coaching;
   Porchsite stays passive): a short block in the tool descriptions saying
