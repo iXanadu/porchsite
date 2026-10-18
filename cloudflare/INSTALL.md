@@ -41,6 +41,11 @@ means continue setting up on the free plan; it is never a yes to upgrade
 the plan, add payment, or turn on a paid feature. Those each need their own
 explicit yes, asked separately.
 
+D1's free daily database limit can be explained by the running site. At
+Workers' free daily request limit, Cloudflare shows its own error 1027
+page instead: the site cannot run to replace it. Do not switch a route to
+fail open or add a fallback Worker to bypass that limit.
+
 **Rules for the whole job.**
 
 - Only ever upload a release's own `sitekeeper.js`, its hash checked. Never
