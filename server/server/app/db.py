@@ -366,7 +366,7 @@ CREATE TABLE analytics_maintenance (
 INSERT INTO analytics_maintenance (id, completed_day) VALUES (1, '');
 """),
 
-    ("0021_analytics_visitor_counts", """
+    ("0022_analytics_visitor_counts", """
 CREATE TABLE analytics_visitor_counts (
  day TEXT NOT NULL,
  visitor TEXT NOT NULL,
