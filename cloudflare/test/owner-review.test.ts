@@ -543,3 +543,21 @@ it("ag_review_visible_changes: no undisplayed list members or truncated body con
   expect(poison).not.toContain("UNKNOWN_FIELD_SECRET");
   expect(projection.literal("\ufefftext\ufeff")).toBe("` text `");
 });
+
+it("ag_review_editor_saved_state: live and edited status match HTML", async () => {
+  const f = await fixture();
+  const path = "/review/write/" + f.entry.id + "?saved";
+  const edited = await light(await go(path, { Cookie: cookie, Accept: "text/markdown" }));
+  expect(edited).toContain("Saved. Not live until you publish.");
+  const draft = await content.getItem(db, f.entry.id);
+  await approvals.publishNow(db, [{ id: draft.id, version: draft.version }], "", origin);
+  const normal = await (await go(path, { Cookie: cookie })).text();
+  expect(normal).toContain('class="ok">Saved.</p>');
+  const body = await light(await go(path, { Cookie: cookie, Accept: "text/markdown" }));
+  expect(body).toContain("Saved.");
+  expect(body).not.toContain("Not live until you publish.");
+  const view = await (await import("../src/site")).liveView(db);
+  const url = view.entries.find((x) => x.id === f.entry.id)!.url;
+  expect(body).toContain("See it on the site");
+  expect(body).toContain(projection.literal(url));
+});

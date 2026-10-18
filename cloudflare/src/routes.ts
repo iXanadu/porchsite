@@ -992,11 +992,12 @@ async function writeForm(env: Env, req: Request, item: desk.DeskEntry | null, v:
   const chosen = v.stream || streams[0].id;
   const isLive = item ? item.state === "live" || item.state === "live, edited since" : false;
   const page = isLive ? (await contentView(req,env)).entries.find((x) => x.id === item!.id)?.url : undefined;
+  const savedMessage = "Saved." + (item && item.state !== "draft" && item.state !== "live" ? " Not live until you publish." : "");
   return ownerPage(
     item ? "Edit" : "Write",
     html`<h1>${item ? "Edit" : "Write something new"}</h1>
 ${item ? html`<p><span class="tag">${item.state}</span>${page ? html` <a href="${page}">See it on the site</a>` : ""}</p>` : ""}
-${opts.error ? html`<p class="error">${opts.error}</p>` : ""}${opts.saved ? html`<p class="ok">Saved.${item && item.state !== "draft" && item.state !== "live" ? " Not live until you publish." : ""}</p>` : ""}
+${opts.error ? html`<p class="error">${opts.error}</p>` : ""}${opts.saved ? html`<p class="ok">${savedMessage}</p>` : ""}
 <form method="post" action="/review/write/${item ? item.id : "new"}"><input type="hidden" name="csrf" value="${await owner.csrf(req)}"><input type="hidden" name="version" value="${item ? String(item.version) : ""}">
 <label for="stream">Where it goes</label><select id="stream" name="stream">${streams.map((x) => html`<option value="${x.id}"${raw(x.id === chosen ? " selected" : "")}>${x.title}</option>`)}</select>
 <label for="title">Title</label><input type="text" id="title" name="title" value="${v.title}" maxlength="160" required>
@@ -1013,6 +1014,7 @@ ${opts.error ? html`<p class="error">${opts.error}</p>` : ""}${opts.saved ? html
 <p class="meta">Publishing makes this entry live at once. Nothing else that's waiting goes with it.</p></form>`,
     { review:() => [
       ...(item ? [rv("Status", item.state)] : []),
+      ...(page ? [rv("See it on the site", String(page))] : []),
       rv("Where it goes", streams.find((x) => x.id === chosen)?.title ?? ""),
       rv("Title", v.title),
       rv("One or two sentences, shown in lists", v.summary),
@@ -1022,7 +1024,7 @@ ${opts.error ? html`<p class="error">${opts.error}</p>` : ""}${opts.saved ? html
       rv("What the picture shows", v.cover_alt),
       rs("Text", v.body),
       ...(opts.error ? [rv("Error", opts.error)] : []),
-      ...(opts.saved ? [rv("Status", "Saved. Not live until you publish.")] : []),
+      ...(opts.saved ? [rv("Status", savedMessage)] : []),
     ], signedIn: true, status: opts.status },
   );
 }

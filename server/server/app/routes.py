@@ -1343,14 +1343,8 @@ async def write_form(
         see = f' <a href="{esc(page)}">See it on the site</a>' if page else ""
         state = f'<p><span class="tag">{esc(item["state"])}</span>{see}</p>'
     err = f'<p class="error">{esc(error)}</p>' if error else ""
-    ok = ""
-    if saved:
-        more = (
-            " Not live until you publish."
-            if item and item["state"] not in ("draft", "live")
-            else ""
-        )
-        ok = f'<p class="ok">Saved.{more}</p>'
+    saved_message = "Saved." + (" Not live until you publish." if item and item["state"] not in ("draft", "live") else "")
+    ok = f'<p class="ok">{saved_message}</p>' if saved else ""
     options = "".join(
         f'<option value="{esc(x["id"])}"{" selected" if x["id"] == chosen else ""}>{esc(x["title"])}</option>'
         for x in streams
@@ -1377,6 +1371,7 @@ async def write_form(
 <p class="meta">Publishing makes this entry live at once. Nothing else that's waiting goes with it.</p></form>""",
         review=lambda: [
             *([rv("Status",item["state"])] if item else []),
+            *([rv("See it on the site",str(page))] if page else []),
             rv("Where it goes",next((x["title"] for x in streams if x["id"]==chosen),"")),
             rv("Title",v["title"]),
             rv("One or two sentences, shown in lists",v["summary"]),
@@ -1386,7 +1381,7 @@ async def write_form(
             rv("What the picture shows",v["cover_alt"]),
             rs("Text",v["body"]),
             *([rv("Error",error)] if error else []),
-            *([rv("Status","Saved. Not live until you publish.")] if saved else []),
+            *([rv("Status",saved_message)] if saved else []),
         ],
         signed_in=True,
         status=status,

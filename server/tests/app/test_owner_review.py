@@ -211,3 +211,19 @@ def test_ag_review_visible_changes():
     poison=projection.markdown(('Review',changes.review_fields('entry',{'title':'Visible','date':'2026-10-17','csrf':'UNKNOWN_FIELD_SECRET'})))
     assert 'UNKNOWN_FIELD_SECRET' not in poison
     assert projection.literal('\ufefftext\ufeff')=='` text `'
+
+async def test_ag_review_editor_saved_state(db,http):
+    f=await fixture(db)
+    path='/review/write/'+f['entry']['id']+'?saved'
+    edited=light(await http.get(path,headers={'Cookie':COOKIE,'Accept':'text/markdown'}))
+    assert 'Saved. Not live until you publish.' in edited
+    draft=await content.get_item(db,f['entry']['id'])
+    await approvals.publish_now(db,[{'id':draft['id'],'version':draft['version']}],'',ORIGIN)
+    normal=await http.get(path,headers={'Cookie':COOKIE})
+    assert 'class="ok">Saved.</p>' in normal.text
+    body=light(await http.get(path,headers={'Cookie':COOKIE,'Accept':'text/markdown'}))
+    assert 'Saved.' in body and 'Not live until you publish.' not in body
+    from server.app import site
+    view=await site.live_view(db)
+    url=next(e['url'] for e in view.entries if e['id']==f['entry']['id'])
+    assert 'See it on the site' in body and projection.literal(url) in body
