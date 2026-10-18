@@ -100,13 +100,20 @@ def main():
             sock.bind(('127.0.0.1', 0))
             return sock.getsockname()[1]
 
-    def request(base, path, headers=None, body=None, method=None):
+    def request(base, path, headers=None, body=None, method=None, oauth_cors=False):
         req = Request(base + path, headers=headers or {}, data=body, method=method)
         try:
             response = urlopen(req, timeout=min(2, remaining()))
         except HTTPError as error:
             response = error
         with response:
+            if oauth_cors:
+                expected = {k.lower(): v for k,v in json.loads((ROOT / 'spec/fixtures/oauth-cors.json').read_text())['headers'].items()}
+                actual = {k.lower(): v for k,v in response.headers.items() if k.lower().startswith('access-control-')}
+                if actual != expected or response.headers.get_all('Access-Control-Allow-Origin') != ['*']:
+                    raise RuntimeError(f'{path}: OAuth CORS map or singleton Allow-Origin differs')
+                if any(token.strip().lower() == 'origin' for value in response.headers.get_all('Vary', []) for token in value.split(',')):
+                    raise RuntimeError(f'{path}: OAuth response still varies by Origin')
             return response.status, dict(response.headers), response.read()
 
     def ready(proc, base):
@@ -155,13 +162,32 @@ def main():
         if status != 304 or body:
             raise RuntimeError(f'{edition} conditional home must be an empty 304')
         for path in json.loads((ROOT / 'spec/fixtures/oauth-preflight-paths.json').read_text()):
-            for case, authorization in [('absent', None), ('bearer', 'Bearer psk_invalid'), ('basic', 'Basic unused')]:
-                status, headers, body = request(base, path,
-                    {'Authorization': authorization} if authorization else {}, method='OPTIONS')
-                records.append({'edition': edition, 'method': 'OPTIONS', 'path': path,
-                                'credential_case': case, 'status': status, 'bytes': len(body), 'headers': headers})
-                if status != 204 or body or any(k.lower() == 'content-length' for k in headers):
-                    raise RuntimeError(f'{edition} {path}: OAuth preflight must be an empty 204 without Content-Length')
+            for caller in [None, 'https://caller.example']:
+                origin_headers = {'Origin': caller} if caller else {}
+                for case, authorization in [('absent', None), ('bearer', 'Bearer psk_invalid'), ('basic', 'Basic unused')]:
+                    status, headers, body = request(base, path,
+                        {**origin_headers, **({'Authorization': authorization} if authorization else {})}, method='OPTIONS', oauth_cors=True)
+                    records.append({'edition': edition, 'method': 'OPTIONS', 'path': path,
+                                    'caller_origin': caller, 'credential_case': case, 'status': status, 'bytes': len(body), 'headers': headers})
+                    if status != 204 or body or any(k.lower() == 'content-length' for k in headers):
+                        raise RuntimeError(f'{edition} {path}: OAuth preflight must be an empty 204 without Content-Length')
+                methods = ['GET','HEAD'] if path.startswith('/.well-known/') else ['POST']
+                for method in methods:
+                    status, headers, body = request(base, path,
+                        {**origin_headers, **({'Content-Type':'application/json'} if method == 'POST' else {})},
+                        b'{}' if method == 'POST' else None, method=method, oauth_cors=True)
+                    records.append({'edition': edition, 'method': method, 'path': path,
+                                    'caller_origin': caller, 'status': status, 'bytes': len(body), 'headers': headers})
+                    expected = 404 if edition == 'worker' and path == '/.well-known/oauth-protected-resource' else 200
+                    if (method != 'POST' and status != expected) or (method == 'POST' and status < 400):
+                        raise RuntimeError(f'{edition} {path}: unexpected OAuth protocol status {status}')
+                if path == '/oauth/register':
+                    payload = json.dumps({'client_name':'Runtime test','redirect_uris':['https://app.example/callback'],'token_endpoint_auth_method':'none'}).encode()
+                    status, headers, body = request(base, path, {**origin_headers,'Content-Type':'application/json'},payload,method='POST',oauth_cors=True)
+                    records.append({'edition':edition,'method':'POST','path':path,'valid_registration':True,
+                                    'caller_origin':caller,'status':status,'bytes':len(body),'headers':headers})
+                    if status != 201 or not json.loads(body).get('client_id'):
+                        raise RuntimeError(f'{edition}: valid OAuth registration failed')
 
 
     try:
@@ -199,7 +225,7 @@ def main():
         for edition, proc, base in [('worker', worker, f'http://127.0.0.1:{worker_port}'),
                                     ('server', server, f'http://127.0.0.1:{server_port}')]:
             ready(proc, base)
-            probe(edition, base)
+            probe(edition, base.replace('127.0.0.1', 'localhost'))
         result['pass'] = True
     except Exception as error:
         result['error'] = str(error)

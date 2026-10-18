@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Message, Receive, Scope, Send
 
-from . import alerts, keys, read_keys, mcp, oauth, privacy, routes
+from . import alerts, keys, read_keys, mcp, oauth, oauth_cors, privacy, routes
 from .db import Db, connect
 from .settings import Settings
 
@@ -154,6 +154,7 @@ class App:
                 self.settings.public_artifacts,
             )
             resp = await routes.handle(req, cx)
+        resp = oauth_cors.apply(path, resp)
         if req.method == "HEAD":
             resp.body = b""
         await resp(scope, receive, send_with_release)
