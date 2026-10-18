@@ -42,10 +42,10 @@ class Statements(unittest.TestCase):
             for altered in [good[:-2]+good[-1:], [good[-1],*good[:-1]], good+[good[1]],
                             [x.replace('content_revision__live__', 'other__live__') for x in good],
                             [x.replace('AFTER INSERT ON live','AFTER DELETE ON owner') for x in good] if dialect=='cf' else [x.replace('ON live','ON owner') for x in good],
-                            [x.replace('SET n = n + 1','SET n = 0') for x in good],
-                            [x.replace('WHERE id = 1 AND n >= 0','WHERE id = 1 OR n >= 0') for x in good] if dialect=='pg' else [x.replace("typeof(n) = 'integer'", '1 = 1') for x in good],
+                            [x.replace('THEN prior.n + 1','THEN 0').replace('THEN content_revision.n + 1','THEN 0') for x in good],
+                            [x.replace('prior.n >= 0','1 = 1').replace("typeof(content_revision.n) = 'integer'",'1 = 1') for x in good],
                             good+['UPDATE owner SET name = \'changed\''],
-                            [x.replace('RETURN NULL;', 'DELETE FROM owner; RETURN NULL;') for x in good] if dialect=='pg' else [x.replace('SELECT CASE', 'DELETE FROM owner; SELECT CASE') for x in good]]:
+                            [x.replace('RETURN NULL;', 'DELETE FROM owner; RETURN NULL;') for x in good] if dialect=='pg' else [x.replace('INSERT INTO content_revision (id,epoch,n)', 'DELETE FROM owner; INSERT INTO content_revision (id,epoch,n)') for x in good]]:
                 self.assertTrue(errors(altered), (dialect, altered))
             # A forged trigger cannot be accepted as a header followed by
             # individually allowed writes to a same-migration table.
