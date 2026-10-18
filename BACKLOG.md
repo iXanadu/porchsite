@@ -89,6 +89,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **DEP-1** OPEN: npm audit reports 8 high-severity advisories in
+  inherited dependencies (the MCP SDK, agents, and the test, build and
+  local-runtime chain). Security review decides which ship in the Worker
+  and are reachable; any that are become BLOCKING. Found 2026-10-18.
 - **AF-7L-C1** OPEN: fresh quiet-site HTML GET CPU regresses in the local
   six-process comparison (200 entries: median 16.49 to 19.60 ms). Startup
   CPU did not increase in that sample; hosted impact is unmeasured. Keep
