@@ -125,3 +125,29 @@ it('valid reader credential cannot obtain the owner error variant',async()=>{
  const response=await worker.fetch(request,{...e,DB:faultDB(sql=>/FROM live\b/.test(sql))},context);
  const text=await response.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain(OWNER_LIMIT);expect(text).not.toContain('D1_ERROR');
 });
+it('authenticated real owner review gets owner copy, but invalid Origin still refuses',async()=>{
+ const {SoftKey}=await import('./softkey');const key=await SoftKey.make();let cookie='';
+ const post=async(path:string,body:unknown)=>{
+  const response=await worker.fetch(new Request(origin+path,{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)}),e,context);
+  const fresh=response.headers.getSetCookie().map(h=>h.split(';')[0]);if(fresh.length)cookie=fresh.join('; ');return response;
+ };
+ const options=await post('/setup/options',{code:e.SETUP_CODE,name:'Fixture'});expect(options.status).toBe(200);
+ const issued=await post('/setup/verify',await key.create((await options.json() as any).options,origin));expect(issued.status).toBe(200);
+ const faulted={...e,DB:faultDB(sql=>/FROM items\b/.test(sql))};
+ const review=await worker.fetch(new Request(origin+'/review',{headers:{Cookie:cookie}}),faulted,context);
+ expect(review.status).toBe(503);const text=await review.text();expect(text).toContain(OWNER_LIMIT);expect(text).not.toContain(cookie);
+ const refused=await worker.fetch(new Request(origin+'/review',{method:'POST',headers:{Cookie:cookie,Origin:'https://outside.example','Content-Type':'application/x-www-form-urlencoded'},body:'csrf=invalid'}),faulted,context);
+ expect(refused.status).toBe(403);expect(await refused.text()).not.toContain(OWNER_LIMIT);
+});
+it('a final-facts daily failure cannot return rendered content, cached validators or a 304',async()=>{
+ const content=await import('../src/content'),approvals=await import('../src/approvals'),read=await import('../src/public-read');
+ const one=await content.createItem(db,'assistant:test','site',{title:'Content must stay hidden on failure',theme:'personal-homepage'},undefined);
+ await approvals.publishNow(db,[{id:one.id,version:one.version}],'',origin);
+ const healthy=await worker.fetch(new Request(origin),{...e,SITE_URL:origin},context);expect(healthy.status).toBe(200);const tag=healthy.headers.get('ETag')!;
+ for(const conditional of [false,true]){
+  let facts=0,triggered=false;
+  const failed=await worker.fetch(new Request(origin,{headers:conditional?{'If-None-Match':tag}:{}}),{...e,SITE_URL:origin,DB:faultDB(sql=>{if(sql!==read.FACTS_SQL)return false;facts++;if(facts===2){triggered=true;return true;}return false;})},context);
+  expect(triggered).toBe(true);expect(failed.status).toBe(503);expect(failed.headers.has('ETag')).toBe(false);
+  const text=await failed.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain('Content must stay hidden on failure');
+ }
+});
