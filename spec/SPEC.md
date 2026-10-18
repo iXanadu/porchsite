@@ -3164,6 +3164,169 @@ negative-control evidence. Full two-edition gates, real public/private
 HTTP, actual previous-release rollback/return and independent acceptance
 remain required. No schema/runtime implementation before spec review.
 
+### AN-2: cheap saturated-visitor refusal without trusting legacy counters
+
+**Scope and target.** Both editions retain AN-1's identity, input, privacy,
+200-view cap, test/non-test sharing, report and heartbeat rules. Reduce the
+repeated capped-visitor scan; do not replace a proven cap with an unchecked
+cache. The observed deployed cost was about 206 D1 rows in 11 statements
+for a denied view, and hosted mean collector CPU 8.6–10 ms (maximum 22).
+These are supplied observations, not measurements of this proposal. A
+single indexed counter lookup is a cap-proof target, not a promise that
+all of `/collect` becomes one statement or one row.
+
+**Legacy-writer constraint.** Supported old runtimes insert pageviews but
+know nothing about a new counter. Counter value below 200 cannot prove
+that fewer than 200 views exist. No request may admit a view merely because
+that cached value is below 200. A pageviews trigger that writes a counter
+would change native D1 `meta.changes`, breaking the released collector's
+`=== 1` result contract. Add no such trigger, view replacement, binding
+metadata adapter or old-test exception. Preserve every old statement and
+archived assertion. This phase therefore optimizes saturated refusals;
+it does not promise constant-row under-cap admission with legacy writers.
+
+**Additive state.** Add an analytics visitor-count table keyed by the existing
+`(day, visitor)` values, with a checked integer `views` in 0..200. It stores
+no IP, UA, extra identity, timestamps, path or cross-day identifier. One
+primary-key lookup returns at most one row. The row is a conservative
+admission witness: below 200 it can lag old writes; at 200 it certifies
+that at least 200 distinct stored pageview ids existed for that key. It is
+not a count used in reports. Retain all shipped migrations, the id primary
+key, pageviews_day and the 0026 pageviews_day_visitor index. Do not drop an
+index or reinterpret an old migration to claim flat writes.
+
+**Admission transaction.** Keep the existing pre-validation and derivation
+of the site's day and daily visitor hash; a client cannot supply either.
+After normal maintenance/salt work, a valid saturated row permits refusal
+without any pageview scan or count write. Missing, malformed or non-saturated
+state cannot authorize admission and takes the reconciliation path:
+
+1. In the same serialized admission batch/transaction, derive the bounded
+   actual count from the existing indexed `(day, visitor)` pageview range,
+   including test rows, stopping at 200. Initialize or advance the counter
+   to that count, saturated at 200. Use a SQL current read, never a host
+   count captured before serialization. Do not decrease a valid counter
+   within an active retained day. A duplicate id must not create a new
+   zero-count key for an unrelated visitor or consume a slot.
+2. Insert the pageview only when the reconciled count is below 200 and
+   the random pageview id is absent. All fields, referrer categorization,
+   ownership of a duplicate id and validation remain the released rules.
+   Existing historical over-cap rows are preserved; initialize their count
+   to 200 and refuse further views.
+3. Increment the same key only if THIS pageview insert actually inserted
+   one row. D1 uses the immediately preceding direct SQL `changes()` proof,
+   not a previously selected value or aggregate batch metadata. PostgreSQL
+   uses the inserted row/result inside the same transaction. Duplicate,
+   conflict and rejected insert never increment or reserve a slot. Every
+   required statement failure rolls back pageview and counter together.
+
+SQLite/D1's transaction batch must serialize the count, source insert and
+counter increment with old single-statement AN-1 inserts; no check-then-write
+across independent batches. PostgreSQL keeps the exact released AN-1
+per-key advisory lock, acquired in a separate statement before current
+reads, so supported old AN-1 writers and new writers serialize together.
+Retain READ COMMITTED visibility of the preceding lock holder's commit.
+No new in-memory mutex or process-local counter substitutes for this.
+An uncapped pre-AN-1 executable is not a concurrent cap-aware writer: its
+ability to store historical excess remains an explicit archive/control
+case. Returning to the new runtime must reconcile and refuse excess;
+never relabel an uncapped old write as denied.
+
+On the normal path all 200 admitted views populate the counter, so the
+201st and repeated later views use one counter row for the cap decision.
+After legacy writes made a counter stale, one request may need a bounded
+reconciliation before the subsequent cheap denials. Record that transition
+separately. Do not describe it as one-row on every first post-upgrade view.
+Deleting the counter safely forces reconciliation; there is no zero/default
+admission. Administrative forging of counters or deletion of source rows
+is outside ordinary DML and requires the existing maintenance discipline.
+
+**Retention and failure.** Delete expired counter rows with the existing
+conditional, marker-last retention transaction, not on every beacon. Apply
+the same monotonic day predicate, rollback and backwards-clock rules.
+Counter cleanup may not precede retained source deletion outside that
+transaction. Old maintenance does not know this table: retain a documented
+retirement check against the existing maintenance horizon so a surviving
+counter for a day whose raw rows could already have been retired is not
+used as a fresh saturation certificate. A request for such a retired day
+uses the original complete AN-1 admission path without counter optimization
+or a same-epoch counter reset. No stale counter may invent a reported view, resurrect a
+salt or link visitors across days. Measure retention storage and work.
+Missing new schema must fail safely or use the existing complete AN-1 cap
+path, never an uncapped fallback. No D1/storage errors are swallowed inside
+the admission transaction to commit half its work.
+
+HTTP remains empty 204, no-store, without cookie, count, retry, billing or
+cap oracle, for accepted/capped/invalid/storage-error cases. No heartbeat
+for a rejected pageview is created. Already-admitted heartbeats remain
+uncapped and retain max-progress/no-progress-write rules. This does not
+solve rotating identity, account quotas or read/heartbeat floods globally.
+
+**Costs and gate disclosure.** Keeping 0026 means the ordinary pageview's
+index-write cost remains. A new admitted view normally adds a counter
+update; key initialization and legacy reconciliation can add more writes.
+This phase claims no flat/falling accepted-view write total. SQL statements,
+reads/writes, key/index storage, first-day and retention overhead must be
+measured, including duplicates with another key, rotating UA, one-key
+1000-event flood and normal 1-/200-view admission. Steady saturated denial
+must write zero rows and scan no pageviews; trace the actual PK plan and
+report the rest of the request's work separately. Compare both editions'
+behavior; PostgreSQL rows/buffers are separate from D1 accounting.
+
+Use GATE-2a's actual beacon cells when available, without removing page,
+approval or import cells or extending its budget. Otherwise provide explicit
+collector diagnostics in addition to the unchanged page gate; absence of
+beacon coverage cannot justify a cost increase. Any release metric increase
+needs a plain newest-entry rows_justification and owner approval. Quote the
+write-only daily allowance impact, not a universal pageview capacity.
+
+**Acceptance before implementation freeze.** Both editions require complete
+existing collector/report tests, final-slot eight-way race (exactly one
+insert), parallel distinct/duplicate ids and test/normal sharing; malformed
+or missing counters; zero insert/conflict/DB fault rollback; old writer
+inserts before/after new initialization and mixed old/new final-slot race;
+historical 201+ rows; private/opt-out/bot/malformed no-work paths; heartbeat
+progress; clock reversal, once-per-day retention and old maintenance followed
+by return. Counter/guard bypass scratch mutations must fail original cap
+assertions. Actual supported published old tests and bundles on the new
+schema plus populated rollback/return remain unchanged and must pass. Audit
+native metadata checks on every affected old statement; no new trigger
+writes on a checked statement. No source result guard may be loosened.
+
+**Preregistered diagnostic CPU comparison.** Before any timing, fix exact
+315dc35 (before AN-1), 3f0141a (AN-1) and the accepted main revision a55686c46d61db26a27813ae4c71bb1626e4f71c
+captured with this spec; build each normal production artifact once and retain its
+SHA, own migrations and same toolchain/lock identity. Any changed toolchain
+must be labeled, not treated as an isolated AN-1 effect. Both public caches
+OFF. No profiling, query observer, GC injection or instrumented bundle in
+timed processes. Use eight interleaved triplets per each of two request
+classes, rotating the three revision orders in a fixed schedule: 48 fresh
+Worker processes TOTAL. One measured normal HTTP POST /collect per fresh
+process after fixture/setup has settled. Classes: one pre-existing same-day
+view plus one new unique admitted view; and 200 existing views plus event
+201. Match the same day/salt/IP/UA/site/event bytes, setting only a revision's
+real migration/maintenance differences outside the timed request.
+
+The pre-AN-1 revision accepts event 201; the other two must deny it. Label
+that outcome difference explicitly and never claim its paired CPU difference
+is an equivalent-work optimization. Certify actual counts, identity/hash,
+204/body/full application headers except Date, no new cookie/retry oracle
+and background settlement. Preserve the original 20 ms completion window
+and separately a bounded quiet-drain CPU delta; report workerd CPU and
+startup separately, with raw vectors. Do not time SQL diagnostic queries.
+Measure main-minus-AN-1 and AN-1-minus-pre-AN-1 paired medians within each
+triplet/class; fixed two-sided sign-order interval [minimum, maximum] for
+eight differences has 99.21875% coverage. The wide interval is disclosed;
+spanning zero is inconclusive, not zero overhead. Flag a diagnostic HOLD
+on a comparison if its equivalent-outcome paired median exceeds +0.5 ms
+or its interval is wholly positive. This is an attribution stop/decision
+bar, not a hosted free-tier proof. No sample deletion, tuning or rerun.
+Stop on first unexpected outcome/failure; preserve partial vectors. Native
+measurement needs its own bounded PM allocation and direct handoff after
+offline wrapper/typecheck/mode/path/fixture preflight. No native result is
+claimed by this spec; a later AN-2 product cohort needs a separate declared
+candidate comparison after the design passes review.
+
 ## 9. Edition extras
 
 Not part of the contract; one edition has them for how it is run.

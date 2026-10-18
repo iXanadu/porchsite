@@ -75,7 +75,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
 
-6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
+6. **AN-2** IN-PROGRESS (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
    in 11 queries, so about 24,000 rejected views a day from one visitor
    would use the account's free 5 million reads. And /collect CPU measured
