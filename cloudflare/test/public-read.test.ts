@@ -62,3 +62,8 @@ it('af_time_deadline_race: a notice boundary crossed during conditional validati
  vi.spyOn(read,'facts').mockImplementation(async(db)=>{const f=await load(db);if(++calls===2)clock.mockReturnValue(Date.parse('2026-10-19T00:00Z'));return f;});
  const changed=await req('/',{'If-None-Match':old});expect(changed.status).toBe(200);expect(changed.headers.get('ETag')).not.toBe(old);expect(await changed.text()).not.toContain('Expires tonight');
 });
+it('af_time_unknown_native: out-of-coverage live pages refuse wildcard304 and never gain a public tag',async()=>{
+ await seed();const changed=await content.updateItem(db,who,'site',1,{theme:'local-business',hours:{weekly:[{day:'mon',open:'09:00',close:'17:00'}]}});await approvals.publishNow(db,[{id:'site',version:changed.version}],'',origin);
+ vi.spyOn(Date,'now').mockReturnValue(Date.parse('2200-01-01T12:00Z'));
+ const response=await req('/',{'If-None-Match':'*'});expect(response.status).toBe(200);expect(response.headers.has('ETag')).toBe(false);expect(response.headers.get('Cache-Control')).toContain('no-store');
+});

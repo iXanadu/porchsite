@@ -172,3 +172,13 @@ async def test_af_time_deadline_race(db,monkeypatch):
     changed=await routes.handle(request('/',headers={'If-None-Match':old}),cx)
     assert changed.status_code==200 and changed.headers['etag']!=old
     assert b'Expires tonight' not in changed.body
+
+async def test_af_time_unknown_native(db,monkeypatch):
+    from datetime import datetime
+    await seed(db)
+    changed=await content.update_item(db,'assistant:test','site',1,dict(theme='local-business',hours=dict(weekly=[dict(day='mon',open='09:00',close='17:00')])))
+    await approvals.publish_now(db,[dict(id='site',version=changed['version'])],'',ORIGIN)
+    monkeypatch.setattr(public_read.time,'time',lambda:datetime.fromisoformat('2200-01-01T12:00+00:00').timestamp())
+    response=await routes.handle(request('/',headers={'If-None-Match':'*'}),routes.Context(db,'',None))
+    assert response.status_code==200 and 'etag' not in response.headers
+    assert 'no-store' in response.headers['cache-control']
