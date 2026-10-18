@@ -34,7 +34,7 @@ def plan(f,c,now=None):
         return unknown
     key=stable([s['theme'],[r for r in f['rows'] if r[0]=='theme'],zone,hours,notice,events,c['base'],c['kind']]);cached=CACHE.get(key)
     if cached and now>=cached['at'] and cached['next_change'] is not None and now<cached['next_change']:
-        return cached
+        return {**cached,'at':now}
     try:
         def state_at(at):
             n=wall(at,zone)

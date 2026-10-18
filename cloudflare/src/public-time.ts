@@ -19,7 +19,7 @@ export function plan(f:Facts,c:Choice,now=Date.now()):Plan{
  if(!hours&&!notice&&!events.length)return empty;
  const unknown:Plan={kind:'unknown',state:null,next_change:null,at:now},r=rules(zone,now),local=wall(now,zone);if(!r||!local)return unknown;
  const key=stable([s.theme,f.rows.filter((r:any)=>r[0]==='theme'),zone,hours,notice,events,c.base,c.kind]),cached=cache.get(key);
- if(cached&&now>=cached.at&&cached.next_change!==null&&now<cached.next_change)return cached;
+ if(cached&&now>=cached.at&&cached.next_change!==null&&now<cached.next_change)return {...cached,at:now};
  try{
   const stateAt=(at:number)=>{const n=wall(at,zone);if(!n)throw Error('unsupported clock');return [hours?hoursView(hours,zone,new Date(at)):null,notice?noticeView(notice,zone,new Date(at)):null,events.map(([id,end])=>[id,String(end)<n.date+'T'+n.time])];};
   const state=stateAt(now),encoded=stable(state),candidates=new Set<number>([r[0]*1000]);

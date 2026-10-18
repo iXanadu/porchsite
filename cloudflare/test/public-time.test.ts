@@ -23,7 +23,7 @@ it('af_time_static_sparse: hour+ unchanged; map excludes unrelated clock chrome'
 });
 it('af_time_unknown_and_rollback: unsupported zone/range never earns a validator; cached interval cannot survive rollback',async()=>{
  const f=facts(fixture.cases[0]),now=Date.parse('2026-10-19T08:00Z');f.site.timezone='No/Such_Zone';expect(plan(f,c,now).kind).toBe('unknown');expect(await tag(f,new Request('https://site.example/'),c,'test',now)).toBeNull();
- f.site.timezone='UTC';expect(plan(f,c,Date.parse('2200-01-01Z')).kind).toBe('unknown');const p=plan(f,c,now);expect(valid(p,now-1)).toBe(false);expect(plan(f,c,now-1).at).toBe(now-1);
+ f.site.timezone='UTC';expect(plan(f,c,Date.parse('2200-01-01Z')).kind).toBe('unknown');const p=plan(f,c,now);expect(valid(p,now-1)).toBe(false);const reused=plan(f,c,now+1000);expect(reused.at).toBe(now+1000);expect(valid(reused,now+999)).toBe(false);expect(plan(f,c,now-1).at).toBe(now-1);
 });
 it('af_time_projection_scope: entry excludes another event; themed stream keeps shared notice',()=>{
  const f=facts({endpoint:'2026-10-19T10:00'}),now=Date.parse('2026-10-19T09:00Z');expect(plan(f,{...c,base:'/journal/other/'},now).kind).toBe('static');

@@ -49,6 +49,8 @@ def test_af_time_unknown_and_rollback():
     assert public_time.plan(f,C,ms('2200-01-01T00:00Z'))['kind']=='unknown'
     p=public_time.plan(f,C,now)
     assert not public_time.valid(p,now-1)
+    reused=public_time.plan(f,C,now+1000)
+    assert reused['at']==now+1000 and not public_time.valid(reused,now+999)
     assert public_time.plan(f,C,now-1)['at']==now-1
 
 def test_af_time_projection_scope():
