@@ -95,6 +95,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
    cut the largest cost.
 
+15. **PERF-13** OPEN (Hand, hosted on porchsite.dev, f343361, 2026-10-18):
+   the visit-stats beacon (/collect) averages about 10.6-12 ms of CPU, with
+   about half its requests over the free plan's 10 ms limit (no errors
+   seen yet). A request past the limit can be stopped, which loses that
+   view's stats; pages are a separate request. AN-2 adds up to about 1 ms
+   locally (owner chose to ship with a hosted check). Attribute /collect
+   CPU by phase and cut it.
+
 14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
    archived a55686c and earlier copies still compare timing fields, so the
    upgrade check can still flake until they age out of the window).
