@@ -15,8 +15,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
 1. AF-7L: the change check stays valid across minutes when nothing on
    the page depends on time, so repeat visits skip the full render.
-2. AG-6, the last part of agent access to private sites (read keys, read
-   tools and private pages over HTTP shipped in 2026.10.18-c59bcc9).
+2. PERF-5: make the first build of a page cheaper (cold renders are
+   about 18 ms typical on the free plan's 10 ms budget).
+3. PERF-4: reuse a rendered public page for every visitor in a location
+   while nothing on it has changed (after AF-7L).
 
 ## BLOCKING
 
@@ -63,9 +65,6 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
-- **AF-7L** IN-PROGRESS: renderer-proven public clock state and actual
-  next-change boundaries instead of UTC-minute tag churn. Paired timezone/DST
-  proof, bounded copy lifetime and sparse measurement remain in acceptance.
 - **AF-7H** OPEN: hosted CPU and database-read/write measurement before
   default enablement of prepared public pages. The D1/PostgreSQL backend is
   operator opt-in and remains off by default. Local process CPU is diagnostic;
@@ -80,17 +79,6 @@ security invariants written before the spec.
 Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
-## AGENT ACCESS TO PRIVATE SITES
-People read a private site through passkeys; agents can't and shouldn't.
-Use: the owner's own agents read the private playbook to check it matches
-the owner's records (the records are the truth; agents read, they never
-write there). Any agent holding access gets the same light versions
-cheaply and may keep its own private copy; nothing private is ever stored
-in a shared cache or shared place; anonymous visitors see no change.
-- **AG-6** OPEN: owner review pages give a signed-in agent the same light
-  versions, protected like any other private data; no separate owner
-  review step (the owner approves content once).
-
 ## OWNER REQUESTS (2026-10-16)
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
   one private playbook), one "<Project> reports" stream per project, no
@@ -103,6 +91,12 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **LL-3** OPEN: the Markdown copies of pages (/index.md and each page's
+  index.md) backslash-escape ordinary punctuation ("after\.", "it\.**"),
+  the same over-escaping LL-2 fixed in /llms.txt. Agents read these raw,
+  and an escaped domain ("get\.porchsite\.dev") can be copied as a
+  broken address.
+  Found 2026-10-18 on porchsite.dev.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a

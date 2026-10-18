@@ -1,3 +1,6 @@
+from . import owner_review
+from .owner_review import value as rv, source as rs, heading as rh, link as rl
+from .agent_markdown import markdown_document
 from . import private_agent
 from . import read_keys
 """Everything that isn't /mcp or the OAuth protocol endpoints: the public
@@ -29,7 +32,7 @@ from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 from .site_fields import training_state
 from . import public_artifacts, public_read, public_time
 from copy import copy
-from .public_http import session_request,public_path,markdown_path
+from .public_http import session_request,public_path,markdown_path,representation as public_read_representation
 from .agent_pages import agent_page
 from .agent_map import map_pages, map_response
 from .public_http import public_response, private_agent_path
@@ -164,6 +167,7 @@ def owner_page(
     script: str = "",
     status: int = 200,
     headers: list[tuple[str, str]] | None = None,
+    review=None,
 ) -> Response:
     n = nonce()
     nav = (
@@ -190,7 +194,8 @@ def owner_page(
     # Analytics never counts a browser the owner is signed in on.
     if signed_in:
         cookies.append(("Set-Cookie", analytics.NOTRACK_SET))
-    return _with_raw(resp, cookies)
+    resp = _with_raw(resp, cookies)
+    return owner_review.attach(resp, lambda: (title, review())) if review is not None else resp
 
 
 def signed_in_json(cookie: str) -> Response:
@@ -536,6 +541,9 @@ async def import_page(req: Request, error: str = "", problems: list[str] | None 
         "Import",
         f"""<h1>Import from an assistant</h1><p>For an assistant that can&#39;t reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here.</p>{errs}{listed}
 <form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><label>The file (.json)</label><input type="file" name="file" accept=".json,application/json" required><button>Import and review</button></form>""",
+        review=lambda: [
+            rv("Import from an assistant", "For an assistant that cannot reach your site: it gives you one file, and you upload it here. Everything in it is checked like any draft and waits for your approval; nothing goes live from here."),
+        ],
         signed_in=True,
         status=422 if error else 200,
     )
@@ -544,8 +552,10 @@ async def import_page(req: Request, error: str = "", problems: list[str] | None 
 _CARD = re.compile(r"^/review/cards/([a-z]{2,8}_[0-9a-f]{4,40})\Z")
 
 
-async def _training_notice(db):
+async def _training_notice(db, read=None):
     state = await training_state(db)
+    if read is not None and state["needs_publication"]:
+        read.append(rv("Warning",state["note"]))
     return f'<p class="warn">{esc(state["note"])}</p>' if state["needs_publication"] else ""
 
 
@@ -574,16 +584,43 @@ async def review_index(req: Request, cx: Context) -> Response:
 
     waiting = "".join(row(a) for a in open_) if open_ else '<p class="meta">Nothing is waiting.</p>'
     decided = "".join(row(a) for a in done) if done else '<p class="meta">Nothing yet.</p>'
+    read=[]
+    current_update=await updates.check(cx.db, cx.release)
+    training=await _training_notice(cx.db,read)
+    unsent=await approvals.unsent(cx.db)
+    if current_update['available']:
+        read.append(rv('Update',('Security update: ' if current_update['security'] else '')+f"A newer Porchsite is available ({current_update['latest']}). Ask your assistant to update it."))
     return owner_page(
         "Review",
-        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>Waiting for you</h1>{await _training_notice(cx.db)}{alert_controls(owner.csrf(req), device)}{_unsent_line(await approvals.unsent(cx.db))}{waiting}
+        f"""{updates.notice_html(current_update)}<h1>Waiting for you</h1>{training}{alert_controls(owner.csrf(req), device)}{_unsent_line(unsent)}{waiting}
 <h1 style="margin-top:36px">Decided</h1>{decided}
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}"><button class="ghost">Sign out</button></form>
 <p class="meta" style="margin-top:32px">An assistant gave you a file? <a href="/review/import">Import it</a>.</p>
 <div id="share-cards" hidden data-csrf="{esc(owner.csrf(req))}"></div>""",
+        review=lambda: [
+            *read,
+            rv("Alerts",f"Alerts are {'on' if device else 'off'} for this device"),
+            *([rv("Not yet sent",f"{unsent} changes not yet sent for review. Nothing goes live until you approve it.")] if unsent else []),
+            rh("Waiting for you"),
+            *([rv("Status","Nothing is waiting.")] if not open_ else []),
+            *[b for a in open_ for b in _approval_read(a)],
+            rh("Decided"),
+            *([rv("Status","Nothing yet.")] if not done else []),
+            *[b for a in done for b in _approval_read(a)],
+            rl("Import it","/review/import"),
+        ],
         signed_in=True,
         script=sharecards.CARD_JS + "\n" + ALERT_JS,
     )
+
+
+def _approval_read(a):
+    return [
+        rv('Requested by',a['requested_by']),
+        rv('When',a['created_at'][:16].replace('T',' ')+' UTC'),
+        *[b for i in a['items'] for b in [rh(i['label']),rv('Kind',i['kind']),rv('Change',i['change']),rv('Status',i['status'].replace('_',' '))]],
+        rl('See details',f"/review/{a['id']}"),
+    ]
 
 
 KIND_WORD = {"site": "your site's text and look", "entry": "page", "card": "card", "note": "note"}
@@ -618,6 +655,8 @@ def _busy_word(n: int, what: str) -> str:
 async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Response:
     a = await approvals.get(cx.db, id)
     blocks = []
+    read=[]
+    item_reads=[]
     embed_changes = []
     for it in a["items"]:
         item = await content.get_item(cx.db, it["id"])
@@ -640,6 +679,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
             new = _page_of(streams, shown.get("stream"), item["slug"])
             if old != new:
                 moves.append(changes.address_row(old, new))
+                read.extend([rv("Old address",old),rv("New address",new)])
         if it["kind"] == "site":
             what = (
                 "Your site's text and look"
@@ -655,6 +695,7 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
                 else "Changed"
             )
             what = f"{verb} {KIND_WORD.get(it['kind'], it['kind'])}: {it['label']}"
+        item_reads.append(lambda what=what,it=it,shown=shown,live=live: [rh(what),rv("Status",it["status"].replace("_"," ")),*changes.review_fields(it["kind"],shown,json.loads(live["data"]) if live else None,it["change"]=="removed"),*([rv("Your note",it["note"])] if it["note"] else [])])
         status = (
             ""
             if it["status"] == "pending"
@@ -695,9 +736,9 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
         else ""
     )
     raised = await visibility.raises(cx.db, waiting)
-    embed_warn = await _training_notice(cx.db)
-    embed_warn += await _embed_review_for(cx.db, embed_changes, origin_of(req))
-    embed_warn += await _private_review_warning(cx.db, embed_changes)
+    embed_warn = await _training_notice(cx.db,read)
+    embed_warn += await _embed_review_for(cx.db, embed_changes, origin_of(req),read)
+    embed_warn += await _private_review_warning(cx.db, embed_changes,read)
     warn = "".join(f'<p class="warn">{esc(raise_line(r))}</p>' for r in raised)
     heading = (
         f"{esc(who)} has {count} change{'' if count == 1 else 's'} for your site"
@@ -721,13 +762,25 @@ async def review_show(req: Request, cx: Context, id: str, error: str = "") -> Re
         if pending
         else ""
     )
+    current_update=await updates.check(cx.db, cx.release)
+    if current_update['available']:
+        read.append(rv('Update',('Security update: ' if current_update['security'] else '')+f"A newer Porchsite is available ({current_update['latest']}). Ask your assistant to update it."))
     return owner_page(
         "Review changes",
-        f"""{updates.notice_html(await updates.check(cx.db, cx.release))}<h1>{heading}</h1>{f"<p>{esc(a['note'])}</p>" if a.get("note") else ""}{f'<p class="error">{esc(error)}</p>' if error else ""}
+        f"""{updates.notice_html(current_update)}<h1>{heading}</h1>{f"<p>{esc(a['note'])}</p>" if a.get("note") else ""}{f'<p class="error">{esc(error)}</p>' if error else ""}
 {embed_warn}{warn}
 {look}
 <form method="post"><input type="hidden" name="csrf" value="{esc(owner.csrf(req))}">
 {big}{"".join(blocks)}{save}</form>""",
+        review=lambda: [
+            rv("Status",f"{who} has {count} changes for your site" if pending else "Decided"),
+            *([rv("Note",a["note"])] if a["note"] else []),
+            *[rv("Warning",raise_line(r)) for r in raised],
+            *([rv("Request",sentence+" Nothing changes until you approve.")] if sentence else []),
+            *read,
+            *[block for read_item in item_reads for block in read_item()],
+            *([rl("See the site as it will look",f"/review/{a['id']}/preview")] if pending else []),
+        ],
         signed_in=True,
         script=BUSY_JS,
     )
@@ -919,10 +972,11 @@ async def assistants_page(
         if made
         else ""
     )
+    key_list=await keys.list(cx.db)
     listed = "".join(
         f"""<div class="card"><h2>{esc(k["name"])}</h2><div class="meta">made {esc(k["created_at"][:10])} · works until {esc(k["expires_at"][:10])} · {esc("last used " + k["last_used_at"][:10]) if k["last_used_at"] else "not used yet"}</div>
 <form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><input type="hidden" name="revoke_key" value="{esc(k["id"])}"><button class="ghost">Revoke</button></form></div>"""
-        for k in await keys.list(cx.db)
+        for k in key_list
     )
     readers=await read_keys.list(cx.db)
     audit=await read_keys.events(cx.db)
@@ -939,6 +993,18 @@ async def assistants_page(
 {read_list}
 <h2>Read-key history</h2>{read_audit}
 <form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><label><input type="checkbox" name="read_only" value="1">Read only — published pages</label><button name="make_key" value="1">Make a key</button></form>""",
+        review=lambda: [
+            rv("Connected assistants","Each can read your site and draft changes. None can publish."),
+            *[b for g in items for b in [rh(str((g["metadata"] or {}).get("client") or "Connected assistant")),rv("Since",datetime.fromtimestamp(g["createdAt"],UTC).date().isoformat())]],
+            rv("Connection address",mcp_url),
+            rh("Assistant keys"),
+            rv("Scope",f"Drafting keys read and draft; read-only keys read published pages only. Neither can publish. Keys expire after {keys.KEY_DAYS} days or when revoked."),
+            *[b for k in key_list for b in [rh(k["name"]),rv("Scope","Read and draft"),rv("Made",k["created_at"][:10]),rv("Works until",k["expires_at"][:10]),rv("Last used",k["last_used_at"][:10] if k["last_used_at"] else "Not used yet")]],
+            rh("Published-only read keys"),
+            *[b for k in readers for b in [rh(k["name"]),rv("Scope","Read only — published pages"),rv("Made",k["created_at"][:10]),rv("Works until",k["expires_at"][:10]),rv("Last used",k["last_used_at"][:10] if k["last_used_at"] else "Not used yet")]],
+            rh("Read-key history"),
+            *[b for a in audit for b in [rv("When",a["created_at"]),rv("Actor",a["actor"]),rv("Event",a["kind"]),rv("Name",a["name"])]],
+        ],
         signed_in=True,
     )
 
@@ -967,6 +1033,7 @@ async def review_preview(req: Request, cx: Context, id: str, path: str = "/") ->
         if page is None:
             return await not_found_page(req, cx)
         body = page.body.decode("utf-8")
+    content_only=body
     base = f"/review/{a['id']}/preview"
     body = re.sub(
         r'(href=")/(?!/|static/|media/|review/)([^"]*")',
@@ -990,11 +1057,11 @@ async def review_preview(req: Request, cx: Context, id: str, path: str = "/") ->
 <span>Preview: nothing is live yet.</span>{shows}<span style="display:flex;gap:8px;flex-wrap:wrap">
 <a style="{btn};background:#fff;color:#1c1f1d;text-decoration:none" href="/review/{a["id"]}">Back</a>{decide}</span></div>"""
     page = re.sub(r"<body([^>]*)>", lambda m: f"<body{m.group(1)}>{bar}", body, count=1)
-    return respond(
+    return owner_review.attach(respond(
         page,
         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"},
         csp=THEME_CSP.replace("form-action 'none'", "form-action 'self'"),
-    )
+    ),lambda:("Preview",[rv("Warning","Preview: nothing is live yet."),*[rv("Warning",raise_line(r)) for r in raised],rs("Proposed page",markdown_document(content_only,origin_of(req)+path)["markdown"]),rl("Back",f"/review/{a['id']}")]))
 
 
 # --- owner: more passkeys ------------------------------------------------------------------
@@ -1011,6 +1078,9 @@ async def passkeys_page(req: Request, cx: Context, made: dict[str, str] | None =
         "Passkeys",
         f"""<h1>Passkeys</h1><p>You have {n} passkey{"" if n == 1 else "s"} for this site. A passkey works only on the device and the address where it was made, so add one for each phone or computer you approve from, and again if the site moves to a new address.</p>
 {part}""",
+        review=lambda: [
+            rv("Passkeys", f"You have {n} passkey{'' if n==1 else 's'} for this site. A passkey works only on the device and the address where it was made, so add one for each phone or computer you approve from, and again if the site moves to a new address."),
+        ],
         signed_in=True,
     )
 
@@ -1061,6 +1131,37 @@ STATS_CSS = """.ranges{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px}.ran
 .drop-step{display:flex;flex-direction:column;align-items:center;gap:4px;font:12px ui-monospace,Menlo,monospace;color:var(--muted)}.drop-bar{width:100%;height:56px;background:var(--bg);border-radius:4px;display:flex;align-items:flex-end;overflow:hidden}
 .drop-bar span{display:block;width:100%;background:var(--accent)}.drop-num{color:var(--ink)}.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--rule);overflow-wrap:anywhere}
 .row:last-child{border-bottom:0}.sub-row{font-size:14px;color:var(--muted);padding-left:12px}"""
+
+
+def _stats_read(s):
+    t=s['totals']
+    return [
+        rv('Range',f"{s['range']['start']} to {s['range']['end']}"),
+        rv('Scope','Visitor statistics exclude you, bots and test runs. Time on page and scroll may lag or be lower if the final message is lost.'),
+        rv('Visitors',t['visits']),
+        rv('Pages read',t['views']),
+        rv('Typical stay',duration(t['median_visit_engaged_ms'])),
+        rv('Left right away',f"{_whole(t['bounce_rate'])}%"),
+        *([rv('Read more than one page',f"{_whole(t['multi_page_rate'])}%")] if t['visits'] else []),
+        rh('By day'),
+        *([rv(d['day'][5:],d['visits']) for d in s['daily']] if len(s['daily'])>1 else []),
+        rh('Requests by agent kind'),
+        rv('Coverage',s['agent_traffic']['coverage']),
+        rv('Classification',s['agent_traffic']['classification']),
+        rv('Scope',s['agent_traffic']['scope']),
+        *[rv(r['label'],f"{r['requests']} requests") for r in s['agent_traffic']['totals']],
+        *[b for r in s['agent_traffic']['daily'] for b in [rv('Day',r['day']),rv('Kind',next((k['label'] for k in s['agent_traffic']['totals'] if k['kind']==r['kind']),'')),rv('Requests',r['requests'])]],
+        rh('What they read'),
+        *[b for p in s['pages'] for b in [rh(p['title'] or PAGE_WORD.get(p['kind']) or p['path']),rv('Kind',p['kind']),rv('Path',p['path']),rv('Readers',p['readers']),rv('Typical',duration(p['median_engaged_ms'])),rv('Average',duration(p['mean_engaged_ms'])),*([rv('Left right away',f"{_whole(p['bounce_rate'])}%")] if p['bounce_rate'] is not None else []),*[rv(f'Reached {k}%',f"{_whole(p['reached'][k])}%") for k in ('25','50','75','100')],rv('Exits',p['exits'])]],
+        *([rv('Status','No visitors yet in this range.')] if not s['pages'] else []),
+        rh('Where they came from'),
+        *[rv(SOURCE_WORD.get(r['source'],r['source']),f"{r['visits']} · {duration(r['engaged_ms'])}") for r in s['sources']],
+        *([rv(d['domain'],d['visits']) for d in s['referring_domains']] if s['sources'] else []),
+        rh('Tagged links'),
+        *[rv(r['src']+(' · '+r['post'] if r['post'] else ''),f"{r['visits']} · {duration(r['visit_engaged_ms'])}") for r in s['tagged']],
+        rh('Earlier, counts only'),
+        *[rv(r['month'],f"{r['visits']} visits · {r['views']} views") for r in s['earlier']],
+    ]
 
 
 async def stats_page(req: Request, cx: Context) -> Response:
@@ -1158,6 +1259,7 @@ async def stats_page(req: Request, cx: Context) -> Response:
 {earlier}
 <p class="meta" style="margin-top:32px">This browser isn't counted because you're signed in. To leave another device out without signing in, open any page of the site with <code>?sk_notrack=1</code> on the end.</p>
 <style>{STATS_CSS}</style>""",
+        review=lambda:_stats_read(s),
         signed_in=True,
     )
 
@@ -1210,6 +1312,13 @@ async def write_index(req: Request, cx: Context) -> Response:
 {ok}
 <p><a class="button" href="/review/write/new">Write something new</a></p>
 {rows}""",
+        review=lambda: [
+            rv("Writing","Every entry on your site, newest first. Your assistant’s drafts show up here too: finish one and publish it yourself."),
+            *([rv("Status","Published. It is live on the site.")] if published else []),
+            rl("Write something new","/review/write/new"),
+            *[b for e in entries for b in [rh(str(e["data"]["title"])),rv("Status",e["state"]),rv("Date",str(e["data"]["date"])),rv("Section",stream_title(str(e["data"].get("stream") or ""))),rv("Tags"," ".join(e["data"].get("tags") or [])),rl("Read entry",f"/review/write/{e['id']}")]],
+            *([rv("Status","Nothing yet.")] if not entries else []),
+        ],
         signed_in=True,
     )
 
@@ -1236,14 +1345,8 @@ async def write_form(
         see = f' <a href="{esc(page)}">See it on the site</a>' if page else ""
         state = f'<p><span class="tag">{esc(item["state"])}</span>{see}</p>'
     err = f'<p class="error">{esc(error)}</p>' if error else ""
-    ok = ""
-    if saved:
-        more = (
-            " Not live until you publish."
-            if item and item["state"] not in ("draft", "live")
-            else ""
-        )
-        ok = f'<p class="ok">Saved.{more}</p>'
+    saved_message = "Saved." + (" Not live until you publish." if item and item["state"] not in ("draft", "live") else "")
+    ok = f'<p class="ok">{saved_message}</p>' if saved else ""
     options = "".join(
         f'<option value="{esc(x["id"])}"{" selected" if x["id"] == chosen else ""}>{esc(x["title"])}</option>'
         for x in streams
@@ -1268,6 +1371,20 @@ async def write_form(
 <button class="second" name="action" value="preview">Save and preview</button>
 <button class="second" name="action" value="save">Save{draft}</button>
 <p class="meta">Publishing makes this entry live at once. Nothing else that's waiting goes with it.</p></form>""",
+        review=lambda: [
+            *([rv("Status",item["state"])] if item else []),
+            *([rv("See it on the site",str(page))] if page else []),
+            rv("Where it goes",next((x["title"] for x in streams if x["id"]==chosen),"")),
+            rv("Title",v["title"]),
+            rv("One or two sentences, shown in lists",v["summary"]),
+            rv("Date",v["date"]),
+            rv("Tags",v["tags"]),
+            rv("Picture",v["cover"]),
+            rv("What the picture shows",v["cover_alt"]),
+            rs("Text",v["body"]),
+            *([rv("Error",error)] if error else []),
+            *([rv("Status",saved_message)] if saved else []),
+        ],
         signed_in=True,
         status=status,
     )
@@ -1321,14 +1438,15 @@ async def write_preview(req: Request, cx: Context, id: str) -> Response:
         )
     else:
         body = (builtin.entry_page(v, e["page"]) if e else builtin.home(v)).body.decode("utf-8")
+    content_only=body
     body = site.inline_css(t, v, body)
     btn = "font:600 15px/1 -apple-system,sans-serif;border-radius:6px;padding:12px 16px;border:0;cursor:pointer"
     bar = f"""<div style="position:sticky;top:0;z-index:99;background:#1c1f1d;color:#fff;font:15px/1.4 -apple-system,sans-serif;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
 <span>Preview: not live until you publish.</span><a style="{btn};background:#fff;color:#1c1f1d;text-decoration:none" href="/review/write/{esc(id)}">Back to writing</a></div>"""
     page = re.sub(r"<body([^>]*)>", lambda m: f"<body{m.group(1)}>{bar}", body, count=1)
-    return respond(
+    return owner_review.attach(respond(
         page, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"}, csp=THEME_CSP
-    )
+    ),lambda:("Preview",[rv("Warning","Preview: not live until you publish."),rs("Proposed page",markdown_document(content_only,origin+(e["page"] if e else "/"))["markdown"]),rl("Back to writing",f"/review/write/{id}")]))
 
 
 # --- owner: the site's history, and putting it back --------------------------------------------
@@ -1373,6 +1491,11 @@ async def history_page(req: Request, cx: Context) -> Response:
         "History",
         f"""<h1>History</h1><p class="meta">Every time the site changed, newest first. You can put the site back to how it was after any of them; that is a new change, and it can be undone the same way.</p>
 {body}""",
+        review=lambda: [
+            rv("History","Every time the site changed, newest first. Putting the site back is a new change and can be undone the same way."),
+            *[b for i,p in enumerate(items) for b in [rh(_when(p["created_at"])),rv("By",_by_whom(p)), *([rv("Note",p["note"])] if p["note"] else []),*[b for it in p["items"] for b in [rv("Item",it["label"]),rv("Kind",KIND_NAME.get(it["kind"],it["kind"])),rv("Status","Taken off" if it["removed"] else "Published")]], *([rv("Status","This is the site now.")] if i==0 else [rl("Restore confirmation",f"/review/history/{p['id']}")])]],
+            *([rv("Status","Nothing has been published yet.")] if not items else []),
+        ],
         signed_in=True,
     )
 
@@ -1380,9 +1503,10 @@ async def history_page(req: Request, cx: Context) -> Response:
 async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Response:
     p = await history.plan(cx.db, id)
     plan = p["changes"]
-    embed_warn = await _training_notice(cx.db)
-    embed_warn += await _embed_review_for(cx.db, plan, origin_of(req))
-    embed_warn += await _private_review_warning(cx.db, plan)
+    read=[]
+    embed_warn = await _training_notice(cx.db,read)
+    embed_warn += await _embed_review_for(cx.db, plan, origin_of(req),read)
+    embed_warn += await _private_review_warning(cx.db, plan,read)
     err = f'<p class="error">{esc(error)}</p>' if error else ""
     if plan:
         listed = "".join(
@@ -1406,6 +1530,13 @@ async def revert_page(req: Request, cx: Context, id: int, error: str = "") -> Re
         f"""<h1>Put the site back?</h1><p>Back to how it was after the change on {esc(_when(p["publish"]["created_at"]))}.</p>{err}
 {embed_warn}{what}
 <p><a href="/review/history">Back to the history</a></p>""",
+        review=lambda: [
+            rv("Restore confirmation",f"Back to how it was after the change on {_when(p['publish']['created_at'])}."),
+            *read,
+            *[b for c in plan for b in [rh(c["label"]),rv("Kind",KIND_NAME.get(c["kind"],c["kind"])),rv("Status","Taken off" if c["action"]=="take off" else "Put back"),*changes.review_fields(c["kind"],c["data"],c["live"],c["deleted"])]],
+            *([rv("Status","The site already matches this.")] if not plan else []),
+            rl("Back to the history","/review/history"),
+        ],
         signed_in=True,
         script=BUSY_JS,
     )
@@ -1522,7 +1653,28 @@ async def handle(req: Request, cx: Context) -> Response:
     return response
 
 
+async def _review_refusal(req, cx):
+    if cx._read.get('private'):
+        return privacy.blank_response(req)
+    if 'authorization' not in req.headers:
+        return await require_owner(req, cx)
+    scope = dict(req.scope)
+    scope['headers'] = [(k,v) for k,v in req.scope['headers'] if k.lower() != b'cookie']
+    return await require_owner(Request(scope, req.receive), cx)
+
 async def _route(req: Request, cx: Context) -> Response:
+    path = _path(req)
+    if path == '/review' or path.startswith('/review/'):
+        gate = await require_owner(req, cx)
+        if gate is not None:
+            return gate
+        if req.method == 'GET' and owner_review.eligible(path) and public_read_representation(req.headers.get('accept')) == 'markdown' and 'authorization' in req.headers:
+            return await _review_refusal(req, cx)
+        response = await _route_inner(req, cx)
+        return await owner_review.negotiate(req, response, lambda: owner.signed_in(cx.db, req), lambda: _review_refusal(req, cx))
+    return await _route_inner(req, cx)
+
+async def _route_inner(req: Request, cx: Context) -> Response:
     path = _path(req)
     m = req.method
     try:
@@ -1654,9 +1806,6 @@ async def _route(req: Request, cx: Context) -> Response:
             return await (authorize_post(req, cx) if m == "POST" else authorize_get(req, cx))
 
         if path == "/review" or path.startswith("/review/"):
-            gate = await require_owner(req, cx)
-            if gate:
-                return gate
             if path == "/review/readers":
                 return await readers_page(req,cx)
             if path == "/review/alerts" or path.startswith("/review/alerts/"):
@@ -1770,7 +1919,7 @@ async def _route(req: Request, cx: Context) -> Response:
         )
 
 
-async def _embed_review_for(db, changes, origin):
+async def _embed_review_for(db, changes, origin, read=None):
     if not any(c["kind"] == "site" or (c["kind"] == "entry" and "!embed[" in c["data"].get("body", "")) for c in changes):
         return ""
     live = await approvals.live_rows(db)
@@ -1780,7 +1929,7 @@ async def _embed_review_for(db, changes, origin):
             proposed.pop(c["id"], None)
         else:
             proposed[c["id"]] = c
-    return embed_review(live, list(proposed.values()), changes, origin)
+    return embed_review(live, list(proposed.values()), changes, origin, None if read is None else lambda text: read.append(rv("Warning",text)))
 
 
 async def recovery_page(req,cx):
@@ -1832,10 +1981,16 @@ async def readers_page(req,cx):
         expired = '<p>Expired</p>' if r["expires_at"] <= owner.now() else ""
         body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Expires {esc(date(r["expires_at"]))}</p>{expired}{form(r,True)}</section>'
 
-    return owner_page("Readers",body,signed_in=True,headers=[("Referrer-Policy","no-referrer")])
+    return owner_page("Readers",body,review=lambda:[
+        rv("Readers","Invite someone to read this site with their own passkey. An invitation works once and lasts seven days. Revocation stops access right away; previously opened pages remain on their device."),
+        rh("Readers"),
+        *[b for r in readers if r["used_at"] for b in [rh(r["name"]),rv("Added",date(r["created_at"])),rv("Last signed in",date(r["last_signed_in"]) if r["last_signed_in"] else "Not signed in yet"),*([rv("Status","Removed")] if r["revoked"] else [])]],
+        rh("Unused invitations"),
+        *[b for r in readers if not r["used_at"] and r["expires_at"] and not r["revoked"] for b in [rh(r["name"]),rv("Expires",date(r["expires_at"])), *([rv("Status","Expired")] if r["expires_at"]<=owner.now() else [])]],
+    ],signed_in=True,headers=[("Referrer-Policy","no-referrer")])
 
 
-async def _private_review_warning(db, proposed):
+async def _private_review_warning(db, proposed, read=None):
     live = await privacy.live_private(db)
     out = ""
     for item in proposed:
@@ -1843,8 +1998,10 @@ async def _private_review_warning(db, proposed):
             continue
         mode = bool(item.get("data",{}).get("private")) and not item.get("deleted")
         if live and not mode:
+            if read is not None: read.append(rv("Warning","This makes the site public."))
             out += '<h2 class="warn">This makes the site public.</h2>'
         elif mode and not live:
+            if read is not None: read.append(rv("Warning",'Passkeys will be required to read this site. Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.'))
             out += '<h2 class="warn">Passkeys will be required to read this site.</h2><p class="warn">Sign-in, setup and recovery stay available so you can get back in; setup redirects after you claim the site. The release id and private-mode minimum stay visible so updates can be checked. Assistant-connection details stay available so assistants can connect. None of these shows your site content. Pictures and pages people already saved, and search-engine copies, stay available. Pages already loading may finish opening.</p>'
     return out
 
@@ -1927,6 +2084,12 @@ document.querySelectorAll('[data-remove-alert]').forEach(button=>button.addEvent
     return owner_page(
         "Alerts",
         f'''<h1>Alerts</h1><p>{esc(ALERT_HELP)}</p>{alert_controls(owner.csrf(req), device)}<figure><img src="{esc(data.get('logo') or '/app-icon-192.png')}" alt="Site icon" width="48" height="48"><figcaption>Open your site from its Home Screen icon, then choose “Turn alerts on”.</figcaption></figure>{rows}''',
+        review=lambda: [
+            rv("Alerts",ALERT_HELP),
+            rv("This device",f"Alerts are {'on' if device else 'off'} for this device"),
+            rv("Site icon","Open your site from its Home Screen icon, then choose Turn alerts on."),
+            *[b for d in devices for b in [rh(d["label"]+(" (this device)" if d["id"]==device.get("id") else "")),rv("Added",date(d["created_at"])),rv("Last used",date(d["last_used_at"]) if d["last_used_at"] else "Not used yet")]],
+        ],
         signed_in=True,
         script=script,
     )

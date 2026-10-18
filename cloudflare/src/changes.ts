@@ -1,3 +1,5 @@
+import {MODELS, type Kind} from './models';
+import {value,source,heading,type Block} from './owner-review';
 /**
  * What the owner reads on /review and /review/history: an item's fields in
  * plain words ("What it says"), and, for an item that is already live, only
@@ -246,3 +248,52 @@ export function takenOff(label: string): Raw {
 
 /** The owner's styles for the above (part of OWNER_CSS). */
 export const CHANGES_CSS = ".diff del{background:#f3dcd6;color:var(--deny)}.diff ins{background:#dcefe4;color:#1f4034;text-decoration:none}.field .warn{margin:6px 0 0}";
+
+/** Only content-schema fields displayed here, with the same list/diff bounds as HTML. */
+export function reviewFields(kind:string, now:Data, before?:Data, removed=false):Block[]{
+ if(removed)return [value('Status','This will be taken off the site.')];
+ const out:Block[]=[];
+ const keys=Object.keys(MODELS[kind as Kind].shape);
+ const full=(d:Data)=>{try{return validate(kind,d);}catch(e){if(e instanceof ApiError)return d;throw e;}};
+ if(before){now=full(now);before=full(before);}
+ let unchanged=0;
+ for(const k of keys){
+  if(before&&same(before[k],now[k])){if(!SILENT.has(k))unchanged++;continue;}
+  if(!before&&(SILENT.has(k)||now[k]==null||now[k]===''||(Array.isArray(now[k])&&!(now[k] as unknown[]).length)))continue;
+  out.push(heading(labelFor(kind,k)));
+  const old=before?.[k],current=now[k];
+  const isList=(v:unknown)=>Array.isArray(v)||(v!==null&&typeof v==='object');
+  if(before&&k!=='ai_training_disabled'&&(isList(old)||isList(current))){
+   const a=entries(old),b=entries(current),key=(x:unknown)=>JSON.stringify(x);
+   const had=new Set(a.map(key)),has=new Set(b.map(key));
+   const added=b.filter(x=>!had.has(key(x))).map(entryName),removed=a.filter(x=>!has.has(key(x))).map(entryName);
+   if(added.length)out.push(value('Added',added.join(' · ')));
+   if(removed.length)out.push(value('Removed',removed.join(' · ')));
+   if(!added.length&&!removed.length)out.push(value('Status','Same entries, in a new order.'));
+   continue;
+  }
+  const o=String(old??''),n=String(current??'');
+  if(before&&o&&n&&(k==='body'||k==='about'||o.length>LONG||n.length>LONG)){
+   const runs=wordDiff(o,n);
+   for(let i=0;i<runs.length;i++){
+    const [op,words]=runs[i];let text=words.join(' ');
+    if(op==='same'&&words.length>2*KEEP+1)text=i===0?'… '+words.slice(-KEEP).join(' '):i===runs.length-1?words.slice(0,KEEP).join(' ')+' …':words.slice(0,KEEP).join(' ')+' … '+words.slice(-KEEP).join(' ');
+    out.push(source(op==='del'?'Before':op==='ins'?'After':'Unchanged context',text));
+   }
+   continue;
+  }
+  const show=(label:string,v:unknown)=>{
+   if((k==='body'||k==='about')&&typeof v==='string')out.push(source(label,v));
+   else if(k==='ai_training_disabled')out.push(value(label,v===true?'Blocked for GPTBot, ClaudeBot and Google-Extended':'Allowed'));
+   else if(k==='streams'&&Array.isArray(v))out.push(value(label,v.map(entryName).join(' · ')));
+   else if(k==='archive'&&v&&typeof v==='object'){const a=v as Data;out.push(value(label,`${a.enabled?'On':'Off'} · ${String(a.title??'All entries')}`));}
+   else if(Array.isArray(v)){const named=v.map(x=>typeof x==='object'&&x?String((x as Data).label??(x as Data).title??(x as Data).value??''):String(x)).filter(Boolean);out.push(value(label,named.length?named.join(' · '):`${v.length} item${v.length===1?'':'s'}`));}
+   else out.push(value(label,v&&typeof v==='object'?'updated':String(v??'')));
+  };
+  if(before)show('Before',old);show(before?'After':'Value',current);
+  if(before&&kind==='card'&&k==='visibility'&&(RANK[String(current??'public')]??2)>(RANK[String(old??'public')]??2))out.push(value('Warning','Shows more of this card than your site does now.'));
+ }
+ if(before&&!out.length)out.push(value('Status','Nothing you would see differs from what is live.'));
+ if(before&&unchanged)out.push(value('Unchanged',`${unchanged} other field${unchanged===1?'':'s'} unchanged`));
+ return out;
+}
