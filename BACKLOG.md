@@ -31,6 +31,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      touching validation for that; revisit only with a larger design.
    - **PERF-6c** OPEN: the page-building step allocates fields the page
      never uses; build only what the theme reads, keeping all escaping.
+     The server edition builds the same unused lists; port it only if the
+     Worker change measures worthwhile.
 2. PERF-4: reuse a rendered public page for every visitor in a location
    while nothing on it has changed.
 
