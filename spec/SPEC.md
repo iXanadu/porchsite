@@ -557,6 +557,148 @@ reader epoch. Concurrent completion of one recovery code has one winner.
 Hosting-account control already grants owner-equivalent authority; recovery
 does not protect against a hosting-account compromise.
 
+#### RA-10: recovery codes outside request URLs (both editions)
+
+Recovery remains the existing hosting-account credential flow above; this
+change does not create an assistant tool, issuance endpoint or alternative
+owner approval path. It changes link transport and its transition, not the
+recovery transaction, authority, content or reader-passkey policy.
+
+**Existing storage and issuance.** Both editions already use
+`recovery_codes(code_hash, created_at, expires_at)`. Keep the existing hash:
+SHA-256 of the UTF-8 code, encoded as unpadded base64url (43 characters).
+The hosting scripts/CLI generate 24 random bytes (192 bits) outside SQL and
+store only that digest and timestamps. No plaintext credential, new hash
+scheme, migration, secret binding, cookie or tracking field is introduced.
+Existing digests, expiry values and pending recovery challenges stay valid.
+Recovery remains available only after claim, including when all old owner
+passkeys are lost; an unclaimed site still refuses with `409 unclaimed`.
+The normal lifetime stays 24 hours, with the server CLI's existing explicit
+`--hours` override. Starting options does not consume or extend a code.
+Replacement, expiry and a competing successful recovery still invalidate a
+pending recovery at the existing final transactional authorization point.
+Do not claim that SQL lookup or the whole recovery request is constant time;
+RA-10 does not change that lookup or relax any verification.
+
+**New links.** The Cloudflare hosting-operator
+`cloudflare/scripts/recovery-link.mjs` and server `recovery-link` CLI print
+`/recover#code=<URL-encoded-code>` at the configured site origin. Neither
+prints a `?code=` link or offers a flag to keep generating one. Guides in
+INSTALL, llms.txt and self-hosting explain that the link is a one-use
+credential, expires at the printed time, replaces the previous link, and
+must be given privately to the owner. The code must not be copied into an
+MCP catalog, shared report, application log, shell argument, SQL text or
+exception. Printing the intended private link to the issuing operator is
+not permission to retain it in logs. Existing hosting-account authority and
+parameterized hash-only database writes remain the issuance boundary.
+
+**Browser transport.** The fragment is not part of the HTTP request target.
+On the recovery page, the script reads its own fragment's `code` field and
+assigns the decoded value only through the password input's DOM `value`
+property, never HTML/string interpolation, `innerHTML` or execution. Before
+any fetch, asynchronous ceremony work or form submission, it clears BOTH
+query and fragment with `history.replaceState` to the same `/recover` path.
+The present shared setup/recovery script already supports fragment fill;
+keep that behavior byte-identical across editions or introduce an equally
+paired recovery helper without changing setup's own compatibility flag.
+No code is put into a resource URL, redirect, referrer or success destination.
+
+During query compatibility, a fragment `code` takes precedence, including
+an explicitly empty fragment value. The legacy query code may be read into
+the input by the same DOM-only mechanism when there is no fragment code;
+no credential needs to be server-interpolated into recovery HTML. Preserve
+the existing trim and 200-character UI bound; issuer-generated codes fit
+that bound. Without an automatically filled code the owner can type it.
+The form has explicit `method="post" action="/recover/options"`, preventing
+the browser's default GET submission from putting typed text in a URL if
+JavaScript is unavailable. Actual WebAuthn recovery still requires a
+supported browser and its passkey script; this is not a no-JavaScript
+completion claim. `/recover/options` accepts the existing JSON body and
+the explicit form's URL-encoded body; neither takes a code from the query.
+Malformed JSON becomes a fixed credential-free refusal, never a parser
+message containing submitted text. Verification JSON failures likewise
+must not echo credentials or bodies. Preserve existing refusal classes and
+all origin/RP/challenge/user-verification checks.
+
+The page, options, verification and cutoff refusal retain `no-store` and
+`Referrer-Policy: no-referrer` in public and private mode; HEAD retains its
+empty-body semantics. Successful recovery still navigates to the fixed
+`/review/readers?after=recovery`, after the existing atomic session/passkey
+operation commits. That URL carries no code, fragment or challenge. The
+owner can still review surviving reader access there; no automatic reader
+passkey deletion or assistant permission is added.
+
+**One-release query window.** Add a separate paired
+`RECOVERY_QUERY_COMPAT` flag, `true` only for the release introducing RA-10.
+New issuers always use fragments. That release still accepts old
+`/recover?code=...` links and existing valid recovery rows/challenges.
+A pure/testable cutoff helper can be exercised with compatibility disabled
+without changing the introducing runtime's setting. Do not couple this
+flag to RA-9's setup-query flag: the two introduction/cutoff releases may
+differ, and RA-9Q remains independently due.
+
+At the immediately following product release set this flag to `false`.
+On a claimed site, GET/HEAD `/recover` with ANY decoded `code` query
+parameter then refuses with `400 code_in_url` before using that value.
+This includes empty, repeated or percent-encoded parameter-name forms;
+no historical code lookup, HTML fill or redirect consumes it. Use the exact
+fixed message: "This recovery link is no longer supported. Ask for a fresh
+link or enter the code manually." No value is reflected. `/recover`
+without that query remains available for manual entry and fragment links.
+The existing unclaimed-site check still runs first and returns its fixed
+`409 unclaimed` without reflecting the URL. A fragment cannot override a
+cutoff query refusal because the server never receives the fragment.
+
+The introducing release records an RA-10Q follow-up in the canonical
+BACKLOG, naming the immediately following product release as the cutoff.
+Do not leave compatibility enabled through another product release. Its
+release gate tests disabled-flag behavior before introduction and verifies
+the flag is actually off in the cutoff release. Keep archived tests and
+assertions untouched. The upgrade gate runs old code on the new schema;
+new issuer-text tests belong to the new release. No blanket test exception,
+CLI transition flag, credential rotation or schema change is needed.
+
+**Log boundary.** Keep RA-9's installed
+`observability.redact_query_string: true` at the observability root,
+server `--no-access-log`, and supplied proxy logging defaults. These help
+with legacy query links during transition, but the source fix is fragment
+issuance and POST-only transport. The app cannot erase an initial legacy
+query from external access logs or promise redaction of arbitrary operator,
+Tail, Logpush, third-party or old retained records. Do not silently mutate
+hosting-account settings. No additional console events or credential/body
+logging is introduced by this change.
+
+**Paired acceptance.** Before runtime freeze, prove:
+
+- Both issuers print a fragment-only link, retain 24-byte randomness,
+  exact existing digest/expiry representation and hash-only SQL parameters;
+  no plaintext appears in mocked hosting requests, error output or reports.
+- Actual browser recovery in BOTH editions from a fresh fragment link:
+  all HTTP request URLs omit the code, password `value` is exact,
+  HTML/script canaries never execute, search/hash clear before options,
+  only POST body carries the code, and success reaches the fixed reader
+  page with the intended new owner session. No live hosting-account call
+  or real owner's profile is needed for this local evidence.
+- Introducing-release legacy query links work, including fragment/query
+  disagreement and empty-fragment precedence; only the initial legacy GET
+  can contain that legacy query. Form POST/manual-entry and malformed
+  options/verify bodies cannot move a code into a URL or refusal message.
+- The disabled-compat helper refuses empty/repeated/encoded-name queries
+  with exact fixed status/message/headers and no reflection; unclaimed
+  precedence, private behavior, HEAD and normal fragment/manual paths hold.
+- Existing one-winner recovery, replacement after options, exclusive
+  expiry, old in-flight challenge compatibility, captured-epoch fencing,
+  old-session/passkey invalidation, reader-passkey survival and cancelled
+  invites remain pinned by their original assertions. No removed checks,
+  weaker race observations, skips or new success-on-error fallbacks.
+- Normal minified Worker and actual server entry, paired public/private
+  HTTP and current full safety gates, plus actual previous-release tests,
+  archived Worker and both populated rollback/return paths all pass.
+  No catalog/reconnect, database-query or CPU-saving claim is part of RA-10.
+
+Implementation waits for both security and correctness spec reviews and
+release coordination. This SHA contains no runtime change.
+
 #### PV-4: readers shown after owner recovery
 
 Both editions show the newly recovered owner the current enrolled readers

@@ -159,7 +159,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   `code` query return `400 code_in_url`, with fixed credential-free text,
   no-store and no-referrer. Claimed sites keep the redirect to login.
   New links already use fragments; keep archived release tests untouched.
-- **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
+- **RA-10** IN-PROGRESS: the recovery link uses the same `?code=` form that RA-9
   removes from setup links, so the code reaches request logs. Move it to
   the URL fragment the same way (one release still accepting the query,
   then refusing). Found 2026-10-18 in RA-9 review.
