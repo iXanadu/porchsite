@@ -3,6 +3,7 @@ import { stripLocation } from "./image-privacy";
 import { photoNext } from "./photo-advice";
 import { ApiError } from "./errors";
 import * as media from "./media";
+import { invalidation } from "./public-artifacts";
 import { reportUploadPhase } from "./upload-diagnostic";
 
 const MAX_FILES = 8;
@@ -65,6 +66,7 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
   const sizes: number[] = [];
   const stmts: D1PreparedStatement[] = [];
   const seen = new Set<string>();
+  let backfill = false;
   const out: { image: string; width: number; height: number }[] = [];
   // Consume the validated buffers so processed files need not stay live.
   while (decoded.length) {
@@ -90,7 +92,10 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
     seen.add(name);
     const have = await db.prepare("SELECT width FROM media WHERE name = ?").bind(name).first<{ width: number }>();
     if (have) {
-      if (!have.width && width) stmts.push(db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ? AND width = 0").bind(width, height, name));
+      if (!have.width && width) {
+        backfill = true;
+        stmts.push(db.prepare("UPDATE media SET width = ?, height = ? WHERE name = ? AND width = 0").bind(width, height, name));
+      }
       continue;
     }
     reportUploadPhase("hex", "start");
@@ -108,7 +113,7 @@ export async function imageAdd(db: D1Database, actor: string, data?: string, ima
   // all new chunks, media rows and metadata updates, without deleting by hash.
   if (stmts.length) {
     reportUploadPhase("d1", "start");
-    try { await db.batch(stmts); }
+    try { await db.batch(backfill ? [...invalidation(db), ...stmts] : stmts); }
     finally { reportUploadPhase("d1", "end"); }
   }
   const next = photoNext(NEXT, sizes, images !== undefined);

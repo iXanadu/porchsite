@@ -15,9 +15,9 @@ FACTS_SQL = '''WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,
 facts1(category,ident,value) AS (SELECT 'streams','site',json_build_array(f.settings,f.approved)::text FROM site_stream_settings f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'private','site',json_build_array(a.version)::text FROM private_approvals a JOIN live l ON l.version=a.version AND l.item_id='site'
  UNION ALL SELECT 'training','site',json_build_array(a.version)::text FROM training_approvals a JOIN live l ON l.version=a.version AND l.item_id='site'),
-facts2(category,ident,value) AS (SELECT 'theme',name,json_build_array(version,sha256)::text FROM themes
+facts2(category,ident,value) AS (SELECT 'theme',name,json_build_array(version,sha256)::text FROM themes WHERE name=(SELECT CASE data::json->>'theme' WHEN 'classic' THEN 'personal-homepage' WHEN 'broadsheet' THEN 'product-page' ELSE COALESCE(data::json->>'theme','built-in') END FROM live WHERE item_id='site')
  UNION ALL SELECT 'share',c.item_id,json_build_array(c.version,c.name)::text FROM share_cards c JOIN live l ON l.item_id=c.item_id AND l.version=c.version
- UNION ALL SELECT 'media',name,json_build_array(width,height)::text FROM media
+ UNION ALL SELECT 'media',name,json_build_array(width,height)::text FROM media WHERE name=(SELECT CASE WHEN data::json->>'hero' ~ '^/media/[0-9a-f]{32}[.](jpg|png|webp)$' THEN substr(data::json->>'hero',8) ELSE NULL END FROM live WHERE item_id='site')
 )
 SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) AS dependency_facts ORDER BY category COLLATE "C",ident COLLATE "C"'''
 
