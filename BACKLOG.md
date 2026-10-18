@@ -13,8 +13,8 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
-1. PERF-2 (lazy entry Markdown) and PERF-3 (image sizing off GET): the
-   remaining CPU on a first page render.
+1. AF-7L: the change check stays valid across minutes when nothing on
+   the page depends on time, so repeat visits skip the full render.
 2. AG-6, the last part of agent access to private sites (read keys, read
    tools and private pages over HTTP shipped in 2026.10.18-c59bcc9).
 
@@ -100,11 +100,6 @@ in a shared cache or shared place; anonymous visitors see no change.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **LL-2** OPEN: /llms.txt since 2026.10.17-c43ea86 backslash-escapes
-  ordinary punctuation in summaries ("up to date\.", "llms\.txt"). It's
-  valid Markdown, but agents read the file raw. Escape only what could
-  break the list line (brackets, angle brackets, backslash, a leading
-  marker), in both editions. Found 2026-10-18 on porchsite.dev.
 - **AR-1** OPEN: /archive/ filter parity gap. The Cloudflare edition's
   filter check accepts a decoded trailing newline in tag/stream (JS `$`)
   where the server edition refuses it, so the two editions answer a
