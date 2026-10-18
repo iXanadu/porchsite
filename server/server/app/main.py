@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Message, Receive, Scope, Send
 
-from . import alerts, keys, read_keys, mcp, oauth, oauth_cors, privacy, routes
+from . import alerts, keys, read_keys, mcp, oauth, oauth_cors, privacy, routes, public_responses
 from .db import Db, connect
 from .settings import Settings
 
@@ -62,6 +62,8 @@ class App:
         self.read_server=mcp.create_server(lambda:self.pool,lambda:self.settings.release,True)
         self.read_sessions=StreamableHTTPSessionManager(app=self.read_server,json_response=True,stateless=True,max_request_body_size=16*1024*1024,security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False))
         self._started = False
+        self._response_store = None
+        self._response_pool = None
 
     @property
     def pool(self) -> Db:
@@ -87,6 +89,10 @@ class App:
             await agent_traffic.drain(self.pool)
             from .public_artifacts import drain
             await drain()
+            if self._response_store is not None:
+                await self._response_store.close()
+                self._response_store = None
+                self._response_pool = None
             if self._own_pool and isinstance(self._pool, asyncpg.Pool):
                 await self._pool.close()
                 self._pool = None
@@ -145,6 +151,13 @@ class App:
             return
         resp = await self._protocol(req)
         if resp is None:
+            if self._response_store is not None and (not self.settings.public_responses or self._response_pool is not self.pool):
+                await self._response_store.close()
+                self._response_store = None
+                self._response_pool = None
+            if self.settings.public_responses and self._response_store is None:
+                self._response_store = public_responses.Store()
+                self._response_pool = self.pool
             cx = routes.Context(
                 self.pool,
                 self.settings.setup_code,
@@ -152,6 +165,7 @@ class App:
                 self.settings.site_url,
                 self.settings.release,
                 self.settings.public_artifacts,
+                self._response_store,
             )
             resp = await routes.handle(req, cx)
         resp = oauth_cors.apply(path, resp)
