@@ -145,7 +145,7 @@ it.each([false, true])(
       "/review/stats?days=30",
       "/review/assistants",
       "/review/passkeys",
-      "/review/readers",
+      "/review/readers","/review/readers?after=recovery",
       "/review/alerts",
       "/review/import",
     ];
@@ -166,6 +166,13 @@ it.each([false, true])(
         headers: Object.fromEntries([...res.headers].sort()),
       });
     }
+    for(const [id,revoked,used] of [["reader-a",0,true],["reader-b",0,true],["reader-removed",1,true],["reader-unused",0,false]] as const){
+      await db.prepare("INSERT INTO readers(id,name,revoked,created_at) VALUES(?,?,?,'2026-10-17T10:00:00.000Z')").bind(id,"<script>Same & reader</script>",revoked).run();
+      await db.prepare("INSERT INTO reader_invites(token_hash,reader_id,created_at,expires_at,used_at) VALUES(?,?,'2026-10-17T10:00:00.000Z','2099-01-01',?)").bind(id,id,used?'2026-10-17T10:00:00.000Z':null).run();
+    }
+    const focused=await go('/review/readers?after=recovery',{Cookie:cookie,Accept:'text/markdown'}),focusedBody=await light(focused);
+    expect(focusedBody).toContain('These readers can still sign in.');
+    records.push({path:'/review/readers?after=recovery',case:'active',body:focusedBody,headers:Object.fromEntries([...focused.headers].sort())});
     const output = (env as unknown as { OWNER_REVIEW_PARITY_OUTPUT?: string })
       .OWNER_REVIEW_PARITY_OUTPUT;
     if (output)

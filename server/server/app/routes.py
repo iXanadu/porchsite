@@ -1938,10 +1938,13 @@ async def recovery_page(req,cx):
         return owner_page("Recovery","<h1>This site has no owner yet.</h1>",status=409,headers=headers)
     code = req.query_params.get("code","")[:200]
     body = '<h1>Recover owner access</h1><p>Use this if you can&#39;t sign in on any device. Your recovery code replaces all your old passkeys, so a lost or stolen device can&#39;t get back in. Everyone is signed out; unused reader invitations are cancelled. Readers keep their passkeys and just sign in again.</p><form><label>Recovery code</label><input type="password" name="code" autocomplete="off" value="'+esc(code)+'" required><p class="error" hidden></p><button>Recover my site</button></form>'
-    return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review"))
+    return owner_page("Recover owner access",body,headers=headers,script=SETUP_JS+passkey_js("recover","/review/readers?after=recovery"))
 
 
 async def readers_page(req,cx):
+    recovered = req.query_params.get("after") == "recovery"
+    if recovered and "authorization" in req.headers:
+        return await _review_refusal(req,cx)
     csrf = owner.csrf(req)
     link = ""
     if req.method == "POST":
@@ -1967,6 +1970,17 @@ async def readers_page(req,cx):
     def form(r,invite):
         button = '<button class="second" name="action" value="revoke-invite">Cancel invitation</button>' if invite else f'<button class="warn" name="action" value="revoke">Remove {esc(r["name"])}</button>'
         return f'<form method="post"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="id" value="{esc(r["id"])}">{button}</form>'
+    if recovered:
+        active = [r for r in readers if r["used_at"] and not r["revoked"]]
+        note = "These readers can still sign in." if active else "No readers."
+        body = '<h1>Readers</h1><p>'+note+'</p>'
+        for r in active:
+            signed_in = "Last signed in " + date(r["last_signed_in"]) if r["last_signed_in"] else "Not signed in yet"
+            body += f'<section class="card"><h3>{esc(r["name"])}</h3><p>Added {esc(date(r["created_at"]))}</p><p>{esc(signed_in)}</p>{form(r,False)}</section>'
+        body += '<p><a href="/review">Continue to Review</a></p>'
+        return owner_page("Readers",body,review=lambda:[
+            rv("Readers",note),*[b for r in active for b in [rh(r["name"]),rv("Added",date(r["created_at"])),rv("Last signed in",date(r["last_signed_in"]) if r["last_signed_in"] else "Not signed in yet")]],rl("Continue to Review","/review"),
+        ],signed_in=True,headers=[("Referrer-Policy","no-referrer")])
     body += '<h2>Readers</h2>'
     for r in readers:
         if not r["used_at"]:

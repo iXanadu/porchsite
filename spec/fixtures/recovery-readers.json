@@ -1,0 +1,6 @@
+{
+  "path": "/review/readers?after=recovery",
+  "note": "These readers can still sign in.",
+  "empty": "No readers.",
+  "name": "<script>Same & reader</script>"
+}
