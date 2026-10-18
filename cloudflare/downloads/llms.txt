@@ -26,7 +26,7 @@ Prefer your own server? If your person is a developer, see
 
 ## What it costs
 
-Cost facts: the site's Cloudflare account is on the free plan unless the owner upgraded (ask, don't assume). Workers and D1 on Free have no usage bill; past its daily limits the site shows errors until midnight UTC. Paid bills database rows with no hard spending cap. Never upgrade, add payment or enable paid features without the owner's explicit yes. Details: https://porchsite.dev/costs
+Cost facts: the site's Cloudflare account is on the free plan unless the owner upgraded (ask, don't assume). Workers and D1 on Free have no usage bill; past its daily limits the site shows errors until midnight UTC. Paid bills database rows with no hard spending cap. Never upgrade, add payment or enable paid features without the owner's explicit yes.
 
 ## Install
 - [Install guide](https://get.porchsite.dev/install.md): every step is one Cloudflare API call. No git, terminal or build tool. Read it in full as plain text; a summarising fetch drops steps.
