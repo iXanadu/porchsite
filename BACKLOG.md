@@ -82,6 +82,11 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    upload metadata must carry it (as the installer's does).
 
 ## BLOCKING
+- **PERF-9a-COMPAT** BLOCKED: the draft revision-witness triggers add
+  writes counted by D1 `meta.changes`. Existing content updates require
+  exactly one change and can report a conflict after committing. Preserve
+  previous-runtime update and rollback behavior before installing triggers;
+  changing only the new runtime does not resolve compatibility.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
