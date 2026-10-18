@@ -2358,7 +2358,7 @@ access, existence and dependency checks on every request.
 
 #### AF-7T: thin prepared-copy delivery
 
-This is the reviewed implementation contract for replacing the legacy
+This is the proposed implementation contract for replacing the legacy
 SNAPSHOT-based lookup, not a claim that the deployed runtime has changed.
 Implementation waits for the separate hosted AF-7H measurement and explicit
 authorization. The operator flag remains off by default on both editions.
@@ -2514,7 +2514,8 @@ target <=1 ms median and <=2 ms p95, while reporting total cold-render CPU even
 when it exceeds 10 ms. Startup CPU remains separate from first-request CPU.
 Actual hosted CPU, D1 reads/rows/writes and sparse requests remain mandatory
 before any default-enable decision. No hosted or billing conclusion follows
-from local process CPU. A target miss blocks a performance claim, not a gate.
+from local process CPU. Report a target miss as an unmet performance criterion;
+correctness acceptance alone does not authorize rollout.
 
 Paired test plan (both editions):
 
