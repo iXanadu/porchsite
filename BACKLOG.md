@@ -91,7 +91,10 @@ Found building a single-property listing site on the live release.
   spec ea33d1e, both reviews passed) measured +0.13 ms on refusals and
   inconclusive elsewhere, so it fails its no-measurable-cost gate. Next
   design: log only requests that take the slower SDK path, which is the
-  data we need, so the fast path pays nothing.
+  data we need, so the fast path pays nothing. Refused requests are then
+  not logged at all; if a later design logs them, it keeps the single
+  access_refused code (no hint whether a key was sent) and needs a new
+  security review.
 - **RA-11** OPEN: One clean Claude run in the plain Claude chat app (no
   browser extension, only the two source files), to settle whether a
   non-technical owner gets through with Claude at all. Round 3's Claude run
