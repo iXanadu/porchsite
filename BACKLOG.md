@@ -64,6 +64,9 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
+- **AF-7T** IN-PROGRESS: spec for a three-read prepared-copy HIT using
+  fresh dependency facts and an atomic row/proof SELECT; no legacy manifest
+  parse. Implementation waits for hosted measurements and review.
 - **AF-7H** OPEN: hosted CPU and database-read/write measurement before
   default enablement of prepared public pages. The D1/PostgreSQL backend is
   operator opt-in and remains off by default. Local process CPU is diagnostic;
