@@ -173,17 +173,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **RA-9Q** IN-PROGRESS (next product release after RA-9): end the one-release
-  setup query compatibility window. Unclaimed `/setup` requests with any
-  `code` query return `400 code_in_url`, with fixed credential-free text,
-  no-store and no-referrer. Claimed sites keep the redirect to login.
-  New links already use fragments; keep archived release tests untouched.
-- **RA-10Q** IN-PROGRESS (immediately following product release after RA-10):
-  disable recovery-query compatibility. Refuse decoded `code` queries on
-  exactly `/recover`, `/recover/options` and `/recover/verify` after existing
-  method/preflight/origin checks and unclaimed-409 precedence; fixed
-  `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
-  Introducing recovery links already use fragments; keep archived tests.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
