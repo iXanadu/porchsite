@@ -8,7 +8,14 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const require=createRequire(join(root,'cloudflare/package.json'));
 const {parse}=require('@babel/parser');
 const hash=s=>createHash('sha256').update(s).digest('hex');
-export function sources(at=root){return Object.fromEntries(readdirSync(join(at,'cloudflare/src')).filter(x=>x.endsWith('.ts')).map(x=>[x,readFileSync(join(at,'cloudflare/src',x),'utf8')]));}
+export function sources(at=root){
+ const base=join(at,'cloudflare/src'),files=[];
+ function visit(dir){for(const entry of readdirSync(dir,{withFileTypes:true})){
+  const path=join(dir,entry.name);if(entry.isDirectory())visit(path);
+  else if(/\.(?:[cm]?js|tsx?)$/.test(entry.name))files.push(path);
+ }}
+ visit(base);return Object.fromEntries(files.sort().map(path=>[path.slice(base.length+1),readFileSync(path,'utf8')]));
+}
 function key(node){
  if(!node)return null;
  if(node.type==='Identifier')return node.name;
@@ -56,6 +63,12 @@ export function itemsDependencies(sql){
  return ['id','created_at'];
 }
 export function verify(input,contract,serverRelation,template){
+ // Complete module bytes and membership close obfuscated/computed access and
+ // module-scope alias changes that a recognized-function scan cannot prove.
+ // Any runtime source change requires deliberate inventory review; there is no
+ // automatic updater or best-effort provenance exception.
+ const modules=Object.fromEntries(Object.entries(input).map(([name,text])=>[name,hash(text)]));
+ if(JSON.stringify(Object.entries(modules).sort())!==JSON.stringify(Object.entries(contract.modules).sort()))throw Error('Unreviewed runtime module or mutation provenance');
  const actual=capture(input);
  if(JSON.stringify(Object.entries(actual).sort())!==JSON.stringify(Object.entries(contract.functions).sort()))throw Error('Unreviewed mutation metadata provenance, SQL, comparison or batch slot');
  const relation=input['public-read.ts'].match(/export const FACTS_RELATION=(`[^]*?`);\nexport const FACTS_SQL=/)?.[1];
