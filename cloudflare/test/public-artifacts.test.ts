@@ -285,11 +285,13 @@ it('af_thin_hit_budget: one facts decode, atomic row proof and no SNAPSHOT on HI
  const miss=await get();expect(await miss.text()).toBe(body);expect(load).toHaveBeenCalledTimes(1);expect(facts).toHaveBeenCalledTimes(2);expect(snap).not.toHaveBeenCalled();
  const all=queries.mock.calls.map(([q])=>q),writes=all.filter(q=>q===artifacts.admitSQL()||/^\s*(INSERT|DELETE|UPDATE)/i.test(q));expect(all.length-writes.length).toBeLessThanOrEqual(6);expect(writes.filter(q=>!q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(2);expect(all.length).toBeLessThanOrEqual(9);
 });
-it('af_thin_hit_old_runtime: data-derived generation purges before lookup without a revision bump',async()=>{
+it('af_thin_hit_old_runtime: atomic lookup withholds stale generation before purge without a revision bump',async()=>{
  await fixture();const first=await get(),tag=first.headers.get('ETag'),old=await db.prepare('SELECT revision,generation FROM public_artifact_state').first<any>();
  await db.prepare("UPDATE live SET data=json_set(data,'$.title','Old runtime publication') WHERE item_id='site'").run();
+ const f=await read.facts(db,true),{RELEASE}=await import('../src/home'),g=await artifacts.generation(f,RELEASE,origin),stored=await db.prepare('SELECT key FROM public_artifacts LIMIT 1').first<any>();
+ const refused=await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(f.raw),g,stored.key,g).first<any>();expect(refused.facts_ok).toBe(1);expect(refused.ok).toBe(0);expect(refused.key).toBeNull();expect(refused.body).toBeNull();
  const sql=vi.spyOn(db,'prepare'),snap=vi.spyOn(artifacts,'snapshot');const next=await get();expect(await next.text()).toContain('Old runtime publication');expect(next.headers.get('ETag')).not.toBe(tag);
- const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls).not.toContain(artifacts.lookupSQL());expect(snap).not.toHaveBeenCalled();sql.mockRestore();
+ const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls.filter(q=>q===artifacts.lookupSQL())).toHaveLength(1);expect(calls.indexOf(artifacts.lookupSQL())).toBeLessThan(calls.indexOf('DELETE FROM public_artifacts'));expect(snap).not.toHaveBeenCalled();sql.mockRestore();
  expect((await db.prepare('SELECT generation FROM public_artifact_state').first<any>())!.generation).not.toBe(old.generation);
 });
 it.each(['private','unpublish','theme','title'])('af_thin_hit_races: old-runtime %s between facts and row SELECT fails the complete atomic proof',async(change)=>{

@@ -627,9 +627,15 @@ async def test_af_thin_hit_old_runtime(db,http,monkeypatch):
         async def refuse(*args,**kwargs):
             pytest.fail('thin path called SNAPSHOT')
         monkeypatch.setattr(artifacts,'snapshot',refuse)
+        f=await public_read.facts(conn,True);g=artifacts.generation(f,cx.release,ORIGIN)
+        stored=await conn.fetchrow('SELECT key FROM public_artifacts LIMIT 1')
+        refused=await conn.fetchrow(artifacts.lookup_sql(),json.dumps(f['raw'],separators=(',',':')),g,stored['key'])
+        assert refused['facts_ok'] is True and refused['ok'] is False and refused['key'] is None and refused['body'] is None
         r=await routes.handle(request('/'),cx);await agent_traffic.settle(counted)
         assert b'Old runtime publication' in r.body and r.headers['etag']!=first.headers['etag']
-        assert 'DELETE FROM public_artifacts' in counted.calls and not any('LEFT JOIN public_artifacts' in q for q in counted.calls)
+        lookup=[q for q in counted.calls if 'LEFT JOIN public_artifacts' in q]
+        assert len(lookup)==1 and 'DELETE FROM public_artifacts' in counted.calls
+        assert counted.calls.index(lookup[0])<counted.calls.index('DELETE FROM public_artifacts')
         assert await db.fetchval('SELECT generation FROM public_artifact_state')!=old['generation']
 
 @pytest.mark.parametrize('change',['private','unpublish','theme','title'])
