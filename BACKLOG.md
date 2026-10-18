@@ -146,10 +146,12 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   default-off path unchanged (+0.04 ms, inside noise, identical SQL); no
   target is declared met. A HIT still reads about 3,470 rows: that, not
   rendering, is what stands between it and 10 ms.
-- **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
-  cut the Worker's memory per upload (the JSON path adds about 2x the
-  decoded size at serialization). Would allow a larger image_add batch.
-  Needs its own security review.
+- **CF-S2** BLOCKED (Cloudflare): D1's binary RPC binding
+  (`d1_binding_jsrpc`) could cut the Worker's memory per upload, but it is
+  an experimental compatibility flag with no documented hosted
+  availability (checked 2026-10-18), and binding still expands bytes to
+  number arrays, so it is not zero-copy. Revisit when Cloudflare documents
+  it as generally available.
 
 ## STRATEGIC
 - **CF-S1** IN-PROGRESS: Install without a git account: guide and bundle
