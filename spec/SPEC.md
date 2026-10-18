@@ -1203,7 +1203,7 @@ replacement, so a refresh whose answer was lost can be retried.
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
 | `image_add(data?, images?)` | Exactly one of `data` (one base64 picture, existing response) or `images` (1–8 base64 pictures). JPEG, PNG or WebP, at most 8 MiB each and 8 MiB decoded in total. Sniff every file and store all or none by content hash. `images` returns `{images: [{image, width, height}, ...], next}` in input order; duplicates repeat in the answer but are stored once. Private until a published item uses it (S7) |
-| `site_check` | Check the proposed site before asking for approval. With no arguments (or `deep: false`), returns only `ok`, `broken` (declared internal links to no page, populated home-page section or stored picture, each with where and why), and `empty_sections`; `ok` is true when `broken` is empty. This quick check does not render pages. `deep: true` also crawls rendered links from home and returns `unreachable`, entries with no path, each `{id, why}`, plus `crawl` if a limit stops it. Deep `ok` requires a completed crawl and empty `broken` and `unreachable`. Read-only. Run deep once before approval on a new site or look change; it is heavy and can exceed Cloudflare Free CPU limits on big sites |
+| `site_check` | Check the proposed site before asking for approval. With no arguments (or `deep: false`), returns only `ok`, `broken` (declared internal links to no page, populated home-page section or stored picture, each with where and why), and `empty_sections`; `ok` is true when `broken` is empty. This quick check does not render pages. `deep: true` also crawls rendered links from home and returns `unreachable`, entries with no path, each `{id, why}`, plus `crawl` if a limit stops it. Deep `ok` requires a complete target proof (including an empty target set) and empty `broken` and `unreachable`. Read-only. Run deep once before approval on a new site or look change; it is heavy and can exceed Cloudflare Free CPU limits on big sites |
 | `site_stats(days?, content_id?, src?, post?, include_test?)` | Visitor numbers (§8), read-only |
 | `theme_list` | The site's look: current, installed, the catalog (each credited look with its maker's `author_x`), this site's theme requests and shared looks (each shared look's status, the curator's note, and `credit`: waiting, credited or not credited, when it claimed credit) |
 | `theme_submit(name, note, author_x?)` | Share a look this site made with the review queue, only with the person's yes. `author_x`: the maker's X handle (no @), the only credit there is; the answer's `credit` carries a one-time claim code and the words to post on X from that account (TEMPLATES §3c) |
@@ -1289,15 +1289,20 @@ the browser; the server keeps its existing single-file and 8 MiB limits.
 redirects and missing pages) and 10,000 rendered `a[href]` or `area[href]`
 elements outside inert templates. Duplicate and non-HTTP links count
 against the link budget. Repeated local addresses do not count twice.
-Exactly reaching a budget is allowed; needing one more address or link
-stops the crawl. Both editions use the same limits and document order.
+Exactly reaching a budget is allowed. Once all entry targets have been
+proven reachable, stop successfully without examining another address or
+link; a queued address is not work that must be completed after that proof.
+With targets still unproven, needing one more address or link stops the
+crawl. Both editions use the same limits and document order.
 When stopped, the answer includes `crawl: {limit: "pages" | "links",
 max_pages: 200, max_links: 10000, pages, links}` with the counts actually
 examined. `ok` is false, and `unreachable` is empty because an incomplete
 crawl cannot establish that entries have no path. Existing `broken` and
-`empty_sections` checks still run. A completed crawl retains the existing
-answer shape without `crawl`. These limits bound traversal, not the size
-of an individual rendered page.
+`empty_sections` checks still run. A complete target proof, or a completed
+crawl with unreachable entries, retains the existing answer shape without
+`crawl`. These limits bound traversal, not the size of an individual rendered
+page. They do not require visiting an entry page whose reachability is
+already proven merely to exhaust the queue.
 
 `site_state` summary titles use the item's `title`, a card's `name`, or a
 note's `text` (empty if none). Full items retain every existing field:
@@ -1433,13 +1438,74 @@ With `deep: true`, reachability uses the selected look, including an installed o
 on the same proposed site as the other checks. Starting at `/`, follow
 rendered HTML anchor links through local entry, archive and tag pages;
 resolve relative addresses, same-site absolute addresses and the site's
-stream redirects. An external entry is reachable when a visited page links
-to its destination or its local redirect. An entry also counts as reachable
+stream redirects. Resolve each observed rendered href to the current
+view's canonical entry target using its actual route and redirect rules.
+A link to a known, renderable internal entry proves that target reachable
+on discovery; rendering that entry page is not required. A missing route,
+an arbitrary matching-looking path, or a redirect whose target is absent
+is not proof. An external entry is reachable when a visited page links
+to its destination or its valid local redirect. An entry also counts as reachable
 when its full, nonempty body is rendered inline on a visited page (a feature
 section, for example); a title or summary alone is insufficient. Draft entries and staged removals
 are absent from this proposed public view. Metadata, feeds, search indexes
 and unlinked pages do not establish reachability. This is a static HTML link
 check: it does not run scripts, evaluate CSS visibility or fetch any URL.
+
+**SP-S4 — complete target reachability proof.** Maintain request-local sets
+of current entry targets, proven targets, and examined local addresses.
+Start at `/` and traverse actual rendered links only while targets remain
+unproven. Links discovered on a proven entry's page may still be needed to
+prove other targets, so such a page remains eligible for bounded traversal;
+proving one target does not remove useful paths to unknown targets. Stop
+as soon as every target is proven, including on the last permitted link or
+page. If the target set is empty, no rendered traversal is needed. A complete
+proof yields an empty `unreachable` list and no `crawl`; `ok` still depends
+on the unchanged quick checks. If traversal exhausts naturally with targets
+unproven, report those entries as unreachable. If further work is necessary
+but a traversal budget is exhausted, retain the incomplete result described
+above, never a guessed unreachable list or a successful answer.
+
+The engine archive provides proof only after an actual rendered path from
+home reaches it, and only through the links in its current rendered listing.
+Enabling the archive or reading its stored membership is insufficient.
+Custom looks may omit that path; links or body markers inside inert
+`template` elements do not establish it or an entry's reachability. Keep the
+existing check-only full-body provenance: title, summary, metadata and
+owner-authored marker-like text cannot stand in for a genuine complete
+inline body. No data-only shortcut, additional fetch, persistent graph cache,
+or increase in crawl limits is part of this change.
+
+Writer-authorized checks use the same proposed graph as the existing quick
+check, including eligible staged changes and excluding drafts and staged
+removals. Read-key checks retain their approved published graph and existing
+scope. Canonical targets, redirects and listing links must all come from
+that invocation's graph; public facts, prepared copies, another principal's
+view or a different proposed version cannot supply proof. The default quick
+`site_check` path, its data reads and its answer contract remain unchanged.
+Both editions implement the same target and cap semantics.
+
+Required paired cases: `site_check_target_listing` (200 and 500 entries,
+reachable engine archive, successful proof from home plus archive and any
+necessary intermediate pages, without per-entry renders);
+`site_check_target_custom` (custom home omits archive, all/partial target
+links, and a path through an already-proven entry to an unknown target);
+`site_check_target_inert` (nested templates, script text and forged markers
+never prove a target); `site_check_target_inline` (genuine full nonempty
+body versus title/summary-only output); `site_check_target_redirect`
+(relative and same-origin hrefs, stream and legacy redirects, absent targets,
+external destinations and valid local external-entry redirects);
+`site_check_target_caps` (zero targets, completion at exactly 200 pages or
+10,000 links, queued work ignored after completion, unresolved target needing
+one more page/link, and naturally exhausted unreachable targets);
+`site_check_target_graph` (staged replacement/removal and draft exclusion,
+writer proposed versus read-key published, with public prepared copies unable
+to affect either); and `site_check_target_quick` (unchanged default results
+and zero rendering). Preserve duplicate/non-HTTP link accounting until proof
+completion and existing document order. Verify both-edition result parity,
+real production bundle startup, and measure the unchanged 200/500-entry
+fixtures before/after with the same harness. Report actual page/body render
+counts, D1 statements/rows, and local CPU separately from hosted CPU; fewer
+renders alone do not establish a hosted free-plan CPU guarantee.
 
 The server's MCP instructions tell the assistant the rules above in plain
 words, so any assistant can use the site correctly without prior training.

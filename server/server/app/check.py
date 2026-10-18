@@ -8,7 +8,7 @@ import re
 from html.parser import HTMLParser
 from uuid import uuid4
 from urllib.parse import urljoin, urlsplit, urlunsplit
-from typing import Any
+from typing import Any, Callable
 
 from server.spec.jsutil import string, trim
 from server.spec.site import SiteView
@@ -146,28 +146,34 @@ MAX_LINKS = 10_000
 
 
 class _Links(HTMLParser):
-    def __init__(self, remaining: int = MAX_LINKS) -> None:
+    """Consume link and body proofs in document order, stopping at completion."""
+    def __init__(self, remaining: int, link: Callable[[str], bool], comment: Callable[[str], bool]) -> None:
         super().__init__(convert_charrefs=True)
-        self.links: list[str] = []
-        self.comments: list[str] = []
+        self.link = link
+        self.comment = comment
+        self.links = 0
         self.template_depth = 0
         self.remaining = remaining
         self.limited = False
+        self.complete = False
 
     def handle_comment(self, data: str) -> None:
-        if not self.template_depth and not self.limited:
-            self.comments.append(data)
+        if not self.template_depth and not self.limited and not self.complete:
+            self.complete = self.comment(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.limited or self.complete:
+            return
         if tag == "template":
             self.template_depth += 1
         if not self.template_depth and tag in ("a", "area"):
             href = dict(attrs).get("href")
             if href is not None:
-                if len(self.links) == self.remaining:
+                if self.links == self.remaining:
                     self.limited = True
-                elif not self.limited:
-                    self.links.append(href)
+                else:
+                    self.links += 1
+                    self.complete = self.link(href)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "template" and self.template_depth:
@@ -200,8 +206,39 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
     base = urlsplit(_address(origin or "https://example.invalid", "https://example.invalid"))
     # Renderer contexts receive an origin, never a URL path or trailing slash.
     origin = urlunsplit((base.scheme, base.netloc, "", "", ""))
-    reached: set[str] = set()
-    inline: set[str] = set()
+    remaining = {e["id"] for e in v.entries}
+    if not remaining:
+        return [], None
+    by_page = {e["page"]: e for e in v.entries}
+    by_slug = {e["slug"]: e for e in v.entries}
+    external: dict[str, list[str]] = {}
+    for e in v.entries:
+        if e.get("external_url"):
+            external.setdefault(_address(e["external_url"], origin), []).append(e["id"])
+
+    def moved_path(path: str) -> str | None:
+        old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
+        return by_slug.get(old[1], {}).get("page") if old else builtin.redirect_for(v, path)
+
+    def target(path: str) -> Data | None:
+        seen: set[str] = set()
+        while path not in seen:
+            seen.add(path)
+            old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
+            if old:
+                entry = by_slug.get(old[1])
+                if not entry or entry.get("external_url"):
+                    return entry
+                path = entry["page"]
+                continue
+            entry = by_page.get(path)
+            if entry:
+                return entry
+            moved = builtin.redirect_for(v, path)
+            if not moved:
+                return None
+            path = moved
+        return None  # A redirect cycle is not a renderable target.
     marker = f"porchsite-check-{uuid4()}:"
     indexes = {e["id"]: i for i, e in enumerate(v.entries)}
 
@@ -220,7 +257,7 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
     limit = None
     visited: set[str] = set()
     queue = ["/"]
-    while queue:
+    while queue and remaining:
         path = queue.pop(0)
         if path in visited:
             continue
@@ -228,14 +265,12 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
             limit = "pages"
             break
         visited.add(path)
-        old = re.fullmatch(r"/e/([a-z0-9-]+)/?", path)
-        moved = next((e["page"] for e in v.entries if old and e["slug"] == old[1]), None) if old else builtin.redirect_for(v, path)
+        moved = moved_path(path)
         if moved:
             queue.append(moved)
             continue
-        e = next((e for e in v.entries if e["page"] == path), None)
+        e = by_page.get(path)
         if e and e.get("external_url"):
-            reached.add(_address(e["external_url"], origin))
             continue
         body = None
         if path == "/archive/" and v.site.get("archive", {}).get("enabled"):
@@ -256,25 +291,32 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
                 body = response.body.decode("utf-8")
         if body is None:
             continue
-        parser = _Links(MAX_LINKS - links)
-        parser.feed(body)
-        links += len(parser.links)
-        for comment in parser.comments:
+        def prove_comment(comment: str) -> bool:
             if comment.startswith(marker) and comment[len(marker):].isdigit():
                 i = int(comment[len(marker):])
                 if i < len(v.entries):
-                    inline.add(v.entries[i]["id"])
-        for href in parser.links:
+                    remaining.discard(v.entries[i]["id"])
+            return not remaining
+
+        def prove_link(href: str) -> bool:
             try:
                 url = _address(href, urljoin(origin, path))
                 parts = urlsplit(url)
                 if parts.scheme not in ("http", "https"):
-                    continue
-                reached.add(url)
-                if (parts.scheme, parts.netloc) == (base.scheme, base.netloc):
+                    return False
+                remaining.difference_update(external.get(url, []))
+                if (parts.scheme, parts.hostname, parts.port) == (base.scheme, base.hostname, base.port):
+                    entry = target(parts.path or "/")
+                    if entry:
+                        remaining.discard(entry["id"])
                     queue.append(parts.path or "/")
             except ValueError:
-                continue
+                pass
+            return not remaining
+
+        parser = _Links(MAX_LINKS - links, prove_link, prove_comment)
+        parser.feed(body)
+        links += parser.links
         if parser.limited:
             limit = "links"
             break
@@ -283,5 +325,5 @@ def _unreachable_entries(v: SiteView, look: Theme | None, origin: str) -> tuple[
     return [
         {"id": e["id"], "why": "no rendered link path from the home page to this entry"}
         for e in v.entries
-        if e["id"] not in inline and e["page"] not in visited and (not e.get("external_url") or _address(e["external_url"], origin) not in reached)
+        if e["id"] in remaining
     ], None
