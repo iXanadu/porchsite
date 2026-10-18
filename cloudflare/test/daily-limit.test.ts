@@ -113,7 +113,7 @@ it.each([false,true])('actual writer tool handler quota is a tool error with id 
  const {token}=await keys.create(db,'Fixture');
  const request=new Request(origin+'/mcp',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:'quota-case',method:'tools/call',params:{name:'site_state',arguments:{},...(fallback?{_meta:{fixture:true}}:{})}})});
  const response=await worker.fetch(request,{...e,DB:faultDB(sql=>/FROM items\b/.test(sql))},context);
- expect(response.status).toBe(200);const text=await response.text();
+ expect(response.status).toBe(200);expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'none'");const text=await response.text();
  const wire=JSON.parse(text.startsWith('{')?text:text.split('\n').find(l=>l.startsWith('data:'))!.slice(5));
  expect(wire.id).toBe('quota-case');expect(wire.result.isError).toBe(true);
  expect(JSON.parse(wire.result.content[0].text)).toEqual({error:'free_daily_limit',message:OWNER_LIMIT});

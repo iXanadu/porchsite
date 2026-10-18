@@ -7,7 +7,7 @@ export const COST_FACTS = "Cloudflare cost facts: ask which plan; never assume. 
 export const VISITOR_LIMIT = "This site has reached today's free limit on its hosting. The free allowance resets at midnight UTC.";
 export const OWNER_LIMIT = "This site has used today's free Cloudflare allowance, so it can't save changes until midnight UTC. Nothing has been charged for Workers or D1 usage on the free plan. Usage is under D1, then Metrics, in the Cloudflare dashboard.";
 type Limit = 'read'|'write';
-type State = {failure?:Limit; authorized?:boolean; optional?:boolean; db?:D1Database};
+type State = {failure?:Limit; authorized?:boolean; optional?:boolean; db?:D1Database; pending?:Promise<void>[]; toolFailure?:boolean};
 const requests = new AsyncLocalStorage<State>();
 class DailyLimit extends Error {constructor(){super(VISITOR_LIMIT);}}
 const message = (state:State) => state.authorized ? OWNER_LIMIT : VISITOR_LIMIT;
@@ -82,16 +82,30 @@ export function toolDatabase(fallback:D1Database){return requests.getStore()?.db
 export function dailyRequest(req:Request,db:D1Database,fn:(db:D1Database)=>Promise<Response>):Promise<Response>{
  return requests.run({db:dailyDatabase(db)},async()=>{
   const state=requests.getStore()!;
-  try{const result=await fn(state.db!);return state.failure?response(req,state):result;}
+  try{
+   const result=await fn(state.db!);
+   // The SDK may create its event stream before an async callback finishes.
+   // Wait for callbacks, not response bodies, so large results are not copied.
+   for(let count=0;state.pending&&count<state.pending.length;){const pending=state.pending.slice(count);count=state.pending.length;await Promise.all(pending);}
+   if(state.failure)return response(req,state);
+   if(!state.toolFailure)return result;
+   const out=new Response(result.body,result);
+   for(const [name,value] of Object.entries(headers))out.headers.set(name,value);
+   for(const name of ['ETag','Last-Modified','Location','Set-Cookie'])out.headers.delete(name);
+   return out;
+  }
   catch(error){if(state.failure)return response(req,state);throw error;}
  });
 }
 /** A handler's quota state never contaminates another call in an SDK batch. */
 export function dailyTool(fn:()=>Promise<any>):Promise<any>{
- return requests.run({db:requests.getStore()?.db},async()=>{
+ const parent=requests.getStore();
+ const task=requests.run({db:parent?.db},async()=>{
   const state=requests.getStore()!;
-  const failed=()=>({content:[{type:'text' as const,text:JSON.stringify(refusal(state))}],isError:true});
+  const failed=()=>{if(parent)parent.toolFailure=true;return {content:[{type:'text' as const,text:JSON.stringify(refusal(state))}],isError:true};};
   try{const value=await fn();return state.failure?failed():value;}
   catch(error){if(state.failure)return failed();throw error;}
  });
+ if(parent)(parent.pending??=[]).push(task.then(()=>{},()=>{}));
+ return task;
 }
