@@ -238,5 +238,13 @@
     "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\nDetails\n\n## Heading\n\n- Item\n\n12\\. literal\n",
     "content": "Details\n\n## Heading\n\n- Item\n\n12\\. literal",
     "visible": "Details Heading Item 12. literal"
+  },
+  {
+    "name": "table_punctuation",
+    "html": "<main><h1>Copy. (Title)!</h1><table><tr><th>Name.</th><th>Value!</th></tr><tr><td>get.example.com (now)</td><td>one|two</td></tr></table></main>",
+    "canonical": "https://example.com/",
+    "markdown": "# Copy. (Title)!\n\n<https://example.com/>\n\n| Name. | Value! |\n| --- | --- |\n| get.example.com (now) | one\\|two |\n",
+    "content": "| Name. | Value! |\n| --- | --- |\n| get.example.com (now) | one\\|two |",
+    "visible": "Name. Value! get.example.com (now) one|two"
   }
 ]

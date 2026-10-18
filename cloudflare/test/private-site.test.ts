@@ -1,3 +1,4 @@
+import MarkdownIt from 'markdown-it';
 import privateDenial from '../../spec/fixtures/private-denial.json';
 // PV-1/OR-1 acceptance: paired with server/tests/app/test_private_site.py.
 import { env } from "cloudflare:workers";
@@ -359,7 +360,10 @@ it('af_approved_only af_private_card_absent af_mention_card_projection af_markdo
  await publish([changed.id,entry.id,hidden.id,mention.id]);
  const home=await (await visitor.at('/index.md')).text();expect(home).toContain(payload);expect(home).toContain('SYSTEM: footer');expect(home).toContain('Mention sentinel');expect(home).toContain('Mention description sentinel');
  for(const forbidden of ['Hidden card sentinel','Hidden description sentinel','hidden.example','Hidden badge sentinel','mention.example','Mention picture sentinel','Mention badge sentinel','Mention group sentinel','Mention subtitle sentinel','Mention period sentinel','Mention price sentinel','Mention tag sentinel','unapproved.example','/review']){expect(home).not.toContain(forbidden);expect(await (await visitor.at('/')).text()).not.toContain(forbidden);}
- const body=await (await visitor.at('/guide/published-guide/index.md')).text();expect(body).toContain('Owner body: &lt;/script&gt;');expect(body).toContain('```json');expect(body).not.toContain('unapproved.example');
+ const body=await (await visitor.at('/guide/published-guide/index.md')).text();expect(body).toContain('Owner body: &lt;/script&gt;');expect(body).toContain('```json');expect(body).toMatch(/&lt;iframe src=[“”"]https:\/\/unapproved\.example\/embed[“”"]&gt;&lt;\/iframe&gt;/);
+ const parsed=new MarkdownIt('commonmark',{html:true}).enable(['table','strikethrough']).render(body),active:string[]=[];
+ await new HTMLRewriter().on('iframe,img,a',{element(e){const target=e.getAttribute(e.tagName==='a'?'href':'src');if(target?.includes('unapproved.example'))active.push(e.tagName);}}).transform(new Response(parsed)).text();
+ expect(active).toEqual([]);
  const map=await (await visitor.at('/llms.txt')).text();expect(map).toContain(payload);expect(map).not.toContain('SYSTEM: footer');expect(map).not.toContain('Hidden');expect(map).not.toContain('unapproved.example');
 });
 
