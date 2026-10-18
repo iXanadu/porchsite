@@ -90,6 +90,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **DEP-2** OPEN: moving the agents package to its current major version
+  changes the MCP runtime the Worker ships (it pulls a newer MCP server).
+  Needs its own spec, security review and an MCP parity check; keep it
+  separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
