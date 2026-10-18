@@ -585,9 +585,10 @@ extra public route, signed recovery link, cookie, persistent flag, database
 table or permission is introduced. Missing/other selector values retain the
 ordinary Readers page; never interpolate the selector into HTML or a redirect.
 
-**Presentation.** Above the list, show this one-line note:
+**Presentation.** When the active enrolled-reader list is non-empty, show
+this one-line note above it:
 
-> Check these readers; remove any you don't recognise.
+> These readers can still sign in.
 
 Show the current active enrolled readers in the existing deterministic
 Readers-page order, using the same escaped name, added date and last-sign-in
@@ -598,14 +599,17 @@ are identical. Do not expose passkey material, session data, invite links,
 recovery codes, internal epochs or bearer secrets. Removed readers and unused
 invites are not presented as current active readers; recovery already cancels
 unused invites. With no active enrolled readers, say "No readers." and show
-no Remove control. Keep a plain "Continue to Review" link to `/review`.
+no Remove control or retained-access note. Keep a plain "Continue to Review"
+link to `/review`.
 There is no requirement to remove anyone or acknowledge the note to continue.
 The focused recovery mode does not display the create-invitation form or
 removed-reader history; ordinary `/review/readers` keeps those existing views.
 
 **Removal and freshness.** Reuse the existing owner-authenticated Readers
 POST with `action=revoke`, the reader id and the current owner's CSRF token.
-No GET revokes anything, and a forged selector never substitutes for CSRF.
+Forms post to the current focused URL so `after=recovery` survives removal;
+do not hardcode an action URL that drops this selector. No GET revokes
+anything, and a forged selector never substitutes for CSRF.
 A removal atomically revokes the reader, bumps its epoch and deletes its
 sessions and invites under the existing rules. Every authorization after
 commit refuses that reader's old sessions and passkeys; already-authorized
@@ -631,7 +635,9 @@ names or controls. No client-side selector can enable this mode before
 owner authorization. Responses use the existing owner no-store/no-validator
 policy and never enter a public prepared-copy path. The AG-6 owner-readable
 projection follows the visible note, active list and empty state for this
-mode under its existing owner/session checks; actions, CSRF fields and secrets
+mode under its existing owner/session checks. This is an HTML presentation
+selector followed by the negotiated projection, not a new parameter selecting
+an agent mode; actions, CSRF fields and secrets
 remain excluded. This adds no MCP reader-management tool or capability grant.
 
 **Paired acceptance cases.** Before code, security review must approve the
@@ -656,8 +662,10 @@ reuse. Both editions then prove:
 - Failed/expired/spent recovery and concurrent-code loser never show a success
   transition. List-load failure does not undo successful recovery; retry reads
   current metadata. Revoked owner sessions cannot load/reuse the old page.
-- Owner HTML and direct/negotiated Markdown parity, no-store/no ETag and zero
-  public artifact access remain on both site privacy modes. Existing recovery
+- Owner HTML and negotiated `Accept: text/markdown` parity, no-store/no ETag
+  and zero public artifact access remain on both site privacy modes. Review
+  pages gain no direct `.md` alias; existing alias refusals match both ports.
+  Existing recovery
   epoch/issuance race and rollback/return proofs stay strict.
 
 No migration is needed. Older runtimes ignore the presentation selector and
