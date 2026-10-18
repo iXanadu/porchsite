@@ -91,6 +91,12 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **PAR-1-C4** OPEN: the bare protected-resource metadata path
+  (`/.well-known/oauth-protected-resource`, no `/mcp`) is 404 on the
+  Cloudflare edition and 200 on the server edition. The advertised `/mcp`
+  form works on both, so sign-in discovery is unaffected. Pin in the spec
+  whether the bare form exists, make both match, and test it. Found
+  2026-10-18 in PAR-1-C3 work.
 - **PAR-1-C3** OPEN: the OAuth endpoints' CORS differs by edition. The
   Cloudflare edition (the SDK's helper) sends no CORS headers without an
   Origin and reflects a supplied Origin; the server edition always sends
