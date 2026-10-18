@@ -86,16 +86,37 @@ it.each(['missing','generation','revision'])('af_c2_lookup: %s state withholds b
  const rows=(await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(f.raw),old.generation,old.key,old.generation).all<any>()).results;
  expect(rows).toHaveLength(1);expect(rows[0].facts_ok).toBe(1);expect(rows[0].ok).toBe(0);expect(rows[0].key).toBeNull();expect(rows[0].body).toBeNull();
 });
-it('af_c2_lookup: tuple drift wins over stale state and refreshes instead of synchronizing a stale capture',async()=>{
+it('af_c2_lookup: tuple drift after matching advisory state and refreshes instead of synchronizing a stale capture',async()=>{
  await seed();await handle(req(),e);const f=await read.facts(db,true),c=read.choice(req(),f)!,now=Date.now(),tag=await read.tag(f,req(),c,'fixture',now);
- await db.prepare("UPDATE live SET data=json_set(data,'$.title','Changed without version') WHERE item_id='site'").run();await db.prepare("UPDATE public_artifact_state SET generation='stale' WHERE id=1").run();
+ await db.prepare("UPDATE live SET data=json_set(data,'$.title','Changed without version') WHERE item_id='site'").run();await db.prepare('UPDATE public_artifact_state SET generation=? WHERE id=1').bind(await artifacts.generation(f,'fixture',origin)).run();
  const render=vi.fn(async()=>new Response('incorrect render')),refresh=vi.fn(async()=>new Response('fresh'));
  const response=await artifacts.respond(db,req(),origin,'fixture',render,{facts:f,choice:c,tag,now},refresh);
  expect(await response.text()).toBe('fresh');expect(refresh).toHaveBeenCalledTimes(1);expect(render).not.toHaveBeenCalled();expect(await db.prepare('SELECT count(*) n FROM public_artifacts').first('n')).toBe(0);expect(await db.prepare('SELECT generation FROM public_artifact_state WHERE id=1').first('generation')).toBe('');
 });
 it('af_c2_lookup: inconsistent returned proof cannot serve or render a selected body',async()=>{
  await seed();const f=await read.facts(db,true),c=read.choice(req(),f)!,now=Date.now(),tag=await read.tag(f,req(),c,'fixture',now),prepare=db.prepare.bind(db);
- const fake={prepare:(sql:string)=>sql===artifacts.lookupSQL()?{bind:()=>({all:async()=>({results:[{facts_ok:0,ok:1,generation:'stale',revision:0,key:'bad',body:'must not serve',metadata:'[]',valid_until:Date.now()+10000}]})})}:prepare(sql)} as unknown as D1Database;
+ const fake={prepare:(sql:string)=>sql===artifacts.STATE_SQL?{all:async()=>({results:[]})}:sql===artifacts.lookupSQL()?{bind:()=>({all:async()=>({results:[{facts_ok:0,ok:1,generation:'stale',revision:0,key:'bad',body:'must not serve',metadata:'[]',valid_until:Date.now()+10000}]})})}:prepare(sql)} as unknown as D1Database;
  const render=vi.fn(async()=>new Response('incorrect render')),refresh=vi.fn(async()=>new Response('fresh'));
  expect(await(await artifacts.respond(fake,req(),origin,'fixture',render,{facts:f,choice:c,tag,now},refresh)).text()).toBe('fresh');expect(refresh).toHaveBeenCalledTimes(1);expect(render).not.toHaveBeenCalled();
+});
+
+it('af_c2_advisory_match_race: generation changed after observation still withholds body and purges',async()=>{
+ await seed();await handle(req(),e);const f=await read.facts(db,true),c=read.choice(req(),f)!,{RELEASE}=await import('../src/home'),now=Date.now(),tag=await read.tag(f,req(),c,RELEASE,now),prepare=db.prepare.bind(db);let refused:any;
+ const fake={prepare:(sql:string)=>{
+  const statement=prepare(sql);
+  if(sql===artifacts.lookupSQL()){
+   const bind=statement.bind.bind(statement);statement.bind=((...args:unknown[])=>{const bound=bind(...args),all=bound.all.bind(bound);bound.all=(async()=>{await prepare("UPDATE public_artifact_state SET generation='changed after advisory' WHERE id=1").run();const result=await all();refused=result.results[0];return result;}) as typeof bound.all;return bound;}) as typeof statement.bind;
+  }return statement;
+ },batch:db.batch.bind(db)} as unknown as D1Database;
+ const render=vi.fn(async()=>new Response('live MISS')),refresh=vi.fn(async()=>new Response('fresh'));
+ const response=await artifacts.respond(fake,req(),origin,RELEASE,render,{facts:f,choice:c,tag,now},refresh);
+ expect(await response.text()).toBe('live MISS');expect(render).toHaveBeenCalledTimes(1);expect(refresh).not.toHaveBeenCalled();expect(refused.facts_ok).toBe(1);expect(refused.ok).toBe(0);expect(refused.body).toBeNull();expect(await db.prepare('SELECT count(*) n FROM public_artifacts').first('n')).toBe(0);
+});
+it.each(['boolean','null','duplicate','unavailable','missing'])('af_c2_advisory_shape: %s cannot authorize a HIT',async mode=>{
+ await seed();const f=await read.facts(db,true),c=read.choice(req(),f)!,now=Date.now(),tag=await read.tag(f,req(),c,'fixture',now),g=await artifacts.generation(f,'fixture',origin),prepare=db.prepare.bind(db),queries:string[]=[];
+ const fake={prepare:(sql:string)=>{queries.push(sql);if(sql!==artifacts.STATE_SQL)return prepare(sql);return {all:async()=>{if(mode==='unavailable')throw Error('missing table');return {results:mode==='missing'?[]:mode==='duplicate'?[{generation:g,revision:1},{generation:g,revision:1}]:[{generation:g,revision:mode==='boolean'?true:null}]};}};},batch:db.batch.bind(db)} as unknown as D1Database;
+ const render=vi.fn(async()=>new Response('live MISS')),refresh=vi.fn(async()=>new Response('fresh'));
+ const response=await artifacts.respond(fake,req(),origin,'fixture',render,{facts:f,choice:c,tag,now},refresh);
+ if(mode==='missing'){expect(queries).toContain(artifacts.lookupSQL());expect(await response.text()).toBe('live MISS');expect(render).toHaveBeenCalledTimes(1);expect(refresh).not.toHaveBeenCalled();}
+ else{expect(queries).not.toContain(artifacts.lookupSQL());expect(await response.text()).toBe('fresh');expect(refresh).toHaveBeenCalledTimes(1);expect(render).not.toHaveBeenCalled();}
 });

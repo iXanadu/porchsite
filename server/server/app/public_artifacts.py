@@ -161,6 +161,8 @@ def proof_sql():
     from .public_read import FACTS_RELATION
     return PROOF_SQL.format(facts=FACTS_RELATION)
 
+STATE_SQL='SELECT generation,revision FROM public_artifact_state WHERE id=1'
+
 def lookup_sql():
     from .public_read import FACTS_RELATION
     return f'''WITH current_facts AS ({FACTS_RELATION}),
@@ -215,28 +217,35 @@ async def respond(db,req,configured,release,render,captured=None,refresh=None):
         key=dumps([THIN_FORMAT,origin,g,release,c['base']+c['query'],c['type'],etag])
         if len(key.encode())>2048:
             return await render()
-        found=await db.fetch(lookup_sql(),raw,g,key)
-        if len(found)!=1:
-            raise ValueError('Unavailable copy proof')
-        row=found[0]
-        state=isinstance(row['generation'],str) and type(row['revision']) is int
-        if type(row['facts_ok']) is not bool or type(row['ok']) is not bool or row['ok']!=(row['facts_ok'] and state and row['generation']==g):
-            raise ValueError('Unavailable copy proof')
-        if row['key'] is not None and row['key']!=key:
-            raise ValueError('Unavailable copy proof')
-        if (not row['ok'] or row['key'] is None) and any(row[k] is not None for k in ('key','body','metadata','valid_until')):
-            raise ValueError('Unavailable copy proof')
-        if not row['facts_ok']:
-            await clear(db)
-            return await refresh()
-        if not row['ok']:
+        observed=await db.fetch(STATE_SQL)
+        if len(observed)>1 or any(not isinstance(row['generation'],str) or type(row['revision']) is not int for row in observed):
+            raise ValueError('Unavailable copy state')
+        # Only a refusal may rely on this observation; a match still proves afresh.
+        if observed and observed[0]['generation']!=g:
             await synchronize(db,g)
-        elif row['key']:
-            if row['valid_until']>time.time()*1000 and public_time.valid(clock):
-                hit=await delivery(row,req,c,f,etag)
-                if hit is not None and row['valid_until']>time.time()*1000 and public_time.valid(clock):
-                    return hit
-            await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
+        else:
+            found=await db.fetch(lookup_sql(),raw,g,key)
+            if len(found)!=1:
+                raise ValueError('Unavailable copy proof')
+            row=found[0]
+            state=isinstance(row['generation'],str) and type(row['revision']) is int
+            if type(row['facts_ok']) is not bool or type(row['ok']) is not bool or row['ok']!=(row['facts_ok'] and state and row['generation']==g):
+                raise ValueError('Unavailable copy proof')
+            if row['key'] is not None and row['key']!=key:
+                raise ValueError('Unavailable copy proof')
+            if (not row['ok'] or row['key'] is None) and any(row[k] is not None for k in ('key','body','metadata','valid_until')):
+                raise ValueError('Unavailable copy proof')
+            if not row['facts_ok']:
+                await clear(db)
+                return await refresh()
+            if not row['ok']:
+                await synchronize(db,g)
+            elif row['key']:
+                if row['valid_until']>time.time()*1000 and public_time.valid(clock):
+                    hit=await delivery(row,req,c,f,etag)
+                    if hit is not None and row['valid_until']>time.time()*1000 and public_time.valid(clock):
+                        return hit
+                await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
     except Exception:
         return await refresh()
     response=await render()

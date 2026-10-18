@@ -278,12 +278,12 @@ it('af_thin_hit_budget: one facts decode, atomic row proof and no SNAPSHOT on HI
  const sql=vi.spyOn(db,'prepare'),load=vi.spyOn(site,'liveView'),facts=vi.spyOn(read,'facts'),snap=vi.spyOn(artifacts,'snapshot');
  for(const method of ['GET','HEAD']){
   sql.mockClear();load.mockClear();facts.mockClear();const r=await get('/',{},method);expect(r.status).toBe(200);expect(await r.text()).toBe(method==='HEAD'?'':body);
-  expect(sql.mock.calls).toHaveLength(3);expect(sql.mock.calls.filter(([q])=>q===artifacts.lookupSQL())).toHaveLength(1);expect(facts).toHaveBeenCalledTimes(1);expect(load).not.toHaveBeenCalled();expect(snap).not.toHaveBeenCalled();
+  expect(sql.mock.calls).toHaveLength(4);expect(sql.mock.calls.filter(([q])=>q===artifacts.lookupSQL())).toHaveLength(1);expect(facts).toHaveBeenCalledTimes(1);expect(load).not.toHaveBeenCalled();expect(snap).not.toHaveBeenCalled();
  }
  sql.mockClear();const conditional=await get('/',{'If-None-Match':tag});expect(conditional.status).toBe(304);expect(sql.mock.calls).toHaveLength(3);expect(sql.mock.calls.some(([q])=>q===artifacts.lookupSQL())).toBe(false);
  sql.mockRestore();await db.prepare('DELETE FROM public_artifacts').run();const queries=vi.spyOn(db,'prepare');load.mockClear();facts.mockClear();
  const miss=await get();expect(await miss.text()).toBe(body);expect(load).toHaveBeenCalledTimes(1);expect(facts).toHaveBeenCalledTimes(2);expect(snap).not.toHaveBeenCalled();
- const all=queries.mock.calls.map(([q])=>q),writes=all.filter(q=>q===artifacts.admitSQL()||/^\s*(INSERT|DELETE|UPDATE)/i.test(q));expect(all.length-writes.length).toBeLessThanOrEqual(6);expect(writes.filter(q=>!q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(2);expect(all.length).toBeLessThanOrEqual(9);
+ const all=queries.mock.calls.map(([q])=>q),writes=all.filter(q=>q===artifacts.admitSQL()||/^\s*(INSERT|DELETE|UPDATE)/i.test(q));expect(all.length-writes.length).toBeLessThanOrEqual(7);expect(writes.filter(q=>!q.startsWith('INSERT INTO agent_traffic_daily'))).toHaveLength(2);expect(all.length).toBeLessThanOrEqual(10);
 });
 it('af_thin_hit_old_runtime: atomic lookup withholds stale generation before purge without a revision bump',async()=>{
  await fixture();const first=await get(),tag=first.headers.get('ETag'),old=await db.prepare('SELECT revision,generation FROM public_artifact_state').first<any>();
@@ -292,7 +292,7 @@ it('af_thin_hit_old_runtime: atomic lookup withholds stale generation before pur
  const refused=await db.prepare(artifacts.lookupSQL()).bind(JSON.stringify(f.raw),g,stored.key,g).first<any>();expect(refused.facts_ok).toBe(1);expect(refused.ok).toBe(0);expect(refused.key).toBeNull();expect(refused.body).toBeNull();
  const live=await handle(new Request(origin+'/'),{...e,PUBLIC_ARTIFACTS:''}),liveBody=await live.text();
  const sql=vi.spyOn(db,'prepare'),snap=vi.spyOn(artifacts,'snapshot');const next=await get(),nextBody=await next.text();expect(nextBody).toContain('Old runtime publication');expect(next.headers.get('ETag')).not.toBe(tag);expect(nextBody).toBe(liveBody);expect(next.headers.get('ETag')).toBe(live.headers.get('ETag'));
- const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls.filter(q=>q===artifacts.lookupSQL())).toHaveLength(1);expect(calls.indexOf(artifacts.lookupSQL())).toBeLessThan(calls.indexOf('DELETE FROM public_artifacts'));expect(snap).not.toHaveBeenCalled();sql.mockRestore();
+ const calls=sql.mock.calls.map(([q])=>q);expect(calls).toContain('DELETE FROM public_artifacts');expect(calls.filter(q=>q===artifacts.lookupSQL())).toHaveLength(0);expect(calls.indexOf(artifacts.STATE_SQL)).toBeLessThan(calls.indexOf('DELETE FROM public_artifacts'));expect(snap).not.toHaveBeenCalled();sql.mockRestore();
  expect((await db.prepare('SELECT generation FROM public_artifact_state').first<any>())!.generation).not.toBe(old.generation);
 });
 it.each(['private','unpublish','theme','title'])('af_thin_hit_races: old-runtime %s between facts and row SELECT fails the complete atomic proof',async(change)=>{
@@ -337,7 +337,7 @@ it('af_thin_hit_budget: indexed row proof does not scan unused image libraries',
 it('af_thin_hit_isolation: unavailable artifact state falls back live and never widens private access',async()=>{
  const {one}=await fixture();const first=await(await get()).text();await db.prepare('ALTER TABLE public_artifact_state RENAME TO unavailable_artifact_state').run();
  try{
-  const lookup=artifacts.lookupSQL(),sql=vi.spyOn(db,'prepare');const live=await get();expect(live.status).toBe(200);expect(await live.text()).toBe(first);expect(sql.mock.calls.filter(([query])=>query===lookup)).toHaveLength(1);
+  const lookup=artifacts.STATE_SQL,sql=vi.spyOn(db,'prepare');const live=await get();expect(live.status).toBe(200);expect(await live.text()).toBe(first);expect(sql.mock.calls.filter(([query])=>query===lookup)).toHaveLength(1);
   await db.prepare("INSERT INTO site_fields(version,key,value,approved)VALUES(?,'private','true',1) ON CONFLICT(version,key) DO UPDATE SET value='true',approved=1").bind(one.version).run();await db.prepare('INSERT OR IGNORE INTO private_approvals(version)VALUES(?)').bind(one.version).run();
   const denied=await get();expect(denied.status).toBe(404);expect(await denied.text()).toBe(SIGN_IN);expect(denied.headers.has('ETag')).toBe(false);expect(sql.mock.calls.filter(([query])=>query===lookup)).toHaveLength(1);
  }finally{await db.prepare('ALTER TABLE unavailable_artifact_state RENAME TO public_artifact_state').run();}

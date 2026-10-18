@@ -95,6 +95,7 @@ export function proofSQL(){return `WITH current_facts AS (${publicRead.FACTS_REL
  proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
  AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts)
  AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=?) AS ok)`;}
+export const STATE_SQL='SELECT generation,revision FROM public_artifact_state WHERE id=1';
 export function lookupSQL(){return `WITH current_facts AS (${publicRead.FACTS_RELATION}),
  expected AS (SELECT json_extract(value,'$[0]') AS category,json_extract(value,'$[1]') AS ident,json_extract(value,'$[2]') AS value FROM json_each(?)),
  current_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM current_facts GROUP BY category,ident,value),
@@ -129,6 +130,11 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
   raw=JSON.stringify(f.raw);if(!f.raw||bytes(raw)>MAX_FACTS)return render();
   g=await generation(f,release,origin);until=displayBoundary(Date.now(),clock);
   key=JSON.stringify([THIN_FORMAT,origin,g,release,c.base+c.query,c.type,etag]);if(bytes(key)>2048)return render();
+  const observed=(await db.prepare(STATE_SQL).all<{generation:unknown;revision:unknown}>()).results;
+  if(observed.length>1||observed.some(row=>typeof row.generation!=='string'||!Number.isInteger(row.revision)))throw Error('Unavailable copy state');
+  // A preliminary mismatch can only refuse lookup. A match never authorizes it.
+  if(observed.length===1&&observed[0].generation!==g){await synchronize(db,g);}
+  else{
   const found=(await db.prepare(lookupSQL()).bind(raw,g,key,g).all<any>()).results;
   if(found.length!==1)throw Error('Unavailable copy proof');
   const row=found[0],state=typeof row.generation==='string'&&Number.isInteger(row.revision);
@@ -146,6 +152,7 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
     if(hit&&row.valid_until>Date.now()&&timeValid(clock))return hit;
    }
    await db.prepare('DELETE FROM public_artifacts WHERE key=?').bind(key).run();
+  }
   }
  }catch{return refresh();}
  const response=await render();
