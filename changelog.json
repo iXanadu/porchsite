@@ -2,6 +2,20 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-3f0141a",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": false,
+      "migrations": [
+        "0026_analytics_admission.sql"
+      ],
+      "rows_justification": "Each recorded page view writes one more row (the index behind the 200-views-per-visitor daily cap); without it the cap check would read the whole day's views each time. Page requests are unchanged. Approved by the owner.",
+      "changes": [
+        "Visit stats now record at most 200 page views per visitor per day, and old stats are trimmed once a day, so a script flooding the stats can no longer use up the site's free daily writes.",
+        "The install guide now starts by telling the owner what it costs, and every assistant gets four cost rules: never upgrade a plan, add payment or turn on a paid feature without the owner's explicit yes."
+      ]
+    },
+    {
       "release": "2026.10.18-315dc35",
       "date": "2026-10-18",
       "security": true,
