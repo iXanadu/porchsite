@@ -5910,8 +5910,12 @@ change witness. The initial full facts, decode, tag preimage, ETag bytes,
 representation selection, privacy gate and public-time proof stay as today.
 Prepared-copy state, lookup and admission are out of scope. Response-cache
 reuse keeps its existing proofs too: this first experiment applies only
-when both prepared-copy delivery and response-cache reuse are off. Those
-other modes must not pay an extra witness read or lose an existing check.
+when both prepared-copy delivery and response-cache reuse are off, except
+for the later conditional-only amendment that applies the same witness to
+ON304 to preserve C2 identity. Response reuse retains its exclusion; ON
+HIT/MISS/admission never gain witness body authority. No-validator ON keeps
+its original reads. The conditional amendment explicitly measures any
+stale-validator initial-snapshot overhead; no existing check is removed.
 
 This is a reviewed schema/proof change, not the parked SQL-flattening
 experiment. No runtime implementation or deployment follows from a spec
@@ -6461,9 +6465,13 @@ Use the pre-9a independent full final facts read, current privacy/existence
 and original clock/retry behavior. The later trigger recreation does not
 retroactively make a missing initial witness usable. A changed epoch with
 equal n is a mismatch, never a match. Valid n equality without epoch
-equality grants nothing. Scope stays both delivery/reuse modes OFF, with
-n0/pair0 before initial complete facts and pair1 at the original late proof
-point; independent primary/current reads and late clock remain mandatory.
+equality grants nothing. The final-render shortcut stays both delivery/
+reuse modes OFF. The later conditional amendment additionally applies the
+witness to ordinary ON304, before any copy processing, preserving exact
+ON/OFF SQL identity without witness body authority. Initial pair0 is
+captured with complete facts under the joined-snapshot amendment below;
+pair1 remains at the independent late proof point. Independent primary/
+current reads and late clock remain mandatory.
 
 Compatibility: archived tests and their assertions remain byte-identical.
 Their broad administrative fixture cleanup can delete this singleton.
