@@ -7,21 +7,35 @@ export interface Embed { url: string; title: string; origin: string }
 // Boxed strings render/serialize as strings. Their private capabilities are
 // held weakly, outside the template's enumerable view and content data.
 const capabilities = new WeakMap<object, Map<string, Embed>>();
-type DeferredBody = { source: string; memo: Map<string, string>; ids: boolean; demote: boolean; value?: string };
+type DeferredBody = { source: string; memo: Map<string, string>; ids: boolean; demote: boolean; prefix: string; value?: string };
 const deferredBodies = new WeakMap<object, DeferredBody>();
 /** A template-visible field, kept outside metadata enumeration and stored content. */
-export function deferredBody<T extends Record<string, any>>(view: T, source: string, memo = new Map<string, string>(), ids = false, demote = false): T {
-  const state: DeferredBody = { source, memo, ids, demote };
+export function deferredBody<T extends Record<string, any>>(view: T, source: string, memo = new Map<string, string>(), ids = false, demote = false, prefix = ""): T {
+  const state: DeferredBody = { source, memo, ids, demote, prefix };
   deferredBodies.set(view, state);
   Object.defineProperty(view, "body_html", { enumerable: false, get() {
     if (state.value === undefined) {
       const key = `${ids ? 1 : 0}${demote ? 1 : 0}${source}`;
       if (!memo.has(key)) memo.set(key, source ? bodyMarkdown(source, undefined, ids, demote) : "");
-      state.value = memo.get(key)!;
+      const body = memo.get(key)!;
+      state.value = body && prefix ? prefixBody(body, prefix) : body;
     }
     return state.value;
   } });
   return view;
+}
+/** Keep unmarked parses in the shared memo, and capabilities on the clone. */
+function prefixBody(body: string, prefix: string): string {
+  const own = typeof body === "object" ? capabilities.get(body) : undefined;
+  if (!own) return prefix + body;
+  const result = new String(prefix + body);
+  capabilities.set(result, own);
+  return result as unknown as string;
+}
+/** Clone deferred template fields without consuming a body or lazy date. */
+export function copyDeferredBody<T extends Record<string, any>>(source: object, view: T, prefix?: string): T {
+  const state = deferredBodies.get(source);
+  return copyLazyValues(source, state ? deferredBody(view, state.source, state.memo, state.ids, state.demote, prefix ?? state.prefix) : view);
 }
 function renderMarkers(view: unknown, out = new Map<string, Embed>(), seen = new Set<object>()): Map<string, Embed> {
   if (!view || typeof view !== "object" || seen.has(view)) return out;
@@ -57,7 +71,7 @@ export function headingBodies(value: unknown, headingIds = true, bodyH1AsH2 = fa
   if (!value || typeof value !== "object" || value instanceof String) return value;
   const source = value as Record<string, unknown>;
   const deferred = deferredBodies.get(value);
-  if (deferred) return copyLazyValues(value,deferredBody(Object.fromEntries(Object.entries(source).map(([key, child]) => [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)])), deferred.source, bodies, headingIds, bodyH1AsH2));
+  if (deferred) return copyLazyValues(value,deferredBody(Object.fromEntries(Object.entries(source).map(([key, child]) => [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)])), deferred.source, bodies, headingIds, bodyH1AsH2, deferred.prefix));
   return copyLazyValues(value,Object.fromEntries(Object.entries(source).map(([key, child]) => {
     if (key === "body_html" && child && typeof source.body === "string") {
       if (!bodies.has(source.body)) bodies.set(source.body, bodyMarkdown(source.body, undefined, headingIds, bodyH1AsH2));
