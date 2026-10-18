@@ -99,10 +99,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   in the unused MCP client dependencies and the test runner's nested
   runtime; security review found none ships in the Worker. Clears when the
   agents package and test runner move to current versions. Found 2026-10-18.
-- **SP-S4** OPEN: Listing sites (hundreds of entries) will meet
-  `site_check`'s crawl cap and the free plan's CPU limit. Needs a design
-  that scales (for example, reachability from the archive's own listing
-  without rendering every page). Before the listing-site build.
 - **CF-S2** OPEN: D1's binary RPC binding (`d1_binding_jsrpc`) could
   cut the Worker's memory per upload (the JSON path adds about 2x the
   decoded size at serialization). Would allow a larger image_add batch.

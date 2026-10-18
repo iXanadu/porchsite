@@ -1,0 +1,141 @@
+[
+  {
+    "name": "direct",
+    "home": "<a href=\"/reports/a/\">A</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "relative",
+    "home": "<a href=\"reports/a\">A</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "stream_redirect",
+    "home": "<a href=\"/journal/a/\">A</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "legacy_redirect",
+    "home": "<area href=\"/e/a\">A",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "absolute",
+    "home": "<a href=\"https://example.invalid/reports/a/?q=1#part\">A</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "missing",
+    "home": "<a href=\"/journal/missing/\">Gone</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "lookalike",
+    "home": "<a href=\"/reports/a/extra/\">Gone</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "wrong_origin",
+    "home": "<a href=\"https://other.example/reports/a/\">Elsewhere</a>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "custom_unlinked",
+    "home": "<h1>No archive link</h1>",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "inert",
+    "home": "<template><template><a href=\"/reports/a/\">A</a></template></template><script>\"<a href='/reports/a/'>\"</script><!--porchsite-check-forged:0-->",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "summary",
+    "home": "{{#sections}}{{#items}}{{title}} {{summary}}{{/items}}{{/sections}}",
+    "entries": [
+      "a"
+    ],
+    "unreachable": [
+      "a"
+    ]
+  },
+  {
+    "name": "inline",
+    "home": "{{#sections}}{{#items}}{{{body_html}}}{{/items}}{{/sections}}",
+    "entries": [
+      "a"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "proven_path",
+    "home": "<a href=\"/reports/a/\">A</a>",
+    "entries": [
+      "a",
+      "b"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "external",
+    "home": "<a href=\"https://external.example/?a=1&amp;b=2\">Out</a>",
+    "entries": [
+      "external"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "external_redirect",
+    "home": "<a href=\"/e/external/\">Out</a>",
+    "entries": [
+      "external"
+    ],
+    "unreachable": []
+  },
+  {
+    "name": "empty",
+    "home": "<a href=\"/missing/\">No targets</a>",
+    "entries": [],
+    "unreachable": []
+  }
+]

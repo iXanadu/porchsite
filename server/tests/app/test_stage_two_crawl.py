@@ -14,6 +14,8 @@ ENTRY = {
     "data": validate("entry", {"title": "Orphan", "date": "2026-10-10", "body": "Body"}),
 }
 
+UNKNOWN = {**ENTRY, "id": "unknown", "slug": "unknown"}
+
 
 def look(home):
     return {"manifest": {}, "partials": {}, "static": {}, "pages": {"home": home, "entry": "Entry"}}
@@ -84,7 +86,7 @@ def test_global_link_budget():
     )
     theme = look(home)
     theme["pages"]["entry"] = '<a href="mailto:owner@example.com">Mail</a>' * 5000
-    result = check_site(view(DATA, [ENTRY]), set(), theme)
+    result = check_site(view(DATA, [ENTRY, UNKNOWN]), set(), theme)
     assert result["crawl"] == {
         "limit": "links",
         "max_pages": 200,
@@ -100,7 +102,7 @@ def test_redirect_counts_before_destination():
         "".join(f'<a href="/missing-{i}/">Link</a>' for i in range(198))
         + '<a href="/e/orphan/">Old address</a>'
     )
-    result = check_site(view(DATA, [ENTRY]), set(), look(home))
+    result = check_site(view(DATA, [ENTRY, UNKNOWN]), set(), look(home))
     assert result["crawl"] == {
         "limit": "pages",
         "max_pages": 200,
