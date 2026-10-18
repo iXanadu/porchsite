@@ -6200,3 +6200,123 @@ the three-statement and zero-work assertions. Native tests must exercise
 the actual D1 and PostgreSQL statements, not a host-side join of two reads.
 All approval/trigger cost, previous-runtime, rollback, method-rebase and
 CPU gates remain. No new hosted or CPU claim follows from this amendment.
+
+### PERF-9a D1 change-count compatibility: exact items dependencies
+
+This amendment replaces only the Cloudflare `items` UPDATE trigger's
+conservative all-column coverage. It does not approve a runtime change
+until both review axes pass. All prior epoch/snapshot, late proof, install,
+error, restore, accounting and previous-runtime requirements remain.
+
+D1 metadata `changes` is a total-change count, including trigger writes;
+SQL `changes()` is the immediately preceding direct statement's count.
+A successful one-row item update plus one witness UPSERT can therefore
+produce metadata count two while SQL `changes()` remains one. The released
+item write requires metadata count exactly one for its version fence.
+Reporting conflict after committing that update is forbidden. Do not fix
+this by accepting any positive count, changing an old test, or rewriting
+an archived bundle.
+
+#### Exact dependency argument
+
+The complete ordinary Q_F has nine UNION branches, in both editions:
+
+| Branch | Tables read | Dependency on items |
+| --- | --- | --- |
+| live | live LEFT JOIN items i ON i.id=l.item_id | i.id selects the joined row; i.created_at is the sole projected items value |
+| field | site_fields JOIN live | none |
+| embed | site_embed_sources JOIN live | none |
+| streams | site_stream_settings JOIN live | none |
+| private | private_approvals JOIN live | none |
+| training | training_approvals JOIN live | none |
+| theme | themes, live subquery | none |
+| share | share_cards JOIN live | none |
+| media | media, live subquery | none |
+
+The complete relation is FACTS_RELATION/FACTS_SQL in public-read.ts and
+public_read.py. No other items column participates in any branch,
+predicate, ordering, duplicate/cardinality expression or scalar subquery.
+The initial witness transport embeds this same complete relation and adds
+no items dependency. This witness replaces only a comparison of complete
+facts, not the existing immutable-body, approved-view, privacy or clock
+contracts. If Q_F gains another items dependency, this exception must be
+re-reviewed before that dependency ships.
+
+Cloudflare retains unconditional items INSERT and DELETE triggers, but
+its AFTER UPDATE trigger executes its existing epoch UPSERT only WHEN:
+
+```sql
+NEW.id IS NOT OLD.id OR NEW.created_at IS NOT OLD.created_at
+```
+
+This is null-safe value comparison, not an UPDATE-column-name filter:
+an assignment that leaves both values unchanged does not change Q_F. An
+id or created_at change still advances or repairs the pair atomically.
+All columns and I/U/D events on the other nine watched tables remain
+covered conservatively. PostgreSQL may retain the existing conservative
+all-column items trigger; its result contract does not use D1 metadata.
+Both editions retain the identical complete facts/preimage/tag behavior.
+The precise Cloudflare trigger-body allowance must be updated and reviewed;
+this text does not authorize a blanket conditional-trigger allowance.
+
+#### Previous-runtime strict-count inventory
+
+The following inventory applies separately to the current runtime and to
+each archived release in the rollback window: 2026.10.18-8a38af0,
+2026.10.18-9381930 and 2026.10.18-3f0141a. Each has the same eleven check
+sites in these seven modules; the optional new-credential site has two
+strict comparisons. Their checked write statements are:
+
+| Module / check | Checked statement or batch slot | Can the proposed witness trigger fire on that statement? |
+| --- | --- | --- |
+| content.write, expected version not null | slot 0: UPDATE items SET data,slug,deleted,version,updated_at WHERE id AND version | no: neither id nor created_at is assigned; createItem INSERT has no strict-count check |
+| alerts subscription | slot 1: INSERT alert_subscriptions | no: unwatched table |
+| read-keys creation | slot 0: INSERT agent_read_keys | no: unwatched table |
+| owner setup-code issuance (truthiness) | slot 1: INSERT setup_codes | no: unwatched table |
+| owner first claim (truthiness) | slot 0: INSERT owner | no: unwatched table |
+| owner passkey-link creation | INSERT passkey_links | no: unwatched table |
+| owner session issue | slot 0 INSERT auth_operations; optional slot 1 UPDATE passkey_links, UPDATE reader_invites or DELETE recovery_codes | no: each checked statement writes an unwatched table |
+| owner reader-invite issue | slot 0: INSERT auth_operations | no: unwatched table |
+| analytics admission | INSERT OR IGNORE pageviews | no: unwatched table |
+| uploads single-use consume | UPDATE uploads WHERE media IS NULL | no: unwatched table; earlier media.store statements have their own metadata |
+| public artifact admission (truthiness) | slot 1: INSERT public_artifacts | no: unwatched table |
+
+No strict checked statement writes any of the other nine watched tables.
+Later SQL changes() guards on revisions, slug_history and approved site
+extension writes remain direct-row checks; do not replace or relax them.
+Any additional archived release in the supported rollback window must be
+inventoried before installing the migration. If a strict checked statement
+can fire any witness trigger, this exception is insufficient and the
+migration remains blocked; use a separately reviewed prerequisite release
+before attempting conservative triggers instead.
+
+#### Regression and publication proof
+
+Add a source regression guard with a fixed reviewed inventory of metadata
+check sites and their exact checked SQL/update columns. It must refuse a
+new or unclassified strict metadata/rowsAffected comparison, a changed
+checked SQL statement, or a changed Q_F items dependency until reviewed.
+Do not silently infer safety from a table-name substring. Cover property,
+computed-property and aliased/destructured metadata access conservatively:
+unrecognized provenance fails the guard rather than blessing a new check.
+A finite exact function/statement fingerprint inventory is acceptable;
+updates to that inventory require the same dependency/count audit.
+
+Negative controls must add a strict check to a live or media write, change
+the existing items assignment to created_at, and add an items value to Q_F;
+each must fail the guard without weakening runtime tests. Existing allowed
+old item updates must pass. Preserve zero-row and successful-row version
+fence assertions, actual content/history/slug outcomes, and every previous
+release test and archived execution assertion on the new schema.
+
+Publication remains a watched live INSERT/UPDATE or DELETE; the items
+exception does not apply to live. Prove that an approved publication and
+unpublication advance n and invalidate the late witness, including an
+old-runtime publication. Also prove id/created_at changes advance n while
+normal old content updates preserve a one-row metadata result and their
+SQL changes()-guarded history/extension writes. All source/witness changes
+remain in the same atomic transaction. Missing/invalid/overflow repair,
+first/re-entry install visibility and rollback requirements are unchanged.
+Measure the revised per-row write cost; do not reuse the all-column items
+update prediction. No CPU saving, hosted result or shipping authorization
+follows from this amendment.
