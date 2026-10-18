@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {cloudflareTest,readD1Migrations} from '@cloudflare/vitest-pool-workers';
+import {cloudflareTest,readD1Migrations} from '@cloudflare/vitest-plugin';
 import {defineConfig} from 'vitest/config';
 export default defineConfig(async()=>{
  if(!process.env.PORCHSITE_PARITY_OUTPUT)throw Error('Set an output directory for private HTTP parity');

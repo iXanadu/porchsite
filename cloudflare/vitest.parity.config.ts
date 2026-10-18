@@ -1,7 +1,7 @@
 // A separate local-only runtime for comparing real tool answers with the
 // server edition. No developer account or external service is used.
 import { readFileSync } from "node:fs";
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig(async () => {
