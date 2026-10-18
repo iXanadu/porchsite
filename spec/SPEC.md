@@ -2358,10 +2358,11 @@ access, existence and dependency checks on every request.
 
 #### AF-7T: thin prepared-copy delivery
 
-This is the proposed implementation contract for replacing the legacy
-SNAPSHOT-based lookup, not a claim that the deployed runtime has changed.
-Implementation waits for the separate hosted AF-7H measurement and explicit
-authorization. The operator flag remains off by default on both editions.
+This contract replaces the legacy SNAPSHOT-based lookup after implementation
+and acceptance; it is not a claim that the deployed runtime has changed.
+Implementation requires explicit authorization after contract review. Hosted
+AF-7H measurements determine release recommendations and default enablement.
+The operator flag remains off by default on both editions.
 No new cache, trigger, migration or public control is required.
 
 **Identity and old-runtime proof.** Let F be the ordered dependency facts
@@ -2516,6 +2517,12 @@ Actual hosted CPU, D1 reads/rows/writes and sparse requests remain mandatory
 before any default-enable decision. No hosted or billing conclusion follows
 from local process CPU. Report a target miss as an unmet performance criterion;
 correctness acceptance alone does not authorize rollout.
+
+Local implementation measurements improve prepared-copy HIT CPU over live
+rendering, but do not meet the fresh/reused HIT or incremental MISS targets
+on all quiet fixtures. These targets remain unmet; prepared copies stay
+operator opt-in and OFF by default pending further profiling and hosted
+evidence. Correctness and query-budget acceptance do not imply CPU acceptance.
 
 Paired test plan (both editions):
 

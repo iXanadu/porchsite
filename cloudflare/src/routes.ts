@@ -7,7 +7,7 @@ import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
 import * as publicRead from "./public-read";
 import {sessionRequest,publicPath,markdownPath} from "./public-http";
-type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;};
+type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;artifact?:publicArtifacts.Proof;};
 const readStates=new WeakMap<Env,ReadState>();
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
@@ -1252,19 +1252,19 @@ async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):P
 async function fastPublic(req:Request,env:Env):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
   try{
-   let f=await publicRead.facts(env.DB);
+   let f=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');
    if(f.private)return privacy.blankResponse(req);
    readStates.get(env)!.zone=String(f.site.timezone||'UTC');
    let c=publicRead.choice(req,f);
    if(!c){const miss=await publicRead.miss(req,f,env.DB);if(miss)return miss;}
    if(c){
     let now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now),hit=publicRead.conditional(req,f,c,tag);
-    if(hit){const current=await publicRead.facts(env.DB);if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&timeValid(timePlan(f,c,now)))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();now=Date.now();tag=await publicRead.tag(f,req,c,RELEASE,now);}
-    readStates.get(env)!.fast=tag?{tag,disabled:f.disabled,now}:undefined;readStates.get(env)!.approved=tag?publicRead.viewProof(f):undefined;
+    if(hit){const current=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');if(current.private)return privacy.blankResponse(req);if(JSON.stringify(current.rows)===JSON.stringify(f.rows)&&timeValid(timePlan(f,c,now)))return hit;f=current;c=publicRead.choice(req,f);if(!c)return await publicRead.miss(req,f,env.DB)??publicRead.missing();now=Date.now();tag=await publicRead.tag(f,req,c,RELEASE,now);}
+    readStates.get(env)!.fast=tag?{tag,disabled:f.disabled,now}:undefined;readStates.get(env)!.approved=tag?publicRead.viewProof(f):undefined;readStates.get(env)!.artifact={facts:f,choice:c,tag,now};
    }
   }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
  }
- return env.PUBLIC_ARTIFACTS==='1'?publicArtifacts.respond(env.DB,req,env.SITE_URL,RELEASE,()=>renderPublic(req,env)):renderPublic(req,env);
+ return env.PUBLIC_ARTIFACTS==='1'?publicArtifacts.respond(env.DB,req,env.SITE_URL,RELEASE,()=>renderPublic(req,env),readStates.get(env)?.artifact,()=>{readStates.delete(env);return renderPublic(req,env);}):renderPublic(req,env);
 }
 
 /** Anonymous renderer used by both requests and internal build-ahead. */

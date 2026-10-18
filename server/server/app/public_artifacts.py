@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from starlette.responses import Response
 from .db import transaction
 
+# Legacy fixture encoding; live lookup/admission uses THIN_FORMAT.
 FORMAT = 'public-artifacts/1'
 MAX_BODY, MAX_ROWS, MAX_BYTES = 256*1024, 128, 4*1024*1024
 QUERIES = [
@@ -94,7 +95,7 @@ HTML_POLICIES = [
     "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 ]
 
-def safe_metadata(headers,req,c,stamp):
+def safe_metadata(headers,req,c,f):
     from server.spec.embeds import frame_csp,PERMISSIONS
     description='</llms.txt>; rel="describedby"'
     md=c['type']!='html'
@@ -107,8 +108,7 @@ def safe_metadata(headers,req,c,stamp):
         return headers.get('content-security-policy')=="default-src 'none'; base-uri 'none'; frame-ancestors 'none'" and 'permissions-policy' not in headers and 'referrer-policy' not in headers
     if headers.get('permissions-policy')!=PERMISSIONS or headers.get('referrer-policy')!='strict-origin-when-cross-origin':
         return False
-    state=normalized_state(stamp)
-    sources=state[2][0][0] if state[2] and state[2][0][1]==1 else []
+    sources=f['site']['embed_sources']
     origin=f'{req.url.scheme}://{req.url.netloc}'
     policies=HTML_POLICIES+[base.replace("form-action 'none'","form-action 'self'") for base in HTML_POLICIES] if c['base']=='/archive/' else HTML_POLICIES
     allowed=[frame_csp(base,sources,origin) for base in policies]
@@ -116,7 +116,7 @@ def safe_metadata(headers,req,c,stamp):
         allowed.extend(base.replace("form-action 'none'","form-action 'self'") for base in HTML_POLICIES)
     return headers.get('content-security-policy') in allowed
 
-async def delivery(db,row,req,c,stamp,release):
+async def delivery(row,req,c,f,etag):
     import re
     from .public_http import PUBLIC_CACHE,matches_tag
     if len(row['body'].encode())>MAX_BODY or len(row['metadata'].encode())>8192:
@@ -128,16 +128,14 @@ async def delivery(db,row,req,c,stamp,release):
         if len({p[0] for p in entries})!=len(entries):
             return None
         headers=dict(entries)
-        if not safe_metadata(headers,req,c,stamp):
+        if not safe_metadata(headers,req,c,f):
             return None
         if headers.get('content-type')!=TYPES[c['type']] or headers.get('cache-control')!=PUBLIC_CACHE or not re.fullmatch(r'W/"dep1-[a-f0-9]{64}"',headers.get('etag','')) or not re.fullmatch(r'search=yes, ai-input=yes, ai-train=(yes|no)',headers.get('content-signal','')):
             return None
     except (ValueError,TypeError):
         return None
     from . import public_read
-    f=await public_read.facts(db)
-    selected=public_read.choice(req,f)
-    if f['private'] or not selected or headers['etag']!=public_read.tag(f,req,selected,release) or headers.get('x-internal-body-sha256')!=digest(row['body']):
+    if headers['etag']!=etag or headers.get('content-signal')!=public_read.headers(f,{**c,'type':TYPES[c['type']],'kind':c['type']},etag,f'{req.url.scheme}://{req.url.netloc}').get('Content-Signal') or headers.get('x-internal-body-sha256')!=digest(row['body']):
         return None
     headers.pop('x-internal-body-sha256',None)
     if c['type']=='html' or (c['type']=='markdown' and not c['direct']):
@@ -149,74 +147,104 @@ async def delivery(db,row,req,c,stamp,release):
         headers['content-length']=str(len(row['body'].encode()))
     return Response(None if match or req.method=='HEAD' else row['body'],status_code=304 if match else 200,headers=headers)
 
-async def respond(db,req,configured,release,render):
+THIN_FORMAT='public-artifacts/2'
+MAX_FACTS=128*1024
+_tuple='category,ident,value,count(*) AS n'
+PROOF_SQL=f'''WITH current_facts AS ({{facts}}),
+ expected AS (SELECT e->>0 AS category,e->>1 AS ident,e->>2 AS value FROM json_array_elements($1::json) e),
+ proof AS (SELECT NOT EXISTS(SELECT {_tuple} FROM current_facts GROUP BY category,ident,value EXCEPT SELECT {_tuple} FROM expected GROUP BY category,ident,value)
+ AND NOT EXISTS(SELECT {_tuple} FROM expected GROUP BY category,ident,value EXCEPT SELECT {_tuple} FROM current_facts GROUP BY category,ident,value)
+ AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=$2) AS ok)'''
+
+def proof_sql():
+    from .public_read import FACTS_SQL
+    return PROOF_SQL.format(facts=FACTS_SQL)
+
+def generation(f,release,origin):
+    return digest(json.dumps([THIN_FORMAT,release,origin,f['rows']],ensure_ascii=False,separators=(',',':'),sort_keys=True))
+
+async def synchronize(db,g):
+    async with transaction(db) as conn:
+        await conn.execute('INSERT INTO public_artifact_state(id) VALUES(1) ON CONFLICT DO NOTHING')
+        await conn.execute('DELETE FROM public_artifacts')
+        await conn.execute("UPDATE public_artifact_state SET generation=$1,revision=revision+1,preparing='',prepare_until=0 WHERE id=1",g)
+
+async def respond(db,req,configured,release,render,captured=None,refresh=None):
     from . import public_read
     from .public_http import PUBLIC_CACHE
+    refresh=refresh or render
     origin=configured_origin(configured)
     if not origin:
         return await render()
     try:
-        selected=choice(req,origin)
+        c=choice(req,origin)
     except Exception:
         return await render()
-    if not selected:
+    if not c:
         return await render()
-    c=selected
     try:
-        stamp=await snapshot(db)
-        if not any(row[0]=='site' for row in json.loads(stamp)[0]):
+        f=captured['facts'] if captured else await public_read.facts(db,True)
+        selected=captured['choice'] if captured else public_read.choice(req,f)
+        if f['private'] or not selected or not f['hasSite']:
+            return await refresh()
+        at=captured['now'] if captured else time.time()*1000
+        clock=public_time.plan(f,selected,at)
+        etag=captured['tag'] if captured else public_read.tag(f,req,selected,release,at)
+        if not etag or clock['kind']=='unknown' or not public_time.valid(clock):
+            return await refresh()
+        raw=dumps(f.get('raw'))
+        if not f.get('raw') or len(raw.encode())>MAX_FACTS:
             return await render()
-        generation=digest(dumps([FORMAT,release,origin,normalized_state(stamp)]))
-        f=await public_read.facts(db)
-        selected=public_read.choice(req,f)
-        if f['private'] or not selected:
-            return await render()
-        clock=public_time.plan(f,selected)
-        if clock['kind']=='unknown':
-            return await render()
+        g=generation(f,release,origin)
         until=int(display_boundary(time.time()*1000,clock))
-        key=dumps([origin,generation,release,c['base']+c['query'],c['type']])
+        key=dumps([THIN_FORMAT,origin,g,release,c['base']+c['query'],c['type'],etag])
         if len(key.encode())>2048:
             return await render()
-        observed=await db.fetchval('SELECT generation FROM public_artifact_state WHERE id=1')
-        if observed!=generation:
-            async with transaction(db) as conn:
-                await conn.execute('INSERT INTO public_artifact_state(id) VALUES(1) ON CONFLICT DO NOTHING')
-                await conn.execute('DELETE FROM public_artifacts')
-                await conn.execute('UPDATE public_artifact_state SET generation=$1,revision=revision+1 WHERE id=1',generation)
-        row=await db.fetchrow('SELECT body,metadata,valid_until FROM public_artifacts WHERE key=$1 AND generation=$2',key,generation)
-        if row and row['valid_until']>time.time()*1000:
-            if await snapshot(db)==stamp:
-                hit=await delivery(db,row,req,c,stamp,release)
-                if hit and row['valid_until']>time.time()*1000 and await snapshot(db)==stamp:
-                    return hit
-            await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
+        if f.get('generation')!=g:
+            await synchronize(db,g)
+        else:
+            row=await db.fetchrow(proof_sql()+''' SELECT p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=$3 AND a.generation=$2''',raw,g,key)
+            if not row or not row['ok']:
+                await clear(db)
+                return await refresh()
+            if row['key']:
+                if row['valid_until']>time.time()*1000 and public_time.valid(clock):
+                    hit=await delivery(row,req,c,f,etag)
+                    if hit is not None and row['valid_until']>time.time()*1000 and public_time.valid(clock):
+                        return hit
+                await db.execute('DELETE FROM public_artifacts WHERE key=$1',key)
     except Exception:
-        return await render()
+        return await refresh()
     response=await render()
-    if response.status_code!=200 or response.headers.get('content-type')!=TYPES[c['type']] or 'set-cookie' in response.headers or response.headers.get('cache-control')!=PUBLIC_CACHE:
+    if response.status_code!=200 or response.headers.get('content-type')!=TYPES[c['type']] or 'set-cookie' in response.headers or response.headers.get('cache-control')!=PUBLIC_CACHE or response.headers.get('etag')!=etag:
         return response
     body=response.body.decode()
     size=len(body.encode())
     metadata=dumps([[name,value] for name,value in response.headers.items() if name in ALLOWED]+[['x-internal-body-sha256',digest(body)]])
-    if size>MAX_BODY or len(metadata.encode())>8192 or time.time()*1000>=until:
+    if time.time()*1000>=until or not public_time.valid(clock):
+        return await refresh()
+    if size>MAX_BODY or len(metadata.encode())>8192:
         return response
     try:
         async with transaction(db) as conn:
-            # Serialize quota admission with other fills and invalidation.
-            await conn.fetchval('SELECT id FROM public_artifact_state WHERE id=1 FOR UPDATE')
-            await conn.execute('DELETE FROM public_artifacts WHERE valid_until<=$1',int(time.time()*1000))
-            await conn.execute(f'''INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size)
-                SELECT $1,$2,$3,$4,$5::bigint,$6::integer WHERE ({SNAPSHOT})=$7
-                AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=$2)
-                AND $5::bigint>(EXTRACT(EPOCH FROM clock_timestamp())*1000)
-                AND (SELECT count(*) FROM public_artifacts WHERE key<>$1)<$8
-                AND (SELECT COALESCE(sum(size),0) FROM public_artifacts WHERE key<>$1)+$6<=$9
-                ON CONFLICT(key) DO UPDATE SET generation=excluded.generation,body=excluded.body,metadata=excluded.metadata,valid_until=excluded.valid_until,size=excluded.size''',key,generation,body,metadata,until,size,stamp,MAX_ROWS,MAX_BYTES)
-        if await snapshot(db)!=stamp:
-            return await render()
+            # Serialize fills with quota admission/invalidation. This counted
+            # DML locks the singleton without changing its identity or revision.
+            locked=await conn.fetchval('UPDATE public_artifact_state SET revision=revision WHERE id=1 AND generation=$1 RETURNING id',g)
+            if not locked:
+                inserted=None
+            else:
+                inserted=await conn.fetchval(proof_sql()+''', expired AS (DELETE FROM public_artifacts WHERE key<>$3 AND valid_until<=$10::bigint RETURNING key)
+                INSERT INTO public_artifacts(key,generation,body,metadata,valid_until,size)
+                SELECT $3,$2,$4,$5,$6::bigint,$7::integer FROM proof WHERE ok
+                AND $6::bigint>(EXTRACT(EPOCH FROM clock_timestamp())*1000)
+                AND (SELECT count(*) FROM public_artifacts WHERE key<>$3 AND valid_until>$10::bigint)<$8::integer
+                AND (SELECT COALESCE(sum(size),0) FROM public_artifacts WHERE key<>$3 AND valid_until>$10::bigint)+$7::integer<=$9::integer
+                AND (SELECT count(*) FROM expired)>=0
+                ON CONFLICT(key) DO UPDATE SET generation=excluded.generation,body=excluded.body,metadata=excluded.metadata,valid_until=excluded.valid_until,size=excluded.size RETURNING key''',raw,g,key,body,metadata,until,size,MAX_ROWS,MAX_BYTES,int(time.time()*1000))
+        if not inserted or not public_time.valid(clock):
+            return await refresh()
     except Exception:
-        return await render()  # Re-run the live gate after an unverifiable fill.
+        return await refresh()
     return response
 
 
@@ -235,9 +263,14 @@ async def prepare(db,configured,release,render_path,paths):
     origin=configured_origin(configured)
     if not origin or await live_private(db):
         return
-    stamp=await snapshot(db)
-    if not any(row[0]=='site' for row in json.loads(stamp)[0]):
+    from . import public_read
+    initial=await public_read.facts(db,True)
+    if initial['private'] or not initial['hasSite']:
         return
+    stamp=initial['rows']
+    g=generation(initial,release,origin)
+    if initial.get('generation')!=g:
+        await synchronize(db,g)
     token=str(uuid.uuid4())
     started=int(time.time()*1000)
     await db.execute('INSERT INTO public_artifact_state(id) VALUES(1) ON CONFLICT DO NOTHING')
@@ -245,14 +278,14 @@ async def prepare(db,configured,release,render_path,paths):
     if not claim:
         return
     try:
-        if await live_private(db) or await snapshot(db)!=stamp:
+        if await live_private(db) or (await public_read.facts(db))['rows']!=stamp:
             return
         pages=list(dict.fromkeys(['/',*await paths()]))
         pages=[p for p in pages if page_path(p) and '?' not in p][:50]
         work=['/','/index.md',*(['/archive/','/archive/index.md'] if '/archive/' in pages else []),'/llms.txt']
         work.extend(path for p in pages if p not in ('/','/archive/') for path in (p,p+'index.md'))
         for path in work:
-            if time.time()*1000-started>=250 or await live_private(db) or await snapshot(db)!=stamp:
+            if time.time()*1000-started>=250 or await live_private(db) or (await public_read.facts(db))['rows']!=stamp:
                 break
             request=request_for(origin,path)
             async def render():

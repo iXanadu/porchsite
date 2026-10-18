@@ -1,0 +1,82 @@
+[
+  {
+    "name": "static",
+    "rows": [
+      [
+        "live",
+        "site",
+        [
+          "site",
+          null,
+          1,
+          "2026-10-18T00:00:00Z",
+          "2026-10-17T00:00:00Z",
+          null,
+          null,
+          null,
+          {
+            "theme": "built-in",
+            "title": "Public title"
+          },
+          null,
+          null
+        ]
+      ]
+    ],
+    "sha256": "4cf56a35a456117d408d85d9cc9beb4669b8cf4f8d28ee2f8842599cdc706124"
+  },
+  {
+    "name": "mutable",
+    "rows": [
+      [
+        "media",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        [
+          100,
+          200
+        ]
+      ],
+      [
+        "theme",
+        "custom",
+        [
+          3,
+          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        ]
+      ],
+      [
+        "training",
+        "site",
+        [
+          4
+        ]
+      ]
+    ],
+    "sha256": "c413ff352658c12f25795b6ee344f3ee4768c8838f1bf479d80b0caa63111f45"
+  },
+  {
+    "name": "unicode",
+    "rows": [
+      [
+        "field",
+        "description",
+        [
+          {
+            "label": "Café 🦊",
+            "text": "[data]"
+          },
+          1
+        ]
+      ],
+      [
+        "share",
+        "entry",
+        [
+          7,
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.jpg"
+        ]
+      ]
+    ],
+    "sha256": "b534cab7ab33590ef144a81f4dbff9a252a6c7ce05b2d68c8449e70d1de6db20"
+  }
+]
