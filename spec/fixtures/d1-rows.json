@@ -27,8 +27,8 @@
       "import_items": 3
     },
     "instrumentation": {
-      "product_sha256": "6e4d66e63de67e217841d31a1497953e5e82f7810dde64f7a35b77bccb1f5343",
-      "derived_sha256": "bab2c15905ce06c69662617a83c7a6b64a4e6f0a5cadd20816c9a90b16b11db1",
+      "product_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
+      "derived_sha256": "c2bdb211a36d4f046816c396355ed001ad0a6368d2700ae8aa1adeaa9a951461",
       "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
       "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
       "mapping": [
@@ -39,22 +39,22 @@
           "to": "./native-workers.mjs"
         },
         {
-          "start": 1999760,
-          "end": 1999778,
+          "start": 1999957,
+          "end": 1999975,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         },
         {
-          "start": 2024187,
-          "end": 2024205,
+          "start": 2024384,
+          "end": 2024402,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         }
       ]
     },
     "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
-    "source_sha256": "a3336f62deff472631a229387f001c09aa53b38def6e8d9472743790497fe1fb",
-    "artifact_sha256": "6e4d66e63de67e217841d31a1497953e5e82f7810dde64f7a35b77bccb1f5343",
+    "source_sha256": "a39c2eee8927ee8f10a169f3bf6dce13308095126f8238c2348878901f26e629",
+    "artifact_sha256": "581f624e1dfc522857df95e0ec9223083beda701c0ba972c121be61b0df56da4",
     "budgets": {
       "rows_read": 5000000,
       "rows_written": 100000,
