@@ -150,7 +150,7 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
-- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs published; runtime review found approval-alert background isolation gap; successor in progress): a plain free/paid/self-host
+- **CO-1** IN-PROGRESS (owner, 2026-10-18; docs and runtime shipped; left: the porchsite.dev /costs page, drafted by Hand for the owner's review, then the link back into INSTALL.md and llms.txt): a plain free/paid/self-host
   explanation for people and assistants. It covers the Cloudflare free
   plan's limits; what happens when a site goes over (it stops, with no
   bill, and one busy site can stop others on the same account); the risk
