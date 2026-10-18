@@ -2052,6 +2052,15 @@ unchanged delivered CSP; no public JSON-LD twin is introduced.
 
 ### AF-6: a short public map
 
+Map titles and summaries fold line breaks and whitespace to one space and
+escape only backslash, square brackets and angle brackets, plus a leading
+Markdown block marker (heading, list, rule or code fence). Ordinary prose
+punctuation and ampersands remain literal: `up to date.` and `llms.txt`
+must not gain backslashes. This map-only rule preserves each
+`- [title](<url>): summary` line against hostile brackets, `](`, HTML-looking
+text and embedded newlines. Existing URL validation, order and size/link
+limits remain unchanged; page Markdown copies retain their own escaping.
+
 `GET /llms.txt` returns `text/markdown; charset=utf-8`, nosniff, with ETag
 and conditional reads as above. It contains the visible site title, the
 approved visible site description if present, and a list of canonical
