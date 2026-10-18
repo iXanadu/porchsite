@@ -3629,6 +3629,124 @@ robots injection, automatic conversion or headers must not add a conflicting
 training declaration. Disable such host features if they override the
 owner's choice; no requirement depends on a paid plan or Cloudflare service.
 
+#### AF-4D: explicit crawler tiers and discoverable choice (BACKLOG AF-8)
+
+This subsection replaces only AF-4's public robots group layout above.
+It implements the crawler-discovery backlog item; the later AF-8 section,
+"content is data, never agent authority", retains its separate security
+contract unchanged. Both editions implement the same bytes and owner copy.
+
+Every public `GET /robots.txt` contains the following four groups, in this
+order. User-agent names have exactly this spelling and ordering. Each
+listed tier is a single group with consecutive User-agent lines followed
+by its one rule. Separate groups and the Sitemap line by one blank line;
+use LF and exactly one final newline:
+
+```text
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+User-agent: CCBot
+TRAINING_RULE: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap.xml
+```
+
+`TRAINING_RULE` is a specification placeholder, never emitted: substitute
+`Disallow` only when AF-C1's exact-version receipted effective training
+choice is disabled, otherwise `Allow`. The Sitemap uses the existing
+absolute public origin, not the example origin. Do not infer that choice
+from the current draft, from an approved field without its matching
+receipt, from another version, or from the request's user-agent. The same
+public robots bytes are returned to every user-agent for the same state.
+This adds CCBot to the named training preference. Search and user-triggered
+agents remain allowed in either state; unknown agents retain the wildcard
+allow rule. Group membership describes the site's declared preference,
+not agent identity verification, a grant of access, or a guarantee that
+any crawler obeys it. Content-Signal remains AF-4's existing exact value.
+
+Private robots stay byte-for-byte `User-agent: *\nDisallow: /\n`, with the
+existing private/no-store/no-transform headers, no Sitemap, no additional
+groups, ETag or Link. Private gates run first; training settings and
+receipts cannot expose these groups on a private site. Authenticated
+robots retain the existing no-store behavior and effective-choice rule;
+no proposal or receipt metadata enters a public body.
+
+The public robots representation changes in this release. AF-2 validators
+must identify the new representation: an ETag obtained from the preceding
+release must not produce a 304 for the newly emitted bytes. Preserve the
+existing release-aware facts, origin, representation, clock and effective
+Content-Signal inputs; do not introduce a body-only validator or bypass a
+freshness/privacy check. Document the robots byte/ETag change in the
+introducing changelog entry. HEAD has the corresponding GET headers and
+status with an empty body. Weak/list/wildcard conditional handling and
+public revalidation headers retain their existing contracts.
+
+The assistant guide's standing instructions and its short operating guide
+make the choice discoverable: tell the owner they can allow or ask training
+crawlers not to use the site's content, while search and user-triggered
+agents stay allowed. Explain that it is a preference rather than a
+technical block. Changing `site.ai_training_disabled` still drafts a site
+version that requires the owner's ordinary review and approval. Never
+switch it automatically, describe a draft as effective, or infer approval
+from these instructions. No extra permission, service or credential is
+introduced. Existing exact-version receipts are neither backfilled nor
+rewritten. Public owner-facing descriptions that enumerate the training
+group must include CCBot or use the accurate generic phrase "training
+crawlers"; do not change tool descriptions or catalogs in this item.
+
+`site_state.training_choice` already exists in both editions. Keep its
+current protected schema (`proposed_disabled`, `effective_disabled`,
+`needs_publication`, `note`) and authorization. The guide names those
+facts and distinguishes proposed from effective state. Do not add a
+public capability response or expose owner state through robots. No new
+schema, site field, endpoint, flag, default, receipt or catalog revision.
+
+The signed-in `/review` index always has a visible "Site settings" section
+with an "AI training" line stating the current effective choice, either
+"Allowed" or "Blocked for training crawlers". Add: "Search and
+user-triggered agents stay allowed. Ask your assistant to change this;
+you review and approve the site change." Explain alongside it that robots
+is a preference and does not guarantee crawler compliance. Show any
+proposed choice that differs from the effective choice as pending owner
+publication, including proposed allowed while currently blocked. Preserve
+the existing needs_publication warning for an unreceipted true proposal;
+never show it as already blocked. The accessible structured owner review
+representation carries the same facts and instructions. Reuse the
+existing protected training-state read on this page; no second state read
+or side effect merely to draw this line. This is informational discovery,
+not a new settings mutation control or approval action.
+
+Required paired acceptance cases:
+
+| Case | Evidence |
+| --- | --- |
+| `af_crawler_tiers_bytes` | Exact public group order, all eleven named agents, four rules, Sitemap/newlines in allowed and effective-disabled states; same output for different request user-agents, same bytes in both editions. |
+| `af_crawler_tiers_receipts` | Draft true, approved true without receipt, stale receipt and no live site cannot activate training denial; current exact receipted true denies all four training agents; false/removal/new unreceipted version allows, search/user/wildcard remain allowed. Keep AF-C1's existing publication/rollback tests. |
+| `af_crawler_tiers_private` | Private claimed/unclaimed and training states retain the exact private robots bytes and headers, with GET/HEAD and conditional requests; no public groups, Sitemap or state leaks. |
+| `af_crawler_tiers_validators` | Previous-release public robots tag yields the changed representation, not stale 304; current tag revalidates correctly, genuine training publication changes tag/signal/rules, HEAD is empty, authenticated requests remain no-store. |
+| `af_training_discovery` | Guide names existing protected facts and owner approval; `/review` HTML and structured owner representation show effective allowed/blocked, both directions of a differing proposal, and unreceipted proposal warning. Absent/reader/invalid sessions gain no owner state or setting action. Reads do not create receipts or alter publication. |
+| `af_crawler_tiers_cost` | Release GATE-2 current/preceding-archive matrix passes without hidden increases; additionally record local D1 per-request reads/writes and SQL for robots GET/conditional/HEAD in both choices and copies OFF/ON. Fixed group formatting adds no DB statements or writes. Disclose any increase under the existing justification/owner-approval rule. Owner review reuses its existing state read. No CPU, hosted saving or access-control claim. |
+
+Normal parity, private/owner header checks, both actual runtime entries,
+previous-release upgrade/rollback and all existing AF-C1/AF-2 security
+gates remain required. Golden robots expectations change only for the
+explicit public layout above; private assertions must not be loosened.
+
 ### AF-5: structured facts in every look
 
 Every successful anonymous public HTML page has engine-produced JSON-LD

@@ -96,7 +96,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    provenance without per-call closures. Hosted /collect CPU from Hand
    decides; above the 10 ms mean, fix before other work.
 
-9. **AF-8** OPEN (owner, 2026-10-18, from his agent-friendly article):
+9. **AF-8** IN-PROGRESS (spec review) (owner, 2026-10-18, from his agent-friendly article):
    robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
    turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
    Google-Extended Disallow groups). Make the tiers explicit always:
