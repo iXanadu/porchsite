@@ -34,7 +34,7 @@ async def test_all_events_and_columns(db,row):
     await db.execute(row['insert']);assert await pair(db)==[epoch,str(int(n)+1)]
     columns=await db.fetch("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=$1",table)
     for column in columns:
-        name=column['column_name'];assert name.replace('_','').isalpha()
+        name=column['column_name'];assert name and (name[0].isalpha() or name[0]=='_') and name.replace('_','').isalnum()
         epoch,n=await pair(db);await db.execute(f'UPDATE {table} SET {name}={name}')
         assert await pair(db)==[epoch,str(int(n)+1)]
     epoch,n=await pair(db);await db.execute(f'DELETE FROM {table}');assert await pair(db)==[epoch,str(int(n)+1)]

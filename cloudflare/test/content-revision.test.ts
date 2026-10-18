@@ -27,7 +27,7 @@ it('validates canonical counter and epoch values without Number rounding',()=>{
 it.each(fixture.tables)('covers every I/U/D and every column on $table',async({table,insert})=>{
  let [epoch,n]=await pair();await db.prepare(insert).run();let current=await pair();expect(current).toEqual([epoch,String(BigInt(n)+1n)]);
  const columns=(await db.prepare(`PRAGMA table_info(${table})`).all<{name:string}>()).results;
- for(const {name} of columns){expect(name).toMatch(/^[a-z_]+$/);[epoch,n]=await pair();await db.prepare(`UPDATE ${table} SET ${name}=${name}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+1n)]);}
+ for(const {name} of columns){expect(name).toMatch(/^[a-z_][a-z0-9_]*$/);[epoch,n]=await pair();await db.prepare(`UPDATE ${table} SET ${name}=${name}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+1n)]);}
  [epoch,n]=await pair();await db.prepare(`DELETE FROM ${table}`).run();expect(await pair()).toEqual([epoch,String(BigInt(n)+1n)]);
 });
 it('repairs deleted state, rotates overflow and rolls content plus witness back together',async()=>{
