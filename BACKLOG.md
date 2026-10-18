@@ -68,12 +68,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    save. A hosted D1 probe decides; if hosted counts trigger rows too, the
    trigger design is not viable on the Cloudflare edition as specified.
 
-5. **GATE-2a** OPEN (found 2026-10-18 shipping AN-1): the rows gate
-   measures page requests only, so writes on the visitor beacon
-   (`POST /collect`) and on owner actions (approvals, imports) are not
-   measured. AN-1's +1 write per recorded view passed the gate unseen;
-   it shipped on a stated reason and the owner's yes. Add beacon and
-   approval cells (1 and 200 entries) to the gate.
 
 6. **AN-2** IN-PROGRESS (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
    visitor's capped (201st and later) page view still reads about 206 rows
@@ -86,6 +80,29 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
    upload metadata must carry it (as the installer's does).
+
+8. **PERF-10** WONTFIX 2026-10-18: the typed D1 adapter (5f76992) measured
+   slower, not faster, in its declared 72-process cohort (median +0.9 to
+   +1.3 ms in all three classes, the at-cap interval wholly positive), and
+   Hand's hosted A/B found no /collect regression to fix (a55686c mean
+   7.7 ms vs 3f0141a 8.3). Branch kept for reference; not shipped.
+
+11. **AF-9** OPEN (owner, 2026-10-18, visiting-assistant test): every page's
+   JSON-LD is WebPage or CollectionPage (cloudflare/src/structured-data.ts).
+   Entries should be Article or BlogPosting with headline, author,
+   datePublished, dateModified and image, both editions.
+12. **AF-10** OPEN (owner, 2026-10-18, same test): in a list page's Markdown
+   copy (index.md), cards run together as long link labels. Each card
+   should be its own list item: `- [Title](url): summary`.
+
+13. **PERF-12** OPEN (Hand, hosted on porchsite.dev, a55686c, 2026-10-18):
+   cold page GET CPU averages 10.2-10.4 ms (p50 8-8.5), at the free
+   plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
+   cut the largest cost.
+
+14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
+   archived a55686c and earlier copies still compare timing fields, so the
+   upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
 

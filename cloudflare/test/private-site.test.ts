@@ -1,3 +1,4 @@
+import robotsCases from '../../spec/robots-cases.json';
 import MarkdownIt from 'markdown-it';
 import privateDenial from '../../spec/fixtures/private-denial.json';
 // PV-1/OR-1 acceptance: paired with server/tests/app/test_private_site.py.
@@ -304,10 +305,10 @@ it("AF1 slice: conditional public representations never cross roles or gates",as
  const tag=(await visitor.at("/")).headers.get("ETag"), body=await (await visitor.at("/")).text();
  const draft=await content.updateItem(db,who,"site",f.item.version,{ai_training_disabled:true},undefined);
  expect((await visitor.at("/")).headers.get("ETag")).toBe(tag);
- const approval=await approvals.request(db,who,["site"],"");expect(await (await f.browser.at("/review/"+approval.id)).text()).toContain("Blocked for GPTBot");
+ const approval=await approvals.request(db,who,["site"],"");expect(await (await f.browser.at("/review/"+approval.id)).text()).toContain("Blocked for training crawlers");
  await approvals.decide(db,approval.id,{site:{decision:"approve"}},"");
  const off=await visitor.at("/");expect(await off.text()).toBe(body);expect(off.headers.get("ETag")).not.toBe(tag);expect(off.headers.get("Content-Signal")).toContain("ai-train=no");
- const robots=await (await visitor.at("/robots.txt")).text();expect(robots).toContain("User-agent: *\nAllow: /\n");for(const bot of ["GPTBot","ClaudeBot","Google-Extended"])expect(robots).toContain(`User-agent: ${bot}\nDisallow: /`);
+ const robots=await (await visitor.at("/robots.txt")).text();expect(robots).toBe(robotsCases.disabled);
  for(const table of ["items","revisions","live"]) {const key=table==="items"?"id":"item_id";for(const row of (await db.prepare(`SELECT data FROM ${table} WHERE ${key}='site'`).all<{data:string}>()).results)expect(JSON.parse(row.data)).not.toHaveProperty("ai_training_disabled");}
  const allowed=await content.updateItem(db,who,"site",draft.version,{ai_training_disabled:false},undefined);await publish([allowed.id]);
  const allowedResponse=await visitor.at("/");expect(await allowedResponse.text()).toBe(body);expect(allowedResponse.headers.get("Content-Signal")).toContain("ai-train=yes");expect(allowedResponse.headers.get("ETag")).not.toBe(tag);

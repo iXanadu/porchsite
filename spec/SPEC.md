@@ -212,11 +212,12 @@ The response is `application/xml; charset=utf-8`, with the same
 `Cache-Control: public, max-age=300` as Atom feeds. HEAD follows GET's status
 and headers without the body. Both editions return identical sitemap bytes.
 
-`GET /robots.txt` retains `User-agent: *` and `Allow: /`, and appends
-`Sitemap: <site origin>/sitemap.xml` with a final newline. This intentionally
-changes robots bytes; its existing one-hour cache policy is unchanged.
-No content/schema/tool contract changes are needed for discovery. Sample
-parity includes sitemap and robots at a fixed origin and approval clock.
+Public `GET /robots.txt` follows AF-4D's four explicit crawler groups,
+then `Sitemap: <site origin>/sitemap.xml` with a final newline. Its public
+validators and revalidation policy follow AF-2; private robots retain the
+private-mode contract. No schema/tool contract changes are needed for
+discovery. Sample parity includes sitemap and robots at a fixed origin
+and approval clock.
 
 **Card visibility.** A card is `public` (the default: the whole card shows),
 `mention` (only its name and description show: no link, no link text, no
@@ -2424,6 +2425,193 @@ is available: "A newer Porchsite is available (<id>). Ask your assistant to
 update it.", or, when `security` is true, a line marked "Security update:"
 instead. No button: the assistant updates, when the owner says so.
 
+**Release write-operation row cells (GATE-2a, Cloudflare edition).** Extend
+GATE-2's local D1 gate, not the product API. Keep its 78 public-page cells
+and add exactly seven operation cells with prepared copies off and `1`
+(14 added cells, 92 per artifact). Measure the candidate and immediately
+preceding published archived Worker on the same versioned fixtures and
+method. This is not a server/PostgreSQL row-cost or hosted billing claim;
+both editions' existing correctness, parity and upgrade gates remain.
+No new product endpoint, binding, owner grant, default or schema is added.
+
+The existing 120-second bound covers the WHOLE gate: build, all page and
+write fixtures, both artifact measurements when required, request work,
+audits and cleanup. There is no separate 120-second allowance for writes.
+Timeout or incomplete cells fails closed; do not drop the 200-entry case,
+skip archive measurement, suppress deferred work or raise the limit to pass.
+Time is unmeasured until the implementation gate proves it. Reuse each
+immutable build and the local binding harness; do not time a replacement
+handler, direct approval helper or direct analytics SQL instead of HTTP.
+
+Use one versioned synthetic services site for these operations, not a
+cross-product with all 13 page sites. Each operation/mode/artifact has its
+own fresh disposable D1/KV and application instance with the fixture's
+explicit state. A setup GET may obtain a form token; finish it outside the
+measured POST scope before counting starts. No concurrent scopes or
+leftover setup/background work. Hold response reuse off. Use the same
+pinned application clock, origin, local runtime and toolchain as GATE-2;
+clock/fixture changes require an explicit comparison rebase.
+
+| Stable operation cell | Precondition and measured real request | Required outcome |
+| --- | --- | --- |
+| `collect/first_day` | `POST /collect`, valid new `pv` id; no salt for the clock day, previous-day maintenance watermark, one previous-day salt, two pageviews at day minus 91 for one visitor, one retained pageview at day minus 1, no prior daily aggregate for the expired rows. | One new view recorded. Assert daily salt, expired-row aggregation/deletion and monotonic completed-day watermark; include all cleanup/index writes and reads. |
+| `collect/repeat` | `POST /collect`, different valid `pv` id for the same daily visitor as one pre-existing current-day view; current salt and completed-day marker present. | Exactly one new view, original unchanged; no repeated retention mutation. This is a new page view, not a duplicate-id cell. |
+| `collect/at_cap` | `POST /collect`, distinct valid id for the same existing daily hash after exactly 200 current-day views; salt and completed-day marker present. | Cap-aware candidate/archive admit none; 200 stored views remain, attempted id absent. Count all denial reads and any writes; never infer a denial from wire 204 or zero writes. |
+| `collect/heartbeat` | `POST /collect`, `hb` on one admitted id, created one second before the fixed clock, initial engagement and scroll zero; request `e=1000,d=25`. | Same view count; that row becomes engaged 1000 ms and scroll 25. Count actual read and progress-update writes; no other view changes. |
+| `approval/one` | Authenticated same-origin `POST /review/<id>`, real form `all=approve` and valid CSRF, one pending request for exactly one new valid entry/version. | Exactly that shown entry is published with its intended data/version; pending request decided, receipts/history/invalidation consistent with the existing contract. |
+| `approval/200` | Same route and form, one pending request naming exactly 200 distinct new valid entries/versions. | All and only those 200 entries published; no silent truncation, deferred missing items, repeated approvals or direct-live seeding counted as success. |
+| `import/file` | Authenticated multipart `POST /review/import`, one fixed UTF-8 JSON file in the existing import format containing one site-title update, one valid entry and one valid card, no image bytes or external URLs. | Existing successful redirect to one pending approval with exactly three intended items; imported drafts validated/stored; published content unchanged. Import is not approval. |
+
+Fixture bytes, file bytes, event bodies, item data, prior versions, seed SQL,
+expected statuses and semantic postconditions are immutable hashed inputs.
+Owner-write setup uses the canonical split embed-source representation:
+the versioned extension is present and the site's items, revisions and live
+JSON omit the legacy inline `embed_sources` field. This setup is excluded
+from the measured POST, just like seeding; no migration or repair is hidden
+inside a measured operation. Keep the strict raw live-row equality assertion
+for import, as well as its pending-only semantic checks. Fixture changes
+require the matching archive remeasurement and retained original record.
+Use canonical complete valid entry/card data for the services fixture,
+including any required date, visibility and source receipts; no validation,
+privacy, version check, admission proof, request or publication check is
+bypassed. Preload the pending approval graph and stored versions as
+synthetic fixture setup, not a product helper called in place of approval.
+The 200-entry count is the approval payload, not total pre-existing items.
+For analytics use a fixed synthetic browser user-agent, RFC 5737 address,
+salt and paths that the real beacon accepts. Derive the existing day/visitor
+hash identically; never supply a client-chosen visitor or change the hash.
+Old cleanup rows have distinct valid ids and fixed payloads; the two expired
+rows share their old day's visitor, so audit views=2 and visits=1. All four
+beacon responses remain empty 204 with the existing no-store policy and no
+count, cookie or retry oracle. A swallowed database error or no-op does not
+satisfy an expected insertion, heartbeat, approval or import.
+
+For this extension, including its introducing comparison, use the immediately
+preceding published release in changelog order, with its immutable archive
+and tag verified. Never substitute an unfinished build or retain a fixed
+older release after a newer predecessor ships. If an explicit rebase needs
+an archive predating the cap, use the identical at-cap input and record its
+actual uncapped insertion (201 rows); identify that expected disposition in
+the reviewed artifact-specific comparison manifest. Do not simulate a
+refusal, change its handler, label an accepted event denied, omit its cost
+or count a functional regression as a saving. A current cap-aware candidate
+must still refuse. Unexpected semantic differences fail even with a
+rows_justification; expected version differences must be pinned before
+measurement, never inferred from whichever output happened to appear.
+
+Owner harness credentials are synthetic and local only. Seed a disposable
+claimed owner and a matching unexpired hashed session using the existing
+schema; present its cookie to the REAL entry, which must perform its normal
+session checks. Obtain CSRF from the normal owner GET and submit the real
+form; never replace signedIn, requireOwner, CSRF, Origin or approval checks,
+export private internals, add a public test route or accept a fixture header
+as authority. Setup token creation/session seeding and token GET counters
+are excluded but explicitly named; all authentication reads, CSRF-related
+work and request-triggered refresh/history/index/invalidation work INSIDE
+the measured POST are included. Negative harness controls must show that
+absent/invalid owner sessions and wrong CSRF cannot publish or import.
+These controls are correctness evidence outside numeric cost cells and
+inside the total time bound. No real owner, passkey, API key, hosting account
+or remote service is used. The harness must not contact external services;
+fixtures contain no push subscriptions or external embeds.
+
+Do not persist raw cookies, tokens, CSRF, request bodies, SQL binds, owner
+labels, full authenticated headers or imported data in the committed record
+or logs. The measurement wrapper's diagnostic response stays temporary and
+local, returns no credentials and is never bundled as a product route.
+Random internal ids/nonces are not equality keys or comparison inputs;
+assert their shape and relationships. Preserve normal product entropy,
+crypto, session and transaction semantics; do not monkeypatch crypto to
+force deterministic ids or waive response differences caused by failures.
+Only fixed statuses, expected destinations, content/version relationships
+and whitelisted credential-free semantics are compared across artifacts.
+
+Reuse GATE-2's exact meta.rows_read/rows_written accounting, per-statement
+batch accounting, first/raw adapters, error detection and full response
+consumption. Settle every nested waitUntil before closing each scope; all
+request-caused D1 work counts. An observed failure cannot be swallowed by
+analytics' silent-204 boundary. Host-side migrations, seeds, auth setup,
+postcondition queries and explicit control requests are excluded with
+separate scopes. Missing metadata, unfinished work, request escape or
+uninstrumented D1 operations fails. No statement or estimate substitution.
+
+The write harness must also observe promises registered through the native
+`cloudflare:workers` module's `waitUntil`, not only the context argument.
+Prefer a native runtime completion hook or module alias that preserves the
+emitted application bytes, if one exists. Otherwise, for local measurement
+only, route static imports of that module in a separately named derived
+measurement copy through a temporary re-export adapter. The original
+application.js and archived Worker remain byte-identical. Preserve every
+other byte in the derived copy and pin the exact import-only mapping.
+
+Re-export actual native exports unchanged and as live bindings (including
+`env`); wrap only `waitUntil`. First register the identical promise in the
+open request-local settlement set, then call native `waitUntil` with it.
+Keep the registration even if the native call throws; propagate the native
+throw and do not swallow rejection. Do not suppress lifetime or tasks,
+change task arguments/results, expose an application drain helper or call
+a private product helper. Cover every native registration, not only import.
+Context-argument waitUntil capture stays and shares the same open request
+identity. Only one request may be in flight; no concurrent scopes or a
+process-global promise bag. Setup tasks finish before POST counters reset.
+Capture nested registrations until the tracked set is fully settled.
+Rejected, unscoped, late or unsettled work fails, including hidden database
+errors. Optional alert delivery need not succeed, but every D1 query it
+causes still counts. No sleep or idle-query inference proves completion.
+
+Apply the same measurement method to current and archived artifacts. Keep
+original product/archive SHA as artifact identity, and additionally record
+derived measurement-copy SHA, adapter hash and import mapping as separate
+provenance; adapter/harness hash belongs to the input fingerprint. Never
+substitute an adapter SHA for a release hash or copy cells across a changed
+fingerprint. Recognize static imports and fail on unexpected/unmapped
+native waitUntil imports. The adapter imports the real native module,
+never itself. Never modify product wrangler, handler, auth, DB, alerts.ts,
+crypto, route or fixture authority; no helper drain() substitutes for this.
+No task results, payloads, credentials or owner labels persist in records.
+Tests prove native forwarding plus request-local registration when native
+throws, nested/rejected/late work and request isolation, live other-export
+identity, and that omitting the adapter in a scratch copy fails import or
+approval completion/counted-work certification. This shim is local tooling
+only and requires review before implementation or use.
+
+Version the expanded record format and measurement-input fingerprint.
+Keep the original published predecessor record. For the introducing
+extension explicitly remeasure its exact archived bundle with its own
+migrations and all 92 matching cells, retaining the old 78-cell record and
+the labelled expanded comparison. The extension is not the old no-record
+bootstrap exception. Verify release id/artifact manifest as in GATE-2;
+missing/malformed old record or missing archive still fails. Subsequent
+releases use the preceding published expanded record without silent rebase.
+
+The committed JSON identifies all 92 unique cells, their operation kind,
+mode and nonnegative integer row totals, plus the pinned expected outcome
+manifest; exact key-set validation rejects missing/extra/duplicated cells.
+No fabricated historical write totals or automatic baseline promotion.
+Default check is read-only and requires exact committed current metadata
+and cells, including the write cells. Compare every read and write metric
+individually with the matching predecessor: any increase requires the same
+plain newest-entry rows_justification, visible in all release reports.
+A reason never waives incorrect outcomes, auth failures, missing metadata,
+identity or timeout, and never grants deployment permission. Print limits
+in named operation equivalents per day: page requests for page cells,
+beacon events for collect cells, approvals or imported files for owner
+cells. Do not call a 200-entry approval a page view or multiply/divide its
+cost into an unmeasured per-entry claim. Existing three-page totals stay;
+no artificial combined user journey or net saving hides a cell increase.
+
+Before runtime freeze prove the whole current-plus-archive preparation and
+read-only expanded gate finish within 120 seconds each, existing page
+numbers and checks retained, and final committed record immutable during
+check. Scratch controls add a real read AND a real write to each new
+operation family: record/check refuse without justification, accept only
+the numeric increase with a visible reason, and never rewrite the record
+in check mode. Missing-cell, metadata-failure, silent-204-storage-failure,
+wrong-result, bad-session and wrong-CSRF cases must refuse as specified.
+Normal full gates remain, and independent testing repeats the expanded
+measurement and negative controls before acceptance.
+
+
 ## 5. Owner surface
 
 When a rendered site page is requested with a valid owner session, the
@@ -3771,14 +3959,13 @@ Named acceptance cases, required in both editions:
 | `af_training_receipt_old_runtime` | Run the actual previous released runtimes on the additive schema: approve/edit a newer-code draft, then return. Bulk-approved true remains allowed without a receipt; an existing receipt survives unchanged and cannot qualify another version. Prior pages, sign-in and approval still operate. |
 | `af_training_receipt_http_parity` | Identical robots, Content-Signal and AF-2 tags across editions before/after genuine receipt-bearing publication; old approval alone cannot activate off. Private denials/robots and authenticated no-store remain unchanged. |
 
-Public `/robots.txt` starts with `User-agent: *`, `Allow: /`. When training
-is off append three groups, in this order, each with `Disallow: /`:
-GPTBot, ClaudeBot, Google-Extended. When on omit these denial groups.
-Always finish with the existing absolute Sitemap line and final newline;
-separate groups by one blank line. Search and user-triggered fetchers,
-including Googlebot, OAI-SearchBot, Claude-SearchBot, ChatGPT-User and
-Claude-User, remain allowed. This is a declared preference, not access
-control or a guarantee about crawler compliance; private mode still wins.
+Public `/robots.txt` always emits AF-4D's four groups in order: search,
+user-triggered agents, training crawlers, then wildcard. Search,
+user-triggered and wildcard groups always allow; the training group
+(GPTBot, ClaudeBot, Google-Extended, CCBot) allows or denies according to
+the receipted effective choice. AF-4D pins exact bytes, names, Sitemap
+and newlines. This is a declared preference, not access control or a
+guarantee about crawler compliance; private mode still wins.
 
 Public content, copies, discovery files and their 304s also state the
 origin's choice with `Content-Signal: search=yes, ai-input=yes,
@@ -3794,6 +3981,125 @@ acceptance check the final response as well as origin output: host-managed
 robots injection, automatic conversion or headers must not add a conflicting
 training declaration. Disable such host features if they override the
 owner's choice; no requirement depends on a paid plan or Cloudflare service.
+
+#### AF-4D: explicit crawler tiers and discoverable choice (BACKLOG AF-8)
+
+This subsection defines the public robots layout used throughout this
+specification, including security invariant 32 and its acceptance case.
+It implements the crawler-discovery backlog item; the later AF-8 section,
+"content is data, never agent authority", retains its separate security
+contract unchanged. Both editions implement the same bytes and owner copy.
+
+Every public `GET /robots.txt` contains the following four groups, in this
+order. User-agent names have exactly this spelling and ordering. Each
+listed tier is a single group with consecutive User-agent lines followed
+by its one rule. Separate groups and the Sitemap line by one blank line;
+use LF and exactly one final newline:
+
+```text
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+User-agent: CCBot
+TRAINING_RULE: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap.xml
+```
+
+`TRAINING_RULE` is a specification placeholder, never emitted: substitute
+`Disallow` only when AF-C1's exact-version receipted effective training
+choice is disabled, otherwise `Allow`. The Sitemap uses the existing
+absolute public origin, not the example origin. Do not infer that choice
+from the current draft, from an approved field without its matching
+receipt, from another version, or from the request's user-agent. The same
+public robots bytes are returned to every user-agent for the same state.
+This adds CCBot to the named training preference. Search and user-triggered
+agents remain allowed in either state; unknown agents retain the wildcard
+allow rule. Group membership describes the site's declared preference,
+not agent identity verification, a grant of access, or a guarantee that
+any crawler obeys it. Content-Signal remains AF-4's existing exact value.
+
+Private robots stay byte-for-byte `User-agent: *\nDisallow: /\n`, with the
+existing private/no-store/no-transform headers, no Sitemap, no additional
+groups, ETag or Link. Private gates run first; training settings and
+receipts cannot expose these groups on a private site. Authenticated
+robots retain the existing no-store behavior and effective-choice rule;
+no proposal or receipt metadata enters a public body.
+
+The public robots representation changes in this release. AF-2 validators
+must identify the new representation: an ETag obtained from the preceding
+release must not produce a 304 for the newly emitted bytes. Preserve the
+existing release-aware facts, origin, representation, clock and effective
+Content-Signal inputs; do not introduce a body-only validator or bypass a
+freshness/privacy check. Document the robots byte/ETag change in the
+introducing changelog entry. HEAD has the corresponding GET headers and
+status with an empty body. Weak/list/wildcard conditional handling and
+public revalidation headers retain their existing contracts.
+
+The assistant guide's standing instructions and its short operating guide
+make the choice discoverable: tell the owner they can allow or ask training
+crawlers not to use the site's content, while search and user-triggered
+agents stay allowed. Explain that it is a preference rather than a
+technical block. Changing `site.ai_training_disabled` still drafts a site
+version that requires the owner's ordinary review and approval. Never
+switch it automatically, describe a draft as effective, or infer approval
+from these instructions. No extra permission, service or credential is
+introduced. Existing exact-version receipts are neither backfilled nor
+rewritten. Human-facing review and guide text that enumerates the training group
+must include CCBot or use the accurate generic phrase "training crawlers".
+Existing model/tool descriptions and catalogs stay outside this item.
+
+`site_state.training_choice` already exists in both editions. Keep its
+current protected schema (`proposed_disabled`, `effective_disabled`,
+`needs_publication`, `note`) and authorization. The guide names those
+facts and distinguishes proposed from effective state. Do not add a
+public capability response or expose owner state through robots. No new
+schema, site field, endpoint, flag, default, receipt or catalog revision.
+
+The signed-in `/review` index always has a visible "Site settings" section
+with an "AI training" line stating the current effective choice, either
+"Allowed" or "Blocked for training crawlers". Add: "Search and
+user-triggered agents stay allowed. Ask your assistant to change this;
+you review and approve the site change." Explain alongside it that robots
+is a preference and does not guarantee crawler compliance. Show any
+proposed choice that differs from the effective choice as pending owner
+publication, including proposed allowed while currently blocked. Preserve
+the existing needs_publication warning for an unreceipted true proposal;
+never show it as already blocked. The accessible structured owner review
+representation carries the same facts and instructions. Reuse the
+existing protected training-state read on this page; no second state read
+or side effect merely to draw this line. This is informational discovery,
+not a new settings mutation control or approval action.
+
+Required paired acceptance cases:
+
+| Case | Evidence |
+| --- | --- |
+| `af_crawler_tiers_bytes` | Exact public group order, all eleven named agents, four rules, Sitemap/newlines in allowed and effective-disabled states; same output for different request user-agents, same bytes in both editions. |
+| `af_crawler_tiers_receipts` | Draft true, approved true without receipt, stale receipt and no live site cannot activate training denial; current exact receipted true denies all four training agents; false/removal/new unreceipted version allows, search/user/wildcard remain allowed. Keep AF-C1's existing publication/rollback tests. |
+| `af_crawler_tiers_private` | Private claimed/unclaimed and training states retain the exact private robots bytes and headers, with GET/HEAD and conditional requests; no public groups, Sitemap or state leaks. |
+| `af_crawler_tiers_validators` | Previous-release public robots tag yields the changed representation, not stale 304; current tag revalidates correctly, genuine training publication changes tag/signal/rules, HEAD is empty, authenticated requests remain no-store. |
+| `af_training_discovery` | Guide names existing protected facts and owner approval; `/review` HTML and structured owner representation show effective allowed/blocked, both directions of a differing proposal, and unreceipted proposal warning. Absent/reader/invalid sessions gain no owner state or setting action. Reads do not create receipts or alter publication. |
+| `af_crawler_tiers_cost` | Release GATE-2 current/preceding-archive matrix passes without hidden increases; additionally record local D1 per-request reads/writes and SQL for robots GET/conditional/HEAD in both choices and copies OFF/ON. Fixed group formatting adds no DB statements or writes. Disclose any increase under the existing justification/owner-approval rule. Owner review reuses its existing state read. No CPU, hosted saving or access-control claim. |
+
+Normal parity, private/owner header checks, both actual runtime entries,
+previous-release upgrade/rollback and all existing AF-C1/AF-2 security
+gates remain required. Golden robots expectations change only for the
+explicit public layout above; private assertions must not be loosened.
 
 ### AF-5: structured facts in every look
 
@@ -4841,7 +5147,7 @@ Routing
 31. Both editions: identical bytes and headers for the same published site (parity includes Markdown, llms.txt, robots with the training switch, JSON-LD).
 
 AF-4 training switch
-32. Public default: today's robots (`User-agent: *` Allow: / plus Sitemap). Training-off adds well-known training-crawler Disallow groups; `User-agent: *` Allow: / stays for search and user-triggered agents.
+32. Public robots always use AF-4D's four groups in order: search crawlers, user-triggered agents, training crawlers (GPTBot, ClaudeBot, Google-Extended, CCBot), then `User-agent: *`, followed by Sitemap. Search, user-triggered and wildcard groups always Allow: /. The training group emits Allow: / unless the AF-C1 receipted effective choice is disabled, then Disallow: /. No draft or unreceipted proposal changes those rules; private robots stay exactly as invariant 10.
 33. The switch is an exact-version approved site_fields key plus the matching training_approvals receipt (AF-C1), never a legacy JSON key the previous release would parse into SiteData (S4-11 BLOCK 1). Absent, false or unreceipted = training allowed. Private robots ignore it (10).
 
 Protocol leftovers
@@ -4889,7 +5195,7 @@ The named cases implement the corresponding numbered invariant above.
 | 29 | `af_copy_route_matrix` | Copies exist only for real pages; reserved and missing paths remain misses. |
 | 30 | `af_negotiated_copy_identity` | Negotiated/direct Markdown match; public anonymous misses stay fixed HTML 404. |
 | 31 | `af_cross_edition_http_parity` | Bytes and headers match for every new representation and training setting. |
-| 32 | `af_public_robots_choices` | Default unchanged; off adds training-only denial groups. |
+| 32 | `af_public_robots_choices` | Exact AF-4D four-group layout always; all four training names including CCBot Allow or Disallow from the receipted effective choice; search/user/wildcard Allow. Keep private invariant 10 exact. |
 | 33 | `af_training_additive_approval` | Exact-version field and owner-publication receipt; absent/false/unreceipted allowed; legacy JSON unchanged; private ignores it. Include AF-C1 receipt cases above. |
 | 34 | `af_protocol_routes_unchanged` | Release, OAuth, sign-in and MCP behavior stays unchanged. |
 

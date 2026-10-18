@@ -1,4 +1,5 @@
 """PV-1/OR-1 acceptance, paired with cloudflare/test/private-site.test.ts."""
+from server.spec.sitemap import robots as robots_body
 
 import asyncio
 import json
@@ -899,15 +900,13 @@ async def test_af_slice1_public_conditionals_training_and_roles(db, browser_fact
     draft = await content.update_item(db, WHO, "site", item["version"], {"ai_training_disabled": True}, "")
     assert (await visitor.at("/")).headers["ETag"] == tag
     request = await approvals.request(db, WHO, ["site"], "")
-    assert "Blocked for GPTBot" in (await browser.at("/review/" + request["id"])).text
+    assert "Blocked for training crawlers" in (await browser.at("/review/" + request["id"])).text
     await approvals.decide(db, request["id"], {"site": {"decision": "approve"}}, "")
     off = await visitor.at("/")
     assert off.content == body and off.headers["ETag"] != tag
     assert 'ai-train=no' in off.headers["Content-Signal"]
     robots = (await visitor.at("/robots.txt")).text
-    assert "User-agent: *\nAllow: /\n" in robots
-    for bot in ("GPTBot", "ClaudeBot", "Google-Extended"):
-        assert f"User-agent: {bot}\nDisallow: /" in robots
+    assert robots == robots_body("https://site.example", True)
     for table in ("items", "revisions", "live"):
         key = "id" if table == "items" else "item_id"
         for row in await db.fetch(f"SELECT data FROM {table} WHERE {key}='site'"):

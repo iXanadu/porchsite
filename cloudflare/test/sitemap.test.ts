@@ -3,6 +3,7 @@ import * as themes from '../src/themes';
 import {env} from 'cloudflare:workers';
 import {beforeEach,expect,it} from 'vitest';
 import cases from '../../spec/sitemap-cases.json';
+import robotsCases from '../../spec/robots-cases.json';
 import {sitemap,SITEMAP_HEADERS,robots} from '../src/sitemap';
 import {view} from '../src/site';
 import {MODELS} from '../src/models';
@@ -21,7 +22,7 @@ it('shares exact XML, UTC approval dates, visibility, aggregate dates and fallba
  expect(sitemap(v,origin)).toBe('<?xml version="1.0" encoding="utf-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+rows+'</urlset>\n');
  const fallback=sitemap(v,origin,false);expect((fallback.match(/<loc>/g)||[]).length).toBe(2);expect(fallback).not.toContain('/outside/');expect(fallback).not.toContain('/draft/');
  v.approved_at={};expect(sitemap(v,origin)).not.toContain('<lastmod>');
- expect(robots(origin)).toBe(`User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`);
+ expect(robots(origin)).toBe(robotsCases.allowed);expect(robots(origin,true)).toBe(robotsCases.disabled);
 });
 it('serves only published reachable paths, unchanged on draft edits, with feed cache and HEAD parity',async()=>{
  const site=await make('site',{theme:'personal-homepage',streams:[{id:'journal',title:'Journal',path:'writing'},{id:'empty',title:'Empty'}]}),local=await make('entry',{title:'Local',date:'1999-01-01',tags:['alpha']}),external=await make('entry',{title:'External',external_url:'https://outside.example/article',date:'2000-01-01',tags:['external-only']}),hidden=await make('entry',{title:'Hidden',date:'2099-01-01'});

@@ -3,7 +3,13 @@ import type {SiteView} from './site';
 import {streams} from './theme';
 const xml=(value:string)=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 export const SITEMAP_HEADERS={'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, no-cache, must-revalidate, no-transform'};
-export const robots=(origin:string, disabled=false)=>`User-agent: *\nAllow: /\n${disabled ? '\n'+['GPTBot','ClaudeBot','Google-Extended'].map(name=>`User-agent: ${name}\nDisallow: /\n`).join('\n') : ''}Sitemap: ${origin}/sitemap.xml\n`;
+export function robots(origin:string, disabled=false):string {
+ const group=(agents:string[],rule:string)=>agents.map(name=>`User-agent: ${name}\n`).join('')+`${rule}: /\n`;
+ return [group(['Googlebot','Bingbot','OAI-SearchBot','Claude-SearchBot'],'Allow'),
+  group(['ChatGPT-User','Claude-User','Perplexity-User'],'Allow'),
+  group(['GPTBot','ClaudeBot','Google-Extended','CCBot'],disabled?'Disallow':'Allow'),
+  group(['*'],'Allow'),`Sitemap: ${origin}/sitemap.xml\n`].join('\n');
+}
 export function sitemap(v:SiteView,origin:string,archives=true):string {
  const dates=new Map<string,string>();
  for(const [id,at] of Object.entries(v.approved_at??{})){

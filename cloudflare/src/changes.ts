@@ -44,7 +44,7 @@ export function labelFor(kind: string, k: string): string {
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
 
 function plainValue(k: string, v: unknown): Raw | string {
-  if (k === "ai_training_disabled") return v === true ? "Blocked for GPTBot, ClaudeBot and Google-Extended" : "Allowed";
+  if (k === "ai_training_disabled") return v === true ? "Blocked for training crawlers" : "Allowed";
   if (k === "streams" && Array.isArray(v)) return v.map(entryName).join(" · ");
   if (k === "archive" && v && typeof v === "object") {const a=v as Data; return `${a.enabled ? "On" : "Off"} · ${String(a.title ?? "All entries")}`;}
   if (typeof v === "string") {
@@ -284,7 +284,7 @@ export function reviewFields(kind:string, now:Data, before?:Data, removed=false)
   }
   const show=(label:string,v:unknown)=>{
    if((k==='body'||k==='about')&&typeof v==='string')out.push(source(label,v));
-   else if(k==='ai_training_disabled')out.push(value(label,v===true?'Blocked for GPTBot, ClaudeBot and Google-Extended':'Allowed'));
+   else if(k==='ai_training_disabled')out.push(value(label,v===true?'Blocked for training crawlers':'Allowed'));
    else if(k==='streams'&&Array.isArray(v))out.push(value(label,v.map(entryName).join(' · ')));
    else if(k==='archive'&&v&&typeof v==='object'){const a=v as Data;out.push(value(label,`${a.enabled?'On':'Off'} · ${String(a.title??'All entries')}`));}
    else if(Array.isArray(v)){const named=v.map(x=>typeof x==='object'&&x?String((x as Data).label??(x as Data).title??(x as Data).value??''):String(x)).filter(Boolean);out.push(value(label,named.length?named.join(' · '):`${v.length} item${v.length===1?'':'s'}`));}

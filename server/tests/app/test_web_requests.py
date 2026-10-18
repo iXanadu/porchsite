@@ -2,6 +2,7 @@
 site by fetching its proof from the site itself
 (/.well-known/sitekeeper-proof/<nonce>), as the board does. Port of the route
 part of cloudflare/test/requests.test.ts (the rest is test_requests.py)."""
+from server.spec.sitemap import robots
 
 from urllib.parse import urlsplit
 
@@ -55,6 +56,6 @@ async def test_robots(http):
     r = await http.get("/robots.txt")
     assert (
         r.text
-        == f"User-agent: *\nAllow: /\nSitemap: {str(r.url).removesuffix('/robots.txt')}/sitemap.xml\n"
+        == robots(str(r.url).removesuffix("/robots.txt"))
     )
     assert r.headers["cache-control"] == "public, no-cache, must-revalidate, no-transform"

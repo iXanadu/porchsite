@@ -2,6 +2,27 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-1edfb4a",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "robots.txt now names search crawlers and assistants acting for a person (allowed) and AI-training crawlers (allowed, or blocked once the owner turns training off), so the site's choices are explicit.",
+        "The owner's AI-training choice is now shown on the review page and explained in the assistant guide."
+      ]
+    },
+    {
+      "release": "2026.10.18-a55686c",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": false,
+      "migrations": [],
+      "changes": [
+        "The install step and the assistant guides now link to the costs page, https://porchsite.dev/pages/costs/, for the free limits, the paid plan's risk and self-hosting."
+      ]
+    },
+    {
       "release": "2026.10.18-ba00f55",
       "date": "2026-10-18",
       "security": false,
