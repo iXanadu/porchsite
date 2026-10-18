@@ -29,3 +29,15 @@ test('zero and read/write constrained account arithmetic', () => {
   assert.deepEqual(capacity({rows_read:200,rows_written:0}),{reads:25000,writes:null,combined:25000});
   assert.deepEqual(compare(validate(make()),make()),[]);
 });
+
+test('expanded operation cells cannot disappear or hide read/write increases', async()=>{
+ const {OPERATIONS,WRITE_MANIFEST}=await import('./write-fixtures.mjs');
+ const expanded=()=>{const r=make();r.format=2;r.operations=structuredClone(WRITE_MANIFEST);r.instrumentation={product_sha256:r.artifact_sha256,derived_sha256:'d'.repeat(64),adapter_sha256:'e'.repeat(64),scope_sha256:'f'.repeat(64),mapping:[{start:1,end:19,from:'cloudflare:workers',to:'./native-workers.mjs'}]};for(const mode of ['off','on'])for(const operation of OPERATIONS)r.cells[`operations/${mode}/${operation}`]={rows_read:8,rows_written:4};return r;};
+ for(const mode of ['off','on'])for(const operation of OPERATIONS)for(const metric of ['rows_read','rows_written']){
+  const before=expanded(),after=expanded(),key=`operations/${mode}/${operation}`;after.cells[key][metric]++;
+  assert.throws(()=>compare(after,before),/rows_justification required/);assert.equal(compare(after,before,'Recorded cost increase').length,1);
+ }
+ for(const change of [r=>delete r.cells['operations/off/collect/at_cap'],r=>r.operations.expected_cap=false,r=>r.cells['operations/on/import/file'].rows_written=NaN]){const r=expanded();change(r);assert.throws(()=>validate(r));}
+ assert.throws(()=>compare(expanded(),make(),'Format changes need a real rebase'));
+ const output=[];printComparison(expanded(),expanded(),undefined,x=>output.push(x));assert(output.some(x=>x.includes('beacon events a day')));assert(output.some(x=>x.includes('approvals a day')));assert(output.some(x=>x.includes('imported files a day')));
+});
