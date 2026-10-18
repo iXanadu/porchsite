@@ -2672,6 +2672,26 @@ all vectors and any added below-cap cost, not only flood savings. PostgreSQL
 gets paired correctness/transaction proof and separately labelled CPU
 measurements. No invented hosted, zero-overhead or under-10-ms claim.
 
+Local implementation diagnostics (before the setup-link release integration)
+found warm accepted page views changed from 7 reads/3 writes to 7 reads/4
+writes at one existing view, and 205 reads/4 writes at the 200th view. A
+201st attempt used 206 reads/0 writes. First-day overhead changed from
+7 reads/5 writes to 11 reads/7 writes. A 1,000-event fixed-key flood changed
+7,000 reads/3,000 writes to 185,900 reads/800 writes, recording 200 views.
+Rotating user agents recorded all 1,000 and changed 7,000 reads/3,000 writes
+to 6,000 reads/4,000 writes. These are local D1 API metrics, not hosted
+billing guarantees. The index therefore adds cost to ordinary admitted
+views and does not bound account-wide usage.
+
+Twelve interleaved local fresh-process pairs per admission class measured
+Worker paired CPU changes from -0.483 to +0.134 ms; below-cap was -0.348 ms,
+first-day +0.134 ms, and retention cleanup -0.162 ms. Twelve warmed process
+pairs per key pattern (20 requests per process) gave +0.136 ms for one key
+and -0.428 ms for rotating user agents. Results are mixed, not a general
+CPU saving. Separately measured PostgreSQL application-process CPU added
++0.318 ms on first-day and +0.293 ms on cleanup; database-process CPU is
+excluded. No hosted or tail-latency claim follows.
+
 Paired safety tests cover all cap boundaries; duplicate/malformed ids;
 concurrent claims for the final slot (exactly one insert); test/non-test
 sharing; invalid inputs causing no new database work; daily rollover and
