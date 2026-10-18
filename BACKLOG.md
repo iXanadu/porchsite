@@ -46,11 +46,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      one object per row (branch 4d966f1, all checks pass) was mixed on
      500-entry sites: services 1.6 ms faster, personal 0.4 ms slower. Not
      a clear win; not shipped.
-- **PERF-8** OPEN: hosted "not changed" (304) replies on porchsite.dev
-  measured about 2.5-4 ms higher per request after 2026.10.18-2fa1d88
-  (about 8-9 ms vs 5 ms), steady across requests, with database work
-  unchanged. A local warm comparison found no difference. A back-to-back
-  hosted A/B against 05970b3 decides whether it is real.
 3. **PERF-4b** HELD: the cost of storing a page on a first visit when
    PERF-4 is on (about 8 ms locally). Reusing the bytes already built
    (branch c596b06, all checks pass) saved only about 0.4 ms, mixed. Since
@@ -122,6 +117,18 @@ Not now (watch): MCP server cards, WebMCP, NLWeb, signed agents, pay per
 crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
 
 ## OWNER REQUESTS (2026-10-16)
+- **CO-1** OPEN (owner, 2026-10-18): a plain free/paid/self-host
+  explanation for people and assistants. It covers the Cloudflare free
+  plan's limits; what happens when a site goes over (it stops, with no
+  bill, and one busy site can stop others on the same account); the risk
+  of a paid plan (usage billing with no hard spending cap); how to move to
+  a self-hosted server; and getting a small (about $5/month) server.
+  Assistants tell every new owner before or during setup, and never
+  upgrade a plan, add payment or turn on a paid feature without the
+  owner's explicit yes. Lands on a porchsite.dev page, in the install
+  guide, in the getting-started and helper flows, as a short block in the
+  writer tools, in llms.txt/index.md, and on error pages. Staged for the
+  owner's approval before anything goes live.
 - **DR-1** IN-PROGRESS: sprint reports live on fleet.c52.com (the owner's
   one private playbook), one "<Project> reports" stream per project, no
   expiry, weekly batch approval. Changed 2026-10-17: all updates to the
@@ -133,6 +140,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **RA-10** OPEN: the recovery link uses the same `?code=` form that RA-9
+  removes from setup links, so the code reaches request logs. Move it to
+  the URL fragment the same way (one release still accepting the query,
+  then refusing). Found 2026-10-18 in RA-9 review.
 - **AN-1** IN-PROGRESS: the visitor beacon (`POST /collect`) has no rate limit.
   Each accepted page-view event writes at least one database row and runs
   the retention clean-up (a delete plus an aggregate insert) every time.
