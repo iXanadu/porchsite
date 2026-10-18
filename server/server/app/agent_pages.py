@@ -34,17 +34,18 @@ async def agent_page(req, route, map_response, origin, not_found, view=None):
         if not is_html(response):
             return await not_found(req)
         return Response(markdown_document(response.body.decode(), origin+base+page_query(req, base))['markdown'], headers=MD)
-    response = await route(req)
+    selected = representation(req.headers.get('Accept')) if page_path(path) else 'html'
+    anonymous_markdown = selected == 'markdown' and not session_request(req)
+    response = await route(anonymous(req, path, True) if anonymous_markdown else req)
     if not page_path(path) or not is_html(response):
         return response
-    selected = representation(req.headers.get('Accept'))
     headers = dict(response.headers)
     headers['vary'] = (headers['vary']+', Accept') if headers.get('vary') else 'Accept'
     headers.pop('content-length', None)
     if selected is None:
         return Response(None, status_code=406, headers={'Vary': 'Accept', 'Cache-Control': 'private, no-store, no-transform'})
     if selected == 'markdown':
-        visitor = await route(anonymous(req, path, True))
+        visitor = response if anonymous_markdown else await route(anonymous(req, path, True))
         if not is_html(visitor):
             return visitor
         return Response(markdown_document(visitor.body.decode(), origin+path+page_query(req, path))['markdown'], headers={**MD, 'Vary': headers['vary']})

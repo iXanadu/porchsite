@@ -1,0 +1,6 @@
+{
+  "body": "# Repeated heading\n\n## Repeated heading\n\n| Item | Value |\n| --- | ---: |\n| A | `x|y` |\n\n!embed[Tour](https://example.com/player)",
+  "summary": "Visible summary without expanding the body",
+  "origin": "https://site.example",
+  "source": "https://example.com"
+}
