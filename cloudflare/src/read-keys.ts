@@ -1,4 +1,4 @@
-import {dailyAccess} from './daily-limit';
+import {dailyAccess,dailyAccessBatch} from './daily-limit';
 import * as owner from './owner';
 /** Published-only credentials; never stored in assistant_keys. */
 import {ApiError} from './errors';
@@ -16,7 +16,7 @@ export async function create(db:D1Database,name:string,actor='owner',req?:Reques
  const bytes=crypto.getRandomValues(new Uint8Array(24)),token=PREFIX+btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
  const keyId='read_'+id(),at=new Date().toISOString(),expires_at=new Date(Date.now()+KEY_DAYS*86400000).toISOString();
  const gate=req?await owner.ownerSessionGuard(req):{sql:'1',args:[]};
- const writes=await db.batch([
+ const writes=await dailyAccessBatch(db,[
   db.prepare('INSERT INTO agent_read_keys(id,name,key_hash,created_at,expires_at,owner_epoch) SELECT ?,?,?,?,?,owner_epoch FROM auth_state WHERE id=1 AND '+gate.sql).bind(keyId,name,await hash(token),at,expires_at,...gate.args),
   db.prepare("INSERT INTO agent_read_key_events(id,created_at,actor,key_id,name,kind) SELECT ?,?,?,id,name,'created' FROM agent_read_keys WHERE id=?").bind('event_'+id(),at,actor,keyId),
  ]);
@@ -29,7 +29,7 @@ export async function revoke(db:D1Database,keyId:string,actor='owner',req?:Reque
  if(req&&!await owner.signedIn(db,req))throw new ApiError(403,'not_verified','This sign-in stopped working. Start again.');
  const gate=req?await owner.ownerSessionGuard(req):{sql:'1',args:[]};
  const at=new Date().toISOString();
- await db.batch([
+ await dailyAccessBatch(db,[
   db.prepare("INSERT INTO agent_read_key_events(id,created_at,actor,key_id,name,kind) SELECT ?,?,?,id,name,'revoked' FROM agent_read_keys WHERE id=? AND revoked_at IS NULL AND "+gate.sql).bind('event_'+id(),at,actor,keyId,...gate.args),
   db.prepare('UPDATE agent_read_keys SET revoked_at=? WHERE id=? AND revoked_at IS NULL AND '+gate.sql).bind(at,keyId,...gate.args),
  ]);

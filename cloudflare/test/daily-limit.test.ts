@@ -1,7 +1,7 @@
 import {env} from 'cloudflare:workers';
 import {beforeEach,expect,it} from 'vitest';
 import worker from '../src/index';
-import {dailyDatabase,dailyRequest,dailyTool,dailyOwnerAuthorized,optionalD1,VISITOR_LIMIT,OWNER_LIMIT} from '../src/daily-limit';
+import {dailyDatabase,dailyRequest,dailyAccessBatch,dailyTool,dailyOwnerAuthorized,optionalD1,VISITOR_LIMIT,OWNER_LIMIT} from '../src/daily-limit';
 import * as keys from '../src/keys';
 import * as readKeys from '../src/read-keys';
 import type {Env} from '../src/env';
@@ -173,4 +173,12 @@ it('a late reader revocation proof cannot retain an earlier writer authorization
   return new Response('would be authenticated result');
  });
  expect(response.status).toBe(503);expect(await response.json()).toEqual({error:'free_daily_limit',message:VISITOR_LIMIT});
+});
+
+it('a guarded credential batch remains an unknown auth proof on a daily write error',async()=>{
+ const native=fake(provider('write'));
+ const response=await dailyRequest(new Request(origin+'/review'),native.database,async wrapped=>{
+  dailyOwnerAuthorized();await dailyAccessBatch(wrapped,[wrapped.prepare('guarded credential mutation')]);return new Response('never');
+ });
+ expect(response.status).toBe(503);const text=await response.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain(OWNER_LIMIT);
 });

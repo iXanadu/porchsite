@@ -1,4 +1,4 @@
-import {dailyAccess} from './daily-limit';
+import {dailyAccess,dailyAccessBatch} from './daily-limit';
 /**
  * The owner: one person, signed in with a passkey. A fresh site is claimed
  * once, with a setup code (the one given at deploy time, or a one-time code
@@ -64,7 +64,7 @@ export async function ownerName(db: D1Database): Promise<string> {
 
 async function saveChallenge(db: D1Database, challenge: string, purpose: string): Promise<string> {
   const id = b64url(crypto.getRandomValues(new Uint8Array(18)));
-  await db.batch([
+  await dailyAccessBatch(db,[
     db.prepare("DELETE FROM challenges WHERE expires_at < ?").bind(iso(now())),
     db
       .prepare("INSERT INTO challenges (id, challenge, purpose, expires_at) VALUES (?, ?, ?, ?)")
@@ -98,7 +98,7 @@ const CODE_EXPIRED = "This setup link has expired. If the site was installed at 
 export async function issueSetupCode(db: D1Database, code: string, hours: number = SETUP_HOURS): Promise<string> {
   if (await hasOwner(db)) throw new ApiError(409, "claimed", "This site already has an owner.");
   const expiresAt = iso(new Date(Date.now() + hours * 3600_000));
-  const result = await db.batch([
+  const result = await dailyAccessBatch(db,[
     db.prepare("DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"),
     db.prepare("INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)").bind(await hash(code), iso(now()), expiresAt),
   ]);
@@ -207,7 +207,7 @@ export async function setupVerify(db: D1Database, req: Request, setupCode: strin
   const condition = stored ? "EXISTS (SELECT 1 FROM setup_codes WHERE code_hash = ? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now'))" : "1";
   let resultRows: D1Result[];
   try {
-    resultRows = await db.batch([
+    resultRows = await dailyAccessBatch(db,[
       db.prepare(`INSERT INTO owner (id, name, user_handle, created_at) SELECT 1, ?, ?, ? WHERE ${condition}`).bind(saved.name || "", saved.handle, at, ...(stored ? [via] : [])),
       db.prepare("INSERT INTO passkeys (id, public_key, counter, transports, created_at) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM owner WHERE id = 1 AND user_handle = ?)")
         .bind(cred.id, cred.publicKey, cred.counter, JSON.stringify(cred.transports ?? []), at, saved.handle),
@@ -344,7 +344,7 @@ async function issueSession(db: D1Database, role: "owner" | "reader", credential
   );
   else stmts.push(db.prepare("INSERT INTO reader_sessions (token_hash, reader_id, credential_id, epoch, created_at, expires_at) SELECT ?, ?, ?, auth_epoch, ?, ? FROM readers WHERE id = ? AND EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(th, extra.readerId, credential, at, expires, extra.readerId, op));
   stmts.push(db.prepare("DELETE FROM auth_operations WHERE id = ?").bind(op));
-  const results = await db.batch(stmts);
+  const results = await dailyAccessBatch(db,stmts);
   // The first write under a new-credential claim consumes its link or code.
   // D1 executes the guard, consumption and issuance in one serialized batch.
   if (results[0].meta.changes !== 1 || (extra.newCredential && results[1].meta.changes !== 1)) throw new ApiError(403, "not_verified", "This sign-in stopped working. Start again.");
@@ -404,7 +404,7 @@ export async function csrf(req: Request): Promise<string> {
 export async function createReaderInvite(db: D1Database, name: string, req?: Request) {
   const token = b64url(crypto.getRandomValues(new Uint8Array(24))), id = b64url(crypto.getRandomValues(new Uint8Array(18)));
   const op = b64url(crypto.getRandomValues(new Uint8Array(24))), at = iso(now()), expires_at = iso(new Date(Date.now() + 7 * 86400_000));
-  const result = await db.batch([
+  const result = await dailyAccessBatch(db,[
     db.prepare(`INSERT INTO auth_operations (id) SELECT ? WHERE ${req ? "EXISTS ("+OWNER_SESSION_QUERY+")" : "1"}`).bind(op,...(req ? [await hash(cookie(req,SESSION_COOKIE) ?? ""),at] : [])),
     db.prepare("INSERT INTO readers (id,name,created_at) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(id,name.slice(0,80),at,op),
     db.prepare("INSERT INTO reader_invites (token_hash,reader_id,created_at,expires_at) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM auth_operations WHERE id = ?)").bind(await hash(token),id,at,expires_at,op),
@@ -418,7 +418,7 @@ export async function listReaders(db: D1Database) {
   return (await db.prepare("SELECT r.id, r.name, r.revoked, r.created_at, i.expires_at, i.used_at, (SELECT MAX(p.last_used_at) FROM reader_passkeys p WHERE p.reader_id = r.id) AS last_signed_in FROM readers r LEFT JOIN reader_invites i ON i.reader_id = r.id ORDER BY r.created_at").all()).results;
 }
 export async function revokeReader(db: D1Database, id: string) {
-  await db.batch([
+  await dailyAccessBatch(db,[
     db.prepare("UPDATE readers SET revoked = 1, auth_epoch = auth_epoch + 1 WHERE id = ?").bind(id),
     db.prepare("DELETE FROM reader_sessions WHERE reader_id = ?").bind(id),
     db.prepare("DELETE FROM reader_invites WHERE reader_id = ?").bind(id),
@@ -450,7 +450,7 @@ export async function issueRecoveryCode(db: D1Database, code: string, hours = 24
   if (!(await hasOwner(db))) throw new ApiError(409,"unclaimed","This site has no owner yet.");
   if (code.length < 32) throw new ApiError(400,"bad_code","Use a fresh recovery code with at least 24 random bytes.");
   const expires = iso(new Date(Date.now()+hours*3600_000));
-  await db.batch([db.prepare("DELETE FROM recovery_codes"), db.prepare("INSERT INTO recovery_codes (code_hash,created_at,expires_at) VALUES (?,?,?)").bind(await hash(code),iso(now()),expires)]);
+  await dailyAccessBatch(db,[db.prepare("DELETE FROM recovery_codes"), db.prepare("INSERT INTO recovery_codes (code_hash,created_at,expires_at) VALUES (?,?,?)").bind(await hash(code),iso(now()),expires)]);
   return expires;
 }
 async function recoveryCode(db: D1Database, code: string) {
@@ -486,5 +486,5 @@ export async function recoverVerify(db: D1Database, req: Request, response: any)
 
 /** Shared cleanup for owner credential removal; session validation checks existence. */
 export async function removePasskey(db:D1Database,id:string) {
- await db.batch([db.prepare("DELETE FROM alert_subscriptions WHERE credential_id=?").bind(id),db.prepare("DELETE FROM passkeys WHERE id=?").bind(id)]);
+ await dailyAccessBatch(db,[db.prepare("DELETE FROM alert_subscriptions WHERE credential_id=?").bind(id),db.prepare("DELETE FROM passkeys WHERE id=?").bind(id)]);
 }

@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /** Owner device settings and best-effort post-commit delivery. No MCP controls. */
 import { waitUntil } from "cloudflare:workers";
 import { ApiError } from "./errors";
@@ -21,6 +22,7 @@ const hash = async (s: string) =>
   );
 const AUTH = `EXISTS (SELECT 1 FROM auth_state a JOIN owner_session_auth m ON m.epoch=a.owner_epoch JOIN sessions s ON s.token_hash=m.token_hash JOIN passkeys p ON p.id=m.credential_id WHERE a.id=1 AND m.token_hash=? AND m.credential_id=? AND m.epoch=? AND s.expires_at>?)`;
 export async function identity(db: D1Database, req: Request) {
+ return dailyAccess(async()=>{
   const token = await hash(cookie(req, "__Host-sk_owner")),
     at = new Date().toISOString();
   const row = await db
@@ -40,6 +42,7 @@ export async function identity(db: D1Database, req: Request) {
     credential_id: row.credential_id as string,
     epoch: row.epoch as number,
   };
+ });
 }
 const authArgs = (i: {
   token: string;
@@ -70,6 +73,7 @@ export async function subscribe(
   value: any,
   origin: string,
 ) {
+ return dailyAccess(async()=>{
   const who = await identity(db, req);
   let endpoint: string;
   try {
@@ -126,13 +130,16 @@ export async function subscribe(
       "Sign in again before turning alerts on.",
     );
   return id;
+ });
 }
 export async function remove(db: D1Database, req: Request, id: string) {
+ return dailyAccess(async()=>{
   const who = await identity(db, req);
   await db
     .prepare(`DELETE FROM alert_subscriptions WHERE id=? AND ${AUTH}`)
     .bind(id, ...authArgs(who))
     .run();
+ });
 }
 export async function devices(db: D1Database) {
   const rows = await db
@@ -151,12 +158,14 @@ export async function devices(db: D1Database) {
   );
 }
 export async function opened(db: D1Database, req: Request) {
+ return dailyAccess(async()=>{
   await db
     .prepare(
       "UPDATE alert_subscriptions SET opened_at=MAX(?,last_claim_at+1) WHERE id=?",
     )
     .bind(Date.now(), cookie(req))
     .run();
+ });
 }
 export function payload(title: string, origin: string) {
   return {

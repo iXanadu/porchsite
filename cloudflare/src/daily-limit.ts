@@ -71,6 +71,7 @@ export async function dailyAccess<T>(fn:()=>Promise<T>):Promise<T>{
  state.proofDepth=(state.proofDepth??0)+1;
  try{return await fn();}finally{state.proofDepth!--;}
 }
+export const dailyAccessBatch=(db:D1Database,statements:D1PreparedStatement[])=>dailyAccess(()=>db.batch(statements));
 export function dailyOwnerAuthorized(){const state=requests.getStore();if(state&&!state.proofFailed)state.authorized=true;}
 const headers={
  'Cache-Control':'private, no-store, no-transform','Referrer-Policy':'no-referrer',
