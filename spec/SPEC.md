@@ -2974,6 +2974,11 @@ content. Each eligible owner renderer must supply an explicit safe read
 projection from the same already-loaded page data and visible formatting.
 It is an alternate rendering of that GET, not a new draft API, another
 state lookup, another HTML render or a scrape of hidden protocol fields.
+Preview renderers alone run the public page Markdown converter on the same
+content-only theme HTML before adding owner controls, fence that output as
+data, and supply warnings and safe read links themselves. The named
+`ag_review_preview_public_identity` fixture compares the inner converter
+bytes with the same page’s future public `/index.md` body.
 
 The renderer supplies the only Markdown structure. Preserve the visible
 facts as engine-defined headings, labeled values, statuses, old/new groups,
