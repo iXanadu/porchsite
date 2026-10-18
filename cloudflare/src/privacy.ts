@@ -1,3 +1,4 @@
+import {dailyAccess} from './daily-limit';
 /** Access is checked before any content view or existence lookup. */
 import * as owner from "./owner";
 export const BLANK = '<!doctype html><meta name="robots" content="noindex"><title></title>';
@@ -8,13 +9,17 @@ export const BLANK_CSP = "default-src 'none'; base-uri 'none'; frame-ancestors '
 export const PRIVATE_HEADERS = {"Cache-Control":"private, no-store, no-transform"};
 export const ROLLBACK_WARNING = "This makes the site public. Older releases cannot keep this site private. Use the minimum release or a newer one, or turn private off first on purpose. Continue only after the owner explicitly agrees to make the site public.";
 export async function livePrivate(db: D1Database): Promise<boolean> {
+ return dailyAccess(async()=>{
   const row = await db.prepare("SELECT f.value FROM live l JOIN site_fields f ON f.version = l.version AND f.key = 'private' AND f.approved = 1 JOIN private_approvals a ON a.version = l.version WHERE l.item_id = 'site'").first<any>();
   return !!row && JSON.parse(row.value) === true;
+ });
 }
 export async function privateFloor(db: D1Database, release: string): Promise<string | null> {
+ return dailyAccess(async()=>{
   if (!(await livePrivate(db))) return null;
   if (/^\d{4}\.\d{2}\.\d{2}-[a-f0-9]+$/.test(release)) await db.prepare("UPDATE auth_state SET private_floor = ? WHERE id = 1 AND private_floor = ''").bind(release).run();
   return (await db.prepare("SELECT private_floor FROM auth_state WHERE id = 1").first<string>("private_floor")) || "unknown";
+ });
 }
 export async function rollbackState(db: D1Database, release: string) {
   const floor = await privateFloor(db,release);

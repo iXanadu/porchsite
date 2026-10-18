@@ -7,6 +7,7 @@ from server.app import keys,read_keys,mcp
 from .conftest import TABLES
 from .web import Mcp
 FACTS=json.loads((Path(__file__).resolve().parents[3]/'spec/fixtures/capability-facts.json').read_text())
+COSTS=json.loads((Path(__file__).resolve().parents[3]/'spec/fixtures/cost-facts.json').read_text())
 CONTRACT=json.loads(Path(__file__).with_name('cloudflare_tools.json').read_text())
 @pytest.fixture(autouse=True)
 async def clear(db):
@@ -18,8 +19,12 @@ async def test_ai5_writer_exact_prefix_only_catalog_delta(db,http,extras):
     init=(await a.rpc('initialize',{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'test','version':'1'}}))['result']
     assert init['instructions']==FACTS['previous_instructions']==mcp.INSTRUCTIONS
     tools=(await a.rpc('tools/list',{'_meta':{'fixture':True}} if extras else {}))['result']['tools']
-    prefix=FACTS['prefix']+'\n\n'
-    assert len(prefix.encode())==FACTS['prefix_bytes']<=FACTS['max_prefix_bytes']
+    original=FACTS['prefix']+'\n\n'
+    assert len(original.encode())==FACTS['prefix_bytes']
+    prefix=original+COSTS['text']+'\n\n'
+    assert len(COSTS['text'].encode())==COSTS['text_bytes']
+    assert len(prefix.encode())==COSTS['combined_prefix_bytes']<=FACTS['max_prefix_bytes']
+    assert len(prefix.encode())-len(original.encode())==COSTS['catalog_delta_bytes']
     theme=next(t for t in tools if t['name']=='theme_list')
     assert theme['description']==prefix+FACTS['previous_description']
     assert sum(FACTS['prefix'] in t['description'] for t in tools)==1

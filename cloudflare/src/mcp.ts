@@ -1,3 +1,4 @@
+import {COST_FACTS,toolDatabase,dailyTool,dailyOwnerAuthorized} from './daily-limit';
 import * as previewRead from './preview-read';
 import {previewContext} from './preview-auth';
 import * as readKeys from "./read-keys";
@@ -257,7 +258,7 @@ export const TOOL_DEFINITIONS = {
     },
   theme_list: {
       description:
-        CAPABILITY_FACTS + "\n\n" + "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Looks marked source: built-in are ready to use without installing. Set the site theme, then call theme_needs. Use theme_install only for a catalog look missing from installed, or to update one. Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
+        CAPABILITY_FACTS + "\n\n" + COST_FACTS + "\n\n" + "The site's look. Returns `my_requests` (themes this site asked the community for, each open, answered with the theme that answers it, or closed: tell your person when one is answered), `my_submissions` (looks this site shared: status, the curator's note, and, when the look claimed credit, credit: waiting, credited or not credited), `current` (the theme the site uses now, and the one waiting for approval if it differs), `installed` (themes this site has: built-in ones and ones installed from the catalog), and `catalog` (every theme you can install: name, title, type such as personal or product, description, previews to show your person, version, and author_x: the X handle of the look's maker, when the look is credited). Looks marked source: built-in are ready to use without installing. Set the site theme, then call theme_needs. Use theme_install only for a catalog look missing from installed, or to update one. Ask your person what the site is for, show them the catalog themes of that type with their previews, and let them pick.",
       inputSchema: INPUT_SCHEMAS.theme_list,
       annotations: { readOnlyHint: true },
     },
@@ -328,22 +329,22 @@ export function createToolHandlers() {
 }
 
 function registerTools(server: Pick<McpServer, "registerTool">) {
-  const db = (env as unknown as Env).DB;
+  const db = toolDatabase((env as unknown as Env).DB);
   const target=server;
   const restrictedRegistration=readKeys.restricted(toolProps());
   server={registerTool:((name:string,definition:unknown,handler:(args:any)=>Promise<any>)=>{
     if(restrictedRegistration&&!readKeys.ALLOWED.has(name))return {};
-    return target.registerTool(name as any,definition as any,async(args:any)=>{
+    return target.registerTool(name as any,definition as any,async(args:any)=>dailyTool(async()=>{
       const props=toolProps();
       try {
         await readKeys.authorize(db,props,name);
-        if(!readKeys.restricted(props))return await handler(args);
+        if(!readKeys.restricted(props)){dailyOwnerAuthorized();return await handler(args);}
         const value=name==='site_state'?await publishedRead.state(db,args,props):name==='site_check'?await publishedRead.check(db,args,String(props.origin??'')):name==='page_get'?await publishedRead.pageGet(db,args,props):name==='pages_list'?await publishedRead.pagesList(db,args,props):name==='search'?await publishedRead.search(db,args,props):null;
         if(value===null)throw new ApiError(403,'unauthorized','This read tool is not available.');
         await readKeys.used(db,props);
         return ok(value);
       } catch(error){if(error instanceof ApiError)return {content:[{type:"text",text:JSON.stringify(error.toJSON())}],isError:true};throw error;}
-    });
+    }));
   }) as McpServer['registerTool']};
   const origin = () => (toolProps() as { origin?: string }).origin ?? "";
 

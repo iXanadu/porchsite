@@ -1,0 +1,7 @@
+{
+  "text": "Cloudflare cost facts: ask which plan; never assume. Free Workers/D1 have no usage bill; daily limits reset at midnight UTC. Paid usage has no hard spending cap. Never upgrade, add payment or enable a paid feature without the owner's separate explicit yes.",
+  "text_bytes": 256,
+  "catalog_delta_bytes": 258,
+  "combined_prefix_bytes": 962,
+  "reconnect": true
+}
