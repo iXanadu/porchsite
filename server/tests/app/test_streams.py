@@ -416,3 +416,18 @@ async def test_af_combined_archive_filters_validators_and_map(db, http):
     missing = await http.get('/archive/index.md'+canonical,headers={'If-None-Match':tag})
     assert missing.status_code == 404 and 'etag' not in missing.headers
     assert '/archive/index.md' not in (await http.get('/llms.txt')).text
+
+
+async def test_ar_archive_filter_exact_end(db, http):
+    await content.create_item(db, ACTOR, 'site', {'title':'Archive site','theme':'personal-homepage','streams':streams(),'archive':{'enabled':True}}, None)
+    await publish(db, ['site'])
+    variants=[('/archive/','text/html'),('/archive/','text/markdown'),('/archive/index.md','text/markdown')]
+    for key,value in [('tag','report'),('stream','part-0')]:
+        for path,accept in variants:
+            assert (await http.get(path+'?'+key+'='+value,headers={'Accept':accept})).status_code==200
+            for ending in ['%0A','%0D%0A']:
+                for method in ['GET','HEAD']:
+                    response=await http.request(method,path+'?'+key+'='+value+ending,headers={'Accept':accept,'If-None-Match':'*'})
+                    assert response.status_code==400
+                    assert 'etag' not in response.headers and 'location' not in response.headers
+                    if method=='HEAD': assert response.content==b''

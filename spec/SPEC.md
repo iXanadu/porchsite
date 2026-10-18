@@ -140,6 +140,11 @@ never a fallback to an unfiltered list. Empty results retain the controls
 and say that no entries match. Tags use `[a-z0-9-]{1,30}`; stream ids use
 `[a-z][a-z0-9-]{0,29}`, matching item validation. Compare decoded values
 exactly; never interpret a filter as HTML, SQL, a path or a redirect.
+Match the complete decoded string, not an end anchor that can precede a
+final newline. A tag or stream ending in LF or CRLF is invalid, including
+`%0A` and `%0D%0A` in the query. Paired `ar_archive_filter_exact_end`
+checks cover HTML, negotiated Markdown and direct Markdown, GET and HEAD;
+malformed filters never gain a validator or 304. The access gate stays first.
 Reject duplicate controls, unknown parameter names, invalid tag/id syntax,
 and unsupported sort values with `400` before
 rendering; the private-content gate runs before these refusals.
