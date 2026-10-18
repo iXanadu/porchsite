@@ -2245,7 +2245,7 @@ private-site contract matrices remain required.
   database, only as its sha256 hash, with an expiry (24 hours unless the
   issuer says otherwise); issuing a stored code replaces any earlier stored
   one, and the deploy-time code keeps working beside it. Whoever installs
-  the site sends the owner a link, `/setup?code=<code>`: the page fills the
+  the site sends the owner a link, `/setup#code=<code>`: the page fills the
   code in, so the owner only adds a name and creates a passkey; no terminal.
   `/setup` answers with `Referrer-Policy: no-referrer` and
   `Cache-Control: no-store`, and its script takes the code out of the
@@ -2293,6 +2293,29 @@ never authenticate. Legacy environment credentials keep the existing
 constant-time comparison. This does not promise that database lookup,
 WebAuthn, missing/expired cases or the entire HTTP request is constant time.
 Do not expose either digest or credential through refusal text.
+
+**Claim-link transport.** Every newly issued guide, browser-installer and
+server `setup-link` URL is `/setup#code=<code>` (URL-encoded if needed), not
+a query string. The fragment is never part of the HTTP request target.
+The setup page reads only its own fragment's `code` value into the password
+input via the DOM `value` property, never HTML interpolation or execution;
+it removes fragment and query from the address bar before asynchronous work
+or submitting anything. The code travels to setup options only in the
+existing POST JSON body. If JavaScript is disabled the owner can enter the
+code manually; the page must not redirect the fragment into a query URL.
+A fragment code takes precedence over a legacy query code; neither appears
+in a redirect, resource URL, referrer, application log or third-party script.
+
+For the introducing RA-9 release only, accept the old `/setup?code=...`
+form so existing links and archived upgrade assertions keep working. New
+issuers never generate that form. At the immediately following product
+release, unclaimed `/setup` with any `code` query parameter refuses with
+`400 code_in_url`, a fixed credential-free message telling the owner to ask
+for a fresh link or enter the code manually, `no-store` and `no-referrer`.
+No query value is reflected on that refusal. Claimed sites retain their
+existing credential-free `303 /login` redirect. Record the query-removal
+follow-up in the release backlog; do not leave this compatibility window
+open indefinitely or rewrite archived previous-release assertions.
 
 **Request-URL logging.** Browser history removal and `no-referrer` do not
 remove the initial claim URL from hosting access logs. The new-install
@@ -2350,7 +2373,7 @@ refuse to issue for a claimed site. The guide generates the code and hash,
 then replaces the stored row using parameterized database queries in one
 transaction/batch, conditional on the site remaining unclaimed. It uploads
 without a setup-secret binding and sends the owner
-`/setup?code=<code>` at the final site origin. It says the link expires in
+`/setup#code=<code>` at the final site origin. It says the link expires in
 24 hours, may be reused to restart registration until the first successful
 claim, and a fresh link replaces it. No new-install secret deletion or
 secret-list check is required. Existing-site update instructions retain
@@ -2509,7 +2532,7 @@ Not part of the contract; one edition has them for how it is run.
 
 - **Server edition: `setup-link`.** `python -m server.app.cli setup-link
   [--hours N]` stores a fresh one-time setup code (§5) and prints
-  `<PORCHSITE_SITE_URL>/setup?code=<code>`, so a new link needs no settings
+  `<PORCHSITE_SITE_URL>/setup#code=<code>`, so a new link needs no settings
   change or restart. Once the site is claimed it refuses and exits 1. The
   Cloudflare edition has no admin command: its installer and new-install
   guide store a hashed code in `setup_codes` (§5, RA-9). Legacy
