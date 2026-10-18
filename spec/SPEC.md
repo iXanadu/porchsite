@@ -5206,3 +5206,77 @@ both editions must prove:
   migration compatibility and old-runtime gates. Existing CPU/rows/clock
   budgets remain; no CPU target, hosted saving or default enablement is
   declared from source analysis. Candidate selection is not acceptance.
+
+##### AF-7T-C2 amendment: advisory generation refusal before lookup
+
+This amendment applies to both editions. It permits one cheap state read
+after a visitor has failed the ordinary conditional-return branch and
+passed the existing copy eligibility, complete facts, tag and clock checks.
+It amends C2's prohibition on a separate visitor state observation only
+at this point. Both validator reads remain exact Q_F: ON304 still executes
+exactly the OFF304 statements, with no state read or artifact operation.
+OFF requests, private/session/Authorization bypass and missing pages retain
+their existing behavior. No schema, default, flag, format or preimage changes.
+
+**The observation can refuse a lookup; it cannot authorize a HIT.** Compute
+G2 from the same complete captured F and existing release/origin preimage.
+Before the atomic copy lookup, read only the singleton state columns:
+
+```sql
+SELECT generation,revision FROM public_artifact_state WHERE id=1
+```
+
+This statement has no bindings in either edition. Inspect the complete
+result shape: exactly one row, a string generation and integer revision,
+without coercion (a boolean is not an integer). An unavailable optional
+table/query or malformed result follows the existing guarded live fallback;
+no prepared response is returned. A missing singleton may continue to the
+unchanged atomic lookup so its existing missing-state branch synchronizes.
+There is no synthetic matching generation or default-true result.
+
+For a valid observed generation different from captured G2, skip the
+artifact lookup entirely. Run the existing atomic synchronize operation
+(ensure singleton, delete artifacts, install G2 and advance revision), then
+use the existing live MISS rendering and conditional admission path. Do not
+select a stored body, relookup, return a copy or treat synchronization as
+freshness proof. No new early response or weaker live-render check is added.
+
+For an observed matching generation, execute C2's entire atomic lookup
+unchanged: complete current Q_F0 and captured raw tuples, materialized
+grouped counts, both EXCEPT directions with multiplicity, fresh singleton
+state observation and guarded key/G2 body join in one statement snapshot.
+The preliminary match is not passed as proof to SQL and cannot replace its
+state relation, generation predicate or any tuple check. Returned facts_ok,
+ok and body retain their existing validation and branch priority. State
+remains excluded from raw dependencies, F, both hashes, clocks and output.
+
+**Races remain refusals.** A generation change after a preliminary match
+is observed by the atomic lookup, which withholds the body and runs C2's
+existing mismatch branch. An old-runtime source edit without a state bump
+still fails the lookup's complete counted two-way tuple proof. A change
+after a preliminary mismatch cannot cause stale-copy delivery because that
+branch never reads or serves a copy. Synchronizing an already superseded
+G2 does not authorize insertion: the final conditional INSERT still proves
+the complete captured tuples in both directions and matching generation
+in the same statement. A source/state race rejects stale admission. All
+existing render/tag equality, privacy, origin, metadata/body SHA, exclusive
+expiry and AF-7L clock checks remain at their existing boundaries; D1 batch
+atomicity, PostgreSQL singleton locks, quotas and rollback remain unchanged.
+Preparation leases and the preparation-only state-aware helper are unchanged.
+
+**Acceptance for this amendment.** Both editions must cover valid mismatch
+skipping lookup with purge and complete live body/tag equality; matching
+observation followed by state drift at the actual lookup; unchanged-state
+old-runtime tuple drift; missing/malformed/unavailable state; and mutation
+controls proving that the lookup's G2 and counted tuple guards remain
+effective. Preserve prior strict old-runtime/private assertions. ON304
+versus OFF304 SQL text, bindings, order, statement count and rows must
+remain identical, with and without a stored copy and with optional tables
+absent. The extra observation must be absent from those 304s.
+
+Re-measure only generation-mismatch cold, ON304 and certified HIT diagnostic
+cells on the same labeled small substitute and unchanged 200-entry fixture,
+retaining prior results, query-level rows read/written, statements and plans.
+Report the extra state-read cost on a HIT and any remaining cold increase;
+do not infer net savings from a skipped proof alone. CPU measurement stays
+on hold until this amendment is reviewed and its row comparison is complete.
