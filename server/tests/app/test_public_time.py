@@ -87,3 +87,15 @@ def test_af_time_complete_registry():
 def test_af_time_naive_clock_keeps_existing_utc_convention():
     from server.spec.blocks import local_now
     assert local_now(datetime(2026,10,19,8), 'America/New_York')==local_now(datetime(2026,10,19,8,tzinfo=UTC), 'America/New_York')
+
+def test_af_time_lazy_artifact(monkeypatch):
+    from unittest.mock import Mock
+    from server.spec import public_time_clock as clock
+    f=facts();now=ms('2026-10-19T08:00Z')
+    unread=Mock(side_effect=AssertionError('quiet site must not read zone payload'))
+    monkeypatch.setattr(clock,'clock_data',unread)
+    assert public_time.plan(f,C,now)['kind']=='static'
+    d=datetime.fromtimestamp(now/1000,UTC)
+    hours_view(None,'UTC',d);notice_view(None,'UTC',d);event_view(None,'UTC',d)
+    unread.assert_not_called()
+    assert isinstance(json.loads(Path(clock.__file__).with_name('public-time-zones.json').read_text()),str)

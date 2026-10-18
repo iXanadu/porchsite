@@ -33,4 +33,6 @@ for name in sorted(available_timezones()):
 version = next((Path(d, '+VERSION').read_text().strip() for d in _tzpath.TZPATH if Path(d, '+VERSION').exists()), 'unknown')
 if version == 'unknown':
     raise SystemExit('A source tzdb +VERSION is required')
-(root/'server/server/spec/public-time-zones.json').write_text(json.dumps(dict(version=version,start=START,zones=names,rules=[json.dumps(r,separators=(',',':')) for r in rules]),separators=(',',':'))+'\n')
+payload=json.dumps(dict(version=version,start=START,zones=names,rules=[json.dumps(r,separators=(',',':')) for r in rules]),separators=(',',':'))
+# The bundler imports one inert string; even the zone index is lazy.
+(root/'server/server/spec/public-time-zones.json').write_text(json.dumps(payload,separators=(',',':'))+'\n')

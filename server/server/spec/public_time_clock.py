@@ -3,13 +3,16 @@ import json
 from functools import lru_cache
 from datetime import UTC, datetime
 from pathlib import Path
-DATA=json.loads(Path(__file__).with_name('public-time-zones.json').read_text())
+@lru_cache(maxsize=1)
+def clock_data():
+    return json.loads(json.loads(Path(__file__).with_name('public-time-zones.json').read_text()))
 
 @lru_cache(maxsize=8)
 def decoded(i):
-    return json.loads(DATA['rules'][i])
+    return json.loads(clock_data()['rules'][i])
 
 def rules(zone,now):
+    DATA=clock_data()
     i=DATA['zones'].get(zone)
     r=decoded(i) if i is not None else None
     return r if r and DATA['start']*1000<=now<r[0]*1000 else None

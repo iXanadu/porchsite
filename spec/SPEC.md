@@ -2438,7 +2438,10 @@ explicit finite UTC coverage interval per zone. Within that interval, both
 use its exact offsets and transition instants, independent of host ICU or
 zoneinfo updates. Outside coverage the existing live renderer remains
 available, but clock-dependent public validators/storage are unknown.
-The artifact records its source tzdb version and is regenerated from TZif;
+The artifact is an inert bundled string: its index and selected timeline
+are parsed only when a clock-dependent producer needs them. Sites with no
+time inputs do not read or parse it. It records its source tzdb version and
+is regenerated from TZif;
 no sampled-offset or minute-by-minute search substitutes for transitions.
 
 The cheap facts statement may project required event endpoints/selection
