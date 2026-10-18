@@ -135,6 +135,18 @@ def main():
                 raise RuntimeError(f'{edition} {path}: unexpected HTTP {status}')
             if path == '/':
                 etag = next((v for k, v in headers.items() if k.lower() == 'etag'), None)
+        # Native Response maps miss runtime framing changes. Check actual HTTP:
+        # RFC 9110 §8.6 forbids even Content-Length: 0 on a 204.
+        for case, authorization in [('absent', None), ('writer', 'Bearer psk_invalid'),
+                                    ('reader', 'Bearer prk_invalid'), ('oauth', 'Bearer owner:missing:token'),
+                                    ('malformed', 'Bearer one two')]:
+            status, headers, body = request(base, '/mcp',
+                {'Authorization': authorization} if authorization else {}, method='OPTIONS')
+            records.append({'edition': edition, 'method': 'OPTIONS', 'path': '/mcp',
+                            'credential_case': case,
+                            'status': status, 'bytes': len(body), 'headers': headers})
+            if status != 204 or body or any(k.lower() == 'content-length' for k in headers):
+                raise RuntimeError(f'{edition} MCP preflight must be an empty 204 without Content-Length')
         if not etag:
             raise RuntimeError(f'{edition} home has no public validator')
         status, headers, body = request(base, '/', {'If-None-Match': etag})

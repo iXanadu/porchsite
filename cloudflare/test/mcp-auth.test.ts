@@ -113,6 +113,7 @@ it("mcp_auth_preflight_identity: no credential oracle or storage access", async 
   for(const auth of credentials) {
     const response = await worker.fetch(request(auth,"OPTIONS"),{...e,DB:noStorage,OAUTH_KV:noStorage} as Env,context());
     expect(response.status).toBe(preflight.status);
+    expect(response.headers.has("Content-Length")).toBe(false);
     expect(await response.text()).toBe(preflight.body);
     expect(Object.fromEntries(response.headers)).toEqual({...preflight.headers,"x-porchsite-release":RELEASE});
   }

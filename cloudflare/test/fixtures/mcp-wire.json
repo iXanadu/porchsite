@@ -665,7 +665,6 @@
       "access-control-expose-headers": "mcp-session-id, WWW-Authenticate",
       "access-control-max-age": "86400",
       "cache-control": "private, no-store, no-transform",
-      "content-length": "0",
       "x-porchsite-release": "dev"
     },
     "body": ""
