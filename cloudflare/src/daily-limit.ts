@@ -78,7 +78,7 @@ function response(req:Request,state:State){
  out.headers.set('X-Porchsite-Release',RELEASE);return out;
 }
 /** Required failures survive broad internal fail-closed/render catches. */
-export function toolDatabase(fallback:D1Database){return requests.getStore()?.db??dailyDatabase(fallback);}
+export function toolDatabase(fallback:D1Database){return requests.getStore()?.db??fallback;}
 export function dailyRequest(req:Request,db:D1Database,fn:(db:D1Database)=>Promise<Response>):Promise<Response>{
  return requests.run({db:dailyDatabase(db)},async()=>{
   const state=requests.getStore()!;
