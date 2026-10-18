@@ -1,4 +1,4 @@
-from . import read_keys,published_read
+from . import read_keys,published_read,preview_read
 """The assistant's tools (SPEC §4), served at /mcp over streamable HTTP. Every
 tool goes through content.py and approvals.py; none of them can publish (S1).
 Port of cloudflare/src/mcp.ts on the mcp SDK's low-level server, so each
@@ -58,6 +58,7 @@ changed for this request; site_check first) -> give the owner the review_url -> 
 Finish the whole job first and send it as one request, then tell your person at once:
 your drafts are invisible to them until you do.
 On a new site, if site_state lists no site item, call item_create with kind: "site" and the site fields (including theme); use item_update only after that item exists.
+preview_read can inspect one still-pending approval as an inert copy over this connection; it is not an openable browser preview.
 Never put passwords, keys, tokens or private addresses in content; the site refuses them.
 The look: theme_list (built-in looks are ready to use; the catalog has previews) ->
 set the site item's theme -> theme_needs (the art and words that theme wants, and which
@@ -299,7 +300,7 @@ def _tools() -> list[dict[str, Any]]:
         },
         {
             "name": "approval_request",
-            "description": "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; there is no preview link for you). Nothing goes live until they approve.",
+            "description": "Ask the owner to approve items you created, changed or removed (state new, changed, removed or removal staged in site_state). List only the ids for this request; an id with no unapproved change is refused. A newer request for an item replaces it in any older request. Returns id and review_url: give the review_url to the owner (it opens only for them, after they sign in; preview_read can inspect its pending proposal here, but grants no browser preview link). Nothing goes live until they approve.",
             "inputSchema": _obj(
                 {
                     "ids": {
@@ -312,6 +313,12 @@ def _tools() -> list[dict[str, Any]]:
                 },
                 ["ids"],
             ),
+        },
+        {
+            "name": "preview_read",
+            "description": 'Inspect one pending approval as a bounded, inert proposed page over this drafting connection. Defaults to Markdown; optional HTML is a structural copy without CSS, images, scripts, forms or fetchable links. Nothing is published. No browser preview URL or owner authority is granted.',
+            "inputSchema": {**_obj({"approval_id":{"type":"string","pattern":r"^[A-Za-z0-9_-]{8,40}$(?![\s\S])"},"path":{"type":"string","maxLength":2048,"default":"/"},"format":{"type":"string","enum":["markdown","html"],"default":"markdown"}},["approval_id"]),"additionalProperties":False},
+            "annotations": {"readOnlyHint":True,"destructiveHint":False},
         },
         {
             "name": "approval_status",
@@ -564,6 +571,9 @@ def create_server(pool: Callable[[], Db], release: Callable[[], str], published_
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         name = params.name
+        preview_request=getattr(ctx,'request',None)
+        if name=='preview_read' and preview_request:
+            preview_request.scope.get('porchsite.preview_state',{})['preview']=True
         if name not in _BY_NAME:
             raise MCPError(-32602, f"Tool {name} not found")
         args, refused = parse_args(name, params.arguments)
@@ -572,6 +582,8 @@ def create_server(pool: Callable[[], Db], release: Callable[[], str], published_
         request = getattr(ctx, "request", None)
         props: dict[str, Any] = (request.scope.get("porchsite.props") if request else None) or {}
         try:
+            if name=='preview_read' and not read_keys.restricted(props):
+                return await _run(lambda:preview_read.read(pool(),args,request.scope.get('porchsite.preview') if request else None))
             return await _call(pool(), name, args, props, release())
         except Exception as e:
             log.exception("tool %s failed", name)

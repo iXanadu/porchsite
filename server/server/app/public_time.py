@@ -13,7 +13,7 @@ def stable(value):
 def shift(date,days):
     return (datetime.fromisoformat(date)+timedelta(days=days)).date().isoformat()
 
-def plan(f,c,now=None):
+def plan(f,c,now=None,cacheable=True):
     now=time.time()*1000 if now is None else now
     empty=dict(kind='static',state=[],next_change=None,at=now)
     if not f['themed'] or c['base']=='/archive/' or c['kind'] not in ('html','markdown'):
@@ -32,7 +32,7 @@ def plan(f,c,now=None):
     r=rules(zone,now);local=wall(now,zone)
     if r is None or local is None:
         return unknown
-    key=stable([s['theme'],[r for r in f['rows'] if r[0]=='theme'],zone,hours,notice,events,c['base'],c['kind']]);cached=CACHE.get(key)
+    key=stable([s['theme'],[r for r in f['rows'] if r[0]=='theme'],zone,hours,notice,events,c['base'],c['kind']]);cached=CACHE.get(key) if cacheable else None
     if cached and now>=cached['at'] and cached['next_change'] is not None and now<cached['next_change']:
         return {**cached,'at':now}
     try:
@@ -66,9 +66,9 @@ def plan(f,c,now=None):
             if stable(state_at(at))!=encoded:
                 next_change=at;break
         result=dict(kind='bounded',state=state,next_change=next_change,at=now)
-        if len(CACHE)>=32:
+        if cacheable and len(CACHE)>=32:
             del CACHE[next(iter(CACHE))]
-        CACHE[key]=result
+        if cacheable: CACHE[key]=result
         return result
     except (ValueError,TypeError,KeyError,OverflowError):
         return unknown

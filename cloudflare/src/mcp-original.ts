@@ -1,3 +1,4 @@
+import {markPreviewRead} from './preview-auth';
 /** Original SDK handler and JSON-only adapter, with a same-origin browser boundary. */
 import { createMcpHandler } from "agents/mcp/server";
 import { createServer } from "./mcp";
@@ -38,4 +39,7 @@ async function mcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Respo
   out.delete("Content-Length");
   return new Response(messages.length === 1 ? messages[0] : `[${messages.join(",")}]`, { status: res.status, headers: out });
 }
-export { mcp as originalMcp };
+export async function originalMcp(req:Request,env:Env,ctx:ExecutionContext){
+ if(env.PUBLIC_ARTIFACTS==='1'&&req.method==='POST'){try{const body=await req.clone().json() as any;if((Array.isArray(body)?body:[body]).some(call=>call?.method==='tools/call'&&call.params?.name==='preview_read'))markPreviewRead();}catch{}}
+ const result=await mcp(req,env,ctx),response=new Response(result.body,result);response.headers.set("Cache-Control","private, no-store, no-transform");return response;
+}

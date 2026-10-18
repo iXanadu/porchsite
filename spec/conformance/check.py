@@ -80,7 +80,7 @@ def run(site: Site) -> None:
     tools = site.rpc("tools/list").get("result", {}).get("tools", [])
     names = {t["name"] for t in tools}
     need = {"site_state", "item_create", "item_update", "item_remove", "item_history",
-            "item_rollback", "approval_request", "approval_status"}
+            "item_rollback", "approval_request", "approval_status", "preview_read"}
     check("the spec's tools are all there", need <= names, f"missing {sorted(need - names)}")
 
     # S1: no way to publish

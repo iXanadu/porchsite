@@ -48,7 +48,7 @@ export async function revoke(db: D1Database, id: string): Promise<void> {
 }
 
 /** The assistant a key stands for, or null when it's unknown, revoked or expired. */
-export async function lookup(db: D1Database, token: string): Promise<{ client: string; clientId: string } | null> {
+export async function lookup(db: D1Database, token: string, observe=true): Promise<{ client: string; clientId: string } | null> {
   if (!token.startsWith(PREFIX)) return null;
   const now = new Date().toISOString();
   const row = await db
@@ -56,6 +56,6 @@ export async function lookup(db: D1Database, token: string): Promise<{ client: s
     .bind(await hashOf(token), now)
     .first<{ id: string; name: string }>();
   if (!row) return null;
-  await db.prepare("UPDATE assistant_keys SET last_used_at = ? WHERE id = ?").bind(now, row.id).run();
+  if(observe)await db.prepare("UPDATE assistant_keys SET last_used_at = ? WHERE id = ?").bind(now, row.id).run();
   return { client: row.name, clientId: `key:${row.id}` };
 }

@@ -61,7 +61,7 @@ async def revoke(db: Db, id: str) -> None:
     )
 
 
-async def lookup(db: Db, token: str) -> dict[str, str] | None:
+async def lookup(db: Db, token: str, observe=True) -> dict[str, str] | None:
     """The assistant a key stands for, or None when it's unknown, revoked or expired."""
     if not token.startswith(PREFIX):
         return None
@@ -73,5 +73,6 @@ async def lookup(db: Db, token: str) -> dict[str, str] | None:
     )
     if not row:
         return None
-    await db.execute("UPDATE assistant_keys SET last_used_at = $1 WHERE id = $2", now, row["id"])
+    if observe:
+        await db.execute("UPDATE assistant_keys SET last_used_at = $1 WHERE id = $2", now, row["id"])
     return {"client": row["name"], "clientId": f"key:{row['id']}"}

@@ -671,13 +671,12 @@ No migration is needed. Older runtimes ignore the presentation selector and
 retain their ordinary Readers page and existing recovery semantics. Returning
 to the new runtime must not restore any removed reader, session or invite.
 
-### S4-7: authenticated assistant preview copies (proposed)
+### S4-7: authenticated assistant preview copies
 
 Both editions add `preview_read` to the existing authenticated writer MCP
 catalog. It returns a mechanical read-only copy of one proposed page before
 owner approval. It does not publish, approve, change item readiness or confer
-owner authority. This contract requires security review first, then parity/
-correctness review; no implementation before both pass. The separate S4-7B
+owner authority. The separate S4-7B
 openable browser preview remains deferred and requires explicit owner consent
 per writer connection. This section designs no URL transport or capability.
 
@@ -731,7 +730,8 @@ The body limit is 256 KiB UTF-8; the entire compact JSON payload is at most
 never a truncated document, partial result or attachment/public-store fallback.
 One call renders one page; no recursive crawl, all-pages option, pagination,
 client-specified body limit, arbitrary resource fetch or binary media export.
-The transport keeps its authenticated no-store policy on success and error;
+Authenticated MCP responses in both editions use
+`Cache-Control: private, no-store, no-transform`, on success and error;
 `content_type` describes the JSON body field, not a new fetchable document.
 Tool annotations are readOnlyHint=true and destructiveHint=false: this phase
 mints no transferable credential and mutates no content or capability state.
@@ -787,6 +787,11 @@ may pin the new approved baseline. "Pinned" is per invocation, not a promise
 that two later calls retain an old baseline. If authentication was revoked,
 the authorization refusal takes precedence over a content-change error.
 No persistent graph, snapshot body or cross-request render/auth cache is added.
+Proposed time plans and template writers remain request-local; they do not
+populate the public plan cache or the shared installed-template parse cache.
+A legacy local hero with missing dimensions may use a captured, read-only
+64 KiB header prefix; an unprovable size refuses rather than decoding pixels,
+backfilling dimensions or returning an invented size.
 
 #### Allowed pages and inert representation
 
@@ -853,6 +858,8 @@ analytics visit, UC9 event, AF-7 artifact, Cache API, KV body store, service
 worker copy or static prebuild is created. Render/image-size inspection must
 not write metadata or invalidate public copies. Only the existing inherited
 writer-auth last-used accounting may write; disclose it separately in counts.
+The post-MCP public-copy preparation hook skips preview calls, including
+refusals; inspecting a pending approval never schedules a public fill.
 No content publication, approval freshening write, new schema or migration is
 needed. Requests and returned owner text cannot enable any feature flag.
 
@@ -1201,6 +1208,7 @@ replacement, so a refresh whose answer was lost can be retried.
 | `item_history(id)` | Every version, who made it, why |
 | `item_rollback(id, to_version, version)` | Stage an earlier version as a new one |
 | `approval_request(ids, note)` | Ask the owner; returns a review link (S1, S2) |
+| `preview_read(approval_id, path?, format?)` | Writer-only inert inspection of one pending approval; bounded HTML or Markdown, no publication or browser URL (S4-7) |
 | `approval_status(approval_id?)` | `pending` / `published` / `changes_requested` (with the owner's note) / `denied` / `superseded` |
 | `image_add(data?, images?)` | Exactly one of `data` (one base64 picture, existing response) or `images` (1–8 base64 pictures). JPEG, PNG or WebP, at most 8 MiB each and 8 MiB decoded in total. Sniff every file and store all or none by content hash. `images` returns `{images: [{image, width, height}, ...], next}` in input order; duplicates repeat in the answer but are stored once. Private until a published item uses it (S7) |
 | `site_check` | Check the proposed site before asking for approval. With no arguments (or `deep: false`), returns only `ok`, `broken` (declared internal links to no page, populated home-page section or stored picture, each with where and why), and `empty_sections`; `ok` is true when `broken` is empty. This quick check does not render pages. `deep: true` also crawls rendered links from home and returns `unreachable`, entries with no path, each `{id, why}`, plus `crawl` if a limit stops it. Deep `ok` requires a complete target proof (including an empty target set) and empty `broken` and `unreachable`. Read-only. Run deep once before approval on a new site or look change; it is heavy and can exceed Cloudflare Free CPU limits on big sites |

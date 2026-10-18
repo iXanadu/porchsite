@@ -31,8 +31,6 @@ Found building a single-property listing site on the live release.
 - **S4-4B** OPEN (only when asked, after browser push ships and is tested):
   approval alerts by email for the server edition and owners using their
   own domain. No paid mail-service path for hosted default-domain owners.
-- **S4-7** IN-PROGRESS (spec review): authenticated writer MCP preview of
-  the pinned approval proposal; no browser URL or new audience. Security first.
 - **S4-7B** OPEN: an openable visual preview for the assistant. Requires
   owner consent per writer connection and a separately reviewed capability;
   the authenticated MCP inspection copy does not complete this browser goal.

@@ -7,7 +7,7 @@ export const REGISTRY=['hours','notice','event'] as const;
 const cache=new Map<string,Plan>();
 const stable=(v:any):string=>JSON.stringify(v,(_k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(k=>[k,x[k]])):x);
 const shift=(date:string,days:number)=>new Date(Date.parse(date+'T12:00Z')+days*86400000).toISOString().slice(0,10);
-export function plan(f:Facts,c:Choice,now=Date.now()):Plan{
+export function plan(f:Facts,c:Choice,now=Date.now(),cacheable=true):Plan{
  const empty:Plan={kind:'static',state:[],next_change:null,at:now};
  // These builders do not call themed blocks, even when another page does.
  if(!f.themed||c.base==='/archive/'||!['html','markdown'].includes(c.kind))return empty;
@@ -18,7 +18,7 @@ export function plan(f:Facts,c:Choice,now=Date.now()):Plan{
  const events=f.entries.filter(e=>e.endpoint&&(selected?e.id===selected.id:stream?e.streamId===stream.id&&(!tag||e.tags.includes(tag)):c.base==='/'&&sections.has(e.streamId))).map(e=>[e.id,e.endpoint]);
  if(!hours&&!notice&&!events.length)return empty;
  const unknown:Plan={kind:'unknown',state:null,next_change:null,at:now},r=rules(zone,now),local=wall(now,zone);if(!r||!local)return unknown;
- const key=stable([s.theme,f.rows.filter((r:any)=>r[0]==='theme'),zone,hours,notice,events,c.base,c.kind]),cached=cache.get(key);
+ const key=stable([s.theme,f.rows.filter((r:any)=>r[0]==='theme'),zone,hours,notice,events,c.base,c.kind]),cached=cacheable?cache.get(key):undefined;
  if(cached&&now>=cached.at&&cached.next_change!==null&&now<cached.next_change)return {...cached,at:now};
  try{
   const stateAt=(at:number)=>{const n=wall(at,zone);if(!n)throw Error('unsupported clock');return [hours?hoursView(hours,zone,new Date(at)):null,notice?noticeView(notice,zone,new Date(at)):null,events.map(([id,end])=>[id,String(end)<n.date+'T'+n.time])];};
@@ -37,7 +37,7 @@ export function plan(f:Facts,c:Choice,now=Date.now()):Plan{
    if(stable(stateAt(at))!==encoded){next=at;break;}
   }
   const result:Plan={kind:'bounded',state,next_change:next,at:now};
-  if(cache.size>=32)cache.delete(cache.keys().next().value!);cache.set(key,result);return result;
+  if(cacheable){if(cache.size>=32)cache.delete(cache.keys().next().value!);cache.set(key,result);}return result;
  }catch{return unknown;}
 }
 export const valid=(p:Plan,now=Date.now())=>p.kind!=='unknown'&&now>=p.at&&(p.next_change===null||now<p.next_change);
