@@ -96,6 +96,22 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    provenance without per-call closures. Hosted /collect CPU from Hand
    decides; above the 10 ms mean, fix before other work.
 
+9. **AF-8** OPEN (owner, 2026-10-18, from his agent-friendly article):
+   robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
+   turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
+   Google-Extended Disallow groups). Make the tiers explicit always:
+   named groups for search crawlers, user-triggered agents and training
+   crawlers, with the training group Allow or Disallow per the owner's
+   choice. Make the existing training switch discoverable: owners don't
+   know it exists (it's in INSTALL.md only), so it should appear in the
+   assistant guide, in site_state for assistants, and on /review.
+10. **PERF-11** OPEN (GATE-2a, 2026-10-18): with prepared copies on, an owner
+   approval of 200 entries reads about 1.12 million rows (609 writes),
+   including the background copy preparation, against 2,060 with copies
+   off. One such approval uses about a fifth of the account's free 5
+   million daily reads. Same on a55686c, so not a regression. Attribute and
+   cut, or prepare copies lazily on the first view instead of on approval.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
