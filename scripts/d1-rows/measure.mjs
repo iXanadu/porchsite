@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { statements } from './sql-statements.mjs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { CLOCK, ORIGIN, COMPATIBILITY, HEADERS, hash } from './fixtures.mjs';
@@ -19,8 +20,8 @@ export async function measure({ root, out, bundle, migrations, corpus, source, i
         await mf.ready;
         const database = await mf.getD1Database('DB');
         for (const file of fs.readdirSync(migrations).filter(file => file.endsWith('.sql')).sort()) {
-          const sql = fs.readFileSync(path.join(migrations, file), 'utf8').replace(/--[^\n]*/g, '');
-          for (const statement of sql.split(';').map(value => value.trim()).filter(Boolean)) await database.prepare(statement).run();
+          const sql = fs.readFileSync(path.join(migrations, file), 'utf8');
+          for (const statement of statements(sql)) await database.prepare(statement).run();
         }
         await database.exec(site.sql);
         assert.equal(await database.prepare('SELECT count(*) n FROM public_artifacts').first('n'), 0, 'artifact seed must be empty');
