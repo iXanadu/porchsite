@@ -90,6 +90,10 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
     }
     // Which release is running, on every answer.
     const out = new Response(res.body, res);
+    if (req.method === "OPTIONS" && out.status === 204 && [
+      "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/mcp", "/oauth/token", "/oauth/register",
+    ].includes(u.pathname)) out.headers.delete("Content-Length");
     out.headers.set("X-Porchsite-Release", RELEASE);
     return out;
 }

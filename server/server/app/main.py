@@ -205,7 +205,7 @@ class App:
         if not (is_meta or is_resource or is_token or is_register):
             return None
         if m == "OPTIONS":
-            return _cors(Response(None, status_code=204, headers={"Content-Length": "0"}))
+            return _cors(Response(None, status_code=204))
         origin = self.origin(req)
         if is_meta or is_resource:
             if m not in ("GET", "HEAD"):
