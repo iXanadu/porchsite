@@ -21,8 +21,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    the site data 22%, building the page from the theme 14%, setting up
    sign-in handling that a public page never uses 12%, garbage collection
    9%. Cuts, smallest first:
-   - **PERF-6a** OPEN: build the sign-in handler only for routes that use
-     it; public pages skip it. Same gate, same OAuth/MCP behaviour.
    - **PERF-6b** OPEN: the same request checks the site data twice (when
      reading the facts and again for the page). Check once, keeping every
      freshness, access and clock check.
