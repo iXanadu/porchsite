@@ -3245,6 +3245,229 @@ Paired test plan (both editions):
   copies, then hosted sparse ON/OFF CPU/rows/write evidence. Never substitute
   wrapper initialization or a locally warmed result for first-request CPU.
 
+#### AF-7T-C1: facts transport and grouped proof costs
+
+This contract defines two bounded cuts in both editions. It does not
+authorize a larger stored-closure design, default enablement or an unmeasured
+performance claim.
+All AF-7T access, identity, clock, metadata, admission and fallback rules
+above continue to apply. There is no schema, index, trigger, flag, format,
+key, tool, scope, route or header change. No client reconnect is required.
+
+**Cut 1: one state transport row.** Let `Q_F` be the existing ordered
+`FACTS_SQL` statement, including its complete category/identity/raw-value
+projection and terminal category/identity ordering. The artifacts-off facts
+query remains `Q_F`, with exactly its existing output, decoding and query
+count. Only the artifacts-on facts/state transport changes. In one statement
+and one database snapshot, return all existing dependency rows plus at most
+one reserved state row, instead of adding the same generation/revision
+columns to every dependency row. D1's shape is:
+
+```sql
+WITH dependency_facts AS (<Q_F>)
+SELECT category,ident,value FROM (
+  SELECT category,ident,value FROM dependency_facts
+  UNION ALL
+  SELECT 'artifact_state','site',json_array(generation,revision)
+    FROM public_artifact_state WHERE id=1
+) AS transport_rows ORDER BY category,ident
+```
+
+PostgreSQL uses the same shape, replacing the state value expression with
+`json_build_array(generation,revision)::text` and the outer ordering with
+`ORDER BY category COLLATE "C",ident COLLATE "C"`. `Q_F` is that edition's
+unchanged facts SQL, not a new reduced set of dependencies. The reserved
+category `artifact_state` is transport-only and cannot be produced by the
+engine's dependency relation. There is one statement, not a state fetch
+followed by a facts fetch or two separately timed reads hidden in a helper.
+
+Split out the reserved row before calling the existing decoder or constructing
+captured raw tuples. Its value is exactly `[generation,revision]`; expose those
+two values as the existing request-local state observation. Decode every
+remaining dependency row exactly as before, preserving its category/identity
+ordering, raw value text and multiplicity. The reserved row must never enter
+F, its canonical encoding, captured raw facts, AF-2 ETag, G2, selected resource,
+clock input, approved-view proof or a public response. No source, event,
+privacy/training receipt, media/share/theme tuple or extension is omitted.
+
+An absent state row means the existing missing-state case, not an eligible
+HIT. A malformed/duplicate reserved row cannot authorize stored bytes; use
+the existing safe unavailable-state/live path. If the optional state query
+is unavailable, retain the existing fallback to the ordinary facts query;
+never fabricate a matching generation or bypass fresh access/facts checks.
+Empty sites, an empty dependency relation, private sites and missing state
+retain the existing refusal/synchronization behavior. Generation/revision
+remain observations, never authority or normalized dependency inputs.
+
+On a fixed synthetic 200-entry fixture this transport has 203 dependency
+rows plus one state row and 46,427 bytes of serialized result JSON, versus
+65,178 bytes with repeated state columns. This is a fixture byte count, not
+a CPU, hosted, database-billing or universal site-size saving. It leaves
+source-table dependency coverage unchanged. Record native D1 rows-read and
+returned bytes; an extra result row is not a hidden extra statement.
+
+**Cut 2: group each proof relation once.** Define `Q_F0` as exactly `Q_F`
+without its one terminal category/identity `ORDER BY`; every SELECT, UNION
+ALL, join, predicate, dependency value and raw encoding remains unchanged.
+Do not remove ordering from the normal facts query or change the F encoding.
+Only this inner relation used for multiset equality is unordered. Define the
+expected relation from the complete captured raw tuple list, as today:
+
+```sql
+-- D1 expected relation; bind the existing captured engine JSON.
+SELECT json_extract(value,'$[0]') AS category,
+       json_extract(value,'$[1]') AS ident,
+       json_extract(value,'$[2]') AS value FROM json_each(?)
+-- PostgreSQL expected relation; same captured JSON, current $1 binding.
+SELECT e->>0 AS category,e->>1 AS ident,e->>2 AS value
+  FROM json_array_elements($1::json) e
+```
+
+The common proof CTE shape for lookup and admission is:
+
+```sql
+WITH current_facts AS (<Q_F0>),
+expected AS (<edition-specific expected relation above>),
+current_counts AS MATERIALIZED (
+  SELECT category,ident,value,count(*) AS n FROM current_facts
+    GROUP BY category,ident,value
+),
+expected_counts AS MATERIALIZED (
+  SELECT category,ident,value,count(*) AS n FROM expected
+    GROUP BY category,ident,value
+),
+proof AS (
+  SELECT NOT EXISTS (
+    SELECT category,ident,value,n FROM current_counts
+    EXCEPT SELECT category,ident,value,n FROM expected_counts
+  ) AND NOT EXISTS (
+    SELECT category,ident,value,n FROM expected_counts
+    EXCEPT SELECT category,ident,value,n FROM current_counts
+  ) AND EXISTS (
+    SELECT 1 FROM public_artifact_state
+      WHERE id=1 AND generation=<existing generation parameter>
+  ) AS ok
+)
+<existing guarded artifact SELECT or conditional admission INSERT>
+```
+
+The existing D1 positional generation/key bindings and PostgreSQL `$2`
+generation and subsequent bindings retain their meanings; do not turn them
+into SQL interpolation. The final lookup still LEFT JOINs the exact key/G2
+only when `proof.ok` is true, returning at most one stored row. Admission
+still conditions its INSERT on that same statement's proof, exclusive
+expiry, row/body/metadata caps and existing eligibility checks. This CTE is
+not executed separately from selection/admission. Materialized counts are
+statement-local, never a persisted cache or a second captured snapshot.
+
+Both EXCEPT directions and `count(*)` are mandatory. Exact raw category,
+identity and value comparisons, original SQL types/collations and grouped
+multiplicity remain; no DISTINCT-only proof, row-count-only check, version
+maximum, timestamp, counter, digest shortcut or signed-count rewrite is
+selected. Grouping once is the same multiset comparison as grouping twice.
+Removing the inner ordering is safe only because neither EXCEPT direction
+depends on input row order. Removing only that sort, without materialized
+grouped counts, is not this selected cut: it may repeat the source scan.
+
+An unaware old runtime's in-place source, membership, extension, selected
+media/theme or privacy change still changes current tuples even if generation
+and revision are unchanged. Either direction/count mismatch fails the proof;
+no old stored bytes are returned or admitted. Preserve the existing failed
+proof cleanup and bounded refresh/live-denial path. Final access, existence,
+fresh-facts, exact-source/version, AF-7L clock, origin, body-integrity and
+metadata checks run at the same boundaries as AF-7T. No check is removed on
+HIT, clean/repair/expired/corrupt MISS, HEAD, 304, private/session bypass,
+mutation, preparation, retry, old-runtime fallback or rollback/return.
+
+**Digest identity and scope.** AF-2 remains SHA-256 of its existing compact
+JSON `[F,release,requestOrigin,pathQuery,contentType,trainingSignal,clock]`;
+G2 remains SHA-256 of `["public-artifacts/2",release,configuredOrigin,F]`.
+These are different complete messages, not two derivations of one digest.
+The single-digest idea is rejected. A request may share the exact canonical
+F serialization/UTF-8 representation only if inserting it at each original
+position yields byte-identical complete preimages; both SHA calls remain.
+No preimage field, namespace, ordering, UTF-8 encoding, dep1/key format or
+stored-body SHA changes. This optional allocation reuse is not a third
+proof change and has no assumed CPU saving. Existing new-format artifacts
+remain compatible with both old and new runtimes; no migration or purge is
+required merely for these transport/query changes.
+
+**Acceptance, before release.** Paired tests and shared fixtures must cover:
+
+- `af_c1_state_once`: D1/PostgreSQL state-row shapes, 0/1/203 dependency rows,
+  missing state/table, malformed/duplicate transport state and generation
+  mismatch; after extraction, exact raw tuples, canonical F, parsed site,
+  clock inputs, G2, dep1, key and public body/header bytes match the reference.
+  Arbitrary generation/revision changes do not enter either digest. Absence
+  of any dependency, including a duplicate/multiplicity change, still fails
+  the appropriate existing source/proof rule. Artifacts-off query/output and
+  fallback budgets remain unchanged; state capture is still one statement.
+- `af_c1_grouped_proof`: matching, missing, additional, duplicate and changed
+  tuples in both directions; same-version raw-only edits, extension/receipt
+  changes, JSON normalization differences and old-runtime writes without a
+  state bump; all lookup and admission cases retain exact current refusal,
+  purge-before-lookup on G2 drift and no stale builder insertion. Include
+  concurrent publication/private-on, null/empty raw values and wrong state.
+  The grouped-counts CTE is in the same final statement as body read/insert.
+- `af_c1_boundaries`: all prior AF-7T/AF-7L privacy, session/Authorization,
+  existence, wildcard/HEAD/304, metadata/body corruption, event/hours/notice,
+  unknown plan, DST/boundary/clock rollback, caps, prepared-owner isolation,
+  UC9 and actual old-runtime rollback/return controls remain green. No new
+  unguarded path is accepted because another path passed a proof.
+- `af_c1_measure`: unchanged real minified production entries, independently
+  prepared copies in separate processes, and the identical 200-entry seed.
+  Interleave baseline/candidate with at least 12 fresh pairs for certified
+  HIT and at least 12 fresh pairs for clean MISS. A HIT must be separately
+  SQL-certified (no render/liveView/theme load), not inferred from 200/ETag
+  or row presence. Clean MISS restores matching generation but no body row.
+  Use the same dependency/minifier/release/origin/headers/completion method;
+  keep startup separate, include due UC9, retain every body/header identity
+  check and raw paired vector. Record normal CPU median and nearest-rank
+  p95 (N=12 is the maximum), query count, native D1 rows read/written,
+  result/bound-proof bytes, and separate EXPLAIN plans. Diagnostic profiles,
+  local SQLite VM callbacks and async SQL wall time are not normal CPU or
+  D1 billing. Measure existing reused-isolate and artifacts-off controls
+  when assessing the original warm/incremental-MISS targets.
+
+Existing AF-7T statement/DML, size, clock and CPU targets are not raised.
+Report misses as unmet; neither VM-work reductions nor a single sample
+establish fresh p95 below 10 ms. Both editions require parity, real normal
+entry startup, full correctness/migration gates and actual previous-runtime
+upgrade/rollback checks. Default remains off; hosted AF-7H remains required
+before recommending or enabling it by default. No new public HIT signal.
+
+**Local measurement, targets still unmet.** On a fixed 200-entry fixture,
+12 interleaved fresh baseline/candidate pairs per mode through the normal
+minified entry yielded HIT median 11.093 to 10.269 ms and clean-MISS median
+20.827 to 18.266 ms. Median paired deltas were -0.780 and -2.351 ms. Fresh HIT
+p95 was 15.426 to 13.546 ms (N=12, nearest-rank p95 equals maximum), still
+above 10 ms. Clean-MISS increment over the matching OFF build had candidate
+median 3.740 ms and p95 7.704 ms, above the original 1/2 ms targets. Unforced
+warm follow-ups had candidate median 5.694 ms; these are not forced-due warm
+acceptance. No fresh, warm or incremental-MISS target is declared met.
+
+Separate exact-source/seed SQL diagnostics measured HIT facts result JSON
+65,178 to 46,427 characters (ASCII in this fixture). HIT total D1 rows read
+were 3,480 to 3,472: the facts/state statement increased from 619 to 822 rows
+read, while lookup fell from 2,860 to 2,649; the transport reduction is not a
+28.8% database-read reduction. Clean-MISS total rows read fell from 10,220
+to 8,971; conditional admission fell from 5,721 to 4,480. Statement and DML
+counts were unchanged, including the due traffic UPSERT. Both dependency
+hash preimages and the stored-body hash remained identical. The OFF control
+had a +0.457 ms paired median CPU delta despite identical SQL/row counters;
+that observation is retained for independent replication, not dismissed as
+zero. These are local process measurements, not hosted billing or default-
+enable evidence. Instrumented query counters are separate from normal CPU.
+The broader performance work remains open and the flag remains OFF.
+
+**Future work only, not selected.** A stored complete-closure proof with
+SQL-only delivery/clock projection might avoid transporting F to JS. It is
+outside these two cuts: no stored proof column/table, address index, reused
+stored-validator authority or new clock evidence is authorized here. It
+would need a separate chosen design, additive-compatibility and security
+review before any implementation. It cannot replace complete two-way raw
+tuple/cardinality equality with versions or an application counter.
+
 #### AF-7L: renderer-proven public time intervals
 
 This amends AF-2 and PERF-1's clock component, and AF-7's stored-copy

@@ -11,7 +11,7 @@ from .errors import ApiError
 from server.spec.embeds import PERMISSIONS, frame_csp
 from . import themes
 from .public_http import markdown_path, page_path, page_query, public_path, representation, session_request, matches_tag, PUBLIC_CACHE, training_signal
-FACTS_SQL = '''WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_build_array(l.kind,l.slug,l.version,l.published_at,i.created_at,l.data::json->>'status',l.data::json->>'stream',l.data::json->>'external_url',CASE WHEN l.item_id='site' THEN l.data ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN COALESCE(NULLIF(l.data::json->'event'->>'end',''),l.data::json->'event'->>'start') ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN l.data::json->>'tags' ELSE NULL END)::text AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
+FACTS_RELATION = '''WITH facts0(category,ident,value) AS ( SELECT 'live' AS category,l.item_id AS ident,json_build_array(l.kind,l.slug,l.version,l.published_at,i.created_at,l.data::json->>'status',l.data::json->>'stream',l.data::json->>'external_url',CASE WHEN l.item_id='site' THEN l.data ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN COALESCE(NULLIF(l.data::json->'event'->>'end',''),l.data::json->'event'->>'start') ELSE NULL END,CASE WHEN l.kind='entry' AND COALESCE(l.data::json->>'status','')<>'draft' THEN l.data::json->>'tags' ELSE NULL END)::text AS value FROM live l LEFT JOIN items i ON i.id=l.item_id
  UNION ALL SELECT 'field',f.key,json_build_array(f.value,f.approved)::text FROM site_fields f JOIN live l ON l.version=f.version AND l.item_id='site'
  UNION ALL SELECT 'embed','site',json_build_array(f.sources,f.approved)::text FROM site_embed_sources f JOIN live l ON l.version=f.version AND l.item_id='site'),
 facts1(category,ident,value) AS (SELECT 'streams','site',json_build_array(f.settings,f.approved)::text FROM site_stream_settings f JOIN live l ON l.version=f.version AND l.item_id='site'
@@ -21,9 +21,13 @@ facts2(category,ident,value) AS (SELECT 'theme',name,json_build_array(version,sh
  UNION ALL SELECT 'share',c.item_id,json_build_array(c.version,c.name)::text FROM share_cards c JOIN live l ON l.item_id=c.item_id AND l.version=c.version
  UNION ALL SELECT 'media',name,json_build_array(width,height)::text FROM media WHERE name=(SELECT CASE WHEN data::json->>'hero' ~ '^/media/[0-9a-f]{32}[.](jpg|png|webp)$' THEN substr(data::json->>'hero',8) ELSE NULL END FROM live WHERE item_id='site')
 )
-SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) AS dependency_facts ORDER BY category COLLATE "C",ident COLLATE "C"'''
+SELECT category,ident,value FROM (SELECT * FROM facts0 UNION ALL SELECT * FROM facts1 UNION ALL SELECT * FROM facts2) AS dependency_facts'''
+FACTS_SQL = FACTS_RELATION+' ORDER BY category COLLATE "C",ident COLLATE "C"'
 
-FACTS_STATE_SQL = f"SELECT f.*,(SELECT generation FROM public_artifact_state WHERE id=1) AS generation,(SELECT revision FROM public_artifact_state WHERE id=1) AS revision FROM ({FACTS_SQL}) f"
+FACTS_STATE_SQL = f'''WITH dependency_facts AS ({FACTS_SQL})
+SELECT category,ident,value FROM (SELECT category,ident,value FROM dependency_facts
+UNION ALL SELECT 'artifact_state','site',json_build_array(generation,revision)::text FROM public_artifact_state WHERE id=1) AS transport_rows
+ORDER BY category COLLATE "C",ident COLLATE "C"'''
 
 def decode(rows):
     data=[[r['category'],r['ident'],json.loads(r['value'])] for r in rows]
@@ -72,7 +76,16 @@ async def facts(db, artifacts=False):
         rows=await db.fetch(FACTS_STATE_SQL)
     except Exception:
         return decode(await db.fetch(FACTS_SQL))
-    return {**decode(rows),'raw':[[r['category'],r['ident'],r['value']] for r in rows],'generation':rows[0].get('generation') if rows else None,'revision':rows[0].get('revision') if rows else None}
+    state=[r for r in rows if r['category']=='artifact_state']
+    dependencies=[r for r in rows if r['category']!='artifact_state']
+    generation=revision=None
+    try:
+        value=json.loads(state[0]['value']) if len(state)==1 and state[0]['ident']=='site' else None
+        if isinstance(value,list) and len(value)==2 and isinstance(value[0],str) and isinstance(value[1],(int,float)) and not isinstance(value[1],bool) and value[1]%1==0:
+            generation,revision=value[0],int(value[1])
+    except (ValueError,TypeError):
+        pass  # Unavailable state never supplies a matching generation.
+    return {**decode(dependencies),'raw':[[r['category'],r['ident'],r['value']] for r in dependencies],'generation':generation,'revision':revision}
 
 
 def checked_query(req,base):

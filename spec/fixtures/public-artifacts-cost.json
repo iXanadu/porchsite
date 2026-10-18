@@ -1,0 +1,11 @@
+[
+  {"name":"match","change":"none","allowed":true},
+  {"name":"duplicate","change":"duplicate","allowed":false},
+  {"name":"missing","change":"missing","allowed":false},
+  {"name":"additional","change":"additional","allowed":false},
+  {"name":"same-count-replacement","change":"replace","allowed":false},
+  {"name":"raw-value-whitespace","change":"raw","allowed":false},
+  {"name":"null-value","change":"null","allowed":false},
+  {"name":"generation-mismatch","change":"generation","allowed":false},
+  {"name":"old-runtime-same-version-title","change":"source","allowed":false}
+]

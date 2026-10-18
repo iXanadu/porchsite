@@ -88,11 +88,12 @@ export type Proof={facts:publicRead.Facts;choice:publicRead.Choice;tag:string|nu
 // Both relations are engine-shaped raw tuples. Grouped multiplicities prevent
 // duplicate tuples from concealing a removed dependency; comparison is atomic
 // with row selection/admission, not a fresh-check followed by a separate read.
-const tuple='category,ident,value,count(*) AS n';
-export function proofSQL(){return `WITH current_facts AS (${publicRead.FACTS_SQL}),
+export function proofSQL(){return `WITH current_facts AS (${publicRead.FACTS_RELATION}),
  expected AS (SELECT json_extract(value,'$[0]') AS category,json_extract(value,'$[1]') AS ident,json_extract(value,'$[2]') AS value FROM json_each(?)),
- proof AS (SELECT NOT EXISTS(SELECT ${tuple} FROM current_facts GROUP BY category,ident,value EXCEPT SELECT ${tuple} FROM expected GROUP BY category,ident,value)
- AND NOT EXISTS(SELECT ${tuple} FROM expected GROUP BY category,ident,value EXCEPT SELECT ${tuple} FROM current_facts GROUP BY category,ident,value)
+ current_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM current_facts GROUP BY category,ident,value),
+ expected_counts AS MATERIALIZED (SELECT category,ident,value,count(*) AS n FROM expected GROUP BY category,ident,value),
+ proof AS (SELECT NOT EXISTS(SELECT category,ident,value,n FROM current_counts EXCEPT SELECT category,ident,value,n FROM expected_counts)
+ AND NOT EXISTS(SELECT category,ident,value,n FROM expected_counts EXCEPT SELECT category,ident,value,n FROM current_counts)
  AND EXISTS(SELECT 1 FROM public_artifact_state WHERE id=1 AND generation=?) AS ok)`;}
 export function lookupSQL(){return proofSQL()+` SELECT p.ok,a.key,a.body,a.metadata,a.valid_until FROM proof p LEFT JOIN public_artifacts a ON p.ok AND a.key=? AND a.generation=?`;}
 export function admitSQL(){return proofSQL()+` INSERT OR REPLACE INTO public_artifacts(key,generation,body,metadata,valid_until,size)
