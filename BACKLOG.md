@@ -53,14 +53,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    proving freshness with a narrower query, needs a spec and security
    review; revisit only if an owner enables PERF-4.
 
-3. **GATE-2** IN-PROGRESS (owner, 2026-10-18): every release states database
-   rows read per request (cold page, plain page, "not changed"), before and
-   after, with prepared copies off and on, plus the free daily-limit impact
-   ("about N page views a day per account"). The release build measures it
-   on the sample sites and refuses a release whose rows went up unless its
-   changelog entry carries a written reason. Owner approves any increase
-   before it is deployed. Decision briefings state reads, writes and limit
-   impact, not only speed.
 
 ## BLOCKING
 

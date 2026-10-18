@@ -31,7 +31,7 @@ function entries() {
 }
 
 function sourceFingerprint() {
-  const paths = git('ls-files', 'cloudflare/src', 'cloudflare/migrations', 'themes', 'shared', 'cloudflare/package-lock.json', 'cloudflare/wrangler.jsonc', 'server/server/app/agent-traffic.json').split('\n').filter(Boolean).sort();
+  const paths = git('ls-files', 'cloudflare/src', 'cloudflare/migrations', 'themes', 'shared', 'cloudflare/package-lock.json', 'cloudflare/wrangler.jsonc', 'server/server/app/agent-traffic.json', 'server/server/app/read-unicode.json', 'server/server/app/site-state-guide.json').split('\n').filter(Boolean).sort();
   return hash(JSON.stringify(paths.map(name => [name, hash(fs.readFileSync(path.join(ROOT, name)))])));
 }
 
