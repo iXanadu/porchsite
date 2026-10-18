@@ -2616,3 +2616,28 @@ body hashes, prepared-copy accesses and accounting writes. Measure first
 render 200 statement counts and compare them with the previous implementation.
 Measure hosted public 304 and 404 CPU against the 10 ms target; local timings
 are reported separately and are not hosted CPU evidence.
+
+### PERF-2: render only consumed entry bodies
+
+Both editions defer an entry's `body_html` until a template reads it. Building
+home, stream, tag or entry view metadata must not parse unused entry Markdown.
+Reuse the resulting HTML only within that request/view and the same heading
+policy; no rendered body enters an isolate-wide, process-wide or shared cache.
+The look's heading-ID and body-H1 policy applies on the first render, without
+an eager ordinary render followed by a second parse. Preserve exact output,
+engine embed provenance and limits, escaping, pipe tables and heading IDs.
+An unselected body cannot mint embed capabilities or perform work merely
+because the renderer walks metadata to apply policy or collect capabilities.
+
+After the existing access gate, an anonymous public Markdown negotiation
+renders the approved visitor HTML once before projecting it. Preserve direct
+and negotiated copy bytes, normalized canonical URL, validators and headers;
+private/session authorization and no-store policies remain unchanged. Neither
+optimization changes approved content, dependency checks, accounting or access.
+
+Required proof: unchanged bytes across all twelve looks and explicit embed,
+table and heading fixtures; zero entry-body parses for metadata-only templates;
+one parse for a consumed repeated body under one policy; no memo reuse across
+requests or heading policies. Measure unconditional home and stream 200s on
+the same 200-entry fixture against a local CPU target below 5 ms, reporting
+local timing separately from hosted CPU. The real emitted Worker must start.
