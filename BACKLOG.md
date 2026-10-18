@@ -89,6 +89,10 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **AG-R1** OPEN: an agent's read (site_state, page reads) that happens to
+  straddle a minute boundary fails with cursor_stale even when the agent
+  sent no cursor. A cursorless read should rebuild once and answer. Seen
+  in the rollback check and an earlier acceptance run. Found 2026-10-18.
 - **DEP-1** OPEN: npm audit reports 8 high-severity advisories in
   inherited dependencies (the MCP SDK, agents, and the test, build and
   local-runtime chain). Security review decides which ship in the Worker
