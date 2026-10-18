@@ -146,8 +146,9 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   let code = "";
   if (!claimed) {
     code = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const created = new Date().toISOString();
-    const expires = new Date(Date.now() + 24 * 3600_000).toISOString();
+    const issuedAt = new Date();
+    const created = issuedAt.toISOString();
+    const expires = new Date(issuedAt.getTime() + 24 * 3600_000).toISOString();
     const issued = await cf(token, "POST", `${A}/d1/database/${dbId}/query`, {batch: [
       {sql: "DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"},
       {sql: "INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)", params: [await codeHash(code), created, expires]},
