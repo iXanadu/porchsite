@@ -69,6 +69,18 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    it shipped on a stated reason and the owner's yes. Add beacon and
    approval cells (1 and 200 entries) to the gate.
 
+6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
+   visitor's capped (201st and later) page view still reads about 206 rows
+   in 11 queries, so about 24,000 rejected views a day from one visitor
+   would use the account's free 5 million reads. And /collect CPU measured
+   a mean of 8.6-10 ms (max 22) against the free plan's 10 ms. Make the cap
+   check read one per-visitor-per-day counter row instead of counting
+   views, and measure /collect CPU locally against 315dc35.
+7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
+   `observability.redact_query_string` to false, so an owner's update
+   silently drops the log redaction RA-9 set at install. The update path's
+   upload metadata must carry it (as the installer's does).
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
