@@ -9,6 +9,7 @@ import {withPreviewRequest,skipPublicPreparation} from './preview-auth';
  */
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { mcpOriginRejection } from "./mcp-origin";
+import { mcpBearer, mcpRefusal, mcpPreflight } from "./mcp-auth";
 import { toolTransport } from "./tool-transport";
 import type { Env } from "./env";
 import { RELEASE } from "./home";
@@ -61,18 +62,19 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;
-    const bearer = /^Bearer[\t ]+((?:psk|prk)_[A-Za-z0-9_-]+)$/i.exec(req.headers.get("Authorization") ?? "");
+    const bearer = mcpBearer(req.headers.get("Authorization"));
     const rejected = u.pathname === "/mcp" ? mcpOriginRejection(req, origin) : undefined;
     if (rejected) {
       res = rejected;
-    } else if (u.pathname === "/mcp" && bearer) {
+    } else if (u.pathname === "/mcp" && req.method === "OPTIONS") {
+      res = mcpPreflight();
+    } else if (u.pathname === "/mcp" && !bearer) {
+      res = mcpRefusal(origin, false);
+    } else if (u.pathname === "/mcp" && bearer && (bearer.startsWith(keys.PREFIX) || bearer.startsWith(readKeys.PREFIX))) {
       // An assistant key (keys.ts) instead of an OAuth token: the same tools.
-      const who = await (bearer[1].startsWith(readKeys.PREFIX)?readKeys.lookup(env.DB,bearer[1]):keys.lookup(env.DB, bearer[1]));
+      const who = await (bearer.startsWith(readKeys.PREFIX)?readKeys.lookup(env.DB,bearer):keys.lookup(env.DB, bearer));
       if (!who) {
-        res = new Response(JSON.stringify({ error: "invalid_token", error_description: "This key doesn't work: it was revoked, it expired, or it's mistyped." }), {
-          status: 401,
-          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        });
+        res = mcpRefusal(origin, true, "This key doesn't work: it was revoked, it expired, or it's mistyped.");
       } else {
         const keyed = { waitUntil: ctx.waitUntil.bind(ctx), passThroughOnException: ctx.passThroughOnException.bind(ctx), props: { ...who, origin } } as unknown as ExecutionContext;
         res = await toolTransport(req, env as Env, keyed);
@@ -80,8 +82,10 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
     } else {
       res = await provider(origin).fetch(req, env, ctx);
     }
+    // The OAuth library validates tokens; this resource owns refusal headers.
+    if (u.pathname === "/mcp" && res.status === 401) res = mcpRefusal(origin, !!bearer, undefined, res);
     if(!skipPublicPreparation()&&req.method==='POST'&&/^\/(?:review|mcp)(?:\/|$)/.test(u.pathname)&&res.status>=200&&res.status<400)ctx.waitUntil(preparePublic(env).catch(()=>{}));
-    if(u.pathname==='/mcp'&&bearer?.[1].startsWith(readKeys.PREFIX)){
+    if(u.pathname==='/mcp'&&bearer?.startsWith(readKeys.PREFIX)){
       res=new Response(res.body,res);res.headers.set('Cache-Control','private, no-store, no-transform');
     }
     // Which release is running, on every answer.
