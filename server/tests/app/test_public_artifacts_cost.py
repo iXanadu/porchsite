@@ -200,27 +200,28 @@ async def test_af_c2_malformed_returned_proof(db):
     response=await artifacts.respond(Fake(),req(),ORIGIN,'fixture',render,dict(facts=f,choice=c,tag=tag,now=now),refresh)
     assert response.body==b'fresh' and refresh.await_count==1 and render.await_count==0
 
-async def test_af_c2_advisory_match_race(db,http):
+async def test_af_c2_advisory_match_race(db,http,app):
     from unittest.mock import AsyncMock
     from starlette.responses import Response
     from server.app import routes
     import time
     await seed(db);await http.get('/')
     f=await read.facts(db,True);c=read.choice(req(),f);now=time.time()*1000
-    release=routes.Context(db,'',None).release;tag=read.tag(f,req(),c,release,now)
-    class Raced:
-        refused=None
-        def __getattr__(self,name):return getattr(db,name)
-        async def fetch(self,sql,*args):
-            if sql==artifacts.lookup_sql():
-                await db.execute("UPDATE public_artifact_state SET generation='changed after advisory' WHERE id=1")
-                result=await db.fetch(sql,*args);self.refused=result[0];return result
-            return await db.fetch(sql,*args)
-    raced=Raced();render=AsyncMock(return_value=Response('live MISS'));refresh=AsyncMock(return_value=Response('fresh'))
-    response=await artifacts.respond(raced,req(),ORIGIN,release,render,dict(facts=f,choice=c,tag=tag,now=now),refresh)
-    assert response.body==b'live MISS' and render.await_count==1 and refresh.await_count==0
-    assert raced.refused['facts_ok'] is True and raced.refused['ok'] is False and raced.refused['body'] is None
-    assert await db.fetchval('SELECT count(*) FROM public_artifacts')==0
+    release=app.settings.release;tag=read.tag(f,req(),c,release,now)
+    async with db.acquire() as conn:
+        class Raced:
+            refused=None
+            def __getattr__(self,name):return getattr(conn,name)
+            async def fetch(self,sql,*args):
+                if sql==artifacts.lookup_sql():
+                    await db.execute("UPDATE public_artifact_state SET generation='changed after advisory' WHERE id=1")
+                    result=await db.fetch(sql,*args);self.refused=result[0];return result
+                return await db.fetch(sql,*args)
+        raced=Raced();render=AsyncMock(return_value=Response('live MISS'));refresh=AsyncMock(return_value=Response('fresh'))
+        response=await artifacts.respond(raced,req(),ORIGIN,release,render,dict(facts=f,choice=c,tag=tag,now=now),refresh)
+        assert response.body==b'live MISS' and render.await_count==1 and refresh.await_count==0
+        assert raced.refused['facts_ok'] is True and raced.refused['ok'] is False and raced.refused['body'] is None
+        assert await db.fetchval('SELECT count(*) FROM public_artifacts')==0
 
 @pytest.mark.parametrize('mode',['boolean','null','duplicate','unavailable','missing'])
 async def test_af_c2_advisory_shape(db,mode):
@@ -229,19 +230,20 @@ async def test_af_c2_advisory_shape(db,mode):
     import time
     await seed(db);f=await read.facts(db,True);c=read.choice(req(),f);now=time.time()*1000;tag=read.tag(f,req(),c,'fixture',now)
     g=artifacts.generation(f,'fixture',ORIGIN)
-    class Fake:
-        calls=[]
-        def __getattr__(self,name):return getattr(db,name)
-        async def fetch(self,sql,*args):
-            self.calls.append(sql)
-            if sql!=artifacts.STATE_SQL:return await db.fetch(sql,*args)
-            if mode=='unavailable':raise RuntimeError('missing table')
-            if mode=='missing':return []
-            if mode=='duplicate':return [dict(generation=g,revision=1),dict(generation=g,revision=1)]
-            return [dict(generation=g,revision=True if mode=='boolean' else None)]
-    fake=Fake();render=AsyncMock(return_value=Response('live MISS'));refresh=AsyncMock(return_value=Response('fresh'))
-    response=await artifacts.respond(fake,req(),ORIGIN,'fixture',render,dict(facts=f,choice=c,tag=tag,now=now),refresh)
-    if mode=='missing':
-        assert artifacts.lookup_sql() in fake.calls and response.body==b'live MISS' and render.await_count==1 and refresh.await_count==0
-    else:
-        assert artifacts.lookup_sql() not in fake.calls and response.body==b'fresh' and refresh.await_count==1 and render.await_count==0
+    async with db.acquire() as conn:
+        class Fake:
+            calls=[]
+            def __getattr__(self,name):return getattr(conn,name)
+            async def fetch(self,sql,*args):
+                self.calls.append(sql)
+                if sql!=artifacts.STATE_SQL:return await db.fetch(sql,*args)
+                if mode=='unavailable':raise RuntimeError('missing table')
+                if mode=='missing':return []
+                if mode=='duplicate':return [dict(generation=g,revision=1),dict(generation=g,revision=1)]
+                return [dict(generation=g,revision=True if mode=='boolean' else None)]
+        fake=Fake();render=AsyncMock(return_value=Response('live MISS'));refresh=AsyncMock(return_value=Response('fresh'))
+        response=await artifacts.respond(fake,req(),ORIGIN,'fixture',render,dict(facts=f,choice=c,tag=tag,now=now),refresh)
+        if mode=='missing':
+            assert artifacts.lookup_sql() in fake.calls and response.body==b'live MISS' and render.await_count==1 and refresh.await_count==0
+        else:
+            assert artifacts.lookup_sql() not in fake.calls and response.body==b'fresh' and refresh.await_count==1 and render.await_count==0
