@@ -27,8 +27,8 @@
       "import_items": 3
     },
     "instrumentation": {
-      "product_sha256": "6e4d66e63de67e217841d31a1497953e5e82f7810dde64f7a35b77bccb1f5343",
-      "derived_sha256": "bab2c15905ce06c69662617a83c7a6b64a4e6f0a5cadd20816c9a90b16b11db1",
+      "product_sha256": "180970688d4f9edfb38f269ee1514f1ba614031943cb712bebc83084d794d18f",
+      "derived_sha256": "94e0087dbae2e51481df39c4a50faed08549a1612728f54bdfa2557223522c8b",
       "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
       "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
       "mapping": [
@@ -39,22 +39,22 @@
           "to": "./native-workers.mjs"
         },
         {
-          "start": 1999760,
-          "end": 1999778,
+          "start": 1999780,
+          "end": 1999798,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         },
         {
-          "start": 2024187,
-          "end": 2024205,
+          "start": 2024207,
+          "end": 2024225,
           "from": "cloudflare:workers",
           "to": "./native-workers.mjs"
         }
       ]
     },
-    "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
-    "source_sha256": "a3336f62deff472631a229387f001c09aa53b38def6e8d9472743790497fe1fb",
-    "artifact_sha256": "6e4d66e63de67e217841d31a1497953e5e82f7810dde64f7a35b77bccb1f5343",
+    "inputs_sha256": "9548e17bc74d321b398de0b62a7b980f01104c15cc47784ca7413b6821fcaa5d",
+    "source_sha256": "9c381399d8b9a81da2e2678f0d6a9d5be535a2d22629f87237fbcab456111a8b",
+    "artifact_sha256": "180970688d4f9edfb38f269ee1514f1ba614031943cb712bebc83084d794d18f",
     "budgets": {
       "rows_read": 5000000,
       "rows_written": 100000,
@@ -78,15 +78,15 @@
     ],
     "cells": {
       "catalogue-page/off/cold": {
-        "rows_read": 149,
+        "rows_read": 110,
         "rows_written": 2
       },
       "catalogue-page/off/plain": {
-        "rows_read": 148,
+        "rows_read": 109,
         "rows_written": 0
       },
       "catalogue-page/off/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "catalogue-page/on/cold": {
@@ -102,15 +102,15 @@
         "rows_written": 0
       },
       "event-page/off/cold": {
-        "rows_read": 149,
+        "rows_read": 110,
         "rows_written": 2
       },
       "event-page/off/plain": {
-        "rows_read": 148,
+        "rows_read": 109,
         "rows_written": 0
       },
       "event-page/off/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "event-page/on/cold": {
@@ -126,15 +126,15 @@
         "rows_written": 0
       },
       "group-page/off/cold": {
-        "rows_read": 141,
+        "rows_read": 104,
         "rows_written": 2
       },
       "group-page/off/plain": {
-        "rows_read": 140,
+        "rows_read": 103,
         "rows_written": 0
       },
       "group-page/off/not_modified": {
-        "rows_read": 112,
+        "rows_read": 75,
         "rows_written": 0
       },
       "group-page/on/cold": {
@@ -150,15 +150,15 @@
         "rows_written": 0
       },
       "link-page/off/cold": {
-        "rows_read": 85,
+        "rows_read": 62,
         "rows_written": 2
       },
       "link-page/off/plain": {
-        "rows_read": 84,
+        "rows_read": 61,
         "rows_written": 0
       },
       "link-page/off/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "link-page/on/cold": {
@@ -174,15 +174,15 @@
         "rows_written": 0
       },
       "listing-page/off/cold": {
-        "rows_read": 69,
+        "rows_read": 50,
         "rows_written": 2
       },
       "listing-page/off/plain": {
-        "rows_read": 68,
+        "rows_read": 49,
         "rows_written": 0
       },
       "listing-page/off/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "listing-page/on/cold": {
@@ -198,15 +198,15 @@
         "rows_written": 0
       },
       "local-business/off/cold": {
-        "rows_read": 181,
+        "rows_read": 134,
         "rows_written": 2
       },
       "local-business/off/plain": {
-        "rows_read": 180,
+        "rows_read": 133,
         "rows_written": 0
       },
       "local-business/off/not_modified": {
-        "rows_read": 142,
+        "rows_read": 95,
         "rows_written": 0
       },
       "local-business/on/cold": {
@@ -222,15 +222,15 @@
         "rows_written": 0
       },
       "menu-page/off/cold": {
-        "rows_read": 197,
+        "rows_read": 146,
         "rows_written": 2
       },
       "menu-page/off/plain": {
-        "rows_read": 196,
+        "rows_read": 145,
         "rows_written": 0
       },
       "menu-page/off/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "menu-page/on/cold": {
@@ -246,15 +246,15 @@
         "rows_written": 0
       },
       "personal-homepage/off/cold": {
-        "rows_read": 77,
+        "rows_read": 56,
         "rows_written": 2
       },
       "personal-homepage/off/plain": {
-        "rows_read": 76,
+        "rows_read": 55,
         "rows_written": 0
       },
       "personal-homepage/off/not_modified": {
-        "rows_read": 64,
+        "rows_read": 43,
         "rows_written": 0
       },
       "personal-homepage/on/cold": {
@@ -270,15 +270,15 @@
         "rows_written": 0
       },
       "playbook/off/cold": {
-        "rows_read": 69,
+        "rows_read": 50,
         "rows_written": 2
       },
       "playbook/off/plain": {
-        "rows_read": 68,
+        "rows_read": 49,
         "rows_written": 0
       },
       "playbook/off/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "playbook/on/cold": {
@@ -294,15 +294,15 @@
         "rows_written": 0
       },
       "portfolio/off/cold": {
-        "rows_read": 197,
+        "rows_read": 146,
         "rows_written": 2
       },
       "portfolio/off/plain": {
-        "rows_read": 196,
+        "rows_read": 145,
         "rows_written": 0
       },
       "portfolio/off/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "portfolio/on/cold": {
@@ -318,15 +318,15 @@
         "rows_written": 0
       },
       "product-page/off/cold": {
-        "rows_read": 85,
+        "rows_read": 62,
         "rows_written": 2
       },
       "product-page/off/plain": {
-        "rows_read": 84,
+        "rows_read": 61,
         "rows_written": 0
       },
       "product-page/off/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "product-page/on/cold": {
@@ -342,15 +342,15 @@
         "rows_written": 0
       },
       "services-page/off/cold": {
-        "rows_read": 165,
+        "rows_read": 122,
         "rows_written": 2
       },
       "services-page/off/plain": {
-        "rows_read": 164,
+        "rows_read": 121,
         "rows_written": 0
       },
       "services-page/off/not_modified": {
-        "rows_read": 130,
+        "rows_read": 87,
         "rows_written": 0
       },
       "services-page/on/cold": {
@@ -366,15 +366,15 @@
         "rows_written": 0
       },
       "services-page-200/off/cold": {
-        "rows_read": 1741,
+        "rows_read": 1304,
         "rows_written": 2
       },
       "services-page-200/off/plain": {
-        "rows_read": 1740,
+        "rows_read": 1303,
         "rows_written": 0
       },
       "services-page-200/off/not_modified": {
-        "rows_read": 1312,
+        "rows_read": 875,
         "rows_written": 0
       },
       "services-page-200/on/cold": {
@@ -422,28 +422,28 @@
         "rows_written": 1
       },
       "operations/off/approval/one": {
-        "rows_read": 70,
-        "rows_written": 6
+        "rows_read": 71,
+        "rows_written": 7
       },
       "operations/on/approval/one": {
-        "rows_read": 11872,
-        "rows_written": 31
+        "rows_read": 11873,
+        "rows_written": 32
       },
       "operations/off/approval/200": {
-        "rows_read": 2060,
-        "rows_written": 404
+        "rows_read": 2260,
+        "rows_written": 604
       },
       "operations/on/approval/200": {
-        "rows_read": 1118089,
-        "rows_written": 609
+        "rows_read": 1118289,
+        "rows_written": 809
       },
       "operations/off/import/file": {
-        "rows_read": 194,
-        "rows_written": 18
+        "rows_read": 201,
+        "rows_written": 22
       },
       "operations/on/import/file": {
-        "rows_read": 9393,
-        "rows_written": 39
+        "rows_read": 9400,
+        "rows_written": 43
       }
     }
   },
@@ -843,7 +843,7 @@
           }
         ]
       },
-      "inputs_sha256": "87e3fd46ac795c238566fc9081325335654812a171e7a97a4616f8d24efa8372",
+      "inputs_sha256": "9548e17bc74d321b398de0b62a7b980f01104c15cc47784ca7413b6821fcaa5d",
       "source_sha256": "4546759459d4fe1faff4b2047c1325af1a172d372c786e94b8d3148abb5ecfd8",
       "artifact_sha256": "5c5bb4f072476837f96e6985aa417f122ae2d5ae6f2e11900dbcd03efe21dd5c",
       "budgets": {
