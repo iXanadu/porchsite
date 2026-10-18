@@ -144,6 +144,7 @@ async def test_fragment_stays_out_of_server_html_and_clears_before_submit(db,htt
     code='fragment-only-credential'
     r=await http.get('/setup#code='+code)
     assert r.status_code==200 and code not in r.text
+    assert '<form method="post" action="/setup/options">' in r.text
     assert 'new URLSearchParams(location.hash.slice(1))' in r.text
     assert 'input.value = code.trim().slice(0, 200)' in r.text
     assert r.text.index('history.replaceState')<r.text.index('await fetch(')

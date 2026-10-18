@@ -170,8 +170,8 @@ async function setupPage(req: Request, env: Env): Promise<Response> {
   return ownerPage(
     "Set up your site",
     html`<h1>Make this site yours</h1><p class="meta">${new URL(req.url).host}</p><p data-setup-intro>${intro} From then on, your passkey is the only way to approve what goes live.</p>
-<form><label>Setup code</label><input type="password" name="code" autocomplete="off" required${code ? raw(` value="${esc(code)}"`) : ""}><label>Your name (optional: your passkey is saved under it, next to this site's address)</label><input type="text" name="name" autocomplete="name" maxlength="80">
-<p class="error" hidden></p><button>Create my passkey</button></form>`,
+<form method="post" action="/setup/options"><label>Setup code</label><input type="password" name="code" autocomplete="off" required${code ? raw(` value="${esc(code)}"`) : ""}><label>Your name (optional: your passkey is saved under it, next to this site's address)</label><input type="text" name="name" autocomplete="name" maxlength="80">
+<p class="error" hidden></p><button>Create my passkey</button></form><noscript><p>Enable JavaScript to create your passkey. You can enter the setup code manually.</p></noscript>`,
     // Owner pages are already no-store.
     { script: SETUP_JS + PASSKEY_JS("setup", "/review"), headers: { "Referrer-Policy": SETUP_HEADERS["Referrer-Policy"] } },
   );
@@ -1393,7 +1393,7 @@ async function routeInner(req: Request, env: Env): Promise<Response> {
       return json({ options: r.options }, 200, { "Set-Cookie": r.setCookieHeader });
     }
     if (path === "/setup/verify" && m === "POST") {
-      return signedInJson(await owner.setupVerify(env.DB, req, env.SETUP_CODE, await req.json()));
+      return signedInJson(await owner.setupVerify(env.DB, req, env.SETUP_CODE, await req.json().catch(() => ({}))));
     }
     const add = /^\/passkey\/([A-Za-z0-9_-]{32})(\/options|\/verify)?$/.exec(path);
     if (add && !add[2] && m === "GET") return await addPasskeyPage(env, add[1]);

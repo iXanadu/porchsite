@@ -116,7 +116,7 @@ describe("claiming from a setup link", () => {
 // RA-9 introduces fragment links; query links remain accepted in this release.
 it("keeps the fragment out of server HTML and clears it before submit",async()=>{
  await unclaimed();const code='fragment-only-credential';const r=await at('/setup#code='+code),body=await r.text();
- expect(r.status).toBe(200);expect(body).not.toContain(code);expect(body).toContain('new URLSearchParams(location.hash.slice(1))');expect(body).toContain('input.value = code.trim().slice(0, 200)');
+ expect(r.status).toBe(200);expect(body).not.toContain(code);expect(body).toContain('<form method="post" action="/setup/options">');expect(body).toContain('new URLSearchParams(location.hash.slice(1))');expect(body).toContain('input.value = code.trim().slice(0, 200)');
  expect(body.indexOf('history.replaceState')).toBeLessThan(body.indexOf('await fetch('));expect(body).not.toContain('innerHTML');
  expect(r.headers.get('Cache-Control')).toBe('no-store');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
  const old=await at('/setup?code=legacy-code');expect(await old.text()).toContain('value="legacy-code"');
