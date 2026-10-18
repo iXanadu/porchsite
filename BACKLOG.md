@@ -63,10 +63,9 @@ never widens access (on a private site every new path returns today's blank
 404); no traffic or ranking claims to owners, only "cheaper and easier for
 agents to read". Spec first (one SPEC.md section for AF-2..AF-8), with
 security invariants written before the spec.
-- **AF-7L** IN-PROGRESS: proposal for renderer-proven public clock state
-  and actual next-change boundaries instead of UTC-minute tag churn. Static
-  tags survive sparse visits; no runtime code until spec review. Includes
-  timezone/DST proof, bounded public-copy lifetime and sparse hosted metrics.
+- **AF-7L** IN-PROGRESS: renderer-proven public clock state and actual
+  next-change boundaries instead of UTC-minute tag churn. Paired timezone/DST
+  proof, bounded copy lifetime and sparse measurement remain in acceptance.
 - **AF-7H** OPEN: hosted CPU and database-read/write measurement before
   default enablement of prepared public pages. The D1/PostgreSQL backend is
   operator opt-in and remains off by default. Local process CPU is diagnostic;

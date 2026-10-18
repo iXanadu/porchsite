@@ -4,6 +4,7 @@
  * request, so "open now" and "upcoming" are true when the page is served,
  * with no script in the browser.
  */
+import {wall} from "./public-time-clock";
 import { BLOCK_STRINGS } from "./strings";
 import { dateFormatter, dateString } from "./date-format";
 
@@ -16,6 +17,7 @@ const DAY_NAMES: Record<string, string> = { mon: "Monday", tue: "Tuesday", wed: 
 
 /** Now, as the site's wall clock: date YYYY-MM-DD, time HH:MM, weekday mon..sun. */
 export function localNow(now: Date, timeZone: string): { date: string; time: string; day: string } {
+  const pinned=wall(now.getTime(),timeZone);if(pinned)return pinned;
   const parts = Object.fromEntries(
     dateFormatter({ year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }, timeZone)
       .formatToParts(now)

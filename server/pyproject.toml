@@ -35,6 +35,8 @@ include = ["server*"]
 [tool.setuptools.package-data]
 "server.app" = ["schema.sql", "field_guide.json", "beacon.js", "agent-traffic.json", "site-state-guide.json", "read-unicode.json"]
 
+"server.spec" = ["public-time-zones.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

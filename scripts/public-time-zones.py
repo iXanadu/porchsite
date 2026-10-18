@@ -10,6 +10,8 @@ END = int(datetime(2038, 1, 1, tzinfo=UTC).timestamp())
 root = Path(__file__).resolve().parents[1]
 names, rules, indexes = {}, [], {}
 for name in sorted(available_timezones()):
+    if name in ('localtime','posixrules'):
+        continue
     path = _tzpath.find_tzfile(name)
     if not path:
         continue
@@ -31,4 +33,4 @@ for name in sorted(available_timezones()):
 version = next((Path(d, '+VERSION').read_text().strip() for d in _tzpath.TZPATH if Path(d, '+VERSION').exists()), 'unknown')
 if version == 'unknown':
     raise SystemExit('A source tzdb +VERSION is required')
-(root/'server/server/spec/public-time-zones.json').write_text(json.dumps(dict(version=version,start=START,zones=names,rules=rules),separators=(',',':'))+'\n')
+(root/'server/server/spec/public-time-zones.json').write_text(json.dumps(dict(version=version,start=START,zones=names,rules=[json.dumps(r,separators=(',',':')) for r in rules]),separators=(',',':'))+'\n')

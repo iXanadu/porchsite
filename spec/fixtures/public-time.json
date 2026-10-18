@@ -1,0 +1,184 @@
+{
+  "cases": [
+    {
+      "name": "hours_open",
+      "zone": "UTC",
+      "before": "2026-10-19T08:59:59Z",
+      "boundary": "2026-10-19T09:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hours_close",
+      "zone": "UTC",
+      "before": "2026-10-19T16:59:59Z",
+      "boundary": "2026-10-19T17:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hours_today",
+      "zone": "Asia/Kathmandu",
+      "before": "2026-10-19T18:14:59Z",
+      "boundary": "2026-10-19T18:15:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "hours_overlap",
+      "zone": "UTC",
+      "before": "2026-10-19T08:59:59Z",
+      "boundary": "2026-10-19T09:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "mon",
+            "open": "08:00",
+            "close": "09:00"
+          },
+          {
+            "day": "mon",
+            "open": "08:30",
+            "close": "10:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "notice_inclusive",
+      "zone": "America/New_York",
+      "before": "2026-10-19T03:59:59Z",
+      "boundary": "2026-10-19T04:00:00Z",
+      "notice": {
+        "text": "Until Monday",
+        "until": "2026-10-18"
+      }
+    },
+    {
+      "name": "event_strict",
+      "zone": "UTC",
+      "before": "2026-10-19T10:00:00Z",
+      "boundary": "2026-10-19T10:01:00Z",
+      "endpoint": "2026-10-19T10:00"
+    },
+    {
+      "name": "spring_gap_event",
+      "zone": "America/New_York",
+      "before": "2026-03-08T06:59:59Z",
+      "boundary": "2026-03-08T07:00:00Z",
+      "endpoint": "2026-03-08T02:30"
+    },
+    {
+      "name": "spring_hours",
+      "zone": "America/New_York",
+      "before": "2026-03-08T06:59:59Z",
+      "boundary": "2026-03-08T07:30:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "sun",
+            "open": "01:30",
+            "close": "03:30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fold_close_first",
+      "zone": "America/New_York",
+      "before": "2026-11-01T05:29:59Z",
+      "boundary": "2026-11-01T05:30:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "sun",
+            "open": "01:00",
+            "close": "01:30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fold_reopen",
+      "zone": "America/New_York",
+      "before": "2026-11-01T05:59:59Z",
+      "boundary": "2026-11-01T06:00:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "sun",
+            "open": "01:00",
+            "close": "01:30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fold_close_second",
+      "zone": "America/New_York",
+      "before": "2026-11-01T06:29:59Z",
+      "boundary": "2026-11-01T06:30:00Z",
+      "hours": {
+        "weekly": [
+          {
+            "day": "sun",
+            "open": "01:00",
+            "close": "01:30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fold_event_unpast",
+      "zone": "America/New_York",
+      "before": "2026-11-01T05:59:59Z",
+      "boundary": "2026-11-01T06:00:00Z",
+      "endpoint": "2026-11-01T01:15"
+    },
+    {
+      "name": "fold_event_past_again",
+      "zone": "America/New_York",
+      "before": "2026-11-01T06:15:59Z",
+      "boundary": "2026-11-01T06:16:00Z",
+      "endpoint": "2026-11-01T01:15"
+    },
+    {
+      "name": "nonhour_fold",
+      "zone": "Australia/Lord_Howe",
+      "before": "2026-04-04T14:59:59Z",
+      "boundary": "2026-04-04T15:00:00Z",
+      "endpoint": "2026-04-05T01:45"
+    },
+    {
+      "name": "skipped_date",
+      "zone": "Pacific/Apia",
+      "before": "2011-12-30T09:59:59Z",
+      "boundary": "2011-12-30T10:00:00Z",
+      "notice": {
+        "text": "Last day",
+        "until": "2011-12-29"
+      }
+    }
+  ]
+}

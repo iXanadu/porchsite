@@ -73,7 +73,7 @@ it('af_prebuild_races: private-on discards a builder already holding a public sn
 it('af_prebuild_clock: expired intervals are reclaimed before the next fill',async()=>{
  await fixture();await get();await db.prepare('UPDATE public_artifacts SET valid_until=0').run();
  const render=vi.spyOn(site,'liveView');expect((await get()).status).toBe(200);expect(render).toHaveBeenCalled();expect(await count()).toBe(1);
- expect(artifacts.displayBoundary(Date.UTC(2026,10,1,5,59,59))).toBe(Date.UTC(2026,10,1,6));
+ expect(artifacts.displayBoundary(Date.UTC(2026,10,1,5,59,59))).toBe(Date.UTC(2026,10,2,5,59,59));
 });
 it('af_prebuild_bounded_failure: invalid headers and absent storage fall back to safe live rendering',async()=>{
  await fixture();const first=await get(),body=await first.text();
@@ -234,7 +234,7 @@ it.each(['private','unpublish','expiry'])('af_prebuild_warm_hit_race: %s after c
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
  const response=await handle(new Request(origin+path,{headers:{'If-None-Match':first.headers.get('ETag')!}}),{...e,DB:raced});
- if(change==='expiry'){expect(rendered).toHaveBeenCalled();expect(response.status).toBe(200);expect(response.headers.get('ETag')).not.toBe(first.headers.get('ETag'));}
+ if(change==='expiry'){expect(rendered).not.toHaveBeenCalled();expect(response.status).toBe(304);expect(response.headers.get('ETag')).toBe(first.headers.get('ETag'));}
  else {expect(response.status).toBe(404);expect(response.headers.has('ETag')).toBe(false);expect(await count()).toBe(0);if(change==='private')expect(await response.text()).toBe(SIGN_IN);}
 });
 
@@ -265,4 +265,10 @@ it('af_pipe_table_access: published-only copies, GET/HEAD/304, negotiation and i
  const removed=await get(path+'index.md',{'If-None-Match':tag});expect(removed.status).toBe(404);expect(removed.headers.has('ETag')).toBe(false);
  const privateSite=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(privateSite);
  for(const method of ['GET','HEAD']){const r=await get(path+'index.md',{'If-None-Match':tag},method);expect(r.status).toBe(404);expect(await r.text()).toBe(method==='GET'?SIGN_IN:'');}
+});
+it('af_time_storage_cap: static copies survive hours; expiry never churns a conditional tag',async()=>{
+ await fixture();const start=Date.now(),clock=vi.spyOn(Date,'now').mockReturnValue(start),first=await get(),tag=first.headers.get('ETag')!,body=await first.text();
+ const until=Number(await db.prepare('SELECT max(valid_until) AS n FROM public_artifacts').first('n'));expect(until).toBe(start+86400000);
+ const load=vi.spyOn(site,'liveView');clock.mockReturnValue(start+7200000);const warm=await get();expect(warm.status).toBe(200);expect(await warm.text()).toBe(body);expect(warm.headers.get('ETag')).toBe(tag);expect(load).not.toHaveBeenCalled();
+ clock.mockReturnValue(until+1);const hit=await get('/',{'If-None-Match':tag});expect(hit.status).toBe(304);expect(hit.headers.get('ETag')).toBe(tag);expect(load).not.toHaveBeenCalled();
 });

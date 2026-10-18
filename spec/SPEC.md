@@ -1800,8 +1800,8 @@ For public text representations, the ETag is `W/"dep1-<64 lowercase hex>"`.
 Compute SHA-256 over canonical JSON of the current render-dependency document,
 engine release, canonical origin/path and normalized archive query, selected
 Content-Type, approved training signal and the renderer-proven temporal state
-defined by AF-7L below. The deployed PERF-1 minute token remains in force
-until that proposal is implemented. No body is rendered or hashed for a matching conditional read. One
+defined by AF-7L below. No body is rendered or hashed for a matching
+conditional read. One
 current-data statement must prove that the requested canonical path is still
 a public resource before any 304, including `*`. A maximum version plus count
 is insufficient: include all live identities and versions. Theme identity
@@ -2327,15 +2327,13 @@ authorized in-flight public bytes cannot be recalled, as in the existing rule.
 
 AF-7L below replaces the blanket minute expiry and the 300-second storage
 cap with a renderer-proven temporal boundary and a separate 24-hour storage
-cap. Until AF-7L is implemented, the deployed minute/300-second bounds remain
-the conservative behavior. No expiry rule is a substitute for the current
+cap. No expiry rule is a substitute for the current
 access, existence and dependency checks on every request.
 
-#### AF-7L: renderer-proven public time intervals (proposal)
+#### AF-7L: renderer-proven public time intervals
 
-This is a spec proposal, not a claim about current runtime behavior. It
-amends AF-2 and PERF-1's clock component, and AF-7's stored-copy lifetime, in
-both editions. No code is authorized until review. PUBLIC_ARTIFACTS remains
+This amends AF-2 and PERF-1's clock component, and AF-7's stored-copy
+lifetime, in both editions. PUBLIC_ARTIFACTS remains
 operator opt-in and OFF by default; the validator improvement also applies
 when no public copies are stored. Private principal validators, AG cursors,
 approval authority, publication semantics and UC9 accounting are unchanged.
@@ -2628,7 +2626,7 @@ Session and shared cache
 11. Public cacheable representations (HTML, Markdown, JSON-LD-in-HTML, llms.txt, robots, feeds, sitemap) are built from the anonymous published view only.
 12. A request with a valid owner or reader cookie never gets Cache-Control containing `public`, never a shared public ETag used to 304, and never an AF-7 stored copy from a shared cache. Owner HTML is Cache-Control: private, no-store, no-transform.
 13. Owner-only bytes (Review link, CSRF, /review URLs, session name, draft counts, alert UI) never appear in any cacheable response (`public` or missing no-store) nor in published Markdown, JSON-LD, llms.txt, robots, feeds, or sitemap. AG-6 alone may show owner-authorized review prose in a no-store copy; secrets and public/published surfaces remain excluded.
-14. A public AF-2 ETag, when present, hashes only anonymous published render dependencies plus release, origin, canonical path, Content-Type, approved training signal and AF-7L temporal state (the deployed minute token until implementation), with nothing from any session, using AF-2's dependency encoding. Media retains its binary-body encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
+14. A public AF-2 ETag, when present, hashes only anonymous published render dependencies plus release, origin, canonical path, Content-Type, approved training signal and AF-7L temporal state, with nothing from any session, using AF-2's dependency encoding. Media retains its binary-body encoding. Owner responses do not send that ETag (owner If-None-Match cannot 304 to public HTML missing the Review link; visitor If-None-Match cannot 304 to owner HTML).
 15. Do not rely on Vary: Cookie. Defense is cookie-independent public bodies plus no-store on authenticated HTML (SV-PV1); only §11 private published Markdown/map may use principal-bound private revalidation. Test: visitor GET after owner GET of the same URL returns visitor bytes with no Review link; only the cookieless response may be public-cacheable.
 16. AF HTML/Markdown/llms copies are never `immutable` and never max-age longer than today's public page/feed policy (feeds/sitemap 300s; pages today no-cache). Unpublish, private-on, or card-visibility change deletes stored copies before the next response. After private-on or unpublish, a previously public URL does not 304 from the old ETag (SV-PV2).
 17. Page URLs that negotiate Markdown send Vary: Accept. Canonical Markdown is <page>/index.md so a Vary-ignoring reverse proxy is not the only MD URL. A Vary miss may mix public HTML with public Markdown; it must not mix owner bytes (owner responses are no-store and not written to AF-7 caches).
@@ -3221,9 +3219,7 @@ share-card references and media dimensions consumed by rendering (PERF-3).
 A count or maximum
 version alone is insufficient. The identity also includes engine release, canonical
 origin and path with normalized archive query, selected Content-Type, approved
-training signal, and AF-7L temporal state. Until that proposal is implemented,
-the current UTC-minute token remains the conservative deployed behavior.
-AF-7L supplies the proof for removing it; it is not removed by assumption.
+training signal, and AF-7L temporal state.
 A theme, media/share-card metadata, approved extension or
 receipt change must invalidate the identity as well as a live item change.
 Derive these facts from committed data on every request, so writes by an older

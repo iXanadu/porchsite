@@ -27,7 +27,7 @@ from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from .site_fields import training_state
-from . import public_artifacts, public_read
+from . import public_artifacts, public_read, public_time
 from copy import copy
 from .public_http import session_request,public_path,markdown_path
 from .agent_pages import agent_page
@@ -425,6 +425,8 @@ async def content_view(req, cx, discovery=False, grant=None):
             if view.site.get('private'):
                 state['denied']=True
                 raise privacy.PrivateContentDenied()
+            if state.get('fast'):
+                view.now=datetime.fromtimestamp(state['fast']['now']/1000,UTC)
             state['view']=view
         return state['view']
     await privacy.require_content(cx.db,req)
@@ -2031,15 +2033,16 @@ async def fast_public(req,cx):
                     current=await public_read.facts(cx.db)
                     if current['private']:
                         return privacy.blank_response(req)
-                    if current['rows']==f['rows'] and int(public_read.time.time()*1000//60000)==int(now//60000):
+                    if current['rows']==f['rows'] and public_time.valid(public_time.plan(f,c,now)):
                         return hit
                     f=current
                     c=public_read.choice(req,f)
                     if not c:
                         missing=await public_read.miss(req,f,cx.db)
                         return missing if missing is not None else public_read.missing()
-                    tag=public_read.tag(f,req,c,cx.release)
-                cx._read['fast']=dict(tag=tag,disabled=f['disabled'])
+                    now=public_read.time.time()*1000
+                    tag=public_read.tag(f,req,c,cx.release,now)
+                cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
             cx._read['zone']=f['site'].get('timezone') or 'UTC'
         except ApiError as error:
             return owner_page("Problem",f"<h1>Something's wrong</h1><p>{esc(error.message)}</p>",status=error.status)
@@ -2055,7 +2058,9 @@ async def render_public(req,cx):
             f=await public_read.facts(cx.db)
             c=public_read.choice(req,f)
             if c:
-                cx._read['fast']=dict(tag=public_read.tag(f,req,c,cx.release),disabled=f['disabled'])
+                now=public_read.time.time()*1000
+                tag=public_read.tag(f,req,c,cx.release,now)
+                cx._read['fast']=dict(tag=tag,disabled=f['disabled'],now=now) if tag else None
     state=getattr(cx,'_read',None)
     private_now,gated_now,denial=(state['private'],state['gated'],state['response']) if state is not None else await privacy.access(cx.db,req)
     get=Request({**req.scope,'method':'GET'},req.receive) if req.method=='HEAD' else req
@@ -2083,12 +2088,12 @@ async def render_public(req,cx):
                 missing=await public_read.miss(req,f,cx.db)
                 return missing if missing is not None else public_read.missing()
             fresh_tag=public_read.tag(f,req,c,cx.release)
-            if fresh_tag!=stamp['tag']:
+            if fresh_tag!=stamp['tag'] or not public_time.valid(public_time.plan(f,c,stamp['now'])):
                 state=cx._read
                 if not state.get('retries'):
                     state['retries']=1
                     state.pop('view',None)
-                    state['fast']=dict(tag=fresh_tag,disabled=f['disabled'])
+                    state['fast']=dict(tag=fresh_tag,disabled=f['disabled'],now=public_read.time.time()*1000) if fresh_tag else None
                     return await render_public(req,cx)
                 return privacy.no_store(rendered)
         except Exception:
