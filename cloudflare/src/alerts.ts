@@ -1,4 +1,4 @@
-import {dailyAccess} from './daily-limit';
+import {dailyAccess,optionalD1} from './daily-limit';
 /** Owner device settings and best-effort post-commit delivery. No MCP controls. */
 import { waitUntil } from "cloudflare:workers";
 import { ApiError } from "./errors";
@@ -273,7 +273,7 @@ export async function sendApproval(
 }
 const tasks = new Set<Promise<void>>();
 export function schedule(db: D1Database, requestId: string) {
-  const pending = sendApproval(db, requestId).catch(() => {});
+  const pending = optionalD1(() => sendApproval(db, requestId)).catch(() => {});
   tasks.add(pending);
   void pending.finally(() => tasks.delete(pending));
   try {

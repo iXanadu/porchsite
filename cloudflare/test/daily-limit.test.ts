@@ -3,6 +3,7 @@ import {beforeEach,expect,it} from 'vitest';
 import worker from '../src/index';
 import {dailyDatabase,dailyRequest,dailyAccessBatch,dailyTool,dailyOwnerAuthorized,optionalD1,VISITOR_LIMIT,OWNER_LIMIT} from '../src/daily-limit';
 import * as keys from '../src/keys';
+import * as alerts from '../src/alerts';
 import * as readKeys from '../src/read-keys';
 import type {Env} from '../src/env';
 const e=env as unknown as Env,db=e.DB,origin='https://site.example';
@@ -181,4 +182,22 @@ it('a guarded credential batch remains an unknown auth proof on a daily write er
   dailyOwnerAuthorized();await dailyAccessBatch(wrapped,[wrapped.prepare('guarded credential mutation')]);return new Response('never');
  });
  expect(response.status).toBe(503);const text=await response.text();expect(text).toContain(VISITOR_LIMIT);expect(text).not.toContain(OWNER_LIMIT);
+});
+
+it.each(['read','write'])('production approval alert schedule isolates background %s failures before response completion',async kind=>{
+ for(const tool of [false,true]){
+  const native=fake(provider(kind));
+  const response=await dailyRequest(new Request(origin+'/mcp'),native.database,async wrapped=>{
+   const schedule=async()=>{
+    alerts.schedule(wrapped,'synthetic-approval');
+    await alerts.drain();
+    return {content:[{type:'text',text:'approval committed'}]};
+   };
+   const result=tool?await dailyTool(async()=>{dailyOwnerAuthorized();return schedule();}):await schedule();
+   return Response.json(result,{headers:{ETag:'valid'}});
+  });
+  expect(native.calls()).toBe(1);
+  expect(response.status).toBe(200);expect(response.headers.get('ETag')).toBe('valid');
+  expect(await response.json()).toEqual({content:[{type:'text',text:'approval committed'}]});
+ }
 });
