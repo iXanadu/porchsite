@@ -8,8 +8,8 @@ prepared HIT when enabled), then a conditional 304. Response reuse stays
 off. Every D1 read and write is counted, including request waitUntil work.
 This measures database rows, not CPU or hosted billing.
 
-The expanded format keeps all 78 page cells and adds fourteen write cells:
-first-day and repeat beacon views, the 201st attempt on an existing daily
+The expanded format keeps all 78 page cells and adds sixteen write cells:
+first-day and missing-counter repeat beacon views, an existing-counter view, the 201st attempt on an existing daily
 visitor, a progress heartbeat, approvals of one and 200 new entries, and
 one three-item JSON import file, each with copies off/on. Import remains
 pending content. Each operation starts on its own synthetic disposable site.
@@ -24,7 +24,7 @@ as publication. All fixture changes require a full predecessor rebase.
 No real credentials or remote services are used.
 
 For the introducing format change use `--record --rebase`: preserve the
-published 78-cell predecessor record and measure its exact archived bundle
+published 78-cell or 92-cell predecessor record and measure its exact archived bundle
 on all 94 matching cells. Both artifacts are measured, not populated from
 copied numbers. The original product bundle remains unchanged; only a
 separately named local measurement copy routes native module imports through
