@@ -6,6 +6,8 @@ export interface Env {
   SITE_URL?: string;
   /** Explicit opt-in; hosted CPU validation is required before default enablement. */
   PUBLIC_ARTIFACTS?: string;
+  /** Separate opt-in to gated local public response reuse. */
+  PUBLIC_RESPONSES?: string;
   OAUTH_KV: KVNamespace;
   /** Injected by OAuthProvider into the default handler. */
   OAUTH_PROVIDER: OAuthHelpers;

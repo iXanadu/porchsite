@@ -6,8 +6,9 @@ import * as privateAgent from './private-agent';
 import * as readKeys from "./read-keys";
 import * as publicArtifacts from "./public-artifacts";
 import * as publicRead from "./public-read";
+import * as publicResponses from "./public-responses";
 import {sessionRequest,publicPath,markdownPath} from "./public-http";
-type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;artifact?:publicArtifacts.Proof;};
+type ReadState={access:Awaited<ReturnType<typeof privacy.access>>;view?:Promise<site.SiteView>;approved?:site.ApprovedView;fast?:{tag:string;disabled:boolean;now:number};zone?:string;retries?:number;responseHit?:boolean;artifact?:publicArtifacts.Proof;};
 const readStates=new WeakMap<Env,ReadState>();
 import * as agentTraffic from "./agent-traffic";
 import { trainingState } from "./site-fields";
@@ -1219,11 +1220,11 @@ export async function handle(req: Request, env: Env, ctx?:Pick<ExecutionContext,
   else if(access.isPrivate)res=await route(get,env);
   else if(req.method!=='GET'&&req.method!=='HEAD')res=await route(req,env);
   else if(!sessionRequest(req)&&publicRead.unshaped(new URL(req.url).pathname))res=publicRead.missing();
-  else res=await fastPublic(req,env);
+  else res=await fastPublic(req,env,ctx);
   if (access.isPrivate && access.gated && res.headers.get("Cache-Control")!==privateAgent.PRIVATE_LIGHT) res = privacy.noStore(res);
 
   if (/^\/(recover|invite)(\/|$)/.test(new URL(req.url).pathname)) {res = new Response(res.body,res);res.headers.set("Referrer-Policy","no-referrer");if (!access.isPrivate || !access.gated) res.headers.set("Cache-Control","no-store");}
-  if(!access.isPrivate&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
+  if(!access.isPrivate&&!readStates.get(env)?.responseHit&&agentTraffic.countable(req,res)){const work=agentTraffic.observe(env.DB,req,res,new Date(),readStates.get(env)?.zone??String((await contentView(get,env)).site.timezone||'UTC')).catch(()=>{});if(ctx)ctx.waitUntil(work);else await work;}
   if (req.method === "HEAD") return new Response(null,{status:res.status,statusText:res.statusText,headers:res.headers});
   return res;
 }
@@ -1249,7 +1250,7 @@ async function renderPrivateAgent(req:Request,env:Env,grant:()=>Promise<void>):P
  },r=>notFoundPage(new Request(r.url,{method:'GET'}),env,grant));
 }
 /** Live metadata is never an authorization grant or a prepared body. */
-async function fastPublic(req:Request,env:Env):Promise<Response>{
+async function fastPublic(req:Request,env:Env,ctx?:Pick<ExecutionContext,'waitUntil'>):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
   try{
    let f=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1');
@@ -1264,7 +1265,8 @@ async function fastPublic(req:Request,env:Env):Promise<Response>{
    }
   }catch(error){if(error instanceof ApiError)return ownerPage("Problem",html`<h1>Something's wrong</h1><p>${error.message}</p>`,{status:error.status});throw error;}
  }
- return env.PUBLIC_ARTIFACTS==='1'?publicArtifacts.respond(env.DB,req,env.SITE_URL,RELEASE,()=>renderPublic(req,env),readStates.get(env)?.artifact,()=>{readStates.delete(env);return renderPublic(req,env);}):renderPublic(req,env);
+ const render=()=>env.PUBLIC_ARTIFACTS==='1'?publicArtifacts.respond(env.DB,req,env.SITE_URL,RELEASE,()=>renderPublic(req,env),readStates.get(env)?.artifact,()=>{readStates.delete(env);return renderPublic(req,env);}):renderPublic(req,env);
+ return env.PUBLIC_RESPONSES==='1'?publicResponses.respond(env.DB,req,env.SITE_URL,RELEASE,readStates.get(env)?.artifact,render,()=>{readStates.delete(env);return renderPublic(req,env);},()=>{readStates.get(env)!.responseHit=true;},ctx?work=>ctx.waitUntil(work):undefined):render();
 }
 
 /** Anonymous renderer used by both requests and internal build-ahead. */

@@ -9,6 +9,7 @@ build (RELEASE).
   PORCHSITE_SITE_URL    the site's address (optional; else the address a
                         request came in on). Assistants' tokens are bound to it.
   PORCHSITE_PUBLIC_ARTIFACTS  opt in to prepared public copies only when exactly 1
+  PORCHSITE_PUBLIC_RESPONSES opt in to gated local response reuse only when exactly 1
   PORCHSITE_RELEASE     the release this is, sent on every answer (default "dev")
 """
 
@@ -23,6 +24,7 @@ class Settings:
     site_url: str = ""
     release: str = "dev"
     public_artifacts: bool = False
+    public_responses: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -32,4 +34,5 @@ class Settings:
             site_url=os.environ.get("PORCHSITE_SITE_URL", "").rstrip("/"),
             release=os.environ.get("PORCHSITE_RELEASE", "") or "dev",
             public_artifacts=os.environ.get("PORCHSITE_PUBLIC_ARTIFACTS", "")=="1",
+            public_responses=os.environ.get("PORCHSITE_PUBLIC_RESPONSES", "")=="1",
         )

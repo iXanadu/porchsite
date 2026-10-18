@@ -30,7 +30,7 @@ from server.spec.jsutil import long_date, string, u16slice
 from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 
 from .site_fields import training_state
-from . import public_artifacts, public_read, public_time
+from . import public_artifacts, public_read, public_time, public_responses
 from copy import copy
 from .public_http import session_request,public_path,markdown_path,representation as public_read_representation
 from .agent_pages import agent_page
@@ -136,6 +136,7 @@ class Context:
         site_url: str = "",
         release: str = "dev",
         public_artifacts: bool = False,
+        response_store=None,
     ):
         self.db = db
         self.setup_code = setup_code
@@ -143,6 +144,7 @@ class Context:
         self.site_url = site_url
         self.release = release
         self.public_artifacts = public_artifacts
+        self.response_store = response_store
 
 
 def origin_of(req: Request) -> str:
@@ -1643,7 +1645,7 @@ async def handle(req: Request, cx: Context) -> Response:
         response.headers["Referrer-Policy"]="no-referrer"
         if not is_private or not gated:
             response.headers["Cache-Control"]="no-store"
-    if not is_private and agent_traffic.countable(req,response):
+    if not is_private and not cx._read.get('response_hit') and agent_traffic.countable(req,response):
         zone=cx._read.get('zone')
         if zone is None:
             zone=(await content_view(get,cx)).site.get('timezone') or 'UTC'
@@ -2230,7 +2232,9 @@ async def fast_public(req,cx):
         if hasattr(fresh,'_read'):
             delattr(fresh,'_read')
         return await render_public(req,fresh)
-    return await public_artifacts.respond(cx.db,req,cx.site_url,cx.release,lambda:render_public(req,cx),cx._read.get('artifact'),refresh) if cx.public_artifacts else await render_public(req,cx)
+    async def render():
+        return await public_artifacts.respond(cx.db,req,cx.site_url,cx.release,lambda:render_public(req,cx),cx._read.get('artifact'),refresh) if cx.public_artifacts else await render_public(req,cx)
+    return await public_responses.respond(cx.db,req,cx.site_url,cx.release,cx._read.get('artifact'),render,refresh,lambda:cx._read.update(response_hit=True),cx.response_store) if cx.response_store is not None else await render()
 
 
 async def render_public(req,cx):

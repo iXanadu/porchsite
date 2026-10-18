@@ -1,0 +1,93 @@
+[
+  {
+    "origin": "https://site.example",
+    "release": "release",
+    "choice": {
+      "base": "/",
+      "query": "",
+      "type": "text/html; charset=utf-8",
+      "kind": "html",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://site.example/.porchsite-response/b333d7b6e1273a0f3c77fed27626220b7707bcc20087a6bd1c84aff40f611ddc"
+  },
+  {
+    "origin": "https://site.example",
+    "release": "release",
+    "choice": {
+      "base": "/",
+      "query": "",
+      "type": "text/markdown; charset=utf-8",
+      "kind": "markdown",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://site.example/.porchsite-response/41b9c898c9ffcde56677099a3b83bb7fabff2f1554b4c39161f8aec71b585b0a"
+  },
+  {
+    "origin": "https://site.example",
+    "release": "release",
+    "choice": {
+      "base": "/llms.txt",
+      "query": "",
+      "type": "text/markdown; charset=utf-8",
+      "kind": "map",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://site.example/.porchsite-response/72083cd4af497fc246da13e2af35bd7482523b7d21ed6fa7416e1060aacfc347"
+  },
+  {
+    "origin": "https://site.example",
+    "release": "release",
+    "choice": {
+      "base": "/archive/",
+      "query": "?stream=journal",
+      "type": "text/html; charset=utf-8",
+      "kind": "html",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://site.example/.porchsite-response/079a04df536747686f5075980d0e66d63409d08276c8f904ad42fd33b743b111"
+  },
+  {
+    "origin": "https://other.example",
+    "release": "release",
+    "choice": {
+      "base": "/",
+      "query": "",
+      "type": "text/html; charset=utf-8",
+      "kind": "html",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://other.example/.porchsite-response/cc7a6390f0cf19f277567847b95bccffe2c9bd070c127b993f539a97a5a9a36f"
+  },
+  {
+    "origin": "https://site.example",
+    "release": "new-release",
+    "choice": {
+      "base": "/",
+      "query": "",
+      "type": "text/html; charset=utf-8",
+      "kind": "html",
+      "direct": false
+    },
+    "tag": "W/\"dep1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+    "key": "https://site.example/.porchsite-response/f429aeae28456c59b07ac6541ed83ac68119bb25f86899e5da43a4a4cf672741"
+  },
+  {
+    "origin": "https://site.example",
+    "release": "release",
+    "choice": {
+      "base": "/",
+      "query": "",
+      "type": "text/html; charset=utf-8",
+      "kind": "html",
+      "direct": false
+    },
+    "tag": "W/\"dep1-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"",
+    "key": "https://site.example/.porchsite-response/3e99557873c37ed646592f2e01256058ca42168b7178715dc073bd9733dbe5f8"
+  }
+]
