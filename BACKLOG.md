@@ -90,12 +90,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **SP-S4-C1** IN-PROGRESS: the deep site_check still turns every entry's body
-  into Markdown while marking the home page, even though it now renders only
-  the home and archive pages. A listing site with 500 different entries still
-  pays for 500 conversions. Defer that until a body is actually used, keeping
-  inline reachability exact. Spec in review; no implementation yet.
-  Found 2026-10-18 in SP-S4 testing.
 - **AF-7T-C1** OPEN: local prepared-copy HIT improves over live rendering,
   but fresh p95 below 10 ms, warm p95 below 5 ms and clean-MISS incremental
   CPU targets remain unmet on the 200-entry fixture. Keep default-off;
