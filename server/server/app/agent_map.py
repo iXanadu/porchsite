@@ -1,6 +1,7 @@
 """Bounded map metadata from one approved reader view; never render bodies."""
 from starlette.responses import Response
-from .agent_markdown import inline_text, md_text
+import re
+from .agent_markdown import inline_text
 from .public_http import page_path
 
 MAP_HEADERS = {'Content-Type':'text/markdown; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Link':'</llms.txt>; rel="describedby"'}
@@ -15,6 +16,13 @@ def map_pages(v):
         pages.extend(dict(path=e['page'], title=str(e['title']), description=str(e.get('summary') or '')) for e in v.entries if e['stream']==stream['id'] and not e.get('external_url'))
     return pages
 
+def _field(value, cap):
+    text = inline_text(re.sub(r'[\v\u0085\u2028\u2029]', ' ', value))[:cap]
+    text = re.sub(r'[\\[\]<>]', lambda m: '\\'+m[0], text)
+    text = re.sub(r'^(#{1,6}(?= |$)|[-+*](?= |$)|`{3,}|~{3,}|(?:- *){3,}$|(?:_ *){3,}$|(?:\* *){3,}$)', lambda m: '\\'+m[0], text)
+    return re.sub(r'^(\d{1,9})([.)])(?= |$)', lambda m: m[1]+'\\'+m[2], text)
+
+
 def map_response(pages, origin):
     rows, seen, count = [], set(), 0
     for page in pages:
@@ -22,8 +30,8 @@ def map_response(pages, origin):
         if path in seen or not page_path(path):
             continue
         seen.add(path)
-        title = md_text(inline_text(page['title'])[:512])
-        description = md_text(inline_text(page['description'])[:2048])
+        title = _field(page['title'], 512)
+        description = _field(page['description'], 2048)
         if not rows:
             rows.extend(['# '+title, ''])
             if description:

@@ -14,7 +14,7 @@ from typing import Any
 
 from . import mustache
 from .blocks import contact_view, event_view, hours_view, notice_view
-from .embeds import body_markdown, finish_embeds, heading_bodies
+from .embeds import deferred_body, finish_embeds, heading_bodies
 from .jsutil import S, long_date, short_date, string, trim, u16key, u16slice, url_host
 from .site import SiteView
 from .strings import STRINGS, strings_of
@@ -101,11 +101,11 @@ def _ctx(v: SiteView) -> Ctx:
     )
 
 
-def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None) -> Data:
+def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None, bodies=None) -> Data:
     tz, now, words = ctx or ("UTC", datetime.now(UTC), None)
     tags = _q(e.get("tags"), [])
     stats = _q(e.get("stats"), [])
-    return {
+    return deferred_body({
         **e,
         "event": event_view(e.get("event"), tz, now, words or STRINGS),
         "url": e.get("url"),
@@ -113,9 +113,6 @@ def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None) -> Da
         "date_short": short_date(e["date"]),
         "date_long": long_date(e["date"]),
         "has_body": bool(e.get("body")) and not e.get("external_url"),
-        "body_html": body_markdown(e["body"])
-        if e.get("body") and not e.get("external_url")
-        else "",
         "stats": stats,
         "has_stats": bool(len(stats)),
         "external": bool(e.get("external_url")),
@@ -126,7 +123,7 @@ def entry(e: Data, stream: Data, anchor: str = "", ctx: Ctx | None = None) -> Da
         "label": (stream["link_label"] or "Read") if e.get("external_url") else "",
         "link": "",
         "link_host": "",
-    }
+    }, e.get("body", "") if not e.get("external_url") else "", bodies)
 
 
 def card(c: Data, aside: bool = False) -> Data:
@@ -294,6 +291,7 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
         for x in ([y["id"] for y in st if y["id"] not in order] if k == "entries" else [k])
     ]
     ctx = _ctx(v)
+    bodies = {}
     out: list[Data] = []
     for k in keys:
         stream = next((x for x in st if x["id"] == k), None)
@@ -302,16 +300,16 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             items = [e for e in v.entries if e["stream"] == stream["id"]]
             sec["stream"] = stream
             sec["show"] = len(items) > 0
-            sec["latest"] = [entry(items[0], stream, "", ctx)] if items else []
+            sec["latest"] = [entry(items[0], stream, "", ctx, bodies)] if items else []
             sec["more_than_one"] = len(items) > 1
             sec["activity"] = [{**n, "date_short": short_date(n["date"])} for n in v.notes]
             sec["has_activity"] = stream["is_feature"] and len(v.notes) > 0
             ordered = stream_items(items, stream)
             sec["items"] = [
-                entry(e, stream, "article" if i == 0 else "", ctx) for i, e in enumerate(ordered[:3])
+                entry(e, stream, "article" if i == 0 else "", ctx, bodies) for i, e in enumerate(ordered[:3])
             ]
             # Events: the next ones first, soonest first; past ones after, newest first.
-            evs = [entry(e, stream, "", ctx) for e in items if e.get("event")]
+            evs = [entry(e, stream, "", ctx, bodies) for e in items if e.get("event")]
             sec["upcoming"] = sorted(
                 [e for e in evs if not e["event"]["is_past"]],
                 key=lambda e: string(e["event"]["start"]),
@@ -325,10 +323,10 @@ def home_view(v: SiteView, release: str, origin: str) -> Data:
             sec["has_earlier"] = len(sec["earlier"]) > 0
             # Entries that aren't events, in a stream that has some: newest first.
             sec["others"] = (
-                [entry(e, stream, "", ctx) for e in ordered if not e.get("event")] if evs else []
+                [entry(e, stream, "", ctx, bodies) for e in ordered if not e.get("event")] if evs else []
             )
             sec["has_others"] = len(sec["others"]) > 0
-            sec["all"] = [entry(e, stream, "", ctx) for e in ordered]
+            sec["all"] = [entry(e, stream, "", ctx, bodies) for e in ordered]
             sec["count_suffix"] = f" ({len(items)})" if len(items) > 3 else ""
         elif k == "cards":
             groups = list(dict.fromkeys(c.get("group") for c in v.cards if c.get("group")))
@@ -470,13 +468,14 @@ def archive_view(
         "image": next((e["cover"] for e in v.entries if e["stream"] == stream["id"] and (not tag or tag in (e.get("tags") or [])) and e.get("cover")), None),
     }
     ctx = _ctx(v)
+    bodies = {}
     # [...counts].sort(): each [name, count] pair compared as the string "name,count".
     pairs = sorted(counts.items(), key=lambda p: u16key(f"{p[0]},{p[1]}"))
     return {
         **base(v, release, origin, meta),
         "stream": stream,
         "tag": tag or "",
-        "entries": [entry(e, stream, "", ctx) for e in items],
+        "entries": [entry(e, stream, "", ctx, bodies) for e in items],
         "tags": [{"name": n, "count": c} for n, c in pairs],
         "has_tags": len(counts) > 0,
     }

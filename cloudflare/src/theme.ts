@@ -6,7 +6,7 @@
  * carries its stream, so a theme names no stream and holds no words of its own
  * beyond its UI strings.
  */
-import { bodyMarkdown, finishEmbeds, headingBodies } from "./embeds";
+import { deferredBody, finishEmbeds, headingBodies } from "./embeds";
 import Mustache from "mustache";
 import { THEMES } from "./themes.gen";
 import { dateString } from "./date-format";
@@ -62,12 +62,12 @@ export function streams(site: Data): Data[] {
   });
 }
 
-type Ctx = { tz: string; now: Date; strings?: Record<string, string> };
-const ctxOf = (v: SiteView): Ctx => ({ tz: String(v.site.timezone || "UTC"), now: v.now ?? new Date(), strings: stringsOf(v.site) });
+type Ctx = { tz: string; now: Date; strings?: Record<string, string>; bodies?: Map<string, string> };
+const ctxOf = (v: SiteView): Ctx => ({ tz: String(v.site.timezone || "UTC"), now: v.now ?? new Date(), strings: stringsOf(v.site), bodies: new Map() });
 
 function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: new Date() }): Data {
   const tags = (e.tags ?? []) as string[];
-  return {
+  return deferredBody({
     ...e,
     event: eventView(e.event, ctx.tz, ctx.now, ctx.strings),
     url: e.url,
@@ -75,7 +75,6 @@ function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: 
     date_short: shortDate(e.date),
     date_long: longDate(e.date),
     has_body: !!e.body && !e.external_url,
-    body_html: e.body && !e.external_url ? bodyMarkdown(e.body) : "",
     stats: e.stats ?? [],
     has_stats: !!(e.stats ?? []).length,
     external: !!e.external_url,
@@ -86,7 +85,7 @@ function entry(e: Data, stream: Data, anchor = "", ctx: Ctx = { tz: "UTC", now: 
     label: e.external_url ? stream.link_label || "Read" : "",
     link: "",
     link_host: "",
-  };
+  }, e.body && !e.external_url ? e.body : "", ctx.bodies ??= new Map());
 }
 
 function card(c: Data, aside = false): Data {
@@ -194,7 +193,7 @@ function groupStyle(site: Data, name: string): Data {
 }
 
 export function homeView(v: SiteView, release: string, origin: string): Data {
-  const st = streams(v.site);
+  const st = streams(v.site), ctx = ctxOf(v);
   const order: string[] = v.site.sections;
   const keys = order.flatMap((k) => (k === "entries" ? st.filter((x) => !order.includes(x.id)).map((x) => x.id) : [k]));
   const out: Data[] = [];
@@ -205,22 +204,22 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       const items = v.entries.filter((e) => e.stream === stream.id);
       sec.stream = stream;
       sec.show = items.length > 0;
-      sec.latest = items.length ? [entry(items[0], stream, "", ctxOf(v))] : [];
+      sec.latest = items.length ? [entry(items[0], stream, "", ctx)] : [];
       sec.more_than_one = items.length > 1;
       sec.activity = v.notes.map((n) => ({ ...n, date_short: shortDate(n.date) }));
       sec.has_activity = stream.is_feature && v.notes.length > 0;
       const ordered = streamItems(items, stream);
-      sec.items = ordered.slice(0, 3).map((e, i) => entry(e, stream, i === 0 ? "article" : "", ctxOf(v)));
+      sec.items = ordered.slice(0, 3).map((e, i) => entry(e, stream, i === 0 ? "article" : "", ctx));
       // Events: the next ones first, soonest first; past ones after, newest first.
-      const evs = items.filter((e) => e.event).map((e) => entry(e, stream, "", ctxOf(v)));
+      const evs = items.filter((e) => e.event).map((e) => entry(e, stream, "", ctx));
       sec.upcoming = evs.filter((e) => !e.event.is_past).sort((a, b) => String(a.event.start).localeCompare(String(b.event.start)));
       sec.earlier = evs.filter((e) => e.event.is_past).sort((a, b) => String(b.event.start).localeCompare(String(a.event.start)));
       sec.has_upcoming = sec.upcoming.length > 0;
       sec.has_earlier = sec.earlier.length > 0;
       // Entries that aren't events, in a stream that has some: newest first.
-      sec.others = evs.length ? ordered.filter((e) => !e.event).map((e) => entry(e, stream, "", ctxOf(v))) : [];
+      sec.others = evs.length ? ordered.filter((e) => !e.event).map((e) => entry(e, stream, "", ctx)) : [];
       sec.has_others = sec.others.length > 0;
-      sec.all = ordered.map((e) => entry(e, stream, "", ctxOf(v)));
+      sec.all = ordered.map((e) => entry(e, stream, "", ctx));
       sec.count_suffix = items.length > 3 ? ` (${items.length})` : "";
     } else if (k === "cards") {
       const groups = [...new Set(v.cards.map((c) => c.group).filter(Boolean))];
@@ -291,6 +290,7 @@ export function entryView(v: SiteView, e: Data, release: string, origin: string)
 export function archiveView(v: SiteView, streamPath: string, release: string, origin: string, tag?: string): Data | null {
   const stream = streams(v.site).find((x) => x.path === streamPath);
   if (!stream) return null;
+  const ctx = ctxOf(v);
   let items = streamItems(v.entries.filter((e) => e.stream === stream.id), stream);
   const counts = new Map<string, number>();
   for (const e of items) for (const t of e.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
@@ -301,7 +301,7 @@ export function archiveView(v: SiteView, streamPath: string, release: string, or
     ...base(v, release, origin, { kind: tag ? "tag" : "archive", title: `${tag ? `#${tag} · ` : ""}${stream.nav_label} · ${v.site.title}`, path, description: stream.description || undefined, image: v.entries.find((e) => e.stream === stream.id && (!tag || (e.tags ?? []).includes(tag)) && e.cover)?.cover || undefined }),
     stream,
     tag: tag ?? "",
-    entries: items.map((e) => entry(e, stream, "", ctxOf(v))),
+    entries: items.map((e) => entry(e, stream, "", ctx)),
     tags: [...counts].sort().map(([name, count]) => ({ name, count })),
     has_tags: counts.size > 0,
   };

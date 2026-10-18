@@ -6,9 +6,27 @@ export interface Embed { url: string; title: string; origin: string }
 // Boxed strings render/serialize as strings. Their private capabilities are
 // held weakly, outside the template's enumerable view and content data.
 const capabilities = new WeakMap<object, Map<string, Embed>>();
+type DeferredBody = { source: string; memo: Map<string, string>; ids: boolean; demote: boolean; value?: string };
+const deferredBodies = new WeakMap<object, DeferredBody>();
+/** A template-visible field, kept outside metadata enumeration and stored content. */
+export function deferredBody<T extends Record<string, any>>(view: T, source: string, memo = new Map<string, string>(), ids = false, demote = false): T {
+  const state: DeferredBody = { source, memo, ids, demote };
+  deferredBodies.set(view, state);
+  Object.defineProperty(view, "body_html", { enumerable: false, get() {
+    if (state.value === undefined) {
+      const key = `${ids ? 1 : 0}${demote ? 1 : 0}${source}`;
+      if (!memo.has(key)) memo.set(key, source ? bodyMarkdown(source, undefined, ids, demote) : "");
+      state.value = memo.get(key)!;
+    }
+    return state.value;
+  } });
+  return view;
+}
 function renderMarkers(view: unknown, out = new Map<string, Embed>(), seen = new Set<object>()): Map<string, Embed> {
   if (!view || typeof view !== "object" || seen.has(view)) return out;
   seen.add(view);
+  const resolved = deferredBodies.get(view)?.value;
+  if (resolved !== undefined) renderMarkers(resolved, out, seen);
   const own = capabilities.get(view);
   if (own) { for (const [key, value] of own) out.set(key, value); return out; }
   for (const value of Object.values(view)) renderMarkers(value, out, seen);
@@ -37,6 +55,8 @@ export function headingBodies(value: unknown, headingIds = true, bodyH1AsH2 = fa
   if (Array.isArray(value)) return value.map(child => headingBodies(child, headingIds, bodyH1AsH2, bodies));
   if (!value || typeof value !== "object" || value instanceof String) return value;
   const source = value as Record<string, unknown>;
+  const deferred = deferredBodies.get(value);
+  if (deferred) return deferredBody(Object.fromEntries(Object.entries(source).map(([key, child]) => [key, headingBodies(child, headingIds, bodyH1AsH2, bodies)])), deferred.source, bodies, headingIds, bodyH1AsH2);
   return Object.fromEntries(Object.entries(source).map(([key, child]) => {
     if (key === "body_html" && child && typeof source.body === "string") {
       if (!bodies.has(source.body)) bodies.set(source.body, bodyMarkdown(source.body, undefined, headingIds, bodyH1AsH2));

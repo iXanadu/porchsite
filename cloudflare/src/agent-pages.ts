@@ -18,14 +18,15 @@ export async function agentPage(req:Request,route:Route,map:()=>Promise<Response
     if(!isHTML(response))return notFound(req);
     return new Response(markdownDocument(await response.text(),new URL(base+pageQuery(req,base),req.url).href).markdown,{headers:MD});
   }
-  const response=await route(req);
+  const selected=pagePath(path)?representation(req.headers.get('Accept')):'html';
+  const anonymousMarkdown=selected==='markdown'&&!sessionRequest(req);
+  const response=await route(anonymousMarkdown?anonymous(req,path,true):req);
   if(!pagePath(path)||!isHTML(response))return response;
-  const selected=representation(req.headers.get('Accept'));
   const headers=new Headers(response.headers);
   const vary=headers.get('Vary');headers.set('Vary',vary?`${vary}, Accept`:'Accept');headers.delete('Content-Length');
   if(selected===null)return new Response(null,{status:406,headers:{'Vary':'Accept','Cache-Control':'private, no-store, no-transform'}});
   if(selected==='markdown') {
-    const visitor=await route(anonymous(req,path,true));
+    const visitor=anonymousMarkdown?response:await route(anonymous(req,path,true));
     if(!isHTML(visitor))return visitor;
     return new Response(markdownDocument(await visitor.text(),new URL(path+pageQuery(req,path),req.url).href).markdown,{headers:{...MD,Vary:headers.get('Vary')!}});
   }

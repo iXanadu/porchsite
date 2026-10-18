@@ -1,0 +1,72 @@
+[
+  {
+    "name": "ordinary punctuation",
+    "title": "Release v1.2 (up to date)!",
+    "description": "llms.txt & C++: #topic, a-b / a_b",
+    "escaped_title": "Release v1.2 (up to date)!",
+    "escaped_description": "llms.txt & C++: #topic, a-b / a_b"
+  },
+  {
+    "name": "brackets and HTML",
+    "title": "[Title] ](https://outside.example)",
+    "description": "<script>alert(\"x\")</script> \\ path [x]",
+    "escaped_title": "\\[Title\\] \\](https://outside.example)",
+    "escaped_description": "\\<script\\>alert(\"x\")\\</script\\> \\\\ path \\[x\\]"
+  },
+  {
+    "name": "folded hostile lines",
+    "title": "Line one\r\n- injected [row]",
+    "description": "First\n\n# injected\r\t](<script>)",
+    "escaped_title": "Line one - injected \\[row\\]",
+    "escaped_description": "First # injected \\](\\<script\\>)"
+  },
+  {
+    "name": "Unicode line separators",
+    "title": "One two",
+    "description": "Threefour five\u000bsix",
+    "escaped_title": "One two",
+    "escaped_description": "Three four five six"
+  },
+  {
+    "name": "heading and bullet",
+    "title": "# heading",
+    "description": "- list",
+    "escaped_title": "\\# heading",
+    "escaped_description": "\\- list"
+  },
+  {
+    "name": "ordered list",
+    "title": "1. numbered",
+    "description": "2) another",
+    "escaped_title": "1\\. numbered",
+    "escaped_description": "2\\) another"
+  },
+  {
+    "name": "plus and heading",
+    "title": "+ more",
+    "description": "### header",
+    "escaped_title": "\\+ more",
+    "escaped_description": "\\### header"
+  },
+  {
+    "name": "rule and fence",
+    "title": "---",
+    "description": "```html",
+    "escaped_title": "\\---",
+    "escaped_description": "\\```html"
+  },
+  {
+    "name": "star rule and tilde fence",
+    "title": "***",
+    "description": "~~~ code",
+    "escaped_title": "\\***",
+    "escaped_description": "\\~~~ code"
+  },
+  {
+    "name": "ordinary leading punctuation",
+    "title": "#hashtag -dash +word",
+    "description": "1.example 2)word ~wave _word",
+    "escaped_title": "#hashtag -dash +word",
+    "escaped_description": "1.example 2)word ~wave _word"
+  }
+]

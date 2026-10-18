@@ -21,9 +21,43 @@ class _Body(str):
         return obj
 
 
+class _DeferredEntry(dict):
+    """Template-visible body_html without enumerating or serializing a body."""
+
+    def __init__(self, view, source, memo, ids, demote):
+        super().__init__((key, value) for key, value in view.items() if key != "body_html")
+        self._source, self._memo = source, memo
+        self._ids, self._demote = ids, demote
+        self._resolved = None
+
+    def _body(self):
+        if self._resolved is None:
+            key = (self._ids, self._demote, self._source)
+            if key not in self._memo:
+                self._memo[key] = body_markdown(self._source, heading_ids=self._ids,
+                    body_h1_as_h2=self._demote) if self._source else ""
+            self._resolved = self._memo[key]
+        return self._resolved
+
+    def __contains__(self, key):
+        return key == "body_html" or super().__contains__(key)
+
+    def __getitem__(self, key):
+        return self._body() if key == "body_html" else super().__getitem__(key)
+
+    def get(self, key, default=None):
+        return self._body() if key == "body_html" else super().get(key, default)
+
+
+def deferred_body(view, source, memo=None, ids=False, demote=False):
+    return _DeferredEntry(view, source, {} if memo is None else memo, ids, demote)
+
+
 def _render_markers(view, out=None, seen=None):
     out = {} if out is None else out
     seen = set() if seen is None else seen
+    if isinstance(view, _DeferredEntry) and view._resolved is not None:
+        _render_markers(view._resolved, out, seen)
     if isinstance(view, _Body):
         out.update(view._markers)
     elif isinstance(view, (dict, list)) and id(view) not in seen:
@@ -75,6 +109,10 @@ def heading_bodies(value, heading_ids=True, body_h1_as_h2=False, bodies=None):
         return [heading_bodies(child, heading_ids, body_h1_as_h2, bodies) for child in value]
     if not isinstance(value, dict):
         return value
+    if isinstance(value, _DeferredEntry):
+        metadata = {key: heading_bodies(child, heading_ids, body_h1_as_h2, bodies)
+                    for key, child in value.items()}
+        return deferred_body(metadata, value._source, bodies, heading_ids, body_h1_as_h2)
     out = {}
     for key, child in value.items():
         if key == "body_html" and child and isinstance(value.get("body"), str):
