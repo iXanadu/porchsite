@@ -24,6 +24,7 @@ from .db import Db, iso, transaction
 
 NOTRACK_COOKIE = "sk_nt"
 RETAIN_DAYS = 90
+DAILY_VIEW_CAP = 200
 MAX_BODY = 2048
 MAX_ENGAGED_MS = 4 * 3600 * 1000
 BOUNCE_MS = 10_000
@@ -118,7 +119,40 @@ def _int(v: Any) -> int:
     return int(v)
 
 
+async def _maintain(db: Db, day: str) -> None:
+    marker = await db.fetchval("SELECT completed_day FROM analytics_maintenance WHERE id = 1")
+    if marker is None:
+        raise RuntimeError("analytics maintenance unavailable")
+    if marker >= day:
+        return
+    cutoff = add_days(day, -RETAIN_DAYS)
+    async with transaction(db) as c:
+        marker = await c.fetchval("SELECT completed_day FROM analytics_maintenance WHERE id = 1 FOR UPDATE")
+        if marker is None:
+            raise RuntimeError("analytics maintenance unavailable")
+        if marker >= day:
+            return
+        await c.execute("DELETE FROM analytics_salts WHERE day < $1 AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $1)", day)
+        await c.execute(
+            "INSERT INTO analytics_daily (day, visits, views, engaged_ms)"
+            " SELECT day, count(DISTINCT visitor), count(*), sum(engaged_ms) FROM pageviews"
+            " WHERE day < $1 AND NOT test AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $2)"
+            " GROUP BY day ON CONFLICT (day) DO NOTHING", cutoff, day,
+        )
+        await c.execute("DELETE FROM pageviews WHERE day < $1 AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $2)", cutoff, day)
+        await c.execute("UPDATE analytics_maintenance SET completed_day = $1 WHERE id = 1 AND completed_day < $1", day)
+
+
 async def collect(
+    db: Db, raw: bytes, *, ip: str, ua: str, notrack: bool, host: str, now: datetime | None = None
+) -> bool:
+    try:
+        return await _record(db, raw, ip=ip, ua=ua, notrack=notrack, host=host, now=now)
+    except Exception:
+        return False
+
+
+async def _record(
     db: Db, raw: bytes, *, ip: str, ua: str, notrack: bool, host: str, now: datetime | None = None
 ) -> bool:
     """Accept one beacon event. Unchanged heartbeats need no write; never raises
@@ -141,17 +175,7 @@ async def collect(
         if not path.startswith("/") or path.startswith(("/review", "/mcp", "/collect")):
             return False
         day = await _today(db, now)
-        # Yesterday's salts go, and views past their 90 days, their counts kept.
-        await db.execute("DELETE FROM analytics_salts WHERE day < $1", day)
-        cutoff = add_days(day, -RETAIN_DAYS)
-        async with transaction(db) as c:
-            await c.execute(
-                "INSERT INTO analytics_daily (day, visits, views, engaged_ms)"
-                " SELECT day, count(DISTINCT visitor), count(*), sum(engaged_ms) FROM pageviews"
-                " WHERE day < $1 AND NOT test GROUP BY day ON CONFLICT (day) DO NOTHING",
-                cutoff,
-            )
-            await c.execute("DELETE FROM pageviews WHERE day < $1", cutoff)
+        await _maintain(db, day)
         visitor = await visitor_hash(db, day, ip, ua)
         kind = _str(ev.get("k"), 20)
         content_id = _str(ev.get("c"), 60)
@@ -161,26 +185,32 @@ async def collect(
         # The X app often sends no referrer at all; a tagged link still says where.
         if src == "x" and bucket in ("direct", "other"):
             bucket = "x"
-        status = await db.execute(
-            "INSERT INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain,"
-            " prev_path, src, post, test, created_at, updated_at)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)"
-            " ON CONFLICT (id) DO NOTHING",
-            ev["id"],
-            day,
-            visitor,
-            path,
-            kind if kind in KINDS else "other",
-            content_id if _CONTENT.fullmatch(content_id) else "",
-            bucket,
-            domain,
-            prev,
-            src if _SRC.fullmatch(src) else "",
-            post if src and _POST.fullmatch(post) else "",
-            ev.get("w") in (1, True),
-            at,
-        )
-        return status.endswith(" 1")
+        # Lock acquisition is a separate statement, so the subsequent READ
+        # COMMITTED insert sees its predecessor's committed final-slot write.
+        lock = int.from_bytes(hashlib.sha256(f"AN-1\0{day}\0{visitor}".encode()).digest()[:8], "big", signed=True)
+        async with transaction(db) as c:
+            await c.execute("SELECT pg_advisory_xact_lock($1)", lock)
+            status = await c.execute(
+                "INSERT INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain,"
+                " prev_path, src, post, test, created_at, updated_at)"
+                " SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13"
+                " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = $2 AND visitor = $3 LIMIT 1 OFFSET 199)"
+                " ON CONFLICT (id) DO NOTHING",
+                ev["id"],
+                day,
+                visitor,
+                path,
+                kind if kind in KINDS else "other",
+                content_id if _CONTENT.fullmatch(content_id) else "",
+                bucket,
+                domain,
+                prev,
+                src if _SRC.fullmatch(src) else "",
+                post if src and _POST.fullmatch(post) else "",
+                ev.get("w") in (1, True),
+                at,
+            )
+            return status.endswith(" 1")
     if ev.get("t") == "hb":
         engaged = max(0, min(_int(ev.get("e")), MAX_ENGAGED_MS))
         scroll = max(0, min(_int(ev.get("d")), 100))
@@ -433,7 +463,8 @@ async def stats(
             "past 25%. Visitor statistics exclude the owner, bots and test runs. "
             "Time on page and scroll can lag up to a minute while someone is still reading. "
             "Browser or connection delays can make that longer. "
-            "If the final message is lost, recorded time and scroll can be lower."
+            "If the final message is lost, recorded time and scroll can be lower. "
+            "At most 200 page views per visitor per day are recorded; additional page views are omitted."
         ),
         "totals": {
             "visits": len(every),

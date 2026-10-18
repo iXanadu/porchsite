@@ -165,15 +165,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   method/preflight/origin checks and unclaimed-409 precedence; fixed
   `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
   Introducing recovery links already use fragments; keep archived tests.
-- **AN-1** OPEN: the visitor beacon (`POST /collect`) has no rate limit.
-  Each accepted page-view event writes at least one database row and runs
-  the retention clean-up (a delete plus an aggregate insert) every time.
-  On the free plan, a flood of fake events uses up the 100,000 daily
-  requests and writes, after which the site's own writes fail until the
-  daily reset. On a paid plan it would raise the bill with no cap. Fix
-  before any wider rollout: a cheap per-visitor or per-IP cap, and the
-  clean-up run at most once per day instead of on every event. Found
-  2026-10-18 on the owner's question.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
