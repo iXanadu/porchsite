@@ -1,3 +1,4 @@
+import {mapFields} from "./deferred-fields";
 /**
  * site_check: the site as it will be once everything staged is published,
  * looked over the way a visitor would click through it (SPEC §4). Links
@@ -150,7 +151,7 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
   const marked = (value: any): any => {
     if (Array.isArray(value)) return value.map(marked);
     if (!value || typeof value !== "object" || value instanceof String) return value;
-    const out = Object.fromEntries(Object.entries(value).map(([k, val]) => [k, marked(val)]));
+    const out = mapFields(value, marked);
     const i = indexes.get(value.id);
     return copyDeferredBody(value, out, i === undefined ? undefined : `<!--${marker}${i}-->`);
   };

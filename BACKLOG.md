@@ -27,10 +27,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      about 0 to 1.2 ms (paired medians, 9 of 12 looks faster, 3 slower):
      the first and final checks are the real cost and must stay. Not worth
      touching validation for that; revisit only with a larger design.
-   - **PERF-6c** OPEN: the page-building step allocates fields the page
-     never uses; build only what the theme reads, keeping all escaping.
-     The server edition builds the same unused lists; port it only if the
-     Worker change measures worthwhile.
+   - **PERF-6c** OPEN (server edition): defer unused full-entry and
+     highlight collections, preserving template consumption, escaping,
+     heading policy, embed provenance and deep-check proof. The Worker
+     now defers those two collections; local 200/500-entry paired medians
+     improved 0.7–8.1 ms across three looks, while sample-site results
+     were mixed. A server port needs its own measurement and approval.
 2. PERF-4: reuse a rendered public page for every visitor in a location
    while nothing on it has changed.
 
