@@ -26,13 +26,13 @@ function bindingLimit(error:unknown):Limit|undefined {
   current=current.cause;
  }
 }
-const databases=new WeakMap<object,D1Database>();
+const databases=new WeakMap<object,D1Database|D1DatabaseSession>();
 const originals=new WeakMap<object,object>();
 export function databaseIdentity(db:D1Database):D1Database{return (originals.get(db)??db) as D1Database;}
 /** Transparent method/batch wrapper: successful values and native counts stay intact. */
-export function dailyDatabase(db:D1Database):D1Database {
+export function dailyDatabase<T extends D1Database|D1DatabaseSession>(db:T):T {
  if(originals.has(db))return db;
- const old=databases.get(db);if(old)return old;
+ const old=databases.get(db);if(old)return old as T;
  const statements=new WeakMap<object,object>();
  async function execute(target:object,key:PropertyKey,args:unknown[]){
   const state=requests.getStore();
@@ -55,10 +55,10 @@ export function dailyDatabase(db:D1Database):D1Database {
   statements.set(native,wrapped);originals.set(wrapped,native);return wrapped;
  }
  const wrapped=new Proxy(db,{get(target,key){
-  if(key==='prepare')return (...args:unknown[])=>statement(Reflect.get(target,key,target).apply(target,args));
+  if(key==='prepare')return (query:string)=>statement(target.prepare(query));
   if(key==='batch')return (batch:object[])=>execute(target,key,[batch.map(s=>originals.get(s)??s)]);
   if(key==='exec')return (...args:unknown[])=>execute(target,key,args);
-  if(key==='withSession')return (...args:unknown[])=>dailyDatabase(Reflect.get(target,key,target).apply(target,args));
+  if(key==='withSession')return (constraintOrBookmark?:string)=>dailyDatabase((target as D1Database).withSession(constraintOrBookmark));
   const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
  }});
  databases.set(db,wrapped);originals.set(wrapped,db);return wrapped;
