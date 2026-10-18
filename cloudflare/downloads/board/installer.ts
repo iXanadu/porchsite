@@ -145,10 +145,15 @@ async function run(env: Env, input: { cf_token?: string; site_name?: string; tok
   const claimed = ((await q("SELECT count(*) AS n FROM owner")) as { n: number }[])[0]?.n > 0;
   let code = "";
   if (!claimed) {
-    code = random(24);
+    code = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const created = new Date().toISOString();
     const expires = new Date(Date.now() + 24 * 3600_000).toISOString();
-    await q("DELETE FROM setup_codes");
-    await q("INSERT INTO setup_codes (code_hash, created_at, expires_at) VALUES (?, ?, ?)", [await codeHash(code), new Date().toISOString(), expires]);
+    const issued = await cf(token, "POST", `${A}/d1/database/${dbId}/query`, {batch: [
+      {sql: "DELETE FROM setup_codes WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)"},
+      {sql: "INSERT INTO setup_codes (code_hash, created_at, expires_at) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM owner WHERE id = 1)", params: [await codeHash(code), created, expires]},
+    ]});
+    if (!issued.a.success) throw new Stop("The database could not issue a setup link.");
+    if (!issued.a.result?.[1]?.meta?.changes) throw new Stop("This site already has an owner. Open its sign-in page instead.");
   }
 
   // Establish the known install origin before uploading new-site metadata.

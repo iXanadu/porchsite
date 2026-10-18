@@ -41,7 +41,8 @@ So a developer can judge it:
   database in chunks, up to 8 MB each) live here. The layout is in the
   `migrations/*.sql` files; apply new ones on update.
 - **Key-value store:** Workers KV, for sign-in (OAuth) state.
-- **Secrets:** `SETUP_CODE`, used once to claim the site, then deleted.
+- **Setup:** a one-time code stored only as a hash in `setup_codes`, with
+  a 24-hour expiry; claiming deletes it. New installs create no setup secret.
   The owner never types it: whoever installs sends them
   `https://<site>/setup?code=<code>`, which fills it in. (A one-time code
   with an expiry can instead be stored in D1's `setup_codes` table, as the
@@ -78,7 +79,8 @@ assistant, but every step is one Cloudflare API call a developer can run with
 `curl` and an API token (Workers Scripts, D1 and Workers KV edit; for a custom
 domain also Zone, DNS and Workers Routes edit). Wrangler works too: a
 `wrangler.jsonc` with the bundle as `main`, `no_bundle: true`, a D1 binding
-`DB`, a KV binding `OAUTH_KV`, and the `SETUP_CODE` secret.
+`DB` and a KV binding `OAUTH_KV`. Issue the hashed setup row as described
+in the install guide; do not add a setup-secret binding for a new site.
 
 ## What a server-edition site needs
 

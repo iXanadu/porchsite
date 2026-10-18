@@ -170,6 +170,7 @@ async def issue_setup_code(db: Db, code: str, hours: float = SETUP_HOURS) -> str
     is claimed."""
     expires_at = _later(hours=hours)
     async with transaction(db) as c:
+        await c.execute("LOCK TABLE owner, setup_codes IN SHARE ROW EXCLUSIVE MODE")
         if await c.fetchrow("SELECT 1 FROM owner WHERE id = 1"):
             raise ApiError(409, "claimed", "This site already has an owner.")
         await c.execute("DELETE FROM setup_codes")
@@ -182,14 +183,23 @@ async def issue_setup_code(db: Db, code: str, hours: float = SETUP_HOURS) -> str
     return expires_at
 
 
-async def _still_works(db: Db, setup_code: str | None, via: str) -> None:
+def _same_digest(a: str, b: str) -> bool:
+    canonical = r"[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+    return bool(re.fullmatch(canonical, a) and re.fullmatch(canonical, b)) and _same(a, b)
+
+
+async def _still_works(db: Db, setup_code: str | None, via: str, env_hash: str | None = None) -> None:
     """Refuse if the code a claim started with has stopped working since."""
     if via == "env":
         if not setup_code or len(setup_code) < 8:
             raise ApiError(503, "no_setup_code", NO_SETUP_CODE)
+        if env_hash is not None and not _same_digest(hash_token(setup_code), env_hash):
+            raise ApiError(403, "code_expired", CODE_EXPIRED)
     elif not await db.fetchrow(
         "SELECT 1 FROM setup_codes WHERE code_hash = $1 AND expires_at > $2", via, now()
     ):
+        if await has_owner(db):
+            raise ApiError(409, "claimed", "This site already has an owner.")
         raise ApiError(403, "code_expired", CODE_EXPIRED)
 
 
@@ -201,8 +211,8 @@ async def _check_setup_code(db: Db, setup_code: str | None, code: str) -> str:
     if env_ok and _same(code, setup_code or ""):
         return "env"
     h = hash_token(code)
-    row = await db.fetchrow("SELECT expires_at FROM setup_codes WHERE code_hash = $1", h)
-    if row and row["expires_at"] > now():
+    row = await db.fetchrow("SELECT code_hash, expires_at FROM setup_codes WHERE code_hash = $1", h)
+    if row and _same_digest(h, row["code_hash"]) and row["expires_at"] > now():
         return h
     if row:
         raise ApiError(403, "code_expired", CODE_EXPIRED)
@@ -234,7 +244,8 @@ async def setup_options(
     set_header = await _save_challenge(
         db,
         json.dumps(
-            {"challenge": out["challenge"], "name": name, "handle": b64url(handle), "via": via}
+            {"challenge": out["challenge"], "name": name, "handle": b64url(handle), "via": via,
+             **({"env_hash": hash_token(setup_code)} if via == "env" else {})}
         ),
         "setup",
     )
@@ -245,13 +256,16 @@ async def setup_verify(db: Db, req: Request, setup_code: str | None, response: A
     saved = json.loads(await _take_challenge(db, req, "setup"))
     if await has_owner(db):
         raise ApiError(409, "claimed", "This site already has an owner.")
-    # The code must still work: a newer setup link, or an expiry, ends it.
-    await _still_works(db, setup_code, saved.get("via") or "env")
+    await _still_works(db, setup_code, saved.get("via") or "env", saved.get("env_hash"))
     cred = _verify_registration(response, saved["challenge"], req)
     at = now()
     # INSERT into owner fails on a second claim (id is fixed at 1), so two
     # racing claims can't both win.
     async with transaction(db) as c:
+        await c.execute("LOCK TABLE owner, setup_codes IN SHARE ROW EXCLUSIVE MODE")
+        if await c.fetchrow("SELECT 1 FROM owner WHERE id = 1"):
+            raise ApiError(409, "claimed", "This site already has an owner.")
+        await _still_works(c, setup_code, saved.get("via") or "env", saved.get("env_hash"))
         await c.execute(
             "INSERT INTO owner (id, name, user_handle, created_at) VALUES (1, $1, $2, $3)",
             saved.get("name") or "",
