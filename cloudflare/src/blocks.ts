@@ -39,6 +39,46 @@ const weekdayOf = (d: string) => DAYS[(at(d).getUTCDay() + 6) % 7];
 const zoneName = (timeZone: string, now: Date) =>
   (dateFormatter({ timeZoneName: "short" }, timeZone).formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "UTC").replace(/^([ECMP])[SD]T$/, "$1T");
 
+/** Each instance belongs to one render context, never the formatter registry. */
+export function eventMemo() {
+  // Separate maps bind the exact en-US options and UTC zone of longDay/shortDay.
+  const longs = new Map<string, string>(), shorts = new Map<string, string>();
+  const zones = new Map<string, Map<string, string>>(), clocks = new Map<string, string>();
+  const walls = new Map<string, Map<number, ReturnType<typeof localNow>>>();
+  return {
+    longDay(date: string) {
+      let value = longs.get(date);
+      if (value === undefined) { value = longDay(date); longs.set(date, value); }
+      return value;
+    },
+    shortDay(date: string) {
+      let value = shorts.get(date);
+      if (value === undefined) { value = shortDay(date); shorts.set(date, value); }
+      return value;
+    },
+    zoneName(timeZone: string, date: string) {
+      let values = zones.get(timeZone);
+      if (!values) { values = new Map(); zones.set(timeZone, values); }
+      let value = values.get(date);
+      if (value === undefined) { value = zoneName(timeZone, at(date)); values.set(date, value); }
+      return value;
+    },
+    clock(time: string) {
+      let value = clocks.get(time);
+      if (value === undefined) { value = clock(time); clocks.set(time, value); }
+      return value;
+    },
+    localNow(now: Date, timeZone: string) {
+      let values = walls.get(timeZone);
+      if (!values) { values = new Map(); walls.set(timeZone, values); }
+      const stamp = now.getTime();
+      let value = values.get(stamp);
+      if (!value) { value = localNow(now, timeZone); values.set(stamp, value); }
+      return value;
+    },
+  };
+}
+
 export function contactView(c: Data | undefined): Data {
   const a = c?.address ?? {};
   const cityLine = [a.city, [a.region, a.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -108,20 +148,21 @@ export function noticeView(n: Data | undefined, timeZone: string, now: Date): Da
   return { has: shown, text: shown ? text : "" };
 }
 
-export function eventView(ev: Data | null | undefined, timeZone: string, now: Date, t: Record<string, string> = BLOCK_STRINGS): Data {
+export function eventView(ev: Data | null | undefined, timeZone: string, now: Date, t: Record<string, string> = BLOCK_STRINGS, memo?: ReturnType<typeof eventMemo>): Data {
   if (!ev) return { has: false };
-  const n = localNow(now, timeZone);
+  const n = memo ? memo.localNow(now, timeZone) : localNow(now, timeZone);
+  const clockText = memo?.clock ?? clock, longLabel = memo?.longDay ?? longDay, shortLabel = memo?.shortDay ?? shortDay;
   const nowStamp = `${n.date}T${n.time}`;
   const [sd, st] = ev.start.split("T");
   const [ed, et] = ev.end ? ev.end.split("T") : [sd, ""];
-  const zone = zoneName(timeZone, at(sd));
-  const time = et && ed === sd ? `${clock(st)} – ${clock(et)} ${zone}` : `${clock(st)} ${zone}`;
-  const when = ed !== sd && ev.end ? `${longDay(sd)}, ${clock(st)} – ${longDay(ed)}, ${clock(et)} ${zone}` : `${longDay(sd)} · ${time}`;
+  const zone = memo ? memo.zoneName(timeZone, sd) : zoneName(timeZone, at(sd));
+  const time = et && ed === sd ? `${clockText(st)} – ${clockText(et)} ${zone}` : `${clockText(st)} ${zone}`;
+  const when = ed !== sd && ev.end ? `${longLabel(sd)}, ${clockText(st)} – ${longLabel(ed)}, ${clockText(et)} ${zone}` : `${longLabel(sd)} · ${time}`;
   return {
     has: true,
     when,
-    date_long: longDay(sd),
-    date_short: shortDay(sd),
+    date_long: longLabel(sd),
+    date_short: shortLabel(sd),
     time,
     is_past: (ev.end || ev.start) < nowStamp,
     place_name: ev.place?.name ?? "",
@@ -129,8 +170,8 @@ export function eventView(ev: Data | null | undefined, timeZone: string, now: Da
     map_link: ev.place?.map_link ?? "",
     rsvp_label: ev.rsvp?.label || "",
     rsvp_link: ev.rsvp?.link || "",
-    rsvp_deadline: ev.rsvp?.deadline ? `${t.rsvp_by} ${longDay(ev.rsvp.deadline)}` : "",
-    schedule: (ev.schedule ?? []).map((s: Data) => ({ time: clock(s.time), title: s.title, note: s.note })),
+    rsvp_deadline: ev.rsvp?.deadline ? `${t.rsvp_by} ${longLabel(ev.rsvp.deadline)}` : "",
+    schedule: (ev.schedule ?? []).map((s: Data) => ({ time: clockText(s.time), title: s.title, note: s.note })),
     has_schedule: (ev.schedule ?? []).length > 0,
     status: ev.status === "cancelled" ? t.cancelled : ev.status === "changed" ? t.changed : "",
     is_cancelled: ev.status === "cancelled",

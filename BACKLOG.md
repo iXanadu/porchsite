@@ -42,7 +42,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      within one read. The scans and sorts are small and fixed-size; not
      copying already-ordered lists (branch 8513d21) made 500-entry sites
      8-12 ms SLOWER. Not shipped; do not retry without a new design.
-   - **PERF-7b** OPEN: on event-heavy pages, building each event's display
+   - **PERF-7b** IN-PROGRESS: on event-heavy pages, building each event's display
      data dominates; reuse per-request presentation where the inputs are
      identical.
    - **PERF-7c** OPEN: the database result wrapping allocates more than

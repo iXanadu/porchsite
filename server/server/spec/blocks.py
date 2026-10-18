@@ -184,19 +184,62 @@ def notice_view(n: Data | None, tz: str, now: datetime) -> Data:
     return {"has": shown, "text": text if shown else ""}
 
 
-def event_view(ev: Data | None, tz: str, now: datetime, t: dict[str, str] = BLOCK_STRINGS) -> Data:
+class EventMemo:
+    """Pure display components owned by one render, never shared between requests."""
+
+    def __init__(self):
+        self.longs = {}
+        self.shorts = {}
+        self.zones = {}
+        self.clocks = {}
+        self.walls = {}
+
+    # Locale and formatting options are fixed by long_day/short_day themselves.
+    def long(self, day):
+        if day not in self.longs:
+            self.longs[day] = long_day(day)
+        return self.longs[day]
+
+    def short(self, day):
+        if day not in self.shorts:
+            self.shorts[day] = short_day(day)
+        return self.shorts[day]
+
+    def zone(self, tz, day):
+        key = (tz, day)
+        if key not in self.zones:
+            self.zones[key] = _zone_name(tz, _at(day))
+        return self.zones[key]
+
+    def clock(self, value):
+        if value not in self.clocks:
+            self.clocks[value] = clock(value)
+        return self.clocks[value]
+
+    def local(self, now, tz):
+        reference = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+        key = (tz, reference.timestamp())
+        if key not in self.walls:
+            self.walls[key] = local_now(now, tz)
+        return self.walls[key]
+
+
+def event_view(ev: Data | None, tz: str, now: datetime, t: dict[str, str] = BLOCK_STRINGS, memo: EventMemo | None = None) -> Data:
     if not ev:
         return {"has": False}
-    n = local_now(now, tz)
+    n = memo.local(now, tz) if memo is not None else local_now(now, tz)
+    long_label = memo.long if memo is not None else long_day
+    short_label = memo.short if memo is not None else short_day
+    clock_text = memo.clock if memo is not None else clock
     now_stamp = f"{n['date']}T{n['time']}"
     sd, st = ev["start"].split("T")
     ed, et = ev["end"].split("T") if ev["end"] else (sd, "")
-    zone = _zone_name(tz, _at(sd))
-    time = f"{clock(st)} – {clock(et)} {zone}" if et and ed == sd else f"{clock(st)} {zone}"
+    zone = memo.zone(tz, sd) if memo is not None else _zone_name(tz, _at(sd))
+    time = f"{clock_text(st)} – {clock_text(et)} {zone}" if et and ed == sd else f"{clock_text(st)} {zone}"
     when = (
-        f"{long_day(sd)}, {clock(st)} – {long_day(ed)}, {clock(et)} {zone}"
+        f"{long_label(sd)}, {clock_text(st)} – {long_label(ed)}, {clock_text(et)} {zone}"
         if ed != sd and ev["end"]
-        else f"{long_day(sd)} · {time}"
+        else f"{long_label(sd)} · {time}"
     )
     place = ev.get("place") or {}
     rsvp = ev.get("rsvp") or {}
@@ -205,8 +248,8 @@ def event_view(ev: Data | None, tz: str, now: datetime, t: dict[str, str] = BLOC
     return {
         "has": True,
         "when": when,
-        "date_long": long_day(sd),
-        "date_short": short_day(sd),
+        "date_long": long_label(sd),
+        "date_short": short_label(sd),
         "time": time,
         "is_past": (ev["end"] or ev["start"]) < now_stamp,
         "place_name": place.get("name", ""),
@@ -214,11 +257,11 @@ def event_view(ev: Data | None, tz: str, now: datetime, t: dict[str, str] = BLOC
         "map_link": place.get("map_link", ""),
         "rsvp_label": rsvp.get("label") or "",
         "rsvp_link": rsvp.get("link") or "",
-        "rsvp_deadline": f"{t['rsvp_by']} {long_day(rsvp['deadline'])}"
+        "rsvp_deadline": f"{t['rsvp_by']} {long_label(rsvp['deadline'])}"
         if rsvp.get("deadline")
         else "",
         "schedule": [
-            {"time": clock(s["time"]), "title": s["title"], "note": s["note"]} for s in schedule
+            {"time": clock_text(s["time"]), "title": s["title"], "note": s["note"]} for s in schedule
         ],
         "has_schedule": len(schedule) > 0,
         "status": t["cancelled"]
