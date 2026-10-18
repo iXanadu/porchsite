@@ -110,12 +110,29 @@ async def test_legacy_reconcile_and_saturated_no_source_scan(db):
     class Guarded:
         counter_reads = 0
         forbidden = 0
+        salt_noops = 0
         def __getattr__(self, name):
-            if name in ("transaction", "acquire", "execute", "fetch"):
+            if name in ("transaction", "acquire", "fetch"):
                 self.forbidden += 1
             return getattr(db, name)
+        async def execute(self, sql, *args):
+            # The unchanged collector always tries this insert before reading
+            # its existing salt. Permit only its proven zero-row outcome.
+            expected = "INSERT INTO analytics_salts (day, salt) VALUES ($1, $2) ON CONFLICT (day) DO NOTHING"
+            if sql != expected:
+                self.forbidden += 1
+                raise AssertionError("write on saturated path")
+            result = await db.execute(sql, *args)
+            assert result == "INSERT 0 0"
+            self.salt_noops += 1
+            return result
+        async def fetchval(self, sql, *args):
+            if "pageviews" in sql:
+                self.forbidden += 1
+                raise AssertionError("source scan on saturated path")
+            return await db.fetchval(sql, *args)
         async def fetchrow(self, sql, *args):
-            if "FROM pageviews" in sql:
+            if "pageviews" in sql:
                 self.forbidden += 1
                 raise AssertionError("source scan on saturated path")
             if sql.startswith("SELECT c.views"):
@@ -125,6 +142,7 @@ async def test_legacy_reconcile_and_saturated_no_source_scan(db):
     assert not await send(guarded, "cheap-denial")
     assert guarded.counter_reads == 1
     assert guarded.forbidden == 0
+    assert guarded.salt_noops == 1
 
 async def test_duplicate_does_not_allocate_another_key(db):
     assert await send(db, "duplicate-counter-view")
