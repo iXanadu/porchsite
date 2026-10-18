@@ -87,6 +87,15 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    silently drops the log redaction RA-9 set at install. The update path's
    upload metadata must carry it (as the installer's does).
 
+8. **PERF-10** OPEN (found 2026-10-18, AN-2 timing): local /collect CPU on
+   a55686c vs 3f0141a: median +3.4 ms below cap, +9.0 ms at cap, with
+   intervals of about +-12 ms, so unresolved. The prime suspect is CO-1's
+   D1 daily-limit adapter (8a38af0): a Proxy get trap, a new closure and
+   allocations on every prepare, bind and execute, plus an async wrapper
+   per call. A typed prototype adapter could keep the same error
+   provenance without per-call closures. Hosted /collect CPU from Hand
+   decides; above the 10 ms mean, fix before other work.
+
 ## BLOCKING
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
