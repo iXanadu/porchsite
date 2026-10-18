@@ -5999,3 +5999,128 @@ retaining prior results, query-level rows read/written, statements and plans.
 Report the extra state-read cost on a HIT and any remaining cold increase;
 do not infer net savings from a skipped proof alone. CPU measurement stays
 on hold until this amendment is reviewed and its row comparison is complete.
+
+### PERF-9a repair delta: epoch-qualified equality after singleton deletion
+
+This delta supersedes phase 1's scalar-only monotonic witness and its
+missing-row/overflow source-write refusal. It changes no public tag input
+and adds no witness use to prepared copies, response reuse or C3. The full
+phase-1 gates and ten-table/all-column/event inventory still apply.
+
+The witness is now the pair `(epoch, n)`, compared only for exact equality.
+No ordering of epochs or pairs is meaningful. Within one valid epoch,
+committed watched writes increase n. Recreating a deleted singleton, or
+repairing an invalid/exhausted value, chooses a fresh random epoch and
+starts n at 1 in the SAME source transaction. An initial complete install
+may seed n=0 with a fresh epoch, as its last step. Installation/re-entry
+never replaces an existing valid pair. The witness remains absent from
+ETags, body/cache keys, tokens and public output.
+
+Use `lower(hex(randomblob(16)))` for SQLite/D1 and a core PostgreSQL
+`gen_random_uuid()` value, normalized to lowercase hexadecimal without
+hyphens on read. PostgreSQL's epoch column can use UUID storage; D1 uses
+TEXT. Readers require the expected storage type and canonical 32-character
+lowercase hexadecimal epoch, plus the existing exact nonnegative int64
+counter read as canonical decimal TEXT without Number coercion. Reject
+null, boolean, wrong type, malformed, negative, fractional, out-of-range,
+missing or multiple rows. Compare both components without normalization
+that could turn malformed input into a valid witness.
+
+Fresh random epochs provide probabilistic non-repetition, not a mathematical
+"never repeats" guarantee. PostgreSQL v4 UUIDs have 122 random bits; SQLite
+returns 16 pseudorandom bytes. The safety argument assumes independent,
+adequately random generation and negligible collision probability. An epoch
+is an invalidation identity, not a credential or evidence of permission.
+A repeated pair deliberately restored by an administrator remains outside
+the proof; quiesce and restart around database restore/replacement as in
+phase 1. Deleting only the row and then doing ordinary watched DML is now
+covered, including an in-flight reader that captured the old pair.
+
+Each watched source write atomically advances a valid pair, or repairs a
+missing/invalid/exhausted pair with a fresh epoch and n=1. Use a fixed,
+reviewed UPSERT/conditional repair body in every named trigger/function.
+Never calculate int64-max + 1 and then repair it: choose the repair branch
+before arithmetic can overflow. Never wrap, coerce to REAL, reset n within
+the same epoch, or keep an old epoch when validity is uncertain. Reverts
+advance the pair too; transaction rollback restores the prior content and
+pair together. PostgreSQL TRUNCATE/COPY and SQLite REPLACE keep coverage.
+
+There is no policy RAISE/abort merely because the singleton was deleted,
+malformed or exhausted. Those states repair while the source write commits.
+This is not an unconditional availability guarantee: a storage failure,
+missing backing table, unsupported SQL/function or broken trigger cannot
+be swallowed while a previously valid pair remains unchanged. Such a
+failure must preserve atomicity, including source-transaction rollback if
+necessary. Catch-and-ignore of witness errors would allow stale 304s and
+is forbidden. The specification does not promise successful content writes
+through arbitrary database corruption or administrative DDL.
+
+Repair must NOT create a usable singleton during partial trigger
+installation. An unconditional missing-row UPSERT would break the earlier
+"seed last" installation guarantee if an old runtime writes while only
+some triggers exist. Install atomically where supported. For a runner that
+can expose partial installation, the missing/invalid-row repair branch
+must first prove the complete canonical named inventory is installed
+(D1's 30 named row triggers; PostgreSQL's fixed function and 20 named row/
+TRUNCATE triggers). Inventory validity is established by the exact-body
+migration allowance/integrity check; a prefix-only count cannot bless
+unknown bodies. An incomplete inventory leaves the witness unusable and
+source writes proceed without a witness, so readers use complete facts.
+Do not solve this with an unverified ready bit or a row created before all
+required definitions. Installation failure/concurrent old-runtime writes
+must be tested directly. No application may be published after a failed
+migration or incomplete integrity check.
+
+A missing/malformed pair at either reader execution means no witness proof.
+Use the pre-9a independent full final facts read, current privacy/existence
+and original clock/retry behavior. The later trigger recreation does not
+retroactively make a missing initial witness usable. A changed epoch with
+equal n is a mismatch, never a match. Valid n equality without epoch
+equality grants nothing. Scope stays both delivery/reuse modes OFF, with
+n0/pair0 before initial complete facts and pair1 at the original late proof
+point; independent primary/current reads and late clock remain mandatory.
+
+Compatibility: archived tests and their assertions remain byte-identical.
+Their broad administrative fixture cleanup can delete this singleton.
+The next ordinary watched write repairs it using a new epoch; no harness
+DELETE suppression, schema naming trick or automatic zero reseed is added.
+Current tests must retain intentional missing/malformed reader fallback
+checks rather than making every test reset invisibly restore a witness.
+
+Required additional proofs, both editions:
+
+- Initial install, seed-last ordering, deliberate partial failure and old
+  writes during installation never expose a usable partial witness.
+- Delete after pair0 and before facts, during rendering, and before pair1;
+  do a watched write and verify a fresh epoch, a different pair and the
+  original safe response. A missing row without a write takes full facts.
+- Invalid state and int64-max repair rotate the epoch before incrementing;
+  repeated ordinary writes increment n within the fresh epoch. No silent
+  same-epoch reset, no overflow and no swallowed SQL error.
+- Multi-row writes, UPSERT/REPLACE, COPY/TRUNCATE, revert and transaction
+  rollback retain the original table/event coverage and exact old tags.
+- A scratch implementation that compares only n must fail a stale-response
+  case with equal n and different epochs. Existing missing-trigger/bypass
+  negative controls remain required.
+- Actual old tests/archive/populated rollback with triggers left installed
+  pass unchanged, including dynamic singleton deletion by fixture reset.
+- Measure one-/200-entry approval reads/writes, repair-path schema reads,
+  randomness cost, failed/rolled-back writes and first-request overhead.
+  A straightforward UPSERT may evaluate randomness on every source row
+  even when the existing epoch is retained; do not hide that cost.
+
+Capability evidence before runtime freeze: PostgreSQL 15 documents
+`gen_random_uuid()` as a core UUID function, without requiring an extension.
+SQLite documents `randomblob` and `hex` as core functions; D1 documents
+SQLite SQL compatibility. These establish a documented candidate, not a
+claim that the exact trigger bodies ran on hosted D1. Run the selected
+bodies on the local D1 runtime and PostgreSQL 15+, plus an explicitly
+authorized disposable hosted D1 database, including repair inside a trigger,
+transaction rollback and structural-CRLF installation. Never probe an
+owner's content database. Missing capability disables witness use and
+blocks release of a migration that would break ordinary writes.
+
+Primary references checked 2026-10-18:
+[PostgreSQL 15 UUID functions](https://www.postgresql.org/docs/15/functions-uuid.html),
+[SQLite core functions](https://www.sqlite.org/lang_corefunc.html),
+[D1 SQL statements](https://developers.cloudflare.com/d1/sql-api/sql-statements/).
