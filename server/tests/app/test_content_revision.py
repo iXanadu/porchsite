@@ -31,7 +31,7 @@ def test_canonical_values():
 @pytest.mark.parametrize('row',FIXTURE['tables'],ids=lambda row:row['table'])
 async def test_all_events_and_columns(db,row):
     table=row['table'];epoch,n=await pair(db)
-    await db.execute(row['insert']);assert await pair(db)==[epoch,str(int(n)+1)]
+    await db.execute(row.get('insert_pg',row['insert']));assert await pair(db)==[epoch,str(int(n)+1)]
     columns=await db.fetch("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=$1",table)
     for column in columns:
         name=column['column_name'];assert name and (name[0].isalpha() or name[0]=='_') and name.replace('_','').isalnum()

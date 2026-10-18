@@ -38,7 +38,8 @@
     },
     {
       "table": "media",
-      "insert": "INSERT INTO media(name,type,size,chunks,created_at) VALUES('witness.png','image/png',1,1,'2026-10-18')"
+      "insert": "INSERT INTO media(name,type,size,chunks,created_at) VALUES('witness.png','image/png',1,1,'2026-10-18')",
+      "insert_pg": "INSERT INTO media(name,type,size,data,created_at) VALUES('witness.png','image/png',1,decode('00','hex'),'2026-10-18')"
     }
   ],
   "counter_valid": [
