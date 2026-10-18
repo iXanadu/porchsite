@@ -84,7 +84,8 @@ the owner's records (the records are the truth; agents read, they never
 write there). Any agent holding access gets the same light versions
 cheaply and may keep its own private copy; nothing private is ever stored
 in a shared cache or shared place; anonymous visitors see no change.
-- **AG-6** OPEN: owner review pages give a signed-in agent the same light
+- **AG-6** IN-PROGRESS (scope proposal, no implementation): owner review
+  pages give a signed-in agent the same light
   versions, protected like any other private data; no separate owner
   review step (the owner approves content once).
 

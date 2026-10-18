@@ -2542,21 +2542,14 @@ shared stores directly for private/personalized bytes and assert access
 precedes all content/artifact lookups. Prior-release upgrade/rollback and
 the existing parity, conformance and mutation gates remain required.
 
-## 11. Agent access to private sites (proposed; implementation pending)
+## 11. Agent access to private sites
 
-This section specifies AG-1 through AG-6 in both editions. It is a proposal,
-not a claim that the released engine accepts these credentials or serves
-these copies. Implementation requires paired tests, security and code review,
-then the ordinary release gates. The compatibility rule remains additive.
-
-The first implementation slice provides AG-1/AG-3 credentials, owner
-issuance/revocation and the reduced MCP authority boundary in both editions.
-The second slice provides AG-2 in both editions: all five published-read
-tools are registered, with the bounded listing, search and shared continuation
-contract below. Writer connections gain the three read tools while retaining
-their existing drafting behavior. AG-4/AG-5 private HTTP grants and AG-6 owner
-review copies remain pending: this checkpoint preserves the existing private
-HTTP denials. It is not a complete AG release or acceptance claim.
+AG-1 through AG-5 are implemented in both editions and shipped in
+`2026.10.18-c59bcc9`: published-only keys, the five read tools, and authorized
+private HTML/Markdown/map reads. Existing writer connections retain their
+drafting tools. AG-6 remains a specification proposal pending implementation
+approval; its owner-review copies are not a released capability. New work
+still requires paired tests, security/code review and the release gates.
 
 Anything an agent can already reach is made easier to read. Friendliness
 never grants additional authority. There is no separate agent mode and no
@@ -2886,6 +2879,117 @@ as they are. This read view adds no approval buttons, automatic approval,
 second approval request, agent mode or duplicate revision. The one owner
 publication creates the published page and all its read representations.
 
+#### AG-6 implementation scope proposal (not implementation approval)
+
+The purpose is to let an agent already signed in as the owner inspect the
+same review state without scraping controls or receiving another permission.
+It does not let a published-read key review drafts, or let a read response
+publish. This completes the UC5/UC6/UC11 authority boundary above; the
+owner's existing publication remains the only approval of site content.
+
+**Routes.** Negotiate on the following existing owner GET pages only, on
+both public and private sites. Each page must first pass its existing owner
+and page-specific checks and produce a successful HTML view. The route list
+is explicit; a future review endpoint does not automatically opt in.
+
+| Existing GET page | Read projection |
+| --- | --- |
+| `/review`, `/review/<approval>` | Pending/decided status, item labels, displayed before/after changes, warnings and visible notes. |
+| `/review/history`, `/review/history/<number>` | Displayed publication history and the existing restore-confirmation facts; no restore action. |
+| `/review/write`, `/review/write/new`, `/review/write/<entry>` | Visible draft listing or labeled editor values, including the full current textarea source. |
+| `/review/<approval>/preview` and its existing preview subpaths; `/review/write/<entry>/preview` | The same proposed preview prose, with its existing not-live warning and safe back link. |
+| `/review/stats` | The same selected range and displayed aggregate figures; no additional analytics rows or identifiers. |
+| `/review/assistants`, `/review/passkeys`, `/review/readers`, `/review/alerts`, `/review/import` | Existing visible descriptive text, names, status, expiry and audit summaries; no credentials, invitations or action controls. |
+
+Use the existing address/query validation and range semantics; no new query
+parameter selects an agent mode. `/review/` or any other alias is covered
+only if it is already an authorized successful HTML route. There is no
+`/review/index.md` or nested direct-copy alias. JSON/binary endpoints such as
+`/review/cards.json` and `/review/alerts/key`, missing pages, redirects,
+errors and every POST/other-method response keep their existing response.
+In particular, successful POSTs that display a new key, invitation or
+passkey link are never converted, even with a Markdown Accept header.
+
+**Authority and negotiation.** Run the existing live owner-session guard
+before negotiation, draft/existence lookup or projection. For a Markdown
+copy, Authorization must be absent: a Bearer value never becomes owner
+authority or combines with an owner cookie. Such a copy request keeps the
+ordinary non-owner review refusal on a public site and BLANK on a private
+site. Ordinary HTML credential handling remains unchanged. Reader sessions
+retain their existing redirect to `/`; other principals retain the existing
+public/private refusal, independent of conditionals. Recheck the
+original owner session/epoch after asynchronous view construction and before
+returning Markdown; a session revoked during a stalled read receives the
+ordinary current refusal, without the old draft bytes.
+
+On an eligible successful owner page, use the existing Accept negotiation:
+HTML stays the ordinary page, Markdown is the safe read projection, and an
+unsupported representation is 406/no-store only after authorization. GET
+and HEAD negotiate identically; HEAD has GET's representation headers and
+correct length with an empty body. Neither wildcard nor foreign/private/
+public conditionals can produce 304. Add `Vary: Accept` to negotiable HTML
+and Markdown, without making either response public-cacheable.
+
+**Safe projection.** Reusing the public HTML converter alone is insufficient:
+it omits whole forms and textareas and would hide the draft editor's visible
+content. Each eligible owner renderer must supply an explicit safe read
+projection from the same already-loaded page data and visible formatting.
+It is an alternate rendering of that GET, not a new draft API, another
+state lookup, another HTML render or a scrape of hidden protocol fields.
+
+Preserve headings, statuses, visible field names/values, old/new distinctions,
+notes, preview warnings and read-navigation links. In editor forms, allow
+only the existing content fields: stream, title, summary, date, tags, cover,
+cover alternative text and body. Show textarea Markdown as literal source
+with safe fences, not as new executable HTML or agent instructions. Selected
+option labels and visible content values remain readable; input names,
+action targets, button values and hidden version fields are not controls
+or a submission recipe. Owner-authored prose stays data. External proposed
+links may be described but are never fetched or preloaded.
+
+Exclude all hidden/aria-hidden material, password/file controls, CSRF,
+session/cookie values, credential identifiers/hashes, bearer tokens,
+passkey challenges, OAuth/consent handles, push credentials/endpoints,
+one-time issuance displays and invitation/recovery/passkey/upload capability
+URLs. Safe read links are existing same-site GET destinations; capability or
+action links keep at most their non-secret visible label. Secret exclusion
+is an explicit field contract at each renderer, not a final token-regex
+scrub or generic serialization of its data object. Existing GET bookkeeping
+may run once as today; negotiation adds no decision, save, import, key mint,
+revocation, alert subscription or approval side effect.
+
+**Response and cost.** Markdown has `Content-Type: text/markdown;
+charset=utf-8`, private/no-store/no-transform, noindex, nosniff and the
+existing restrictive Markdown CSP. Construct its response headers explicitly:
+no ETag, Last-Modified, Content-Signal, discovery Link, Set-Cookie, Location,
+nonce or challenge is copied from owner HTML. Do not add review discovery,
+JSON-LD, an llms/map entry, AF-7 interaction, private artifact storage,
+service-worker storage, UC9 events or response-body logging. No migration,
+MCP catalog change or reconnect is proposed. An older runtime continues its
+existing owner HTML/refusals; returning to new code must not revive a revoked
+owner session or convert an AG key into an owner.
+
+Required paired proof, in addition to the existing `ag_owner_review_markdown`
+and `ag_review_not_published_only` cases:
+
+| Named case | Required observation |
+| --- | --- |
+| `ag_review_route_inventory` | Every listed route family and current query variant projects its authorized visible facts; JSON, misses, errors, redirects, aliases and POST issuance never convert. |
+| `ag_review_editor_values` | Unsaved/new defaults and saved draft editor values, including textarea Markdown, remain readable; hidden CSRF/version and action controls are absent. |
+| `ag_review_secret_projection` | Unique sentinels in every secret field, hidden markup, capability URL and issuance display stay absent; ordinary visible prose and safe navigation remain. |
+| `ag_review_auth_precedence` | Owner-only success on public/private sites; readers, expired/revoked sessions, writer/OAuth/read keys and Authorization-plus-owner-cookie never receive review prose. Guard spies precede all draft loads. |
+| `ag_review_session_race` | Stalled projection across owner-session revocation or recovery cannot return the prior owner bytes. |
+| `ag_review_head_conditionals` | GET/HEAD header identity and empty HEAD; all conditional variants remain no-store 200 or the existing refusal, never 304. |
+| `ag_review_one_read` | No extra page-data queries or second render; repeated negotiation leaves draft/live versions, approvals and credentials unchanged apart from existing GET bookkeeping. |
+| `ag_review_upgrade_return` | Actual previous Worker bundle and server keep their existing owner-session HTML/refusals; return respects revocation and never changes key authority. |
+
+Run exact-byte projection parity in both editions with hostile owner strings,
+diff/table/heading fixtures and every route family. Inspect owner/reader/
+anonymous browser journeys, including ordinary HTML approval and editing,
+and run conformance/mutations and the release runtime smoke. Report projection
+CPU and query overhead separately from public-page performance; no cost saving
+is claimed by this proposal. Implementation waits for review of this scope.
+
 ### Normative security invariants and named paired tests
 
 Every rule below is normative in both editions. Denial references, including
@@ -2928,7 +3032,7 @@ and missing paths are indistinguishable within each header class.
 | 21 | Revoke and event atomic; next lookup and a stalled returning call revalidate. | `ag_revoke_immediate` |
 | 22 | Owner-only named listings and revocation audit contain time/actor/id/name, no secrets or bodies. | `ag_key_audit_atomic` |
 | 23 | Additive new tables; old code ignores them; return never resurrects revoke. | `ag_upgrade_return` |
-| 24 | Actual previous runtime rejects AG at MCP/pages, writer keys still work; raw-bundle residual documented. | `ag_upgrade_return` |
+| 24 | Actual previous runtime honors its declared AG capabilities: unaware releases reject read keys, aware releases retain published-only grants; writer/revoked/epoch boundaries remain strict. | `ag_upgrade_return` |
 | 25 | Private-on purges public AF-7 and never prebuilds private copies. | `ag_no_shared_private_store` |
 
 Also require `ag_bearer_html_published`: a valid AG Bearer GET of each
@@ -2979,6 +3083,14 @@ existing writer keys still work. Revoke under new code, roll back and return;
 revoke remains effective. Repeat owner recovery under the old runtime;
 old-epoch AG keys remain denied on return. Existing publication, receipts,
 stream settings, counters, public prepared copies and guide reuse survive.
+
+Also exercise the immediate previous released runtimes. Use their committed
+migration declarations, as UP-1 does, to distinguish supported published-read
+keys from pre-AG rejection; never infer capabilities from a successful probe.
+For AG-6, the previous owner session keeps its existing review HTML even when
+Markdown is requested; non-owners keep their existing refusal. On return,
+only the still-valid owner gets the new secret-free no-store review copy.
+Revocation or recovery while rolled back cannot revive owner authority.
 
 Document the existing dashboard/raw-bundle C3 residual (§4): a hosting
 account can bypass the supported downgrade check or restore an older
