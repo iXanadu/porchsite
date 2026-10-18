@@ -2279,7 +2279,7 @@ Store exactly unpadded base64url of SHA-256 over the UTF-8 code bytes,
 matching the existing installer/owner hash scheme (43 ASCII characters).
 Only the hash and UTC creation/expiry instants enter the row. No plaintext
 code is stored in D1/PostgreSQL, Worker bindings, deployment metadata,
-logs, diagnostics or an audit-note field. The claim link necessarily
+application logs, diagnostics or an audit-note field. The claim link necessarily
 contains the plaintext credential; show it only to the owner/installing
 assistant, never in public content, a tool catalog or a shared report.
 
@@ -2333,6 +2333,9 @@ silently mutate an existing hosting account or delete previous logs.
 Existing deployments adopting these settings do so through their normal
 owner-approved update/configuration workflow. Setup links are credentials
 in both editions even though only their hashes are kept in the database.
+This does not promise redaction of Logpush, Tail Workers, interactive tail,
+third-party traces or previously retained log rows without separate proof
+for that sink.
 
 **Expiry and single use.** The normal guide/installer lifetime is 24 hours
 from issuance. Server `setup-link --hours N` retains its existing explicit
