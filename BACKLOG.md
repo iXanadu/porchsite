@@ -34,7 +34,12 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      improved 0.7–8.1 ms across three looks, while sample-site results
      were mixed. A server port needs its own measurement and approval.
 2. PERF-4: reuse a rendered public page for every visitor in a location
-   while nothing on it has changed.
+   while nothing on it has changed. Built default-off (2026-10-18). Locally
+   a reused page saves about 7 ms but the first visit that stores it costs
+   about 8 ms extra, so it only helps where more than about half of first
+   views in a location are repeats.
+   - **PERF-4b** OPEN: cut the cost of storing the page on a first visit
+     (about 8 ms locally); find where it goes before changing anything.
 
 ## BLOCKING
 
