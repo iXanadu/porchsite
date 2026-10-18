@@ -13,6 +13,7 @@ from server.spec.sitemap import SITEMAP_HEADERS, robots, sitemap
 from .web import publish, who
 
 CASES = json.loads((Path(__file__).parents[3] / "spec/sitemap-cases.json").read_text())
+ROBOTS = json.loads((Path(__file__).parents[3] / "spec/robots-cases.json").read_text())
 ORIGIN = "https://site.example"
 
 
@@ -45,7 +46,8 @@ def test_shared_sitemap_xml_and_missing_dates():
     )
     v.approved_at = {}
     assert "<lastmod>" not in sitemap(v, ORIGIN)
-    assert robots(ORIGIN) == f"User-agent: *\nAllow: /\nSitemap: {ORIGIN}/sitemap.xml\n"
+    assert robots(ORIGIN) == ROBOTS["allowed"]
+    assert robots(ORIGIN, True) == ROBOTS["disabled"]
 
 
 async def test_published_http_paths_dates_draft_edits_head_and_feed_cache(db, http):

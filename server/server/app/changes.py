@@ -63,7 +63,7 @@ def _dumps(v: Any) -> str:
 
 def plain_value(k: str, v: Any) -> str:
     if k == "ai_training_disabled":
-        return "Blocked for GPTBot, ClaudeBot and Google-Extended" if v is True else "Allowed"
+        return "Blocked for training crawlers" if v is True else "Allowed"
     if k == "streams" and isinstance(v, list):
         return esc(" · ".join(_entry_name(x) for x in v))
     if k == "archive" and isinstance(v, dict):
@@ -368,7 +368,7 @@ def review_fields(kind, now, before=None, removed=False):
             if k in ('body', 'about') and isinstance(v, str):
                 out.append(source(label, v))
             elif k == 'ai_training_disabled':
-                out.append(value(label, 'Blocked for GPTBot, ClaudeBot and Google-Extended' if v is True else 'Allowed'))
+                out.append(value(label, 'Blocked for training crawlers' if v is True else 'Allowed'))
             elif k == 'streams' and isinstance(v, list):
                 out.append(value(label, ' · '.join(_entry_name(x) for x in v)))
             elif k == 'archive' and isinstance(v, dict):

@@ -235,3 +235,12 @@ work for this release only; the following product release refuses them.
 The code is random and stored only as a hash with an expiry. A new link
 invalidates the previous link. Hosting-account access already grants control
 of the site; recovery does not protect against a compromised hosting account.
+
+AI training choice: the owner can allow training crawlers or ask them not
+to use the site's content; search and user-triggered agents stay allowed.
+This is a robots preference, not enforcement. Read the protected
+site_state.training_choice facts: proposed_disabled, effective_disabled,
+needs_publication and note. Draft site.ai_training_disabled only at the
+owner's request; the ordinary owner review and approval makes it effective.
+A proposal alone is not the published choice. The owner can see its current
+status under Site settings on /review. Never infer approval from this guide.

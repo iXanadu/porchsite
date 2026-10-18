@@ -1,0 +1,6 @@
+{
+  "origin": "https://site.example",
+  "allowed": "User-agent: Googlebot\nUser-agent: Bingbot\nUser-agent: OAI-SearchBot\nUser-agent: Claude-SearchBot\nAllow: /\n\nUser-agent: ChatGPT-User\nUser-agent: Claude-User\nUser-agent: Perplexity-User\nAllow: /\n\nUser-agent: GPTBot\nUser-agent: ClaudeBot\nUser-agent: Google-Extended\nUser-agent: CCBot\nAllow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: https://site.example/sitemap.xml\n",
+  "disabled": "User-agent: Googlebot\nUser-agent: Bingbot\nUser-agent: OAI-SearchBot\nUser-agent: Claude-SearchBot\nAllow: /\n\nUser-agent: ChatGPT-User\nUser-agent: Claude-User\nUser-agent: Perplexity-User\nAllow: /\n\nUser-agent: GPTBot\nUser-agent: ClaudeBot\nUser-agent: Google-Extended\nUser-agent: CCBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: https://site.example/sitemap.xml\n",
+  "private": "User-agent: *\nDisallow: /\n"
+}

@@ -11,8 +11,15 @@ SITEMAP_HEADERS = {
 
 
 def robots(origin, disabled=False):
-    groups = "\n" + "\n".join(f"User-agent: {name}\nDisallow: /\n" for name in ("GPTBot", "ClaudeBot", "Google-Extended")) if disabled else ""
-    return f"User-agent: *\nAllow: /\n{groups}Sitemap: {origin}/sitemap.xml\n"
+    def group(agents, rule):
+        return "".join(f"User-agent: {name}\n" for name in agents) + f"{rule}: /\n"
+    return "\n".join([
+        group(("Googlebot", "Bingbot", "OAI-SearchBot", "Claude-SearchBot"), "Allow"),
+        group(("ChatGPT-User", "Claude-User", "Perplexity-User"), "Allow"),
+        group(("GPTBot", "ClaudeBot", "Google-Extended", "CCBot"), "Disallow" if disabled else "Allow"),
+        group(("*",), "Allow"),
+        f"Sitemap: {origin}/sitemap.xml\n",
+    ])
 
 
 def _xml(value):
