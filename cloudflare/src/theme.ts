@@ -1,3 +1,4 @@
+import {deferFields,extendFields} from "./deferred-fields";
 import {lazyValues} from './lazy-values';
 /**
  * Mustache themes (spec/TEMPLATES.md). A theme is a folder of
@@ -143,9 +144,8 @@ function base(v: SiteView, release: string, origin: string, meta: { kind: string
   const sections: string[] = (v.site.sections as string[]).flatMap((k) =>
     k === "entries" ? st.filter((x) => !(v.site.sections as string[]).includes(x.id)).map((x) => x.id) : [k],
   );
-  return {
+  return deferFields({
     site,
-    highlights: v.cards.map(c => card(c)),
     has_highlights: v.cards.length > 0,
     page: {
       lede: v.site.intro,
@@ -182,7 +182,7 @@ function base(v: SiteView, release: string, origin: string, meta: { kind: string
       kind: meta.kind,
       content_id: meta.content_id ?? "",
     },
-  };
+  }, {highlights: () => v.cards.map(c => card(c))});
 }
 const s = (v: SiteView) => !!v.site.hero;
 
@@ -219,7 +219,7 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
       // Entries that aren't events, in a stream that has some: newest first.
       sec.others = evs.length ? ordered.filter((e) => !e.event).map((e) => entry(e, stream, "", ctx)) : [];
       sec.has_others = sec.others.length > 0;
-      sec.all = ordered.map((e) => entry(e, stream, "", ctx));
+      deferFields(sec, {all: () => ordered.map((e) => entry(e, stream, "", ctx))});
       sec.count_suffix = items.length > 3 ? ` (${items.length})` : "";
     } else if (k === "cards") {
       const groups = [...new Set(v.cards.map((c) => c.group).filter(Boolean))];
@@ -261,19 +261,17 @@ export function homeView(v: SiteView, release: string, origin: string): Data {
     out.push(sec);
   }
   out.forEach((sec, i) => (sec.not_last = i < out.length - 1));
-  return {
-    ...base(v, release, origin, { kind: "home", title: v.site.tagline ? `${v.site.title}: ${v.site.tagline}` : v.site.title }),
+  return extendFields(base(v, release, origin, { kind: "home", title: v.site.tagline ? `${v.site.title}: ${v.site.tagline}` : v.site.title }), {
     // The theme's hero buttons show with a button to show.
     has_writing: !!v.site.cta_label,
     hero_more: v.site.cta2_label ? { href: v.site.cta2_link || "/", label: v.site.cta2_label } : null,
     sections: out,
-  };
+  });
 }
 
 export function entryView(v: SiteView, e: Data, release: string, origin: string): Data {
   const stream = streams(v.site).find((x) => x.id === e.stream)!;
-  return {
-    ...base(v, release, origin, { kind: "entry", content_id: e.id, title: `${e.title} · ${v.site.title}`, description: e.summary || e.title, path: e.url, og_type: "article", image: v.share_cards?.[e.id] || e.cover || undefined }),
+  return extendFields(base(v, release, origin, { kind: "entry", content_id: e.id, title: `${e.title} · ${v.site.title}`, description: e.summary || e.title, path: e.url, og_type: "article", image: v.share_cards?.[e.id] || e.cover || undefined }), {
     entry: entry(e, stream, "", ctxOf(v)),
     stream,
     // Where to go next from this page: the site's main button, or the second
@@ -284,7 +282,7 @@ export function entryView(v: SiteView, e: Data, release: string, origin: string)
       if (v.site.cta2_label && v.site.cta2_link && !here(v.site.cta2_link)) return { href: v.site.cta2_link, label: v.site.cta2_label };
       return null;
     })(),
-  };
+  });
 }
 
 export function archiveView(v: SiteView, streamPath: string, release: string, origin: string, tag?: string): Data | null {
@@ -296,15 +294,14 @@ export function archiveView(v: SiteView, streamPath: string, release: string, or
   for (const e of items) for (const t of e.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
   if (tag) items = items.filter((e) => (e.tags ?? []).includes(tag));
   const path = tag ? `${stream.archive_url}tags/${tag}/` : stream.archive_url;
-  return {
-    // Shared, the page shows its newest entry's cover, as an entry's page shows its own.
-    ...base(v, release, origin, { kind: tag ? "tag" : "archive", title: `${tag ? `#${tag} · ` : ""}${stream.nav_label} · ${v.site.title}`, path, description: stream.description || undefined, image: v.entries.find((e) => e.stream === stream.id && (!tag || (e.tags ?? []).includes(tag)) && e.cover)?.cover || undefined }),
+  // Shared, the page shows its newest entry's cover, as an entry's page shows its own.
+  return extendFields(base(v, release, origin, { kind: tag ? "tag" : "archive", title: `${tag ? `#${tag} · ` : ""}${stream.nav_label} · ${v.site.title}`, path, description: stream.description || undefined, image: v.entries.find((e) => e.stream === stream.id && (!tag || (e.tags ?? []).includes(tag)) && e.cover)?.cover || undefined }), {
     stream,
     tag: tag ?? "",
     entries: items.map((e) => entry(e, stream, "", ctx)),
     tags: [...counts].sort().map(([name, count]) => ({ name, count })),
     has_tags: counts.size > 0,
-  };
+  });
 }
 
 export function notFoundView(v: SiteView, release: string, origin: string): Data {
