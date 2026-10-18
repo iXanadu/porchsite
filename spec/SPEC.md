@@ -1197,12 +1197,25 @@ MCP response. It grants no access and does not change writer/read-key scopes.
 
 An authentication 401 always has exactly this Cache-Control value:
 `private, no-store, no-transform`. It has no ETag, Last-Modified, Age or
-Location. Existing MCP CORS handling applies and exposes WWW-Authenticate.
+Location. The 401 itself sets Access-Control-Expose-Headers including
+WWW-Authenticate and preserves existing MCP CORS headers. This is required
+in both editions, including the Cloudflare key and OAuth refusal paths.
 There is no metadata fetch or tool dispatch to construct this refusal.
 
+Both editions classify Authorization by one shared grammar: case-insensitive
+`Bearer`, one or more ASCII tab or space characters, then exactly one
+nonempty token containing no whitespace or comma, followed by the absolute
+end of the header. No trailing newline, whitespace or extra token is
+accepted; an end-of-line `$` match is insufficient. Classification is
+independent of the Cloudflare fast-key dispatch regex and OAuth SDK.
+A matching token is authenticated using its existing writer-key, read-key
+or OAuth lookup; rejection always uses the second challenge form below,
+including OAuth rejection. Do not delegate refusal-header selection to
+the SDK.
+
 With no usable Bearer credential (absent or empty Authorization, another
-scheme, or no token matching the existing single-token Bearer grammar),
-the exact WWW-Authenticate value is:
+scheme, or anything outside that grammar), the exact WWW-Authenticate
+value is:
 
 ```text
 Bearer realm="OAuth", resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="site:draft"
@@ -1229,7 +1242,8 @@ implementation-specific. Valid credentials keep their existing permissions,
 response bodies and protocol behavior.
 
 Paired proof `mcp_auth_refusal_headers` covers absent/empty/unsupported and
-malformed Authorization, and malformed/unknown/expired/revoked tokens in
+malformed Authorization (including extra tokens, comma and trailing line
+break), and malformed/unknown/expired/revoked tokens in
 all three families. Assert status, exact challenge and Cache-Control,
 validator/redirect absence and CORS exposure; use configured and fallback
 origins. Valid writer/read-key controls, foreign-Origin 403 and OPTIONS 204
