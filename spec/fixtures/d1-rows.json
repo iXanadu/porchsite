@@ -27,8 +27,8 @@
       "import_items": 3
     },
     "instrumentation": {
-      "product_sha256": "180970688d4f9edfb38f269ee1514f1ba614031943cb712bebc83084d794d18f",
-      "derived_sha256": "94e0087dbae2e51481df39c4a50faed08549a1612728f54bdfa2557223522c8b",
+      "product_sha256": "d12a553c103845eac56209a93bb339682e72467ce98a3033077e51334efe985c",
+      "derived_sha256": "8c7a8f65a489485cccd029e7d6d61d2754c5ff4f0f28f4955534e335bb373ba7",
       "adapter_sha256": "ae42ed8dafbab7841366eaa9d53e6310b2e840f590f2cd88395ca0ba35f3ba00",
       "scope_sha256": "f800676d52287caa90429e3d4be843dfd97a5a85637b13781f3510cb3ed3b554",
       "mapping": [
@@ -53,8 +53,8 @@
       ]
     },
     "inputs_sha256": "9548e17bc74d321b398de0b62a7b980f01104c15cc47784ca7413b6821fcaa5d",
-    "source_sha256": "9c381399d8b9a81da2e2678f0d6a9d5be535a2d22629f87237fbcab456111a8b",
-    "artifact_sha256": "180970688d4f9edfb38f269ee1514f1ba614031943cb712bebc83084d794d18f",
+    "source_sha256": "f49fd22c721d606094ada8b232a6fe494b769772808b3db022089e3fd5353ac2",
+    "artifact_sha256": "d12a553c103845eac56209a93bb339682e72467ce98a3033077e51334efe985c",
     "budgets": {
       "rows_read": 5000000,
       "rows_written": 100000,
@@ -98,7 +98,7 @@
         "rows_written": 0
       },
       "catalogue-page/on/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "event-page/off/cold": {
@@ -122,7 +122,7 @@
         "rows_written": 0
       },
       "event-page/on/not_modified": {
-        "rows_read": 118,
+        "rows_read": 79,
         "rows_written": 0
       },
       "group-page/off/cold": {
@@ -146,7 +146,7 @@
         "rows_written": 0
       },
       "group-page/on/not_modified": {
-        "rows_read": 112,
+        "rows_read": 75,
         "rows_written": 0
       },
       "link-page/off/cold": {
@@ -170,7 +170,7 @@
         "rows_written": 0
       },
       "link-page/on/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "listing-page/off/cold": {
@@ -194,7 +194,7 @@
         "rows_written": 0
       },
       "listing-page/on/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "local-business/off/cold": {
@@ -218,7 +218,7 @@
         "rows_written": 0
       },
       "local-business/on/not_modified": {
-        "rows_read": 142,
+        "rows_read": 95,
         "rows_written": 0
       },
       "menu-page/off/cold": {
@@ -242,7 +242,7 @@
         "rows_written": 0
       },
       "menu-page/on/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "personal-homepage/off/cold": {
@@ -266,7 +266,7 @@
         "rows_written": 0
       },
       "personal-homepage/on/not_modified": {
-        "rows_read": 64,
+        "rows_read": 43,
         "rows_written": 0
       },
       "playbook/off/cold": {
@@ -290,7 +290,7 @@
         "rows_written": 0
       },
       "playbook/on/not_modified": {
-        "rows_read": 58,
+        "rows_read": 39,
         "rows_written": 0
       },
       "portfolio/off/cold": {
@@ -314,7 +314,7 @@
         "rows_written": 0
       },
       "portfolio/on/not_modified": {
-        "rows_read": 154,
+        "rows_read": 103,
         "rows_written": 0
       },
       "product-page/off/cold": {
@@ -338,7 +338,7 @@
         "rows_written": 0
       },
       "product-page/on/not_modified": {
-        "rows_read": 70,
+        "rows_read": 47,
         "rows_written": 0
       },
       "services-page/off/cold": {
@@ -362,7 +362,7 @@
         "rows_written": 0
       },
       "services-page/on/not_modified": {
-        "rows_read": 130,
+        "rows_read": 87,
         "rows_written": 0
       },
       "services-page-200/off/cold": {
@@ -386,7 +386,7 @@
         "rows_written": 0
       },
       "services-page-200/on/not_modified": {
-        "rows_read": 1312,
+        "rows_read": 875,
         "rows_written": 0
       },
       "operations/off/collect/first_day": {

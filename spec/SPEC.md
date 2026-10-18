@@ -6738,8 +6738,15 @@ ON and OFF capture complete Q_F and pair0 in the same actual database
 statement. Both strip the reserved metadata before decode, raw tuple proof,
 AF-2, G2 and output. A genuinely matching ordinary conditional may return
 304 only after an independent late SELECT validates the complete pair and
-its equality, plus the unchanged late clock, access, privacy, existence and
-representation proof. Both modes execute identical statement text, order,
+its equality, while the AF-7L clock plan from the initial snapshot remains
+valid and the representation proof is unchanged. Pair equality is the late
+proof standing in for a re-read of access, privacy and existence; those are
+not re-queried on the matching-pair 304 path. The response is a snapshot as
+of that last read. An absent, invalid or changed pair takes the complete
+facts fallback, which re-reads privacy and existence and must return the
+private denial or 404 when the current view is private or absent, never a
+304 or a body. A write after the late pair SELECT is unobservable, as with
+the old second Q_F. Both modes execute identical statement text, order,
 binds, counts and rows, including the same missing/invalid capability
 fallback. Stable known-capability matching 304 stays at most three
 statements, zero render/copy/UC9/write, empty body and unchanged headers.
