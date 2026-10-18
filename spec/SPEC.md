@@ -2435,6 +2435,13 @@ autumn folds, repeated local times, non-hour offsets and skipped dates must
 include any intervening timezone transition that changes the projection.
 The state can change more than once across a fold; evaluate both occurrences.
 Malformed/unsupported zones or an unprovable conversion yield unknown.
+The renderer and planner share a packaged IANA transition table with an
+explicit finite UTC coverage interval per zone. Within that interval, both
+use its exact offsets and transition instants, independent of host ICU or
+zoneinfo updates. Outside coverage the existing live renderer remains
+available, but clock-dependent public validators/storage are unknown.
+The artifact records its source tzdb version and is regenerated from TZif;
+no sampled-offset or minute-by-minute search substitutes for transitions.
 
 The cheap facts statement may project required event endpoints/selection
 metadata from visible live rows, alongside the approved site hours/notice
