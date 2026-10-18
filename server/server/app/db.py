@@ -366,6 +366,15 @@ CREATE TABLE analytics_maintenance (
 INSERT INTO analytics_maintenance (id, completed_day) VALUES (1, '');
 """),
 
+    ("0021_analytics_visitor_counts", """
+CREATE TABLE analytics_visitor_counts (
+ day TEXT NOT NULL,
+ visitor TEXT NOT NULL,
+ views INTEGER NOT NULL CHECK (views BETWEEN 0 AND 200),
+ PRIMARY KEY (day, visitor)
+);
+"""),
+
 ]
 
 # Any constant: serializes concurrent startups applying the schema.

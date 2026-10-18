@@ -12,7 +12,7 @@ async function seed(n: number) {
   await db.batch(Array.from({ length: n }, (_, i) => db.prepare("INSERT INTO pageviews (id,day,visitor,path,kind,ref_bucket,created_at,updated_at) VALUES (?,?,?,'/','home','direct',?,?)").bind(`seed-view-${i}`, day, visitor, at.toISOString(), at.toISOString())));
 }
 beforeEach(async () => {
-  await db.batch([db.prepare("DELETE FROM pageviews"), db.prepare("DELETE FROM analytics_salts"), db.prepare("DELETE FROM analytics_daily"), db.prepare("UPDATE analytics_maintenance SET completed_day = '' WHERE id = 1")]);
+  await db.batch([db.prepare("DELETE FROM pageviews"), db.prepare("DELETE FROM analytics_visitor_counts"), db.prepare("DELETE FROM analytics_salts"), db.prepare("DELETE FROM analytics_daily"), db.prepare("UPDATE analytics_maintenance SET completed_day = '' WHERE id = 1")]);
 });
 it("admits exactly the final slot under contention, including test views, and retains admitted heartbeats", async () => {
   await seed(199);
@@ -45,8 +45,17 @@ async function expired() {
 it("cleans once despite concurrent/stale readers, retains exact counts, and never lowers the watermark", async () => {
   await expired();
   const changes: number[] = [];
+  const markers = new WeakSet<D1PreparedStatement>();
   const observed = new Proxy(db, { get(target, key) {
-    if (key === "batch") return async (ss: D1PreparedStatement[]) => { const rs = await target.batch(ss); changes.push(rs[3].meta.changes); return rs; };
+    if (key === "prepare") return (sql: string) => {
+      const statement = target.prepare(sql);
+      if (!sql.startsWith("UPDATE analytics_maintenance")) return statement;
+      return new Proxy(statement, { get(s, k) {
+        if (k === "bind") return (...args: unknown[]) => { const bound = s.bind(...args); markers.add(bound); return bound; };
+        const value = Reflect.get(s, k); return typeof value === "function" ? value.bind(s) : value;
+      } });
+    };
+    if (key === "batch") return async (ss: D1PreparedStatement[]) => { const rs = await target.batch(ss); const index = ss.findIndex(s => markers.has(s)); if (index >= 0) changes.push(rs[index].meta.changes); return rs; };
     const v = Reflect.get(target, key); return typeof v === "function" ? v.bind(target) : v;
   } });
   await Promise.all(Array.from({ length: 8 }, (_, i) => send(`cleanup-race-${i}`, {}, observed)));
@@ -60,7 +69,7 @@ it("cleans once despite concurrent/stale readers, retains exact counts, and neve
   expect(await db.prepare("SELECT id FROM pageviews WHERE id = 'expired-view'").first()).toBeNull();
 });
 it("rolls back cleanup at every statement and never fails open on storage errors", async () => {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     await db.prepare("DELETE FROM pageviews").run(); await expired();
     const fault = new Proxy(db, { get(target, key) {
       if (key === "batch") return (ss: D1PreparedStatement[]) => target.batch(ss.map((s, j) => i === j ? target.prepare("INSERT INTO missing_analytics_table VALUES (1)") : s));
@@ -71,4 +80,48 @@ it("rolls back cleanup at every statement and never fails open on storage errors
     expect(await db.prepare("SELECT completed_day FROM analytics_maintenance WHERE id = 1").first("completed_day")).toBe("");
     expect((await db.prepare("SELECT * FROM analytics_daily").all()).results).toEqual([]);
   }
+});
+
+it("reconciles legacy writes, then denies saturated requests without scanning pageviews", async () => {
+  expect(await send("counter-first-view")).toBe(true);
+  const visitor = await visitorHash(db, day, "192.0.2.10", ua);
+  await db.batch(Array.from({ length: 199 }, (_, i) => db.prepare("INSERT INTO pageviews (id,day,visitor,path,kind,ref_bucket,created_at,updated_at) SELECT ?,?,?, '/', 'home','direct',?,? WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day=? AND visitor=? LIMIT 1 OFFSET 199)").bind(`legacy-view-${i}`,day,visitor,at.toISOString(),at.toISOString(),day,visitor)));
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts WHERE day=? AND visitor=?").bind(day,visitor).first("views")).toBe(1);
+  expect(await send("reconciled-denial")).toBe(false);expect(await count()).toBe(200);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts WHERE day=? AND visitor=?").bind(day,visitor).first("views")).toBe(200);
+  let counterReads=0, sourceTouches=0;
+  const guarded = new Proxy(db, { get(target,key) {
+    if(key==="prepare")return (sql:string)=>{if(/FROM pageviews|INTO pageviews|UPDATE analytics_visitor_counts/.test(sql)){sourceTouches++;throw Error("saturated path touched source/write");}if(sql.startsWith("SELECT views FROM analytics_visitor_counts"))counterReads++;return target.prepare(sql);};
+    const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+  }});
+  expect(await send("cheap-denial",{},guarded)).toBe(false);expect(counterReads).toBe(1);expect(sourceTouches).toBe(0);expect(await count()).toBe(200);
+});
+it("duplicates do not allocate another visitor counter or consume a slot", async()=>{
+  expect(await send("duplicate-counter-view")).toBe(true);
+  expect(await collect(db,JSON.stringify({t:"pv",id:"duplicate-counter-view",p:"/"}),{ip:"192.0.2.11",ua,notrack:false,host:"site.example",now:at})).toBe(false);
+  expect((await db.prepare("SELECT views FROM analytics_visitor_counts").all()).results).toEqual([{views:1}]);
+  expect(await count()).toBe(1);
+});
+it("rolls back every admission statement without consuming a counter slot",async()=>{
+  await seed(1);await db.prepare("UPDATE analytics_maintenance SET completed_day=? WHERE id=1").bind(day).run();
+  for(let index=0;index<3;index++){
+    const fault=new Proxy(db,{get(target,key){
+      if(key==="batch")return(ss:D1PreparedStatement[])=>target.batch(ss.map((s,i)=>i===index?target.prepare("INSERT INTO missing_counter_fault VALUES(1)"):s));
+      const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+    }});
+    expect(await send(`counter-rollback-${index}`,{},fault)).toBe(false);
+    expect(await count()).toBe(1);expect((await db.prepare("SELECT * FROM analytics_visitor_counts").all()).results).toEqual([]);
+  }
+});
+it("a retired counter left by old maintenance is not a saturation certificate",async()=>{
+  await seed(200);expect(await send("set-saturation-counter")).toBe(false);
+  await db.prepare("DELETE FROM pageviews").run();
+  await db.prepare("UPDATE analytics_maintenance SET completed_day='2027-03-01' WHERE id=1").run();
+  expect(await send("retired-fallback-view")).toBe(true);expect(await count()).toBe(1);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(200);
+});
+it("missing counter schema retains the original complete cap and cleanup",async()=>{
+  await seed(199);await db.prepare("ALTER TABLE analytics_visitor_counts RENAME TO saved_visitor_counts").run();
+  try {expect(await send("old-schema-final-slot")).toBe(true);expect(await send("old-schema-denied")).toBe(false);expect(await count()).toBe(200);}
+  finally {await db.prepare("ALTER TABLE saved_visitor_counts RENAME TO analytics_visitor_counts").run();}
 });

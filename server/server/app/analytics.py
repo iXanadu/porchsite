@@ -12,6 +12,8 @@ import json
 import math
 import re
 import secrets
+
+import asyncpg
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
@@ -119,19 +121,29 @@ def _int(v: Any) -> int:
     return int(v)
 
 
-async def _maintain(db: Db, day: str) -> None:
+async def _maintain(db: Db, day: str) -> str:
+    try:
+        return await _maintenance(db, day, True)
+    except asyncpg.UndefinedTableError as error:
+        if '"analytics_visitor_counts"' not in str(error):
+            raise
+        # PostgreSQL rolled back the failed cleanup transaction before retry.
+        return await _maintenance(db, day, False)
+
+
+async def _maintenance(db: Db, day: str, counters: bool) -> str:
     marker = await db.fetchval("SELECT completed_day FROM analytics_maintenance WHERE id = 1")
     if marker is None:
         raise RuntimeError("analytics maintenance unavailable")
     if marker >= day:
-        return
+        return marker
     cutoff = add_days(day, -RETAIN_DAYS)
     async with transaction(db) as c:
         marker = await c.fetchval("SELECT completed_day FROM analytics_maintenance WHERE id = 1 FOR UPDATE")
         if marker is None:
             raise RuntimeError("analytics maintenance unavailable")
         if marker >= day:
-            return
+            return marker
         await c.execute("DELETE FROM analytics_salts WHERE day < $1 AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $1)", day)
         await c.execute(
             "INSERT INTO analytics_daily (day, visits, views, engaged_ms)"
@@ -140,7 +152,10 @@ async def _maintain(db: Db, day: str) -> None:
             " GROUP BY day ON CONFLICT (day) DO NOTHING", cutoff, day,
         )
         await c.execute("DELETE FROM pageviews WHERE day < $1 AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $2)", cutoff, day)
+        if counters:
+            await c.execute("DELETE FROM analytics_visitor_counts WHERE day < $1 AND EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < $2)", cutoff, day)
         await c.execute("UPDATE analytics_maintenance SET completed_day = $1 WHERE id = 1 AND completed_day < $1", day)
+    return day
 
 
 async def collect(
@@ -175,8 +190,21 @@ async def _record(
         if not path.startswith("/") or path.startswith(("/review", "/mcp", "/collect")):
             return False
         day = await _today(db, now)
-        await _maintain(db, day)
+        horizon = await _maintain(db, day)
         visitor = await visitor_hash(db, day, ip, ua)
+        counters = day >= add_days(horizon, -RETAIN_DAYS)
+        if counters:
+            try:
+                views = await db.fetchval("SELECT views FROM analytics_visitor_counts WHERE day = $1 AND visitor = $2", day, visitor)
+            except asyncpg.UndefinedTableError as error:
+                if '"analytics_visitor_counts"' not in str(error):
+                    raise
+                counters = False
+            else:
+                if views is not None:
+                    counters = type(views) is int and 0 <= views <= DAILY_VIEW_CAP
+                    if counters and views == DAILY_VIEW_CAP:
+                        return False
         kind = _str(ev.get("k"), 20)
         content_id = _str(ev.get("c"), 60)
         src = _str(ev.get("s"), 20).lower()
@@ -190,12 +218,24 @@ async def _record(
         lock = int.from_bytes(hashlib.sha256(f"AN-1\0{day}\0{visitor}".encode()).digest()[:8], "big", signed=True)
         async with transaction(db) as c:
             await c.execute("SELECT pg_advisory_xact_lock($1)", lock)
+            if counters:
+                await c.execute(
+                    "INSERT INTO analytics_visitor_counts (day, visitor, views)"
+                    " SELECT $1, $2, (SELECT count(*) FROM (SELECT 1 FROM pageviews WHERE day = $1 AND visitor = $2 LIMIT 200) counted)"
+                    " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE id = $3)"
+                    " ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views"
+                    " WHERE analytics_visitor_counts.views < excluded.views", day, visitor, ev["id"],
+                )
+            cap = (
+                " WHERE EXISTS (SELECT 1 FROM analytics_visitor_counts WHERE day = $2 AND visitor = $3 AND views < 200)"
+                if counters else
+                " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = $2 AND visitor = $3 LIMIT 1 OFFSET 199)"
+            )
             status = await c.execute(
                 "INSERT INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain,"
                 " prev_path, src, post, test, created_at, updated_at)"
                 " SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13"
-                " WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = $2 AND visitor = $3 LIMIT 1 OFFSET 199)"
-                " ON CONFLICT (id) DO NOTHING",
+                + cap + " ON CONFLICT (id) DO NOTHING",
                 ev["id"],
                 day,
                 visitor,
@@ -210,7 +250,10 @@ async def _record(
                 ev.get("w") in (1, True),
                 at,
             )
-            return status.endswith(" 1")
+            inserted = status.endswith(" 1")
+            if counters and inserted:
+                await c.execute("UPDATE analytics_visitor_counts SET views = views + 1 WHERE day = $1 AND visitor = $2 AND views < 200", day, visitor)
+            return inserted
     if ev.get("t") == "hb":
         engaged = max(0, min(_int(ev.get("e")), MAX_ENGAGED_MS))
         scroll = max(0, min(_int(ev.get("d")), 100))

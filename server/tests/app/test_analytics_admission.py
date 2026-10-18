@@ -16,7 +16,7 @@ async def send(db, id, extra=None, now=AT):
 
 @pytest_asyncio.fixture(autouse=True)
 async def clear(db):
-    await db.execute("DELETE FROM pageviews; DELETE FROM analytics_salts; DELETE FROM analytics_daily; UPDATE analytics_maintenance SET completed_day = '' WHERE id = 1")
+    await db.execute("DELETE FROM pageviews; DELETE FROM analytics_visitor_counts; DELETE FROM analytics_salts; DELETE FROM analytics_daily; UPDATE analytics_maintenance SET completed_day = '' WHERE id = 1")
 
 async def seed(db, n):
     visitor = await analytics.visitor_hash(db, DAY, "192.0.2.10", UA)
@@ -72,7 +72,7 @@ async def test_cleanup_concurrency_counts_and_watermark(db):
 
 async def test_cleanup_fault_rollback_and_no_fail_open(db, monkeypatch):
     original = analytics.transaction
-    for fault_index in range(4):
+    for fault_index in range(5):
         await db.execute("DELETE FROM pageviews")
         await expired(db)
         @asynccontextmanager
@@ -95,3 +95,81 @@ async def test_cleanup_fault_rollback_and_no_fail_open(db, monkeypatch):
         assert await db.fetchval("SELECT completed_day FROM analytics_maintenance WHERE id=1") == ""
         assert await db.fetchval("SELECT count(*) FROM analytics_daily") == 0
     monkeypatch.setattr(analytics, "transaction", original)
+
+async def test_legacy_reconcile_and_saturated_no_source_scan(db):
+    assert await send(db, "counter-first-view")
+    visitor = await analytics.visitor_hash(db, DAY, "192.0.2.10", UA)
+    await db.executemany("INSERT INTO pageviews (id,day,visitor,path,kind,ref_bucket,created_at,updated_at) SELECT $1,$2,$3,'/','home','direct',$4,$4 WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day=$2 AND visitor=$3 LIMIT 1 OFFSET 199)", [(f"legacy-view-{i}", DAY, visitor, analytics.iso(AT)) for i in range(199)])
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 1
+    assert not await send(db, "reconciled-denial")
+    assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 200
+    class Guarded:
+        counter_reads = 0
+        forbidden = 0
+        def __getattr__(self, name):
+            if name in ("transaction", "acquire", "execute", "fetchrow", "fetch"):
+                self.forbidden += 1
+            return getattr(db, name)
+        async def fetchval(self, sql, *args):
+            if "FROM pageviews" in sql:
+                self.forbidden += 1
+                raise AssertionError("source scan on saturated path")
+            if sql.startswith("SELECT views FROM analytics_visitor_counts"):
+                self.counter_reads += 1
+            return await db.fetchval(sql, *args)
+    guarded = Guarded()
+    assert not await send(guarded, "cheap-denial")
+    assert guarded.counter_reads == 1
+    assert guarded.forbidden == 0
+
+async def test_duplicate_does_not_allocate_another_key(db):
+    assert await send(db, "duplicate-counter-view")
+    assert not await analytics.collect(db, b'{"t":"pv","id":"duplicate-counter-view","p":"/"}', ip="192.0.2.11", ua=UA, notrack=False, host="site.example", now=AT)
+    assert [dict(r) for r in await db.fetch("SELECT views FROM analytics_visitor_counts")] == [dict(views=1)]
+    assert await db.fetchval("SELECT count(*) FROM pageviews") == 1
+
+async def test_admission_faults_rollback_counter_and_view(db, monkeypatch):
+    await seed(db, 1)
+    await db.execute("UPDATE analytics_maintenance SET completed_day=$1 WHERE id=1", DAY)
+    original = analytics.transaction
+    for index in range(3):
+        @asynccontextmanager
+        async def faulty(pool):
+            async with original(pool) as c:
+                class Fault:
+                    n = 0
+                    def __getattr__(self, name):
+                        return getattr(c, name)
+                    async def execute(self, sql, *args):
+                        if "pg_advisory_xact_lock" not in sql:
+                            current = self.n
+                            self.n += 1
+                            if current == index:
+                                raise RuntimeError("injected admission fault")
+                        return await c.execute(sql, *args)
+                yield Fault()
+        monkeypatch.setattr(analytics, "transaction", faulty)
+        assert not await send(db, f"counter-rollback-{index}")
+        assert await db.fetchval("SELECT count(*) FROM pageviews") == 1
+        assert await db.fetchval("SELECT count(*) FROM analytics_visitor_counts") == 0
+    monkeypatch.setattr(analytics, "transaction", original)
+
+async def test_retired_counter_uses_original_cap(db):
+    await seed(db, 200)
+    assert not await send(db, "set-saturation-counter")
+    await db.execute("DELETE FROM pageviews")
+    await db.execute("UPDATE analytics_maintenance SET completed_day='2027-03-01' WHERE id=1")
+    assert await send(db, "retired-fallback-view")
+    assert await db.fetchval("SELECT count(*) FROM pageviews") == 1
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 200
+
+async def test_missing_counter_schema_original_cap_and_cleanup(db):
+    await seed(db, 199)
+    await db.execute("ALTER TABLE analytics_visitor_counts RENAME TO saved_visitor_counts")
+    try:
+        assert await send(db, "old-schema-final-slot")
+        assert not await send(db, "old-schema-denied")
+        assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
+    finally:
+        await db.execute("ALTER TABLE saved_visitor_counts RENAME TO analytics_visitor_counts")

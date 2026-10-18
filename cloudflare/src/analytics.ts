@@ -109,20 +109,42 @@ export interface Visit {
 }
 
 /** Marker is updated last; the same predicate gates every statement in the batch. */
-async function maintain(db: D1Database, day: string): Promise<void> {
+async function maintain(db: D1Database, day: string): Promise<string> {
   const marker = await db.prepare("SELECT completed_day FROM analytics_maintenance WHERE id = 1").first<{ completed_day: string }>();
   if (!marker) throw new Error("analytics maintenance unavailable");
-  if (marker.completed_day >= day) return;
+  if (marker.completed_day >= day) return marker.completed_day;
   const guard = "EXISTS (SELECT 1 FROM analytics_maintenance WHERE id = 1 AND completed_day < ?)";
   const cutoff = addDays(day, -RETAIN_DAYS);
-  await db.batch([
+  const statements = [
     db.prepare(`DELETE FROM analytics_salts WHERE day < ? AND ${guard}`).bind(day, day),
     db.prepare(`INSERT OR IGNORE INTO analytics_daily (day, visits, views, engaged_ms)
       SELECT day, COUNT(DISTINCT visitor), COUNT(*), SUM(engaged_ms) FROM pageviews
       WHERE day < ? AND test = 0 AND ${guard} GROUP BY day`).bind(cutoff, day),
     db.prepare(`DELETE FROM pageviews WHERE day < ? AND ${guard}`).bind(cutoff, day),
+    db.prepare(`DELETE FROM analytics_visitor_counts WHERE day < ? AND ${guard}`).bind(cutoff, day),
     db.prepare("UPDATE analytics_maintenance SET completed_day = ? WHERE id = 1 AND completed_day < ?").bind(day, day),
-  ]);
+  ];
+  try { await db.batch(statements); }
+  catch (error) {
+    if (!missingCounter(error)) throw error;
+    // The failed batch rolled back. A predecessor schema uses the original cleanup.
+    await db.batch(statements.filter((_, index) => index !== 3));
+  }
+  return day;
+}
+
+function missingCounter(error: unknown): boolean {
+  return /\bno such table: (?:main\.)?analytics_visitor_counts\b/.test(String(error));
+}
+async function counterState(db: D1Database, day: string, visitor: string): Promise<{ available: boolean; views: number | null }> {
+  try {
+    const row = await db.prepare("SELECT views FROM analytics_visitor_counts WHERE day = ? AND visitor = ?").bind(day, visitor).first<{ views: number }>();
+    if (!row) return { available: true, views: null };
+    return { available: Number.isInteger(row.views) && row.views >= 0 && row.views <= DAILY_VIEW_CAP, views: row.views };
+  } catch (error) {
+    if (!missingCounter(error)) throw error;
+    return { available: false, views: null };
+  }
 }
 
 /**
@@ -150,8 +172,11 @@ async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
     const path = str(ev.p, 300);
     if (!path.startsWith("/") || /^\/(review|mcp|collect)/.test(path)) return false;
     const day = await today(db, now);
-    await maintain(db, day);
+    const horizon = await maintain(db, day);
     const visitor = await visitorHash(db, day, v.ip, v.ua);
+    // A surviving counter after predecessor retention cannot certify a retired day.
+    const counter = day >= addDays(horizon, -RETAIN_DAYS) ? await counterState(db, day, visitor) : { available: false, views: null };
+    if (counter.available && counter.views === DAILY_VIEW_CAP) return false;
     const kind = str(ev.k, 20);
     const contentId = str(ev.c, 60);
     const src = str(ev.s, 20).toLowerCase();
@@ -159,11 +184,13 @@ async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
     let [bucket, domain, prev] = referrer(str(ev.r, 500), v.host);
     // The X app often sends no referrer at all; a tagged link still says where.
     if (src === "x" && (bucket === "direct" || bucket === "other")) bucket = "x";
-    const r = await db
+    const insert = db
       .prepare(
         `INSERT OR IGNORE INTO pageviews (id, day, visitor, path, kind, content_id, ref_bucket, ref_domain, prev_path, src, post, test, created_at, updated_at)
          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)`,
+         WHERE ${counter.available
+           ? "EXISTS (SELECT 1 FROM analytics_visitor_counts WHERE day = ? AND visitor = ? AND views < 200)"
+           : "NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)"}`,
       )
       .bind(
         ev.id as string,
@@ -182,9 +209,19 @@ async function record(db: D1Database, raw: string, v: Visit): Promise<boolean> {
         at,
         day,
         visitor,
-      )
-      .run();
-    return r.meta.changes === 1;
+      );
+    if (!counter.available) return (await insert.run()).meta.changes === 1;
+    const results = await db.batch([
+      db.prepare(`INSERT INTO analytics_visitor_counts (day, visitor, views)
+        SELECT ?, ?, (SELECT COUNT(*) FROM (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 200))
+        WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE id = ?)
+        ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views
+        WHERE analytics_visitor_counts.views < excluded.views`).bind(day, visitor, day, visitor, ev.id as string),
+      insert,
+      // SQL changes() describes only the immediately preceding pageview insert.
+      db.prepare("UPDATE analytics_visitor_counts SET views = views + 1 WHERE day = ? AND visitor = ? AND views < 200 AND changes() = 1").bind(day, visitor),
+    ]);
+    return results[1].meta.changes === 1;
   }
   if (ev.t === "hb") {
     const engaged = Math.max(0, Math.min(int(ev.e), MAX_ENGAGED_MS));
