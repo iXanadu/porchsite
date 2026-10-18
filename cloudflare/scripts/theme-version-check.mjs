@@ -17,6 +17,10 @@ test('theme:check refuses changed published bytes until the version is bumped', 
     for (const file of ['theme.mjs', 'theme.ts', 'theme-version.mjs', 'catalog.mjs'])
       cpSync(join(source, 'scripts', file), join(cf, 'scripts', file));
     cpSync(join(source, 'src'), join(cf, 'src'), { recursive: true });
+    // The renderer's clock helpers import the shared packaged rule data.
+    const clockData = join(root, 'server/server/spec');
+    mkdirSync(clockData, { recursive: true });
+    cpSync(join(source, '../server/server/spec/public-time-zones.json'), join(clockData, 'public-time-zones.json'));
     cpSync(join(source, '../themes'), join(root, 'themes'), { recursive: true });
     cpSync(join(source, 'package.json'), join(cf, 'package.json'));
     symlinkSync(join(source, 'node_modules'), join(cf, 'node_modules'), 'dir');
