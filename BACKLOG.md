@@ -87,7 +87,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    Hand's hosted A/B found no /collect regression to fix (a55686c mean
    7.7 ms vs 3f0141a 8.3). Branch kept for reference; not shipped.
 
-9. **AF-8** OPEN (owner, 2026-10-18, from his agent-friendly article):
+9. **AF-8** IN-PROGRESS (frozen for independent review) (owner, 2026-10-18, from his agent-friendly article):
    robots.txt is `User-agent: * / Allow: /` plus Sitemap unless the owner
    turns AI training off (AF-4 then adds GPTBot, ClaudeBot and
    Google-Extended Disallow groups). Make the tiers explicit always:
