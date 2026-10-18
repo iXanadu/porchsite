@@ -165,10 +165,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   method/preflight/origin checks and unclaimed-409 precedence; fixed
   `400 code_in_url`, no reflection, no-store/no-referrer, empty HEAD.
   Introducing recovery links already use fragments; keep archived tests.
-- **RA-10** IN-PROGRESS: the recovery link uses the same `?code=` form that RA-9
-  removes from setup links, so the code reaches request logs. Move it to
-  the URL fragment the same way (one release still accepting the query,
-  then refusing). Found 2026-10-18 in RA-9 review.
 - **AN-1** OPEN: the visitor beacon (`POST /collect`) has no rate limit.
   Each accepted page-view event writes at least one database row and runs
   the retention clean-up (a delete plus an aggregate insert) every time.
