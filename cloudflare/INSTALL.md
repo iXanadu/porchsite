@@ -692,6 +692,10 @@ Server hosting operator, with the site's existing `PORCHSITE_DSN` set:
 python -m server.app.cli recovery-link --origin https://example.com
 ```
 
+The printed link uses `/recover#code=...`; the code stays out of the
+initial request URL. Give this one-use link privately to the owner. The
+page clears the address bar before the passkey step. Old query-form links
+work for this release only; the following product release refuses them.
 The code is random and stored only as a hash with an expiry. A new link
 invalidates the previous link. Hosting-account access already grants control
 of the site; recovery does not protect against a compromised hosting account.

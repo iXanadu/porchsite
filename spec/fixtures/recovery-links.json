@@ -1,0 +1,31 @@
+{
+  "script": "(() => {\n  const fragment = new URLSearchParams(location.hash.slice(1)).get(\"code\");\n  const code = fragment !== null ? fragment : new URLSearchParams(location.search).get(\"code\");\n  if (location.search || location.hash) history.replaceState(null, \"\", location.pathname);\n  if (code !== null) {\n    const input = document.querySelector('input[name=\"code\"]');\n    if (input) input.value = code.trim().slice(0, 200);\n  }\n})();\n",
+  "cutoff_message": "This recovery link is no longer supported. Ask for a fresh link or enter the code manually.",
+  "query_cases": [
+    "?code=",
+    "?code=one&code=two",
+    "?%63ode=canary"
+  ],
+  "fill_cases": [
+    {
+      "search": "?code=legacy",
+      "hash": "",
+      "value": "legacy"
+    },
+    {
+      "search": "?code=legacy",
+      "hash": "#code=fresh",
+      "value": "fresh"
+    },
+    {
+      "search": "?code=legacy",
+      "hash": "#code=",
+      "value": ""
+    },
+    {
+      "search": "",
+      "hash": "#code=%22%3E%3Cscript%3E",
+      "value": "\"><script>"
+    }
+  ]
+}
