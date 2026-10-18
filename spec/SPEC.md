@@ -5910,8 +5910,12 @@ change witness. The initial full facts, decode, tag preimage, ETag bytes,
 representation selection, privacy gate and public-time proof stay as today.
 Prepared-copy state, lookup and admission are out of scope. Response-cache
 reuse keeps its existing proofs too: this first experiment applies only
-when both prepared-copy delivery and response-cache reuse are off. Those
-other modes must not pay an extra witness read or lose an existing check.
+when both prepared-copy delivery and response-cache reuse are off, except
+for the later conditional-only amendment that applies the same witness to
+ON304 to preserve C2 identity. Response reuse retains its exclusion; ON
+HIT/MISS/admission never gain witness body authority. No-validator ON keeps
+its original reads. The conditional amendment explicitly measures any
+stale-validator initial-snapshot overhead; no existing check is removed.
 
 This is a reviewed schema/proof change, not the parked SQL-flattening
 experiment. No runtime implementation or deployment follows from a spec
@@ -6144,14 +6148,20 @@ reconnect change. Stored expected closures are not selected.
 facts SQL in the edition's artifacts-OFF path, with its existing binds.
 A stable anonymous conditional request with copies ON executes the same
 statements, in the same order, with identical SQL text and bindings as the
-same request with copies OFF. Both initial and final facts reads use Q_F.
-No state UNION, scalar state subquery, artifact lookup, copy-body read,
-generation synchronization or artifact DML occurs before that 304 return.
+same request with copies OFF. Without the PERF-9a conditional witness,
+both initial and final facts reads use Q_F. With that witness eligible,
+both modes instead use the identical combined complete Q_F/pair0 snapshot
+and identical independent late pair1 statement defined below. The only
+permitted added transport is the content-revision witness, never copy state.
+No copy-state UNION/subquery, artifact lookup, copy-body read, generation
+synchronization or artifact DML occurs before that 304 return.
 Existing access and request-accounting statements remain identical too.
 This is a statement-identity requirement, not just equal result counts.
 
-The first read still decodes and validates every dependency; the second
-still checks live privacy and complete normalized facts equality. The
+The first read still decodes and validates every dependency. The late proof
+is either independent complete normalized facts/privacy validation or the
+PERF-9a independent valid pair equality covering that complete snapshot;
+an absent, invalid or changed pair takes the complete-facts fallback. The
 original request's AF-7L plan is checked at the same return boundary.
 If facts drift, the existing bounded refresh/route/existence/tag behavior
 runs; a failed conditional check is not permission to skip the final check
@@ -6269,8 +6279,11 @@ both editions must prove:
 - ON304 versus OFF304 exact statement text/order/binds/count identity on
   matching stable GET and HEAD (including wildcard), same source and other
   cache flag. No state/artifact SELECT or artifact DML; unchanged complete
-  F/AF-2 preimages, status, public headers and empty body. OFF controls stay
-  byte/query-identical to the prior release. Include absent optional tables.
+  F/AF-2 preimages, status, public headers and empty body. With PERF-9a
+  eligible, both modes use its same joined-snapshot/late-pair sequence;
+  without it both retain C2's ordinary two-Q_F sequence. Prior-release
+  comparison must label the reviewed witness query/row change; bytes and
+  metadata remain identical. Include absent optional tables.
 - Atomic lookup branch coverage for tuple match/drift in both directions,
   duplicates/missing/additional/replacement tuples, null/empty/raw whitespace,
   state missing/malformed/generation mismatch, corrupt metadata/body,
@@ -6304,8 +6317,10 @@ This amendment applies to both editions. It permits one cheap state read
 after a visitor has failed the ordinary conditional-return branch and
 passed the existing copy eligibility, complete facts, tag and clock checks.
 It amends C2's prohibition on a separate visitor state observation only
-at this point. Both validator reads remain exact Q_F: ON304 still executes
-exactly the OFF304 statements, with no state read or artifact operation.
+at this point. ON304 still executes exactly the OFF304 statements:
+ordinary Q_F twice without the PERF-9a conditional witness, or the same
+joined complete-Q_F/pair0 and independent pair1 with it. No copy-state read
+or artifact operation is permitted by either path.
 OFF requests, private/session/Authorization bypass and missing pages retain
 their existing behavior. No schema, default, flag, format or preimage changes.
 
@@ -6376,7 +6391,9 @@ on hold until this amendment is reviewed and its row comparison is complete.
 
 This delta supersedes phase 1's scalar-only monotonic witness and its
 missing-row/overflow source-write refusal. It changes no public tag input
-and adds no witness use to prepared copies, response reuse or C3. The full
+and adds no witness authorization to prepared-copy HIT/MISS/admission,
+response reuse or C3. The later conditional-only amendment permits the
+same ordinary ON/OFF 304 witness proof before copy processing. The full
 phase-1 gates and ten-table/all-column/event inventory still apply.
 
 The witness is now the pair `(epoch, n)`, compared only for exact equality.
@@ -6448,9 +6465,13 @@ Use the pre-9a independent full final facts read, current privacy/existence
 and original clock/retry behavior. The later trigger recreation does not
 retroactively make a missing initial witness usable. A changed epoch with
 equal n is a mismatch, never a match. Valid n equality without epoch
-equality grants nothing. Scope stays both delivery/reuse modes OFF, with
-n0/pair0 before initial complete facts and pair1 at the original late proof
-point; independent primary/current reads and late clock remain mandatory.
+equality grants nothing. The final-render shortcut stays both delivery/
+reuse modes OFF. The later conditional amendment additionally applies the
+witness to ordinary ON304, before any copy processing, preserving exact
+ON/OFF SQL identity without witness body authority. Initial pair0 is
+captured with complete facts under the joined-snapshot amendment below;
+pair1 remains at the independent late proof point. Independent primary/
+current reads and late clock remain mandatory.
 
 Compatibility: archived tests and their assertions remain byte-identical.
 Their broad administrative fixture cleanup can delete this singleton.
@@ -6502,9 +6523,15 @@ Primary references checked 2026-10-18:
 This replaces the separate pair0 execution before the initial facts with
 ONE current primary-consistent statement that returns both the complete
 initial dependency relation and its epoch-qualified witness from the same
-SQL snapshot. It changes only the ordinary anonymous path with both
-prepared-copy delivery and response-cache reuse OFF. The independent late
-pair1 execution and the epoch-repair/installation contract remain required.
+SQL snapshot. The transport applies to the ordinary anonymous path with
+both prepared-copy delivery and response-cache reuse OFF, and to eligible
+anonymous conditional requests with prepared-copy delivery ON and response
+reuse OFF under the conditional amendment. Those ON conditionals use the
+same initial snapshot and independent late pair as OFF, including attempts
+whose validator later misses. No-validator ON keeps its original facts
+path; response reuse, private and session paths remain excluded. The ON
+pair never authorizes HIT/MISS/admission body delivery. The independent
+late pair1 execution and epoch-repair/installation contract remain required.
 
 The approved complete FACTS_SQL relation remains intact inside this new
 initial transport statement: same dependency expressions, tables, joins,
@@ -6544,9 +6571,10 @@ conditional: access gate + combined initial facts/pair0 + independent
 pair1. Keep zero render, zero copy, zero UC9/write, empty GET/HEAD 304,
 identical bytes/headers and late clock assertions. Canonical missing-page
 metadata can stay within its existing three statements because the initial
-pair requires no extra execution. ON/reuse modes execute their original
-facts statements and no witness transport/read; archived runtime and
-unshaped miss behavior stay unchanged. A safe absent-table/capability
+pair requires no extra execution. Response-reuse modes execute their
+original facts statements and no witness transport/read. Prepared-copy ON
+is unchanged except for the later conditional-only ON/OFF identity
+amendment. Archived runtime and unshaped miss behavior stay unchanged. A safe absent-table/capability
 fallback may add one failed optional-statement attempt; that degraded path
 must be measured and labelled separately, never presented as the stable
 three-statement optimization or permission for a stale response.
@@ -6692,3 +6720,90 @@ first/re-entry install visibility and rollback requirements are unchanged.
 Measure the revised per-row write cost; do not reuse the all-column items
 update prediction. No CPU saving, hosted result or shipping authorization
 follows from this amendment.
+
+
+### PERF-9a conditional amendment: retain C2 ON/OFF 304 identity
+
+This paired-edition delta resolves the independent gate's contract conflict:
+phase 1 optimized ordinary OFF while C2 requires ON304 and OFF304 to execute
+identical SQL. Keep C2's identity requirement. Extend only the ordinary
+anonymous conditional proof to prepared-copy ON; no witness may authorize
+copy HIT, MISS response delivery, preparation or admission. Response reuse,
+sessions/Authorization, private, ineligible and unshaped paths retain their
+existing exclusions. No new flag, schema, route, tag input or authority.
+
+When response reuse is OFF and an eligible shaped anonymous GET/HEAD has
+a nonempty If-None-Match validator (including wildcard), both prepared-copy
+ON and OFF capture complete Q_F and pair0 in the same actual database
+statement. Both strip the reserved metadata before decode, raw tuple proof,
+AF-2, G2 and output. A genuinely matching ordinary conditional may return
+304 only after an independent late SELECT validates the complete pair and
+its equality, plus the unchanged late clock, access, privacy, existence and
+representation proof. Both modes execute identical statement text, order,
+binds, counts and rows, including the same missing/invalid capability
+fallback. Stable known-capability matching 304 stays at most three
+statements, zero render/copy/UC9/write, empty body and unchanged headers.
+The witness table is not public_artifact_state; C2's copy-state prohibition
+continues. No preliminary generation observation or artifact query runs
+before a successful 304.
+
+If no conditional validator is supplied, prepared-copy ON keeps the original
+ordinary facts path and no witness read. On a conditional miss, pair change,
+invalid/missing pair or late clock refusal, never turn the pair into copy
+HIT authority. The complete captured facts may still be consumed by the
+existing ordinary copy proof only with their full raw tuple ownership and
+all existing freshness/privacy rules. Discard the ON conditional witness
+before rendering/copy lookup. ON HIT, live MISS final proof, two-way counted
+lookup/admission, generation/expiry/quota and preparation remain unchanged;
+the OFF final-render witness remains its separately approved phase-1 use.
+A late daily-limit/storage error must not become a successful 304 or a
+rendered response through a witness fallback: existing error/privacy
+mapping and no-validator refusal remain required.
+
+A stale/mismatching If-None-Match cannot be known before the full initial
+snapshot. Consequently an ON conditional that becomes a HIT or MISS may
+pay for combined-snapshot transport even though it cannot use the witness
+for body delivery. This is a cost to measure and disclose, not a saving
+from skipping its normal copy proof. Retain ordinary no-validator ON HIT/
+MISS cells unchanged, and measure stale-conditional ON HIT and MISS
+separately on the same small/200 fixtures, with exact SQL/rows/writes and
+response identity. Any increase follows the existing rows justification
+and owner-approval gate. The normal GATE-2 matrix must now show matching
+ON304/OFF304 identity on identical data; do not assume a measured value.
+No old OFF-only predictions or pre-amendment ON numbers certify this delta.
+
+Before editing current assertions, this delta needs both reviews and the
+implementation go. Retain the original current safety outcomes while
+moving injections to the actual combined snapshot/late witness boundary:
+
+- Conditional removal after initial snapshot returns the current missing
+  response with no stale ETag, for matching GET/HEAD and wildcard controls.
+- Clock deadline crossed before late proof refuses the old 304; body/tag
+  follow current clock and keep strict event/notice boundary semantics.
+- Approved-view proof budget separately counts one complete initial
+  snapshot, one independent late pair and existing live body access, with
+  no accidental duplicate full facts. Invalid/mismatched witness still
+  proves its fresh complete-facts fallback.
+- Same-version extension mutation between those proofs discards the old
+  approved view and renders the freshly approved value. Private-on,
+  unpublish and raw/multiplicity cases retain their strict outcomes.
+- Native late witness daily-limit error and native complete-facts fallback
+  error both return the existing visitor 503 without ETag or private body,
+  for ordinary and matching-conditional requests. Assert each injected
+  boundary was actually reached; a failed observer is not a product PASS.
+
+Each retargeted race/outcome test requires an unchanged control PASS and a
+fresh scratch mutation that breaks its witness guard and causes the actual
+safety/budget assertion to fail. Syntax, import, stale fixture or source
+inventory failure is not the expected mutation proof. No archived test or
+prior assertion about status, body, privacy, tag or late clock is weakened.
+Extend both-edition SQL identity coverage to stable GET/HEAD, wildcard,
+with/without stored copy, response-reuse ON/OFF controls and missing optional
+tables. Retain all original C2 counted-lookup/admission mutation controls.
+
+Run the FULL current suite on both editions before the new runtime freeze;
+selected modules are iteration evidence only. Refresh measured rows and
+runtime source-inventory pins deliberately, then parity/conformance/real
+normal entry and actual previous-runtime gates. The independent gate must
+repeat on the exact new freeze. Existing installer atomicity, watched-write
+cost, CPU and owner-approval requirements are not waived by this delta.
