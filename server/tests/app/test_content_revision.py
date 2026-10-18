@@ -58,18 +58,21 @@ async def test_delete_overflow_and_rollback(db):
     before=await pair(db);await db.execute('INSERT INTO private_approvals(version) VALUES(7) ON CONFLICT(version) DO UPDATE SET version=excluded.version')
     after=await pair(db);assert after[0]==before[0] and int(after[1])>int(before[1])
 
-async def test_identity_and_two_independent_reads(db,http,monkeypatch):
-    await site(db);original=revision.read_revision
-    monkeypatch.setattr(revision,'read_revision',AsyncMock(return_value=None))
+async def test_identity_and_independent_late_read(db,http,monkeypatch):
+    await site(db);original=revision.read_revision;original_initial=revision.initial_facts
+    async def plain(binding):return await public_read.facts(binding),None
+    monkeypatch.setattr(revision,'initial_facts',plain)
     legacy=await http.get('/')
     reader=AsyncMock(side_effect=original);facts=AsyncMock(side_effect=public_read.facts)
+    initial=AsyncMock(side_effect=original_initial)
+    monkeypatch.setattr(revision,'initial_facts',initial)
     monkeypatch.setattr(revision,'read_revision',reader);monkeypatch.setattr(public_read,'facts',facts)
     response=await http.get('/')
     assert response.content==legacy.content and response.headers==legacy.headers
-    assert facts.call_count==1 and reader.call_count==2
-    facts.reset_mock();reader.reset_mock()
+    assert facts.call_count==0 and initial.call_count==1 and reader.call_count==1
+    facts.reset_mock();initial.reset_mock();reader.reset_mock()
     head=await http.head('/',headers={'If-None-Match':response.headers['etag']})
-    assert head.status_code==304 and head.content==b'' and facts.call_count==1 and reader.call_count==2
+    assert head.status_code==304 and head.content==b'' and facts.call_count==0 and initial.call_count==1 and reader.call_count==1
 
 async def test_equal_counter_different_epoch_late_edit(db,http,monkeypatch):
     await site(db);await db.execute('UPDATE content_revision SET n=1');before=await pair(db)
@@ -77,7 +80,7 @@ async def test_equal_counter_different_epoch_late_edit(db,http,monkeypatch):
     async def changing(binding):
         nonlocal calls
         calls+=1
-        if calls==2:
+        if calls==1:
             await db.execute('DELETE FROM content_revision')
             await db.execute("UPDATE live SET data=jsonb_set(data::jsonb,'{title}','\"After witness\"')::text WHERE item_id='site'")
         return await original(binding)
@@ -91,19 +94,21 @@ async def test_missing_final_pair_uses_fresh_facts(db,http,monkeypatch):
     async def changing(binding):
         nonlocal calls
         calls+=1
-        if calls==2:await db.execute('DELETE FROM content_revision')
+        if calls==1:await db.execute('DELETE FROM content_revision')
         return await original(binding)
     facts=AsyncMock(side_effect=public_read.facts);monkeypatch.setattr(public_read,'facts',facts)
     monkeypatch.setattr(revision,'read_revision',changing)
     response=await http.get('/')
-    assert response.status_code==200 and facts.call_count==2 and await revision.read_revision(db) is None
+    assert response.status_code==200 and facts.call_count==1 and await revision.read_revision(db) is None
 
 async def test_credentials_bypass_witness(db,http,monkeypatch):
     await site(db);reader=AsyncMock(side_effect=AssertionError('out-of-scope witness'))
+    initial=AsyncMock(side_effect=AssertionError('out-of-scope initial witness'))
+    monkeypatch.setattr(revision,'initial_facts',initial)
     monkeypatch.setattr(revision,'read_revision',reader)
     for headers in [{'authorization':''},{'cookie':'__Host-sk_owner=expired'},{'cookie':'__Host-sk_reader=invalid'}]:
         await http.get('/',headers=headers)
-    assert reader.call_count==0
+    assert reader.call_count==0 and initial.call_count==0
 
 async def test_failed_reentry_restores_complete_installed_state(db):
     before=await pair(db);await apply_schema(db);assert await pair(db)==before
@@ -128,12 +133,14 @@ async def test_enabled_modes_never_pay_witness(db,http,app,monkeypatch):
     from dataclasses import replace
     await site(db);tag=(await http.get('/')).headers['etag']
     reader=AsyncMock(side_effect=AssertionError('out-of-scope witness'))
+    initial=AsyncMock(side_effect=AssertionError('out-of-scope initial witness'))
+    monkeypatch.setattr(revision,'initial_facts',initial)
     monkeypatch.setattr(revision,'read_revision',reader)
     for artifacts,responses in [(True,False),(False,True),(True,True)]:
         app.settings=replace(app.settings,site_url='https://site.example',public_artifacts=artifacts,public_responses=responses)
         response=await http.get('/',headers={'If-None-Match':tag})
         assert response.status_code==304
-    assert reader.call_count==0
+    assert reader.call_count==0 and initial.call_count==0
 
 async def test_invalid_row_snapshot_and_capability():
     good=dict(epoch=FIXTURE['epoch_valid'],epoch_storage='uuid',n='9007199254740993',storage='bigint')
@@ -158,8 +165,38 @@ async def test_clock_crossing_still_discards_the_old_render(db,http,monkeypatch)
     async def changing(binding):
         nonlocal now,calls
         calls+=1
-        if calls==2:now+=60
+        if calls==1:now+=60
         return await original(binding)
     monkeypatch.setattr(revision,'read_revision',changing)
     response=await http.get('/')
     assert response.status_code==200 and 'Boundary notice' not in response.text
+
+
+async def test_combined_snapshot_preserves_owned_raw_tuples(db):
+    await site(db);plain=await public_read.facts(db,True)
+    combined,p=await revision.initial_facts(db)
+    assert combined==plain and p==await revision.read_revision(db)
+    rows=[dict(row) for row in await db.fetch(public_read.FACTS_SQL)]
+    good=dict(category=revision.WITNESS_CATEGORY,ident='epoch-counter-v1',value=json.dumps([FIXTURE['epoch_valid'],'uuid','9007199254740993','bigint']))
+    for metadata in [[],[good,good],[{**good,'ident':'wrong'}],[{**good,'value':'bad'}],[{**good,'value':json.dumps([FIXTURE['epoch_valid'],'uuid','01','bigint'])}]]:
+        f,token=revision.initial_snapshot([*rows,*metadata])
+        assert token is None and f==plain
+    f,token=revision.initial_snapshot([*rows,rows[0],good])
+    assert token is not None and f['raw']==[[x['category'],x['ident'],x['value']] for x in [*rows,rows[0]]]
+    assert public_read.view_proof(combined)==public_read.view_proof(plain)
+
+
+async def test_initial_failure_falls_back_only_on_known_absence(db):
+    await site(db);rows=await db.fetch(public_read.FACTS_SQL);calls=[]
+    class Absent(Exception):sqlstate='42P01'
+    class Binding:
+        async def fetch(self,sql):
+            calls.append(sql)
+            if sql==revision.initial_sql():raise Absent('relation "content_revision" does not exist')
+            return rows
+    f,token=await revision.initial_facts(Binding())
+    assert token is None and f==await public_read.facts(db)
+    assert calls==[revision.initial_sql(),public_read.FACTS_SQL]
+    class Broken:
+        async def fetch(self,sql):raise RuntimeError('disk I/O error')
+    with pytest.raises(RuntimeError,match='disk I/O error'):await revision.initial_facts(Broken())

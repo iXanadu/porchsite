@@ -1,4 +1,4 @@
-import {readRevision} from './content-revision';
+import {readRevision,initialFacts} from './content-revision';
 import {plan as timePlan,valid as timeValid} from './public-time';
 import * as ownerReview from './owner-review';
 import {markdownDocument} from './agent-markdown';
@@ -1282,8 +1282,8 @@ const witnessScope=(env:Env)=>env.PUBLIC_ARTIFACTS!=='1'&&env.PUBLIC_RESPONSES!=
 async function fastPublic(req:Request,env:Env,ctx?:Pick<ExecutionContext,'waitUntil'>):Promise<Response>{
  if(!sessionRequest(req)&&publicRead.candidate(new URL(req.url).pathname)){
   try{
-   let n0=witnessScope(env)?await readRevision(env.DB):null;
-   let f=await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1'||n0!==null);
+   const initial=witnessScope(env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB,env.PUBLIC_ARTIFACTS==='1'),pair:null};
+   let n0=initial.pair,f=initial.facts;
    if(f.private)return privacy.blankResponse(req);
    readStates.get(env)!.zone=String(f.site.timezone||'UTC');
    let c=publicRead.choice(req,f);
@@ -1306,7 +1306,7 @@ async function publicPaths(req:Request,env:Env):Promise<string[]> {
  return [...(v.site.archive?.enabled?['/archive/']:[]),...(v.site.streams as {id:string}[]).flatMap(s=>v.entries.filter(e=>e.stream===s.id&&!e.external_url).map(e=>String(e.page)))];
 }
 async function renderPublic(req:Request,env:Env):Promise<Response>{
- if(!readStates.has(env)){env={...env};const access=await privacy.access(env.DB,req);readStates.set(env,{access});if(!access.isPrivate&&!sessionRequest(req)){const n0=witnessScope(env)?await readRevision(env.DB):null;const f=await publicRead.facts(env.DB,n0!==null),c=publicRead.choice(req,f);if(c){const now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now);if(tag){readStates.get(env)!.witness=n0!==null&&!f.private?{pair:n0,facts:f,choice:c,at:now,tag}:undefined;readStates.get(env)!.fast={tag,disabled:f.disabled,now};readStates.get(env)!.approved=publicRead.viewProof(f);}}}}
+ if(!readStates.has(env)){env={...env};const access=await privacy.access(env.DB,req);readStates.set(env,{access});if(!access.isPrivate&&!sessionRequest(req)){const initial=witnessScope(env)?await initialFacts(env.DB):{facts:await publicRead.facts(env.DB),pair:null};const n0=initial.pair,f=initial.facts,c=publicRead.choice(req,f);if(c){const now=Date.now(),tag=await publicRead.tag(f,req,c,RELEASE,now);if(tag){readStates.get(env)!.witness=n0!==null&&!f.private?{pair:n0,facts:f,choice:c,at:now,tag}:undefined;readStates.get(env)!.fast={tag,disabled:f.disabled,now};readStates.get(env)!.approved=publicRead.viewProof(f);}}}}
  const fresh=readStates.get(env)?.access??await privacy.access(env.DB,req),get=req.method==='HEAD'?new Request(req,{method:'GET'}):req;
  if(fresh.isPrivate&&privateAgentPath(req))return privacy.blankResponse(req);
  if(fresh.response)return fresh.response;

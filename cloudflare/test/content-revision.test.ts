@@ -38,28 +38,28 @@ it('repairs deleted state, rotates overflow and rolls content plus witness back 
  expect(await pair()).toEqual(rotated);expect(await db.prepare('SELECT count(*) n FROM private_approvals WHERE version=8').first('n')).toBe(0);
  const before=await pair();await db.prepare('INSERT OR REPLACE INTO private_approvals(version) VALUES(7)').run();expect((await pair())[0]).toBe(before[0]);expect(BigInt((await pair())[1])).toBeGreaterThan(BigInt(before[1]));
 });
-it('keeps exact bytes/tags with one initial facts read and two independent pair reads',async()=>{
- await site();const baseRead=revision.readRevision;vi.spyOn(revision,'readRevision').mockResolvedValue(null);const legacy=await get(),body=await legacy.text(),headers=[...legacy.headers];vi.restoreAllMocks();
- const witness=vi.spyOn(revision,'readRevision').mockImplementation(baseRead),facts=vi.spyOn(read,'facts');const response=await get();expect(await response.text()).toBe(body);expect([...response.headers]).toEqual(headers);expect(facts).toHaveBeenCalledTimes(1);expect(witness).toHaveBeenCalledTimes(2);
- facts.mockClear();witness.mockClear();const conditional=await get({'If-None-Match':response.headers.get('ETag')!},'HEAD');expect(conditional.status).toBe(304);expect(await conditional.text()).toBe('');expect(facts).toHaveBeenCalledTimes(1);expect(witness).toHaveBeenCalledTimes(2);
+it('keeps exact bytes/tags with one combined initial snapshot and one independent late pair read',async()=>{
+ await site();const baseRead=revision.readRevision,baseInitial=revision.initialFacts;vi.spyOn(revision,'initialFacts').mockImplementation(async binding=>({facts:await read.facts(binding),pair:null}));const legacy=await get(),body=await legacy.text(),headers=[...legacy.headers];vi.restoreAllMocks();const initial=vi.spyOn(revision,'initialFacts').mockImplementation(baseInitial);
+ const witness=vi.spyOn(revision,'readRevision').mockImplementation(baseRead),facts=vi.spyOn(read,'facts');const response=await get();expect(await response.text()).toBe(body);expect([...response.headers]).toEqual(headers);expect(facts).not.toHaveBeenCalled();expect(initial).toHaveBeenCalledTimes(1);expect(witness).toHaveBeenCalledTimes(1);
+ facts.mockClear();initial.mockClear();witness.mockClear();const conditional=await get({'If-None-Match':response.headers.get('ETag')!},'HEAD');expect(conditional.status).toBe(304);expect(await conditional.text()).toBe('');expect(facts).not.toHaveBeenCalled();expect(initial).toHaveBeenCalledTimes(1);expect(witness).toHaveBeenCalledTimes(1);
 });
 it('refuses equal counter values with different epochs after a late old-runtime edit',async()=>{
  await site();await db.prepare('UPDATE content_revision SET n=1').run();const before=await pair(),original=revision.readRevision;let calls=0;
  vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{
-  if(++calls===2){await db.prepare('DELETE FROM content_revision').run();await db.prepare("UPDATE live SET data=json_set(data,'$.title','After witness') WHERE item_id='site'").run();}
+  if(++calls===1){await db.prepare('DELETE FROM content_revision').run();await db.prepare("UPDATE live SET data=json_set(data,'$.title','After witness') WHERE item_id='site'").run();}
   return original(binding);
  });
  const response=await get(),body=await response.text();expect(response.status).toBe(200);expect(body).toContain('After witness');expect(body).not.toContain('Before witness');const after=await pair();expect(after[1]).toBe(before[1]);expect(after[0]).not.toBe(before[0]);
 });
 it('uses full independent facts when the final pair is missing',async()=>{
- await site();const original=revision.readRevision;let calls=0;vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{if(++calls===2)await db.prepare('DELETE FROM content_revision').run();return original(binding);});
- const facts=vi.spyOn(read,'facts'),r=await get();expect(r.status).toBe(200);expect(facts).toHaveBeenCalledTimes(2);expect(await revision.readRevision(db)).toBeNull();
+ await site();const original=revision.readRevision;let calls=0;vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{if(++calls===1)await db.prepare('DELETE FROM content_revision').run();return original(binding);});
+ const facts=vi.spyOn(read,'facts'),r=await get();expect(r.status).toBe(200);expect(facts).toHaveBeenCalledTimes(1);expect(await revision.readRevision(db)).toBeNull();
 });
 it('neither enabled reuse mode nor credentials pay a witness read, including ON304',async()=>{
- await site();const tag=(await get()).headers.get('ETag')!;const witness=vi.spyOn(revision,'readRevision').mockImplementation(async()=>{throw Error('out-of-scope witness');});
+ await site();const tag=(await get()).headers.get('ETag')!;const initial=vi.spyOn(revision,'initialFacts').mockImplementation(async()=>{throw Error('out-of-scope initial witness');});const witness=vi.spyOn(revision,'readRevision').mockImplementation(async()=>{throw Error('out-of-scope witness');});
  for(const settings of [{...e,PUBLIC_ARTIFACTS:'1'},{...e,PUBLIC_RESPONSES:'1'},{...e,PUBLIC_ARTIFACTS:'1',PUBLIC_RESPONSES:'1'}]){expect((await get({'If-None-Match':tag},'GET',settings)).status).toBe(304);}
  for(const headers of ([{Authorization:''},{Cookie:'__Host-sk_owner=expired'},{Cookie:'__Host-sk_reader=invalid'}] as Record<string,string>[]))await get(headers);
- expect(witness).not.toHaveBeenCalled();
+ expect(witness).not.toHaveBeenCalled();expect(initial).not.toHaveBeenCalled();
 });
 it('rolls failed complete installation back and leaves concurrent legacy DML usable without a partial witness',async()=>{
  const defs=(env as unknown as {TEST_MIGRATIONS:{name:string;queries:string[]}[]}).TEST_MIGRATIONS.find(x=>x.name.includes('content_revision'))!.queries;
@@ -85,6 +85,26 @@ it('rejects malformed, unavailable or multiple row snapshots without synthesizin
 it('never replaces a late clock proof with an unchanged witness',async()=>{
  let item=await site();item=await content.updateItem(db,'assistant:test','site',item.version,{timezone:'UTC',notice:{text:'Boundary notice',until:'2030-01-01'}});await approvals.publishNow(db,[{id:item.id,version:item.version}],'',origin);
  let now=Date.parse('2030-01-01T23:59:30Z');vi.spyOn(Date,'now').mockImplementation(()=>now);const original=revision.readRevision;let calls=0;
- vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{if(++calls===2)now+=60000;return original(binding);});
+ vi.spyOn(revision,'readRevision').mockImplementation(async binding=>{if(++calls===1)now+=60000;return original(binding);});
  const response=await get();expect(response.status).toBe(200);expect(await response.text()).not.toContain('Boundary notice');
+});
+
+it('strips only reserved metadata and retains exact owned dependency tuples and preimages',async()=>{
+ await site();const plain=await read.facts(db,true),snapshot=await revision.initialFacts(db);
+ expect(snapshot.facts).toEqual(plain);expect(snapshot.pair).toBe(await revision.readRevision(db));
+ const rows=(await db.prepare(read.FACTS_SQL).all<read.Row>()).results,base=structuredClone(rows);
+ const good={category:revision.WITNESS_CATEGORY,ident:'epoch-counter-v1',value:JSON.stringify([fixture.epoch_valid,'text','9007199254740993','integer'])};
+ for(const metadata of [[],[good,good],[{...good,ident:'wrong'}],[{...good,value:'bad'}],[{...good,value:JSON.stringify([fixture.epoch_valid,'text','01','integer'])}]]){
+  const result=revision.initialSnapshot([...rows,...metadata]);expect(result.pair).toBeNull();expect(result.facts).toEqual(plain);
+ }
+ expect(revision.initialSnapshot([...rows,good]).pair).toBe(JSON.stringify([fixture.epoch_valid,'9007199254740993']));expect(rows).toEqual(base);
+ const duplicated=revision.initialSnapshot([...rows,rows[0],good]);expect(duplicated.facts.raw).toEqual([...rows,rows[0]].map(x=>[x.category,x.ident,x.value]));
+ expect(plain.raw!.every(x=>x[0]!==revision.WITNESS_CATEGORY)).toBe(true);expect(read.viewProof(snapshot.facts)).toEqual(read.viewProof(plain));
+});
+it('falls back only on known missing optional table and propagates unrelated statement failures',async()=>{
+ await site();const rows=(await db.prepare(read.FACTS_SQL).all<read.Row>()).results,calls:string[]=[];
+ const binding={prepare(sql:string){calls.push(sql);return {all:async()=>{if(sql===revision.INITIAL_SQL)throw Error('D1_ERROR: no such table: content_revision: SQLITE_ERROR');return {results:rows};}};}} as unknown as D1Database;
+ const result=await revision.initialFacts(binding);expect(result.pair).toBeNull();expect(result.facts).toEqual(await read.facts(db));expect(calls).toEqual([revision.INITIAL_SQL,read.FACTS_SQL]);
+ const broken={prepare(){return {all:async()=>{throw Error('disk I/O error');}};}} as unknown as D1Database;
+ await expect(revision.initialFacts(broken)).rejects.toThrow('disk I/O error');
 });

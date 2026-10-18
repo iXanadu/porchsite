@@ -2234,8 +2234,10 @@ def witness_scope(cx):
 async def fast_public(req,cx):
     if not session_request(req) and public_read.candidate(req.url.path):
         try:
-            n0=await content_revision.read_revision(cx.db) if witness_scope(cx) else None
-            f=await public_read.facts(cx.db,True) if cx.public_artifacts or n0 is not None else await public_read.facts(cx.db)
+            if witness_scope(cx):
+                f,n0=await content_revision.initial_facts(cx.db)
+            else:
+                f,n0=await public_read.facts(cx.db,True) if cx.public_artifacts else await public_read.facts(cx.db),None
             if f['private']:
                 return privacy.blank_response(req)
             c=public_read.choice(req,f)
@@ -2286,8 +2288,10 @@ async def render_public(req,cx):
         access=await privacy.access(cx.db,req)
         cx._read=dict(private=access[0],gated=access[1],response=access[2])
         if not access[0] and not session_request(req):
-            n0=await content_revision.read_revision(cx.db) if witness_scope(cx) else None
-            f=await public_read.facts(cx.db,True) if n0 is not None else await public_read.facts(cx.db)
+            if witness_scope(cx):
+                f,n0=await content_revision.initial_facts(cx.db)
+            else:
+                f,n0=await public_read.facts(cx.db),None
             c=public_read.choice(req,f)
             if c:
                 now=public_read.time.time()*1000
