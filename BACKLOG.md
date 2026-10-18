@@ -99,7 +99,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   in the unused MCP client dependencies and the test runner's nested
   runtime; security review found none ships in the Worker. Clears when the
   agents package and test runner move to current versions. Found 2026-10-18.
-- **PV-4** OPEN: after owner recovery, tell the owner to review their
+- **PV-4** IN-PROGRESS (spec review): after owner recovery, tell the owner to review their
   readers (a reader enrolled from a stolen owner device keeps a working
   passkey). Recovery already cancels unused invites. Found in review,
   2026-10-16.

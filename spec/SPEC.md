@@ -557,6 +557,113 @@ reader epoch. Concurrent completion of one recovery code has one winner.
 Hosting-account control already grants owner-equivalent authority; recovery
 does not protect against a hosting-account compromise.
 
+#### PV-4: readers shown after owner recovery (proposed)
+
+Both editions show the newly recovered owner the current enrolled readers
+at the end of a successful recovery. Reader passkeys survive recovery, so a
+reader enrolled from a lost or stolen owner device can still sign in until
+the owner removes that reader. This is a factual recovery-time check, not a
+warning on normal sign-in, ordinary review pages or public content.
+Implementation waits for security review of this section.
+
+**Successful destination.** After `/recover/verify` has successfully committed
+the existing recovery transaction and issued the new owner cookie, the
+recovery page's passkey script navigates to the fixed same-origin relative
+path `/review/readers?after=recovery`, instead of `/review`. Failure, cancelled
+registration, expired/spent code and a losing concurrent recovery do not
+navigate there as a success. Setup, login, invite and add-passkey destinations
+are unchanged. No recovery code, challenge, credential or token is copied
+into the destination or response body; recovery retains its address-bar
+stripping, no-referrer and no-store behavior.
+
+`after=recovery` selects a presentation mode of the existing owner-only
+Readers page. It is not proof that recovery occurred and grants no authority.
+A person may bookmark or replay that URL, but must pass the same live owner
+session/epoch/passkey checks on every GET/HEAD and POST. The page must not
+claim recovery succeeded merely because that query value is present. No
+extra public route, signed recovery link, cookie, persistent flag, database
+table or permission is introduced. Missing/other selector values retain the
+ordinary Readers page; never interpolate the selector into HTML or a redirect.
+
+**Presentation.** Above the list, show this one-line note:
+
+> Check these readers; remove any you don't recognise.
+
+Show the current active enrolled readers in the existing deterministic
+Readers-page order, using the same escaped name, added date and last-sign-in
+metadata that the owner can already see. Treat labels as owner-entered data,
+not verified real-world identity. Each reader has the existing Remove action
+beside their entry, identifying that reader unambiguously even when names
+are identical. Do not expose passkey material, session data, invite links,
+recovery codes, internal epochs or bearer secrets. Removed readers and unused
+invites are not presented as current active readers; recovery already cancels
+unused invites. With no active enrolled readers, say "No readers." and show
+no Remove control. Keep a plain "Continue to Review" link to `/review`.
+There is no requirement to remove anyone or acknowledge the note to continue.
+The focused recovery mode does not display the create-invitation form or
+removed-reader history; ordinary `/review/readers` keeps those existing views.
+
+**Removal and freshness.** Reuse the existing owner-authenticated Readers
+POST with `action=revoke`, the reader id and the current owner's CSRF token.
+No GET revokes anything, and a forged selector never substitutes for CSRF.
+A removal atomically revokes the reader, bumps its epoch and deletes its
+sessions and invites under the existing rules. Every authorization after
+commit refuses that reader's old sessions and passkeys; already-authorized
+responses may finish. Do not promise erasure of pages already saved on their
+device. Re-render the current list in recovery mode after removal, retaining
+an error on failed removal rather than pretending it succeeded. Each action
+must recheck live owner authority; an expired/revoked/recovered-away owner
+cannot remove a reader using an old form. Concurrent removal is harmless and
+must not remove another reader or recreate credentials/invites.
+
+The list is loaded fresh after recovery, not captured before or carried in
+the verify response. A later recovery or credential revocation fences this
+owner session as usual. If the list request fails, recovery remains committed;
+show the normal owner-page failure and allow retry/sign-in to Readers. Never
+undo recovery, reuse its spent code, or show a pre-recovery cached list.
+No recovery transaction or reader credential retention rule changes.
+
+**Isolation and readable projections.** Use the existing owner gate before
+loading reader metadata on public and private sites. Anonymous clients,
+reader sessions, writer/OAuth/read keys and Authorization-plus-owner-cookie
+requests receive the existing Readers-route refusal/redirect, never reader
+names or controls. No client-side selector can enable this mode before
+owner authorization. Responses use the existing owner no-store/no-validator
+policy and never enter a public prepared-copy path. The AG-6 owner-readable
+projection follows the visible note, active list and empty state for this
+mode under its existing owner/session checks; actions, CSRF fields and secrets
+remain excluded. This adds no MCP reader-management tool or capability grant.
+
+**Paired acceptance cases.** Before code, security review must approve the
+presentation selector, unchanged recovery/authority boundary and revocation
+reuse. Both editions then prove:
+
+- Successful actual passkey recovery lands on the fixed Readers destination
+  on public and private sites; two active readers appear with the exact note
+  and per-reader actions. Normal sign-in/setup/invite/add flows and ordinary
+  Readers have no new recovery note or destination.
+- Zero readers, one reader, duplicate/hostile HTML names, removed readers and
+  unused invites yield matching visible bytes/fields and no secret leakage.
+  Existing dates/order are preserved; AG-6 projection includes only prose.
+- Recovery cancels old sessions and unused invites while preserving reader
+  passkeys. A retained reader can sign in again before removal. Removing one
+  shown reader immediately refuses its old/new login and sessions, while a
+  different reader and the recovered owner retain their intended access.
+- Missing/wrong/old-session CSRF and anonymous/reader/key/Authorization paths
+  cannot list or revoke; forged/bookmarked selector confers no authority.
+  GET/HEAD/reload do not mutate readers. Replaying a removal is harmless;
+  concurrent removal/recovery cannot revive access or affect a different id.
+- Failed/expired/spent recovery and concurrent-code loser never show a success
+  transition. List-load failure does not undo successful recovery; retry reads
+  current metadata. Revoked owner sessions cannot load/reuse the old page.
+- Owner HTML and direct/negotiated Markdown parity, no-store/no ETag and zero
+  public artifact access remain on both site privacy modes. Existing recovery
+  epoch/issuance race and rollback/return proofs stay strict.
+
+No migration is needed. Older runtimes ignore the presentation selector and
+retain their ordinary Readers page and existing recovery semantics. Returning
+to the new runtime must not restore any removed reader, session or invite.
+
 ### Owner-approved embeds
 
 This applies identically to both editions. S7 continues to require
