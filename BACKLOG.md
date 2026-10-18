@@ -166,7 +166,7 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
   separate from test-runner changes. Found 2026-10-18 in DEP-1 scoping.
-- **AF-7T-C2** OPEN: hosted on porchsite.dev (2026-10-18, e88698b),
+- **AF-7T-C2** IN-PROGRESS (spec review): hosted on porchsite.dev (2026-10-18, e88698b),
   prepared copies cut a cold page to about 6.5 ms CPU (typical; it was
   about 21 ms), the first time under the free plan's 10 ms. But database
   rows read per cold page rose from 218 to 484, and "not changed" replies
