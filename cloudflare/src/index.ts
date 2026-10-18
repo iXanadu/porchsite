@@ -63,7 +63,7 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
     }
     const origin = (env.SITE_URL || new URL(req.url).origin).replace(/\/$/, "");
     let res: Response;
-    const bearer = mcpBearer(req.headers.get("Authorization"));
+    const bearer = u.pathname === "/mcp" ? mcpBearer(req.headers.get("Authorization")) : undefined;
     const rejected = u.pathname === "/mcp" ? mcpOriginRejection(req, origin) : undefined;
     if (rejected) {
       res = rejected;
@@ -80,8 +80,18 @@ async function fetchRequest(req: Request, env: Env & { SITE_URL?: string }, ctx:
         const keyed = { waitUntil: ctx.waitUntil.bind(ctx), passThroughOnException: ctx.passThroughOnException.bind(ctx), props: { ...who, origin } } as unknown as ExecutionContext;
         res = await toolTransport(req, env as Env, keyed);
       }
-    } else {
+    } else if (
+      u.pathname === "/mcp" || u.pathname.startsWith("/mcp/") ||
+      u.pathname === "/.well-known/oauth-authorization-server" ||
+      u.pathname === "/.well-known/oauth-protected-resource" || u.pathname.startsWith("/.well-known/oauth-protected-resource/") ||
+      u.pathname === "/oauth/token" || u.pathname === "/oauth/register" ||
+      u.pathname === "/authorize" || u.pathname === "/review" || u.pathname.startsWith("/review/")
+    ) {
       res = await provider(origin).fetch(req, env, ctx);
+    } else {
+      // Public routes enter the same live access gate without constructing
+      // OAuth helpers; consent and owner review retain the provider helpers.
+      res = await handle(req, env as Env, ctx);
     }
     // The OAuth library validates tokens; this resource owns refusal headers.
     if (u.pathname === "/mcp" && res.status === 401) res = mcpRefusal(origin, !!bearer, undefined, res);
