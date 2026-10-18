@@ -13,12 +13,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
 `SP-` spec, `P-` the two-edition plan. Status: OPEN / IN-PROGRESS / BLOCKED.
 
 ## NOW (sprint 2026-10-17, in order; owner: performance first)
-1. AF-7L: the change check stays valid across minutes when nothing on
-   the page depends on time, so repeat visits skip the full render.
-2. PERF-5: make the first build of a page cheaper (cold renders are
+1. PERF-5: make the first build of a page cheaper (cold renders are
    about 18 ms typical on the free plan's 10 ms budget).
-3. PERF-4: reuse a rendered public page for every visitor in a location
-   while nothing on it has changed (after AF-7L).
+2. PERF-4: reuse a rendered public page for every visitor in a location
+   while nothing on it has changed.
 
 ## BLOCKING
 
