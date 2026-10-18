@@ -42,8 +42,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      within one read. The scans and sorts are small and fixed-size; not
      copying already-ordered lists (branch 8513d21) made 500-entry sites
      8-12 ms SLOWER. Not shipped; do not retry without a new design.
-   - **PERF-7c** OPEN: the database result wrapping allocates more than
-     needed; audit before changing.
+   - **PERF-7c** HELD: reading the site facts as plain rows instead of
+     one object per row (branch 4d966f1, all checks pass) was mixed on
+     500-entry sites: services 1.6 ms faster, personal 0.4 ms slower. Not
+     a clear win; not shipped.
 - **PERF-8** OPEN: hosted "not changed" (304) replies on porchsite.dev
   measured about 2.5-4 ms higher per request after 2026.10.18-2fa1d88
   (about 8-9 ms vs 5 ms), steady across requests, with database work
