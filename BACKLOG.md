@@ -68,7 +68,7 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    save. A hosted D1 probe decides; if hosted counts trigger rows too, the
    trigger design is not viable on the Cloudflare edition as specified.
 
-5. **GATE-2a** IN-PROGRESS (found 2026-10-18 shipping AN-1): the rows gate
+5. **GATE-2a** IN-PROGRESS (frozen for independent review; found 2026-10-18 shipping AN-1): the rows gate
    measures page requests only, so writes on the visitor beacon
    (`POST /collect`) and on owner actions (approvals, imports) are not
    measured. AN-1's +1 write per recorded view passed the gate unseen;
@@ -193,12 +193,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
-- **PERF-11** OPEN (found by local write-cell measurement, 2026-10-18):
- approving 200 new entries with prepared copies on reads 1,118,089 rows
- and writes 609, including settled background preparation; copies off
- reads 2,060 and writes 404. This is the same on the published baseline
- and candidate, not a regression or hosted estimate. Attribute preparation
- work and measure a cheaper design without weakening publication checks.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
