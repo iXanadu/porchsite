@@ -1,6 +1,6 @@
 /** Bounded map metadata from one approved reader view; never render page bodies. */
 import type {SiteView} from './site';
-import {inlineText,mdText} from './agent-markdown';
+import {inlineText} from './agent-markdown';
 import {pagePath} from './public-http';
 export type MapPage={path:string;title:string;description:string};
 export const MAP_HEADERS={'Content-Type':'text/markdown; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'",'Link':'</llms.txt>; rel="describedby"'};
@@ -11,7 +11,10 @@ export function mapPages(v:SiteView):MapPage[]{
  for(const stream of v.site.streams)for(const e of v.entries)if(e.stream===stream.id&&!e.external_url)pages.push({path:String(e.page),title:String(e.title),description:String(e.summary??'')});
  return pages;
 }
-const field=(value:string,cap:number)=>mdText([...inlineText(value)].slice(0,cap).join(''));
+const field=(value:string,cap:number)=>{
+ const text=[...inlineText(value.replace(/[\v\u0085\u2028\u2029]/g,' '))].slice(0,cap).join('').replace(/[\\[\]<>]/g,'\\$&');
+ return text.replace(/^(#{1,6}(?= |$)|[-+*](?= |$)|`{3,}|~{3,}|(?:- *){3,}$|(?:_ *){3,}$|(?:\* *){3,}$)/,'\\$&').replace(/^(\d{1,9})([.)])(?= |$)/,'$1\\$2');
+};
 export function mapResponse(pages:Iterable<MapPage>,origin:string):Response{
  const rows:string[]=[],seen=new Set<string>();let count=0;
  for(const page of pages){

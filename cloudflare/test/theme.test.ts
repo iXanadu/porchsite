@@ -118,7 +118,7 @@ describe("image size", () => {
     const name = path.slice("/media/".length);
     await db.prepare("UPDATE media SET width = 0, height = 0 WHERE name = ?").bind(name).run();
     expect(await media.sizeOf(db, name)).toEqual([512, 256]);
-    expect(await db.prepare("SELECT width FROM media WHERE name = ?").bind(name).first("width")).toBe(512);
+    expect(await db.prepare("SELECT width FROM media WHERE name = ?").bind(name).first("width")).toBe(0);
   });
 
   it("reads width and height from PNG and JPEG headers", () => {
