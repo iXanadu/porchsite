@@ -46,11 +46,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
      one object per row (branch 4d966f1, all checks pass) was mixed on
      500-entry sites: services 1.6 ms faster, personal 0.4 ms slower. Not
      a clear win; not shipped.
-- **PERF-8** OPEN: hosted "not changed" (304) replies on porchsite.dev
-  measured about 2.5-4 ms higher per request after 2026.10.18-2fa1d88
-  (about 8-9 ms vs 5 ms), steady across requests, with database work
-  unchanged. A local warm comparison found no difference. A back-to-back
-  hosted A/B against 05970b3 decides whether it is real.
 3. **PERF-4b** HELD: the cost of storing a page on a first visit when
    PERF-4 is on (about 8 ms locally). Reusing the bytes already built
    (branch c596b06, all checks pass) saved only about 0.4 ms, mixed. Since
