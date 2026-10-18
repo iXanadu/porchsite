@@ -2482,7 +2482,7 @@ For analytics use a fixed synthetic browser user-agent, RFC 5737 address,
 salt and paths that the real beacon accepts. Derive the existing day/visitor
 hash identically; never supply a client-chosen visitor or change the hash.
 Old cleanup rows have distinct valid ids and fixed payloads; the two expired
-rows share their old day's visitor, so audit views=2 and visits=1. All four
+rows share their old day's visitor, so audit views=2 and visits=1. All five
 beacon responses remain empty 204 with the existing no-store policy and no
 count, cookie or retry oracle. A swallowed database error or no-op does not
 satisfy an expected insertion, heartbeat, approval or import.
