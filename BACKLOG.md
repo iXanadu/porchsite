@@ -83,7 +83,13 @@ security invariants written before the spec.
   local large-site entry p95 regression before considering default enablement.
 - **AI-3** OPEN: site_check reports AI-reader facts on request (photos
   without alt text, embeds without a caption, pages without a description,
-  heading order). Facts, never advice.
+  heading order). Facts, never advice. PARKED 2026-10-18 behind PERF-6:
+  computing the facts on every check cost 4-25 ms against a 1 ms budget,
+  and even checking per-item fingerprints on read cost 2-4 ms (up to
+  about 13 ms on large sites). Next, when resumed: prove that every write
+  path in every supported release changes each item's version marker; if
+  so, compare markers on read and fingerprint only at write; if not, check
+  a bounded slice per call. Correctness reference: branch at f1bafb2.
 - **AI-5** OPEN (decided 2026-10-16: capability facts only, no coaching;
   Porchsite stays passive): a short block in the tool descriptions saying
   what Porchsite builds, which look suits whom and how approval works.
