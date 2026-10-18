@@ -2110,6 +2110,20 @@ Not part of the contract; one edition has them for how it is run.
   failures retain the existing validation and refusal behavior. Limits, image
   bytes, response shapes and atomic storage are unchanged. Local-only profiling
   may observe phase names and timings; it exposes no request data or HTTP field.
+- **Cloudflare edition: upload input lifetime.** Once the ordinary fast-MCP
+  `image_add` request has passed every protocol, envelope and argument check
+  that could select SDK fallback, it may release its unused original request
+  body branch. It must not await cancellation or change the result if cleanup
+  fails. After successful decoding, it may discard only its explicitly owned
+  encoded arguments and local preflight references. SDK fallback must still
+  receive the complete original body; no partial-read or replay path is added.
+  Other tools, SDK-dispatched calls and caller-owned inputs keep their existing
+  ownership. The 8 MiB per-picture and aggregate limits, validation/error
+  priority, image bytes, input ordering, responses and atomic storage stay
+  unchanged in both editions. This is a Worker-only memory detail; the server
+  has no equivalent Fetch-body tee to release. Named proof:
+  `upload_input_lifetime` covers paired SDK/Worker and server response parity,
+  fallback, stream cancellation and ordinary input ownership.
 - **Cloudflare edition: immutable preparation caches.** Tool input schemas
   and their JSON representations, built-in template parses, and date formatters with fixed options,
   may be reused between requests. Authentication, request context, item
