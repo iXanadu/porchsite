@@ -44,10 +44,9 @@ So a developer can judge it:
 - **Setup:** a one-time code stored only as a hash in `setup_codes`, with
   a 24-hour expiry; claiming deletes it. New installs create no setup secret.
   The owner never types it: whoever installs sends them
-  `https://<site>/setup?code=<code>`, which fills it in. (A one-time code
-  with an expiry can instead be stored in D1's `setup_codes` table, as the
-  sha256 of the code in unpadded base64url with an ISO `expires_at`; the
-  spec, §5, has the rules.)
+  `https://<site>/setup#code=<code>`, which fills it in without sending
+  the code in the request URL. The hash is the sha256 of the code in
+  unpadded base64url; the spec, §5, has the rules.
 - **HTTPS and a stable address:** passkeys only work over HTTPS and only at
   the address where they were made.
 - **Outbound requests:** the site fetches images from links an assistant
@@ -98,13 +97,54 @@ in the install guide; do not add a setup-secret binding for a new site.
 - **Outbound requests**, as for the Cloudflare edition.
 
 Once it's up, whoever installed it runs the `setup-link` admin command and
-sends the owner the link it prints (`https://<domain>/setup?code=…`, good
+sends the owner the link it prints (`https://<domain>/setup#code=…`, good
 for 24 hours; a new one replaces it). The owner opens it and saves a
 passkey: owners never need a terminal, a settings file or a code to type.
 The assistant connects at `https://<domain>/mcp`. A `check` admin command
 reports whether the database, schema, looks and settings are sound.
 
-### A reverse proxy must preserve access checks
+## Moving to your own server
+
+Bottom line: pages, entries, settings and photos move. Private mode needs a separate owner-approved change; import files cannot change it. Edit history, past approvals, passkeys, readers and assistant keys don't, so you set them up again. Allow about half a day for a person who already runs a server, or 1-2 hours for an assistant with access to the server, plus up to an hour for the address change to spread.
+
+1. Install the server edition on your server: the app, PostgreSQL and Caddy, with Docker Compose. The guide is `deploy/compose/README.md`.
+2. Claim the new site with its setup code on a temporary address, and create your passkey. The live site keeps running.
+3. Bring the content across with the import page, `/review/import`. Each file holds up to 25 MiB and 200 items (each photo up to 8 MiB), so a photo-heavy site needs several. Each file creates its own approval request; the owner approves each one.
+4. Compare the two sites page by page.
+5. Remove the domain's Worker custom-domain mapping or route, then in Cloudflare's DNS point your domain at the server instead of the Worker.
+6. Create a passkey at the final domain using the server's `recovery-link` admin command: the temporary-address passkey does not work there. Reconnect your assistant with new credentials. The connection address stays the same if you keep the same domain.
+
+To undo it, point DNS back. Keep the Cloudflare site for a few days before deleting it.
+
+## Getting a small server
+
+**One box, about $5 a month.**
+
+- **What it buys:** any provider with a small Linux server works. About $5 or €5 a month buys 1-4 GB of memory, a shared processor and 20-50 GB of disk.
+- **Where to look:** Akamai (Linode), DigitalOcean, Vultr, Hetzner, OVHcloud, Scaleway, netcup, IONOS, UpCloud, or a good local host. Prices move constantly, so treat these as places to look, not quotes.
+- **Size:** 2 GB of memory is a comfortable start, since Porchsite runs the app and PostgreSQL. An EU-resident host makes GDPR simpler.
+
+**About ten minutes by hand:**
+
+1. Create an Ubuntu LTS server with your SSH key.
+2. Point a DNS name at it.
+3. Update the system and make yourself a user with sudo.
+4. Start your coding assistant there.
+
+**Then prompt it, one step at a time, and ask for proof after each:**
+
+1. "Look before touching: list what's installed and listening, worst first."
+2. "Standard hardening: automatic security updates, a firewall allowing only SSH, HTTP and HTTPS, key-only SSH, fail2ban. Explain each change first, and show me the command that proves it."
+3. "Install Porchsite's server edition from https://github.com/iXanadu/porchsite following deploy/compose/README.md. Caddy gets the certificate itself; prove /health is ok over https."
+4. "Set up a nightly off-box backup of the PostgreSQL database, and show me a restore works."
+
+**Worth knowing:**
+
+- $5 is the box, not the backups.
+- Give the assistant a user account with sudo, not root.
+- A cheap server is shared: fine for a site, not for anything that's time-critical.
+
+## A reverse proxy must preserve access checks
 
 The supplied Caddy setup has no response cache. Keep shared caching off for
 the entire site if you add a proxy or CDN. Before enabling private mode,

@@ -17,7 +17,22 @@ Is your person a developer who'd rather run it themselves? Read
 Sitekeeper is the engine's internal name, kept in those names so every site
 stays updatable. Everything else is Porchsite.)
 
-**Three rules for the whole job.**
+## Before you start: tell your person what it costs
+
+Before any Cloudflare API call, say this to your person:
+
+> **Before you start, what it costs.** Your site will run on your own Cloudflare account, on the free plan.
+>
+> - Workers and D1 on the free plan have no usage bill. If your sites get more visits in a day than it allows (shared across all your sites on that account; how many visits depends on the site and other account use), they show errors until midnight UTC; nothing is charged.
+> - Cloudflare's Workers paid plan removes those daily usage limits, but bills for what's used with no way to set a spending cap.
+> - You can also run Porchsite on your own server for a flat fee.
+>
+> I won't upgrade your plan or add payment without your yes. More detail: https://porchsite.dev/costs
+
+The assistant says this and waits for the person to say "go on".
+
+**Rules for the whole job.**
+
 - Only ever upload a release's own `sitekeeper.js`, its hash checked. Never
   change the site's code, add a logging or helper Worker to it, or put a
   temporary page on it, not even for a minute to debug: your person
@@ -37,6 +52,13 @@ stays updatable. Everything else is Porchsite.)
   migration files and their `_sitekeeper_migrations` rows (steps 3 and
   Updating). Never copy code, data or pictures from another site, even
   one on the same account: install from the release's files.
+
+**Cost rules for the whole job.**
+
+1. Never upgrade a plan, add a payment method, or turn on a paid feature without the owner's explicit yes.
+2. Never call a budget alert a spending limit. Cloudflare has no hard cap, and alerts are email only, about a day late.
+3. Never promise "you can't be billed" except for Workers and D1 usage on the free plan. Domains and other products are billed separately.
+4. Before heavy use (a big import, repeated site checks, a crawling loop), tell the owner the free daily limits and how to see usage.
 
 Read this guide in full, as plain text, from
 `https://get.porchsite.dev/install.md`. A fetch tool that summarises pages
