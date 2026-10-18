@@ -108,8 +108,25 @@ export async function checkSiteDeep(v: SiteView, media: Set<string>, look?: Them
 async function unreachableEntries(v: SiteView, look: Theme | null | undefined, origin: string) {
   const t = look === undefined ? THEMES[ALIASES[v.site.theme] ?? v.site.theme] ?? null : look;
   const base = new URL(origin || "https://example.invalid");
-  const reached = new Set<string>();
-  const inline = new Set<string>();
+  const remaining = new Set(v.entries.map(e => e.id));
+  if (!remaining.size) return { unreachable: [], crawl: undefined };
+  const byPage = new Map(v.entries.map(e => [e.page, e]));
+  const bySlug = new Map(v.entries.map(e => [e.slug, e]));
+  const external = new Map<string, string[]>();
+  for (const e of v.entries) if (e.external_url) {
+    const url = new URL(e.external_url, base).href;
+    external.set(url, [...(external.get(url) ?? []), e.id]);
+  }
+  // Resolve the same current-view routes as the public renderer. Mere path
+  // resemblance, stored archive membership, or another view is not evidence.
+  const movedPath = (path: string): string | null => {
+    const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
+    return old ? bySlug.get(old[1])?.page ?? null : redirectFor(v, path);
+  };
+  const target = (path: string) => {
+    const moved = movedPath(path);
+    return byPage.get(moved ?? path);
+  };
   const marker = `porchsite-check-${crypto.randomUUID()}:`;
   // Check-only comments identify full entry bodies that a look emits inline.
   // They never reach the public renderer, and do not change Mustache truthiness.
@@ -128,16 +145,15 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
   const address = (href: string, path: string): URL | null => {
     try { return new URL(href, new URL(path, base)); } catch { return null; }
   };
-  while (queue.length) {
+  while (queue.length && remaining.size) {
     const path = queue.shift()!;
     if (visited.has(path)) continue;
     if (visited.size === MAX_PAGES) { limit = "pages"; break; }
     visited.add(path);
-    const old = /^\/e\/([a-z0-9-]+)\/?$/.exec(path);
-    const moved = old ? v.entries.find((e) => e.slug === old[1])?.page : redirectFor(v, path);
+    const moved = movedPath(path);
     if (moved) { queue.push(moved); continue; }
-    const e = v.entries.find((e) => e.page === path);
-    if (e?.external_url) { reached.add(new URL(e.external_url, base).href); continue; }
+    const e = byPage.get(path);
+    if (e?.external_url) continue;
     let body: string | null = null;
     if (path === "/archive/" && v.site.archive?.enabled) {
       body = await allArchivePage(v,{sort:"date",tag:"",stream:""},base.origin,!!t).text();
@@ -164,23 +180,27 @@ async function unreachableEntries(v: SiteView, look: Theme | null | undefined, o
       },
     }).on("a[href], area[href]", {
       element(el) {
-        if (templateDepth || limit) return;
+        if (templateDepth || limit || !remaining.size) return;
         if (links === MAX_LINKS) { limit = "links"; return; }
         links++;
         const url = address(decodeHTMLAttribute(el.getAttribute("href")!), path);
         if (!url || !["http:", "https:"].includes(url.protocol)) return;
-        reached.add(url.href);
-        if (url.origin === base.origin) queue.push(url.pathname);
+        for (const id of external.get(url.href) ?? []) remaining.delete(id);
+        if (url.origin === base.origin) {
+          const e = target(url.pathname);
+          if (e) remaining.delete(e.id);
+          queue.push(url.pathname);
+        }
       },
     }).onDocument({ comments(comment) {
-      if (!limit && !templateDepth && comment.text.startsWith(marker)) {
+      if (!limit && remaining.size && !templateDepth && comment.text.startsWith(marker) && /^\d+$/.test(comment.text.slice(marker.length))) {
         const e = v.entries[Number(comment.text.slice(marker.length))];
-        if (e) inline.add(e.id);
+        if (e) remaining.delete(e.id);
       }
     } }).transform(new Response(body)).text();
     if (limit) break;
   }
   if (limit) return { unreachable: [], crawl: { limit, max_pages: MAX_PAGES, max_links: MAX_LINKS, pages: visited.size, links } as CrawlLimit };
-  return { unreachable: v.entries.filter((e) => !inline.has(e.id) && (e.external_url ? !reached.has(new URL(e.external_url, base).href) && !visited.has(e.page) : !visited.has(e.page)))
+  return { unreachable: v.entries.filter((e) => remaining.has(e.id))
     .map((e) => ({ id: String(e.id), why: "no rendered link path from the home page to this entry" })), crawl: undefined };
 }
