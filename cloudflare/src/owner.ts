@@ -338,18 +338,27 @@ const OWNER_SESSION_QUERY = `SELECT 1 FROM sessions s JOIN auth_state a ON a.id 
     ((m.token_hash IS NULL AND a.owner_epoch = 0) OR
      (m.epoch = a.owner_epoch AND EXISTS (SELECT 1 FROM passkeys WHERE id = m.credential_id)))`;
 
+/** Same live session fence for owner credential writes inside an atomic batch. */
+export async function ownerSessionGuard(req:Request):Promise<{sql:string;args:string[]}>{
+  return {sql:'EXISTS ('+OWNER_SESSION_QUERY+')',args:[await hash(cookie(req,SESSION_COOKIE)??''),iso(now())]};
+}
+
 export async function signedIn(db: D1Database, req: Request): Promise<boolean> {
   const token = cookie(req, SESSION_COOKIE);
   if (!token) return false;
   return !!await db.prepare(OWNER_SESSION_QUERY).bind(await hash(token), iso(now())).first();
 }
 
-export async function readerSignedIn(db: D1Database, req: Request): Promise<boolean> {
-  const token = cookie(req, READER_COOKIE);
-  if (!token) return false;
-  return !!await db.prepare(`SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
+const READER_SESSION_QUERY = `SELECT 1 FROM reader_sessions s JOIN readers r ON r.id = s.reader_id
     JOIN reader_passkeys p ON p.id = s.credential_id AND p.reader_id = r.id
-    WHERE s.token_hash = ? AND s.expires_at > ? AND r.revoked = 0 AND r.auth_epoch = s.epoch`).bind(await hash(token), iso(now())).first();
+    WHERE s.token_hash = ? AND s.expires_at > ? AND r.revoked = 0 AND r.auth_epoch = s.epoch`;
+export async function readerSessionGuard(req:Request):Promise<{sql:string;args:string[]}>{
+  return {sql:'EXISTS ('+READER_SESSION_QUERY+')',args:[await hash(cookie(req,READER_COOKIE)??''),iso(now())]};
+}
+export async function readerSignedIn(db: D1Database, req: Request): Promise<boolean> {
+  if(!cookie(req,READER_COOKIE))return false;
+  const guard=await readerSessionGuard(req);
+  return !!await db.prepare('SELECT 1 WHERE '+guard.sql).bind(...guard.args).first();
 }
 
 export async function signOut(db: D1Database, req: Request): Promise<string> {

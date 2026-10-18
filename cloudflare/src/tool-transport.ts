@@ -1,3 +1,4 @@
+import * as readKeys from "./read-keys";
 /** Fast dispatch for proven legacy forms; every other request uses the original handler. */
 import { MCP_CORS as cors } from "./mcp-origin";
 import { originalMcp } from "./mcp-original";
@@ -63,6 +64,8 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
       (typeof body.id === "number" && !Number.isSafeInteger(body.id)) ||
       (body.params !== undefined && !record(body.params))) return fallback();
   const params = body.params as Record<string, unknown> | undefined;
+  const props=(ctx as unknown as {props?:Record<string,unknown>}).props??{};
+  if(readKeys.restricted(props))await readKeys.authorize(env.DB,props);
   let result: unknown;
   if (body.method === "initialize") {
     if (!params || !only(params, ["protocolVersion", "capabilities", "clientInfo"]) ||
@@ -70,10 +73,10 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
         !record(params.capabilities) || Object.keys(params.capabilities).length ||
         !record(params.clientInfo) || !only(params.clientInfo, ["name", "version"]) ||
         typeof params.clientInfo.name !== "string" || typeof params.clientInfo.version !== "string") return fallback();
-    result = { protocolVersion: params.protocolVersion, capabilities: {tools:{listChanged:true}}, serverInfo:{name:"porchsite",version:"0.0.1"}, instructions:INSTRUCTIONS };
+    result = { protocolVersion: params.protocolVersion, capabilities: {tools:{listChanged:true}}, serverInfo:{name:"porchsite",version:"0.0.1"}, instructions:readKeys.restricted(props)?readKeys.INSTRUCTIONS:INSTRUCTIONS };
   } else if (body.method === "tools/list") {
     if (params && Object.keys(params).length) return fallback();
-    result = listedResult;
+    result = readKeys.restricted(props)?{tools:listedResult.tools.filter(t=>readKeys.ALLOWED.has(t.name))}:listedResult;
   } else if (body.method === "tools/call") {
     if (!params || !only(params, ["name", "arguments"]) || typeof params.name !== "string" ||
         (params.arguments !== undefined && !record(params.arguments))) return fallback();
@@ -86,6 +89,7 @@ export async function toolTransport(req: Request, env: Env, ctx: ExecutionContex
     // A request's owner context lasts only for its callback, across awaited work.
     reportMcpDispatch("fast");
     try {
+      await readKeys.authorize(env.DB,props,params.name);
       result = await withToolContext(props, () => createToolHandlers().get(params.name as string)!(parsed.data));
     } catch (error) {
       // The original SDK turns unexpected callback errors into tool errors.

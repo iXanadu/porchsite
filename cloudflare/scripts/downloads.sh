@@ -60,6 +60,8 @@ npx vitest run --reporter=dot
 npm run --silent theme:check
 echo "gates: server tests"
 (cd ../server && PYTHONPATH="$PWD" "${PYTHON:-python3}" -m pytest -q)
+echo "gates: production runtime startup"
+"${PYTHON:-python3}" ../scripts/runtime-smoke.py --lock-held
 echo "gates: parity, conformance"
 PYTHON="${PYTHON:-python3}" bash ../scripts/parity.sh
 PYTHON="${PYTHON:-python3}" bash ../scripts/conformance-server.sh

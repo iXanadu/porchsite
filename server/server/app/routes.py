@@ -1,3 +1,5 @@
+from . import private_agent
+from . import read_keys
 """Everything that isn't /mcp or the OAuth protocol endpoints: the public
 site, and the owner's pages (setup, sign-in, review, connecting an
 assistant). Owner pages are server-rendered; the only script is the passkey
@@ -357,12 +359,12 @@ _SEARCH = re.compile(r"^/([a-z][a-z0-9-]{0,29})/search\.json\Z")
 _ARCH = re.compile(r"^/([a-z][a-z0-9-]{0,29})/(?:tags/([a-z0-9-]{1,30})/)?\Z")
 
 
-async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
+async def themed_page(req: Request, cx: Context, path: str, grant=None) -> Response | None:
     """Public pages through the site's theme, or None for the built-in look."""
     is_public = path in ("/", "/archive") or re.match(r"^/(e|static)/", path) or _PUBLIC.search(path)
     if not is_public:
         return None
-    v = await content_view(req,cx)
+    v = await content_view(req,cx,grant=grant)
     origin = origin_of(req)
     if path in ("/archive/", "/archive") and v.site.get("archive", {}).get("enabled"):
         try:
@@ -410,7 +412,10 @@ async def themed_page(req: Request, cx: Context, path: str) -> Response | None:
     return None
 
 
-async def content_view(req, cx, discovery=False):
+async def content_view(req, cx, discovery=False, grant=None):
+    if grant:
+        await grant()
+        return await site.live_view(cx.db,discovery=discovery)
     state=getattr(cx,'_read',None)
     if state is not None and not state['private']:
         if state.get('denied'):
@@ -426,9 +431,9 @@ async def content_view(req, cx, discovery=False):
     return await site.live_view(cx.db,discovery=discovery)
 
 
-async def not_found_page(req: Request, cx: Context) -> Response:
+async def not_found_page(req: Request, cx: Context, grant=None) -> Response:
     """The 404 page, in the site's theme when it has one."""
-    v = await content_view(req,cx)
+    v = await content_view(req,cx,grant=grant)
     path = _path(req)
     to = (
         builtin.redirect_for(v, path)
@@ -917,14 +922,21 @@ async def assistants_page(
 <form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><input type="hidden" name="revoke_key" value="{esc(k["id"])}"><button class="ghost">Revoke</button></form></div>"""
         for k in await keys.list(cx.db)
     )
+    readers=await read_keys.list(cx.db)
+    audit=await read_keys.events(cx.db)
+    read_list=''.join(f'<div class="card"><h2>{esc(k["name"])}</h2><div class="meta">Read only — published pages · made {esc(k["created_at"][:10])} · works until {esc(k["expires_at"][:10])} · {esc("last used "+k["last_used_at"][:10]) if k["last_used_at"] else "not used yet"}</div><form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><input type="hidden" name="revoke_read_key" value="{esc(k["id"])}"><button class="ghost">Revoke</button></form></div>' for k in readers)
+    read_audit=''.join(f'<p>{esc(a["created_at"])} · {esc(a["actor"])} · {esc(a["kind"])} · {esc(a["name"])} · {esc(a["key_id"])}</p>' for a in audit)
     return owner_page(
         "Assistants",
         f"""<h1>Connected assistants</h1><p>Each can read your site and draft changes. None can publish.</p>{body}
 <h1 style="margin-top:36px">Assistant keys</h1>
-<p>For an assistant whose app can&#39;t add a connector with sign-in. Make a key, then put it in the assistant&#39;s secret or API-key field, never in a chat. It reaches the same tools at <b>{esc(mcp_url)}</b> as <code>Authorization: Bearer</code> and the key. Like any assistant, it can only draft: everything waits for you here. A key stops working after {keys.KEY_DAYS} days, or when you revoke it.</p>
+<p>For an assistant whose app can&#39;t add a connector with sign-in. Make a key, then put it in the assistant&#39;s secret or API-key field, never in a chat. It reaches the same tools at <b>{esc(mcp_url)}</b> as <code>Authorization: Bearer</code> and the key. A drafting key can read and draft; a read-only key reads published pages only. Neither can publish. A key stops working after {keys.KEY_DAYS} days, or when you revoke it.</p>
 {shown}
 {listed}
-<form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><button name="make_key" value="1">Make a key</button></form>""",
+<h2>Published-only read keys</h2><p>These keys read published pages only. They cannot draft, read owner review or publish.</p>
+{read_list}
+<h2>Read-key history</h2>{read_audit}
+<form method="post"><input type="hidden" name="csrf" value="{esc(token)}"><label>Which assistant is it for?</label><input type="text" name="key_name" maxlength="40" required placeholder="e.g. Muse"><label><input type="checkbox" name="read_only" value="1">Read only — published pages</label><button name="make_key" value="1">Make a key</button></form>""",
         signed_in=True,
     )
 
@@ -1479,8 +1491,12 @@ async def handle(req: Request, cx: Context) -> Response:
         except Exception:
             pass  # Cleanup failure never changes a private denial.
     get = Request({**req.scope,"method":"GET"},req.receive) if req.method == "HEAD" else req
-    if is_private and private_agent_path(req):
+    agent=await private_agent.respond(cx.db,req,lambda r,g:render_private_agent(r,cx,g),origin_of(req)) if is_private and gated and req.url.path!='/robots.txt' else None
+    if agent is not None:
+        response=agent
+    elif is_private and private_agent_path(req):
         response = privacy.blank_response(req)
+
     elif response is None:
         if is_private:
             response = await _route(get,cx)
@@ -1488,7 +1504,7 @@ async def handle(req: Request, cx: Context) -> Response:
             response = await _route(req,cx)
         else:
             response = public_read.missing() if not session_request(req) and public_read.unshaped(req.url.path) else await fast_public(req,cx)
-    if is_private and gated:
+    if is_private and gated and response.headers.get("Cache-Control")!=private_agent.PRIVATE_LIGHT:
         response = privacy.no_store(response)
     if re.match(r"/(?:recover|invite)(?:/|$)",req.url.path):
         response.headers["Referrer-Policy"]="no-referrer"
@@ -1696,8 +1712,11 @@ async def _route(req: Request, cx: Context) -> Response:
                         return await assistants_page(req, cx)
                     if _field(form, "make_key"):
                         name = _field(form, "key_name").strip()[:40] or "Assistant"
-                        made = {"name": name, **(await keys.create(cx.db, name))}
+                        made = {"name": name, **(await (read_keys.create(cx.db,name,req=req) if _field(form,"read_only")=="1" else keys.create(cx.db, name)))}
                         return await assistants_page(req, cx, None, made)
+                    if _field(form,"revoke_read_key"):
+                        await read_keys.revoke(cx.db,_field(form,"revoke_read_key"),req=req)
+                        return await assistants_page(req,cx)
                     if _field(form, "revoke_key"):
                         await keys.revoke(cx.db, _field(form, "revoke_key"))
                         return await assistants_page(req, cx)
@@ -1961,6 +1980,31 @@ async def app_asset(req, cx, path):
         },
     )
 
+
+async def reader_page(req,cx,grant):
+    try:
+        await grant()
+        path=req.url.path
+        themed=await themed_page(req,cx,path,grant)
+        if themed is not None:return themed
+        view=await content_view(req,cx,grant=grant);origin=origin_of(req)
+        if path=='/':return builtin.home(view,origin)
+        entry=builtin.entry_page(view,path,origin)
+        if entry is not None:return entry
+        return await not_found_page(req,cx,grant)
+    except ApiError as error:
+        return owner_page("Problem",f"<h1>Something&#39;s wrong</h1><p>{esc(error.message)}</p>",status=error.status)
+
+async def render_private_agent(req,cx,grant):
+    from .agent_pages import anonymous
+    from .public_http import representation
+    async def read(r):return await reader_page(anonymous(r,r.url.path,True),cx,grant)
+    path=req.url.path
+    if path!='/llms.txt' and not path.endswith('/index.md') and representation(req.headers.get('Accept'))=='html':return await read(req)
+    async def paths():
+        v=await content_view(req,cx,grant=grant)
+        return map_response(map_pages(v),origin_of(req))
+    return await agent_page(req,read,paths,origin_of(req),lambda r:not_found_page(anonymous(r,r.url.path,True),cx,grant))
 
 async def public_paths(req,cx):
     from .agent_pages import anonymous

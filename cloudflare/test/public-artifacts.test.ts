@@ -182,7 +182,10 @@ it('af_prebuild_no_owner_bytes: valid owner/reader sessions bypass warmed copies
  expect(await count()).toBe(1);expect(await(await get()).text()).toBe(visitor);
  const rows=await db.prepare('SELECT body,metadata FROM public_artifacts').all<{body:string;metadata:string}>();expect(JSON.stringify(rows.results)).not.toContain('sk-owner-link');expect(JSON.stringify(rows.results)).not.toContain('/review');
  const hidden=await content.updateItem(db,actor,'site',one.version,{private:true});await publish(hidden);
- for(const role of ['owner','reader']){const cookie={Cookie:`__Host-sk_${role}=${role}-fixture`};expect((await get('/',cookie)).status).toBe(200);expect(await(await get('/index.md',cookie)).text()).toBe(SIGN_IN);}
+ const privateTags=new Set<string>();
+ for(const role of ['owner','reader']){const cookie={Cookie:`__Host-sk_${role}=${role}-fixture`};expect((await get('/',cookie)).status).toBe(200);const copy=await get('/index.md',cookie);expect(copy.status).toBe(200);expect(copy.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate, no-transform');const tag=copy.headers.get('ETag')!;expect(tag).toMatch(/^W\/"ag-sha256-[a-f0-9]{64}"$/);privateTags.add(tag);expect(await copy.text()).not.toContain('/review');expect((await get('/index.md',{...cookie,'If-None-Match':tag})).status).toBe(304);}
+ expect(privateTags.size).toBe(2);
+ for(const headers of [{},{Authorization:'Bearer psk_unknown'},{Authorization:'Bearer prk_unknown'},{Cookie:'__Host-sk_owner=expired'}] as Record<string,string>[]){const denied=await get('/index.md',headers);expect(denied.status).toBe(404);expect(await denied.text()).toBe(Object.hasOwn(headers,'Authorization')?BLANK:SIGN_IN);expect(denied.headers.has('ETag')).toBe(false);}
  expect(await count()).toBe(0);
 });
 it('af_prebuild_races: an entry removed during rendering cannot be filled or delivered',async()=>{
