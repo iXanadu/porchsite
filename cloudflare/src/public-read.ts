@@ -54,6 +54,12 @@ export function viewProof(f:Facts):ApprovedView|undefined {
 }
 export async function facts(db:D1Database,artifacts=false):Promise<Facts>{
  if(!artifacts)return decode((await db.prepare(FACTS_SQL).all<Row>()).results);
+ const rows=(await db.prepare(FACTS_SQL).all<Row>()).results;
+ const raw=rows.map(r=>[r.category,r.ident,r.value]);
+ return {...decode(rows),raw};
+}
+/** State transport is only for scheduled preparation, never visitor validators. */
+export async function preparationFacts(db:D1Database):Promise<Facts>{
  let rows:Row[];
  try{rows=(await db.prepare(FACTS_STATE_SQL).all<Row>()).results;}
  catch{return decode((await db.prepare(FACTS_SQL).all<Row>()).results);}
