@@ -146,7 +146,7 @@ async def respond(db,req,configured,release,p,render,refresh,on_hit,store):
             if len(encoded([meta,headers]).encode())>MAX_METADATA:
                 return
             row=dict(body=body,metadata=meta,headers=headers)
-            if await current(db,req,p,clock)!='same' or time.time()*1000>=meta[3]:
+            if await current(db,req,p,clock)!='same' or not public_time.valid(clock) or time.time()*1000>=meta[3]:
                 return
             store.put(address,row)
         except Exception:

@@ -39,7 +39,7 @@ function storable(response:Response,p:Proof&{tag:string},origin:string){
  return [...response.headers].every(([name,value])=>expected.get(name)===value)&&[...expected].every(([name,value])=>response.headers.get(name)===value);
 }
 async function stored(response:Response,p:Proof&{tag:string},origin:string,clock:Plan){
- if(response.status!==200)return null;
+ if(response.status!==200||size(JSON.stringify([...response.headers]))>MAX_METADATA)return null;
  const raw=response.headers.get(INTERNAL);if(!raw||size(raw)>MAX_METADATA)return null;
  let meta:any;try{meta=JSON.parse(raw);}catch{return null;}
  if(!Array.isArray(meta)||meta.length!==6||meta[0]!==FORMAT||meta[1]!==p.tag||!Number.isSafeInteger(meta[2])||!Number.isSafeInteger(meta[3])||!Number.isSafeInteger(meta[4])||meta[4]<0||meta[4]>MAX_BODY||!/^[a-f0-9]{64}$/.test(meta[5]))return null;
@@ -78,7 +78,7 @@ export async function respond(db:D1Database,req:Request,configured:string|undefi
   const headers=canonicalHeaders(p,origin!);headers.set(INTERNAL,meta);headers.set('Cache-Control',`public, max-age=${ttl}`);
   if(size(JSON.stringify([...headers]))>MAX_METADATA)return;
   const clone=new Response(body,{headers});
-  if(await current(db,req,p,clock)!=='same'||Date.now()>=expires)return;
+  if(await current(db,req,p,clock)!=='same'||!valid(clock)||Date.now()>=expires)return;
   await cache.put(request,clone);
  })().catch(()=>{}).finally(()=>{fills--;});
  if(waitUntil)waitUntil(work);else await work;

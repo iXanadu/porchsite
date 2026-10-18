@@ -74,7 +74,7 @@ async def test_perf4_key_identity(db,http,app,monkeypatch):
     hit=await http.get('/',headers={'Accept':'text/markdown'})
     assert hit.content==direct.content and hit.headers['vary']=='Accept'
     assert len(app._response_store.rows)==1
-    for row in json.loads((Path(__file__).parents[3].parent/'spec/fixtures/public-response-keys.json').read_text()):
+    for row in json.loads((Path(__file__).parents[3]/'spec/fixtures/public-response-keys.json').read_text()):
         assert cache.key(row['origin'],row['release'],row['choice'],row['tag'])==row['key']
 
 async def test_perf4_hit_race(db,http,app,monkeypatch):
@@ -201,3 +201,16 @@ async def test_perf4_synthetic_key(db,http,app):
     for i in range(200):bounded.put(str(i),dict(body=b'x',metadata=[],headers={}))
     assert len(bounded.rows)==128 and bounded.size==128
     await bounded.close()
+
+async def test_perf4_hit_race_unpublish(db,http,app,monkeypatch):
+    _,entry=await fixture(db)
+    f=await public_read.facts(db)
+    page=next(x['page'] for x in f['entries'] if x['id']==entry['id'])
+    await warm(http,app,page)
+    original=cache.current
+    async def removed(*args):
+        await db.execute('DELETE FROM live WHERE item_id=$1',entry['id'])
+        return await original(*args)
+    monkeypatch.setattr(cache,'current',removed)
+    answer=await http.get(page)
+    assert answer.status_code==404 and b'Public body.' not in answer.content

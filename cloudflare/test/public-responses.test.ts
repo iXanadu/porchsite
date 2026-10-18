@@ -13,10 +13,11 @@ import {PUBLIC_CACHE} from '../src/public-http';
 import keys from '../../spec/fixtures/public-response-keys.json';
 const origin='https://site.example',e={...env,SITE_URL:origin,PUBLIC_RESPONSES:'1'} as unknown as Env,db=e.DB;
 let rows:Map<string,Response>;
+const address=(request:RequestInfo|URL)=>typeof request==='string'?request:request instanceof URL?request.href:request.url;
 beforeEach(async()=>{
  vi.restoreAllMocks();vi.useRealTimers();traffic.reset(db);rows=new Map();
- vi.spyOn(caches.default,'match').mockImplementation(async request=>rows.get(typeof request==='string'?request:request.url)?.clone());
- vi.spyOn(caches.default,'put').mockImplementation(async(request,response)=>{rows.set(typeof request==='string'?request:request.url,response.clone());});
+ vi.spyOn(caches.default,'match').mockImplementation(async request=>rows.get(address(request))?.clone());
+ vi.spyOn(caches.default,'put').mockImplementation(async(request,response)=>{rows.set(address(request),response.clone());});
  const tables=await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>();
  for(const {name} of tables.results)if(/^[a-z][a-z_]*$/.test(name)&&!name.startsWith('sqlite_')&&!name.startsWith('d1_'))await db.prepare(`DELETE FROM ${name}`).run();
  await db.prepare('INSERT INTO auth_state(id) VALUES(1)').run();
@@ -40,7 +41,7 @@ it('perf4_hit_identity: body and outward headers are fresh policy; HEAD/304 avoi
 });
 it('perf4_gate_before_cache: every credential form, Range, wrong origin and private bypass cache operations',async()=>{
  const {one}=await fixture();await get();vi.mocked(caches.default.match).mockClear();vi.mocked(caches.default.put).mockClear();
- for(const headers of [{Authorization:''},{Authorization:'Bearer invalid'},{Cookie:'__Host-sk_owner='},{Cookie:'__Host-sk_reader=expired'},{Range:'bytes=0-3'}])await get('/',headers);
+ for(const headers of ([{Authorization:''},{Authorization:'Bearer invalid'},{Cookie:'__Host-sk_owner='},{Cookie:'__Host-sk_reader=expired'},{Range:'bytes=0-3'}] as Record<string,string>[]))await get('/',headers);
  await get('/',{},'GET',{...e,SITE_URL:'https://different.example'});
  expect(caches.default.match).not.toHaveBeenCalled();expect(caches.default.put).not.toHaveBeenCalled();
  await publish(await content.updateItem(db,'assistant:test','site',one.version,{private:true}));
@@ -54,7 +55,7 @@ it('perf4_key_identity: direct and selected Markdown share only body identity; h
 });
 it('perf4_hit_race: final facts refuse private-on and old-runtime removal during match',async()=>{
  const {one}=await fixture();await get();let once=true;
- vi.mocked(caches.default.match).mockImplementation(async request=>{const found=rows.get(typeof request==='string'?request:request.url)?.clone();if(once){once=false;await publish(await content.updateItem(db,'assistant:test','site',one.version,{private:true}));}return found;});
+ vi.mocked(caches.default.match).mockImplementation(async request=>{const found=rows.get(address(request))?.clone();if(once){once=false;await publish(await content.updateItem(db,'assistant:test','site',one.version,{private:true}));}return found;});
  const answer=await get();expect(answer.status).toBe(404);expect(await answer.text()).not.toContain('Public body.');
 });
 it('perf4_previous_runtime: a write without invalidation changes the immutable key',async()=>{
@@ -106,4 +107,9 @@ it('perf4_default_off: only the exact independent operator flag and configured o
 it('perf4_synthetic_key: the storage address is not a public route',async()=>{
  await fixture();await get();const address=[...rows.keys()][0];vi.mocked(caches.default.match).mockClear();
  const response=await handle(new Request(address),e);expect(response.status).toBe(404);expect(await response.text()).not.toContain('Public body.');expect(caches.default.match).not.toHaveBeenCalled();
+});
+it('perf4_hit_race_unpublish: page existence is rechecked after the asynchronous match',async()=>{
+ const {entry}=await fixture(),f=await read.facts(db),page=f.entries.find(x=>x.id===entry.id)!.page;await get(page);
+ vi.mocked(caches.default.match).mockImplementation(async request=>{const found=rows.get(address(request))?.clone();await db.prepare('DELETE FROM live WHERE item_id=?').bind(entry.id).run();return found;});
+ const answer=await get(page);expect(answer.status).toBe(404);expect(await answer.text()).not.toContain('Public body.');
 });
