@@ -1,5 +1,6 @@
 """Port-matched: cloudflare/test/analytics-admission.test.ts."""
 import asyncio
+import hashlib
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -27,6 +28,7 @@ async def test_final_slot_and_heartbeats(db):
     results = await asyncio.gather(*(send(db, f"final-slot-{i}", {"w": i % 2}) for i in range(8)))
     assert sum(results) == 1
     assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 200
     winner, loser = results.index(True), results.index(False)
     assert not await send(db, f"final-slot-{winner}")
     assert not await send(db, "above-cap-view", {"day": "2099-01-01", "visitor": "fake", "cap": 999})
@@ -56,6 +58,7 @@ async def test_invalid_inputs_no_database_work(db):
     assert fail.calls == 0
 
 async def expired(db):
+    await db.execute("INSERT INTO analytics_visitor_counts(day,visitor,views) VALUES('2026-01-01','old',1) ON CONFLICT DO NOTHING")
     await db.execute("INSERT INTO pageviews (id,day,visitor,path,kind,ref_bucket,engaged_ms,created_at,updated_at) VALUES ('expired-view','2026-01-01','old','/','home','direct',1000,'2026-01-01','2026-01-01')")
 
 async def test_cleanup_concurrency_counts_and_watermark(db):
@@ -173,3 +176,18 @@ async def test_missing_counter_schema_original_cap_and_cleanup(db):
         assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
     finally:
         await db.execute("ALTER TABLE saved_visitor_counts RENAME TO analytics_visitor_counts")
+
+async def test_legacy_and_new_share_final_slot(db):
+    await seed(db, 199)
+    visitor = await analytics.visitor_hash(db, DAY, "192.0.2.10", UA)
+    lock = int.from_bytes(hashlib.sha256(f"AN-1\0{DAY}\0{visitor}".encode()).digest()[:8], "big", signed=True)
+    async def legacy():
+        async with analytics.transaction(db) as c:
+            await c.execute("SELECT pg_advisory_xact_lock($1)", lock)
+            status = await c.execute("INSERT INTO pageviews(id,day,visitor,path,kind,ref_bucket,created_at,updated_at) SELECT 'legacy-final-slot',$1,$2,'/','home','direct',$3,$3 WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day=$1 AND visitor=$2 LIMIT 1 OFFSET 199) ON CONFLICT(id) DO NOTHING", DAY, visitor, analytics.iso(AT))
+            return status.endswith(" 1")
+    results = await asyncio.gather(legacy(), *(send(db, f"mixed-final-{i}") for i in range(7)))
+    assert sum(results) == 1
+    assert await db.fetchval("SELECT count(*) FROM pageviews") == 200
+    assert not await send(db, "mixed-final-denial")
+    assert await db.fetchval("SELECT views FROM analytics_visitor_counts") == 200

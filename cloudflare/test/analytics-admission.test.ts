@@ -18,6 +18,7 @@ it("admits exactly the final slot under contention, including test views, and re
   await seed(199);
   const results = await Promise.all(Array.from({ length: 8 }, (_, i) => send(`final-slot-${i}`, { w: i % 2 })));
   expect(results.filter(Boolean)).toHaveLength(1); expect(await count()).toBe(200);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(200);
   const winner = results.indexOf(true), loser = results.indexOf(false);
   expect(await send(`final-slot-${winner}`)).toBe(false);
   expect(await send("above-cap-view", { day: "2099-01-01", visitor: "fake", cap: 999 })).toBe(false);
@@ -40,6 +41,7 @@ it("does no new database work for invalid ids, opt-outs, bots, excluded paths or
   expect(calls).toBe(0);
 });
 async function expired() {
+  await db.prepare("INSERT OR IGNORE INTO analytics_visitor_counts(day,visitor,views) VALUES('2026-01-01','old',1)").run();
   await db.prepare("INSERT INTO pageviews (id,day,visitor,path,kind,ref_bucket,engaged_ms,created_at,updated_at) VALUES ('expired-view','2026-01-01','old','/','home','direct',1000,'2026-01-01','2026-01-01')").run();
 }
 it("cleans once despite concurrent/stale readers, retains exact counts, and never lowers the watermark", async () => {
@@ -124,4 +126,13 @@ it("missing counter schema retains the original complete cap and cleanup",async(
   await seed(199);await db.prepare("ALTER TABLE analytics_visitor_counts RENAME TO saved_visitor_counts").run();
   try {expect(await send("old-schema-final-slot")).toBe(true);expect(await send("old-schema-denied")).toBe(false);expect(await count()).toBe(200);}
   finally {await db.prepare("ALTER TABLE saved_visitor_counts RENAME TO analytics_visitor_counts").run();}
+});
+
+it("shares the final slot with the released legacy admission statement",async()=>{
+  await seed(199);const visitor=await visitorHash(db,day,"192.0.2.10",ua);
+  const legacy=db.prepare("INSERT OR IGNORE INTO pageviews (id,day,visitor,path,kind,ref_bucket,created_at,updated_at) SELECT 'legacy-final-slot',?,?,'/','home','direct',?,? WHERE NOT EXISTS (SELECT 1 FROM pageviews WHERE day=? AND visitor=? LIMIT 1 OFFSET 199)").bind(day,visitor,at.toISOString(),at.toISOString(),day,visitor).run().then(r=>r.meta.changes===1);
+  const results=await Promise.all([legacy,...Array.from({length:7},(_,i)=>send(`mixed-final-${i}`))]);
+  expect(results.filter(Boolean)).toHaveLength(1);expect(await count()).toBe(200);
+  expect(await send("mixed-final-denial")).toBe(false);
+  expect(await db.prepare("SELECT views FROM analytics_visitor_counts").first("views")).toBe(200);
 });
