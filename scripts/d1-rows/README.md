@@ -8,6 +8,26 @@ prepared HIT when enabled), then a conditional 304. Response reuse stays
 off. Every D1 read and write is counted, including request waitUntil work.
 This measures database rows, not CPU or hosted billing.
 
+The expanded format keeps all 78 page cells and adds fourteen write cells:
+first-day and repeat beacon views, the 201st attempt on an existing daily
+visitor, a progress heartbeat, approvals of one and 200 new entries, and
+one three-item JSON import file, each with copies off/on. Import remains
+pending content. Each operation starts on its own synthetic disposable site.
+Owner/session seeding and the normal form GET are named setup costs outside
+the POST scope; the real POST's authentication, checks and background D1
+work count. Invalid-session and CSRF controls must leave content unchanged.
+No real credentials or remote services are used.
+
+For the introducing format change use `--record --rebase`: preserve the
+published 78-cell predecessor record and measure its exact archived bundle
+on all 92 matching cells. Both artifacts are measured, not populated from
+copied numbers. The original product bundle remains unchanged; only a
+separately named local measurement copy routes native module imports through
+a live-export waitUntil adapter. Original, derived and adapter hashes plus
+import mapping are recorded separately. Native and context tasks share one
+request-local settlement scope. No idle-counter or sleep completion proof.
+This adapter never ships as a product handler.
+
 Before committing a release candidate, from the repository root:
 
 ```sh
@@ -38,7 +58,7 @@ The log prints every old/new value and read/write daily-limit arithmetic.
 The published changelog keeps the reason.
 
 The previous committed record is loaded from the previous release's git
-revision. The first run bootstraps it from the exact archived predecessor,
+revision. Only a genuinely absent original record bootstraps from the exact archived predecessor,
 never from copied current values. If the corpus, measurement method or
 toolchain changes, `--record --rebase` remeasures that archived predecessor
 on the new inputs and retains its original record alongside the labelled
