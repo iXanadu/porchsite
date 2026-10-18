@@ -1,0 +1,13 @@
+{
+  "status": 204,
+  "headers": {
+    "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+    "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+    "access-control-allow-origin": "*",
+    "access-control-expose-headers": "mcp-session-id, WWW-Authenticate",
+    "access-control-max-age": "86400",
+    "cache-control": "private, no-store, no-transform",
+    "content-length": "0"
+  },
+  "body": ""
+}

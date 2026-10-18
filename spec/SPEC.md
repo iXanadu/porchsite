@@ -1186,6 +1186,77 @@ with 403. This is an Origin check, not authentication: the existing bearer
 token and Host checks still apply. OAuth endpoints, including `/authorize`
 and `/oauth/*`, keep their existing behaviour.
 
+### MCP authentication refusal headers (PAR-1)
+
+Both editions use the same authentication-refusal headers on `/mcp`.
+The existing HTTPS/Host redirects and Origin check run first; a rejected
+Origin remains 403, and OPTIONS returns 204 before authentication, including
+when a writer or read key is supplied. That changes the Cloudflare
+key-first OPTIONS response from 200 to 204. Both editions' preflight has
+identical status, headers and empty body (with the same release label),
+as pinned by `spec/fixtures/mcp-preflight.json`; it contains no site data
+and performs no database/KV access or credential lookup. It cannot reveal
+whether a supplied key is valid. This contract concerns resource authentication, not OAuth consent/token
+endpoints, public/private page refusals, or tool errors in an authenticated
+MCP response. It grants no access and does not change writer/read-key scopes.
+
+An authentication 401 always has exactly this Cache-Control value:
+`private, no-store, no-transform`. It has no ETag, Last-Modified, Age or
+Location. The 401 itself sets Access-Control-Expose-Headers including
+WWW-Authenticate and preserves existing MCP CORS headers. This is required
+in both editions, including the Cloudflare key and OAuth refusal paths.
+There is no metadata fetch or tool dispatch to construct this refusal.
+
+Both editions classify Authorization by one shared grammar: case-insensitive
+`Bearer`, one or more ASCII tab or space characters, then exactly one
+nonempty token containing no whitespace or comma, followed by the absolute
+end of the header. No trailing newline, whitespace or extra token is
+accepted; an end-of-line `$` match is insufficient. Classification is
+independent of the Cloudflare fast-key dispatch regex and OAuth SDK.
+A matching token is authenticated using its existing writer-key, read-key
+or OAuth lookup; rejection always uses the second challenge form below,
+including OAuth rejection. Do not delegate refusal-header selection to
+the SDK.
+
+With no usable Bearer credential (absent or empty Authorization, another
+scheme, or anything outside that grammar), the exact WWW-Authenticate
+value is:
+
+```text
+Bearer realm="OAuth", resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="site:draft"
+```
+
+With a supplied single Bearer token rejected by authentication, the exact
+value is:
+
+```text
+Bearer realm="OAuth", resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", error="invalid_token", scope="site:draft"
+```
+
+This includes malformed token values, unknown, expired and revoked writer
+keys (`psk_`), read keys (`prk_`) and OAuth access tokens. Malformed header
+syntax with no usable single Bearer token uses the first form. `<origin>`
+is the existing configured canonical site origin, falling back to the
+request origin only when unconfigured; never the caller's Origin header
+or token text. No token, dynamic refusal reason, error_description or
+error_uri is reflected in the challenge. The scope advertises the existing
+OAuth resource; it never upgrades a read key. Keep the existing empty body
+for an absent credential and the `invalid_token` JSON error code for a
+rejected token; human-readable OAuth error descriptions may remain
+implementation-specific. Valid credentials keep their existing permissions,
+response bodies and protocol behavior.
+
+Paired proof `mcp_auth_refusal_headers` covers absent/empty/unsupported and
+malformed Authorization (including extra tokens, comma and trailing line
+break), and malformed/unknown/expired/revoked tokens in
+all three families. Assert status, exact challenge and Cache-Control,
+validator/redirect absence and CORS exposure; use configured and fallback
+origins. Valid writer/read-key controls, foreign-Origin 403 and OPTIONS 204
+pin unchanged authority and ordering. Spies prove no tool dispatch,
+content write or metadata fetch on authentication refusal. Existing MCP
+wire/error/stream-cancel assertions remain intact. No migration, catalog
+or reconnect change follows from this header repair.
+
 If a consent-binding cookie is missing, a valid owner session may supply the browser binding for approval or denial while preserving handle validity, expiry and single use; an owner may answer another valid consent handle they minted, even if it is not the currently displayed page.
 An assistant whose app can't add a connector with sign-in uses an
 **assistant key** instead: the owner makes one on `/review/assistants`

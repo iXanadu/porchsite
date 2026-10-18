@@ -235,13 +235,19 @@ class App:
             )
             return
         if req.method == "OPTIONS":
-            await _cors(Response(None, status_code=204, headers={"Content-Length": "0"}))(
-                scope, receive, send
-            )
+            await Response(None, status_code=204, headers={
+                "Content-Length": "0",
+                "Cache-Control": "private, no-store, no-transform",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+                "Access-Control-Expose-Headers": "mcp-session-id, WWW-Authenticate",
+                "Access-Control-Max-Age": "86400",
+            })(scope, receive, send)
             return
         header = req.headers.get("authorization") or ""
-        bearer = re.match(r"^Bearer[\t ]+([^\s,]+)\Z", header, re.I)
-        no_cache = {"Cache-Control": "no-store"}
+        bearer = re.match(r"^Bearer[\t ]+([^\s,\ufeff]+)\Z", header, re.I)
+        no_cache = {"Cache-Control": "private, no-store, no-transform"}
         if not bearer:
             resp = Response(
                 None,

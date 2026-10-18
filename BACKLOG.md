@@ -97,12 +97,6 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   difference. Fix: drop it from the constant and the fixture, and prove it's
   absent on the wire in both editions. Status, body, CORS and auth are
   correct. Found 2026-10-18 in PAR-1 acceptance.
-- **PAR-1** OPEN: on /mcp, a bad bearer key gets a 401 without a
-  WWW-Authenticate header on the Cloudflare edition; the server edition
-  sends one (realm, resource_metadata, error="invalid_token", scope). A
-  client that starts sign-in from that header can't recover on Cloudflare.
-  The two editions also differ in that 401's Cache-Control. Make both match
-  the spec. Found 2026-10-18 on fleet and ixanadu.me.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it

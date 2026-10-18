@@ -1,0 +1,87 @@
+[
+  {
+    "name": "absent",
+    "authorization": null,
+    "invalid": false
+  },
+  {
+    "name": "empty",
+    "authorization": "",
+    "invalid": false
+  },
+  {
+    "name": "other scheme",
+    "authorization": "Basic unused",
+    "invalid": false
+  },
+  {
+    "name": "missing token",
+    "authorization": "Bearer",
+    "invalid": false
+  },
+  {
+    "name": "empty token",
+    "authorization": "Bearer ",
+    "invalid": false
+  },
+  {
+    "name": "extra token",
+    "authorization": "Bearer one two",
+    "invalid": false
+  },
+  {
+    "name": "comma",
+    "authorization": "Bearer one,two",
+    "invalid": false
+  },
+  {
+    "name": "trailing LF",
+    "authorization": "Bearer psk_unknown\n",
+    "invalid": false
+  },
+  {
+    "name": "trailing CRLF",
+    "authorization": "Bearer prk_unknown\r\n",
+    "invalid": false
+  },
+  {
+    "name": "trailing space",
+    "authorization": "Bearer oauth_unknown ",
+    "invalid": false
+  },
+  {
+    "name": "bad writer",
+    "authorization": "Bearer psk_invalid",
+    "invalid": true
+  },
+  {
+    "name": "bad reader",
+    "authorization": "Bearer prk_invalid",
+    "invalid": true
+  },
+  {
+    "name": "bad OAuth",
+    "authorization": "Bearer oauth_invalid",
+    "invalid": true
+  },
+  {
+    "name": "malformed writer value",
+    "authorization": "Bearer psk_!",
+    "invalid": true
+  },
+  {
+    "name": "malformed reader value",
+    "authorization": "Bearer prk_!",
+    "invalid": true
+  },
+  {
+    "name": "malformed OAuth value",
+    "authorization": "Bearer owner:missing:!",
+    "invalid": true
+  },
+  {
+    "name": "mixed case and tab",
+    "authorization": "bEaReR\tprk_unknown",
+    "invalid": true
+  }
+]
