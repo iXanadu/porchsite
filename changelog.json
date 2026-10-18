@@ -2,6 +2,22 @@
   "about": "Every Porchsite release, newest first. cloudflare/scripts/downloads.sh refuses to build a release that has no entry here and publishes this file as /changelog.json, /changelog/ and in latest.json. Per release: release (its id, <UTC date>-<commit>), date, security (true: it fixes something an attacker could use; update soon), reconnect (true: the assistant tool list changed; remove and re-add the site's connector), migrations (the Cloudflare edition's new migration files; the server edition applies its own schema on start), changes (2-6 plain lines an assistant can read to the owner). Write the entry before building: the release id is today's UTC date and the commit being built (git rev-parse --short HEAD); commit this file after the build.",
   "releases": [
     {
+      "release": "2026.10.18-c59bcc9",
+      "date": "2026-10-18",
+      "security": false,
+      "reconnect": true,
+      "migrations": [
+        "0024_agent_read_keys.sql",
+        "0025_agent_read_sessions.sql"
+      ],
+      "changes": [
+        "Agents you trust can now read your site, including a private one, without being able to change anything: make a read-only key under Assistants and give it to the agent.",
+        "New lighter tools for agents: read one published page, list pages by stream, tag or date, and search, instead of downloading the whole site.",
+        "On a private site, an agent with a read key gets the same pages and Markdown copies a visitor would; without a key it sees only the sign-in page. Revoking a key cuts it off at once.",
+        "Reconnect your assistant once after updating so it sees the new tools."
+      ]
+    },
+    {
       "release": "2026.10.17-c43ea86",
       "date": "2026-10-17",
       "security": false,
