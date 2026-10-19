@@ -62,12 +62,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    render path (about 428 rows) and the facts reads; with prepared copies
    on, admission (AF-7T-C3, drafted) is the next cut. Until then, prepared
    copies are a small-site setting.
-   PERF-9b OPEN (Hand, porchsite.dev, f343361, 2026-10-18): after a
-   rollback to 1edfb4a and back, the saving is gone and does not come back
-   with traffic. Plain GET reads 554 rows instead of 116; 304s read 142
-   instead of 85. Pages stay correct. Find why (suspect: copies stored by
-   the older release carry no counter stamp) and make such copies refresh
-   on first use.
+   PERF-9b OPEN (Hand, porchsite.dev, f343361, 2026-10-18): the first
+   hosted run read 116 rows on a plain GET and 85 on a 304, but after a
+   rollback to 1edfb4a and back it read 554 and 142, steady. With prepared
+   copies on (as there), the design keeps plain GETs on the full check, so
+   554 is expected and the 116 is unexplained; copies carry no counter
+   stamp. Pages stay correct. Find what the first run measured, and whether
+   copies-on 304s get the full saving.
 
 
 6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
