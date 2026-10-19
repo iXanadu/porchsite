@@ -103,10 +103,18 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    about half its requests over the free plan's 10 ms limit (no errors
    seen yet). A request past the limit can be stopped, which loses that
    view's stats; pages are a separate request. AN-2 adds up to about 1 ms
-   locally; the owner chose to ship it with a hosted check (roll back to
-   f343361 if /collect is more than 0.5 ms slower across an interleaved
-   pair, or on any CPU-limit 1102). Attribute /collect CPU by phase and
-   cut it.
+   locally. Hosted check on 534c7e2 (2026-10-19): rule not triggered
+   (pairs +0.09 and +1.67 ms), so it stays. Attribute /collect CPU by
+   phase and cut it.
+
+16. **AN-3** OPEN (Hand, hosted on porchsite.dev, 534c7e2, 2026-10-19):
+   each recorded view reads rows that grow with that visitor's own views
+   that day (about 213 rows and 13 ms of CPU near the 200th), so one
+   visitor's day costs on the order of 20,000 reads. Capped views are
+   cheap (about 8-9 reads, no writes). The local row fixtures only cover
+   visitors with a few views. Find the per-visitor scan on the recorded
+   path, make it read a bounded number of rows, and add a many-views cell
+   to the row gate.
 
 14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
    archived a55686c and earlier copies still compare timing fields, so the
