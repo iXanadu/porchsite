@@ -92,6 +92,11 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    cold page GET CPU averages 10.2-10.4 ms (p50 8-8.5), at the free
    plan's 10 ms limit; plain 7.5, 304 7.2. Attribute cold CPU by phase and
    cut the largest cost.
+   The plain-inline Markdown shortcut (spec c9db60e, candidate 4502712) was
+   measured and HELD 2026-10-19: public cold pages +0.6 ms (copies off) and
+   +1.6 ms (copies on, first view), both intervals spanning zero; only a
+   200-entry syntax-heavy first view gained (-9 ms). It was a guess, not
+   attributed; profile cold GET by phase first (PERF-13's method).
 
 15. **PERF-13** OPEN (Hand, hosted on porchsite.dev, f343361, 2026-10-18):
    the visit-stats beacon (/collect) averages about 10.6-12 ms of CPU, with
