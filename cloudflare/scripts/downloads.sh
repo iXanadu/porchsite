@@ -23,7 +23,7 @@
 # lines as the message) and the tag is pushed (never forced; a GitHub tag on
 # another commit stops the script), then the release's files go to a GitHub
 # release on that tag, the second copy of downloads/releases and
-# releases-themes (scripts/archive-restore.sh reads it back). If the push or
+# releases-themes (and of the skills) (scripts/archive-restore.sh reads it back). If the push or
 # the upload can't happen, the build still stands: a warning says so and
 # prints the commands to run later, in order.
 # Needs PORCHSITE_TEST_DSN and PYTHON (the server edition's interpreter) for
@@ -226,9 +226,14 @@ fi
 # (sitekeeper.js, the migrations, files.json), archive-files.json (every
 # version's files.json, so older copies can be checked too), the look files
 # this build added (themes.tar.gz) and themes-files.json (every look file's
-# hash). The files stay in $UP until the next build of this version.
+# hash), and the skills. The files stay in $UP until the next build of this
+# version.
 cp "$OUT/v/$VERSION/sitekeeper.js" "$OUT/v/$VERSION/files.json" "$UP/"
 cp "$OUT/v/$VERSION/migrations/"*.sql "$UP/"
+# The skills too (skills-manifest.json, <name>.SKILL.md), so the template can
+# check porchsite.dev's copy against this one instead of pinning hashes.
+cp "$OUT/skills/manifest.json" "$UP/skills-manifest.json"
+for d in "$OUT"/skills/*/; do cp "$d/SKILL.md" "$UP/$(basename "$d").SKILL.md"; done
 NEW_THEMES="$(mktemp)"
 (cd downloads && find releases-themes -type f | LC_ALL=C sort) | comm -13 "$THEMES_BEFORE" - >"$NEW_THEMES"
 if [ -s "$NEW_THEMES" ]; then
