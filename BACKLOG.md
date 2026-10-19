@@ -132,6 +132,13 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
+- **RA-12** OPEN (found 2026-10-19): the Grok Bot template's skills are
+  stuck at 2026.10.13-7bde887, 43 releases behind, 4 of them security
+  releases. They also lack the required free-limit counseling and the
+  AI-training choice. They live only in the template. No release step
+  touches them, so new owners get stale guidance. Fix: keep the skill
+  text in this repo, publish it with every release on get.porchsite.dev
+  stamped with the release id, and have the template point there.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
