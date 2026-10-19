@@ -62,13 +62,11 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    render path (about 428 rows) and the facts reads; with prepared copies
    on, admission (AF-7T-C3, drafted) is the next cut. Until then, prepared
    copies are a small-site setting.
-   PERF-9b OPEN (Hand, porchsite.dev, f343361, 2026-10-18): the first
-   hosted run read 116 rows on a plain GET and 85 on a 304, but after a
-   rollback to 1edfb4a and back it read 554 and 142, steady. With prepared
-   copies on (as there), the design keeps plain GETs on the full check, so
-   554 is expected and the 116 is unexplained; copies carry no counter
-   stamp. Pages stay correct. Find what the first run measured, and whether
-   copies-on 304s get the full saving.
+   With prepared copies on, a plain GET served from a stored copy still
+   reads the full facts proof (about 542 rows locally, 554 hosted on
+   porchsite.dev) and a 304 about 140; only copies-off pages and 304s use
+   the counter. That proof is the next copies-on cut. The first hosted
+   f343361 run read less (116 plain, 85 on 304s) and was not reproduced.
 
 
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
