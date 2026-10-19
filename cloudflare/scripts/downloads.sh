@@ -1,6 +1,7 @@
 #!/bin/sh
 # Build the downloads site (get.porchsite.dev): the install guide, llms.txt, and the bundle under
-# v/<version>/ with latest.json naming it, plus the changelog.
+# v/<version>/ with latest.json naming it, plus the changelog and the Grok Bot
+# template's skills (porchsite.dev/skills/).
 # Deploy: cd downloads && npx wrangler deploy -c wrangler.local.jsonc (the real database id lives there, untracked).
 #
 # A release is built only when it is safe to update to and to roll back from:
@@ -113,6 +114,10 @@ const files = rel.map((r) => {
 });
 fs.writeFileSync(path.join(out, "latest.json"), JSON.stringify({ version, released: new Date().toISOString().slice(0, 10), install: `${process.env.HOME_URL}/install.md`, files }, null, 2) + "\n");
 JS
+# The Grok Bot template's skills, pinned to this release: its id, commit,
+# guides and file hashes (served at porchsite.dev/skills/, which the template
+# is updated from; scripts/skills.mjs).
+node scripts/skills.mjs build "$OUT/v/$VERSION" "$OUT/skills" "$VERSION" "$COMMIT" ../changelog.json
 # The changelog: its lines in latest.json, and /changelog.json, /changelog/
 # and changelog.md (shown at /docs/changelog/).
 node scripts/changelog.mjs publish ../changelog.json "$VERSION" "$OUT" "$(git rev-parse HEAD)"
