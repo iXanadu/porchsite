@@ -78,5 +78,8 @@ release id; it refuses otherwise. After the build it tags the commit
 GitHub tag on another commit stops it), and copies the release's files to a
 GitHub release on that tag (`cloudflare/scripts/archive-restore.sh`
 restores the archive from those). If the push or upload fails, the build
-still stands and the commands to run later are printed. No site ever
+still stands and the commands to run later are printed. The build also pins
+the Grok Bot template's skills (`cloudflare/downloads/skills/`) to the release
+and serves them at porchsite.dev/skills/, which the template is updated from;
+edit the skills there, never on a live host. No site ever
 updates itself (spec §4 Updates).
