@@ -2,7 +2,7 @@
   "functions": {
     "agent-traffic.ts:agentKind": "ecf8319c43a52977943700fafa03bc5b52b5120d50adba0b9b5b1b5d3bab8365",
     "alerts.ts:anonymous-0": "5732a0d8d60f1bb993a3184584866f86f51d640f9ac0d11b2f756f95ae186153",
-    "analytics.ts:record": "d1ee5c8ff5a069450b18055fb2b25c04891e4ec442eb2b37bc649806e60925e2",
+    "analytics.ts:record": "eb4d807618732b2ea059e98a2162b619c4ab5d4e83062afab1389ba5a7dec505",
     "analytics.ts:anonymous-1": "097d14615da1825ceeb9da1e606ed07d705f675ff1452045ac17f09998fd8a52",
     "changes.ts:plainValue": "f064e987cdceac5affd206b6e07aaf0681b877901905dd3a6be6c58381f32c66",
     "changes.ts:whatChanged": "48f692309849651f47ae16b7743ac74c5aedab4ce07e0c3df7a7a85f81ac599b",
@@ -56,7 +56,7 @@
     "agent-traffic.ts": "91453edfc9a1ff0677a9421646a98b9108b0da5d36bcd1def2395851ca8b8978",
     "alert-assets.ts": "1f22d15eecb633547066ce8559c5836648593c863e9db68f6c07f95842906c2d",
     "alerts.ts": "0ab55ef24f375f04e53ee88794f0fa42a6b1f9f91023439060b84f1fd1885ebd",
-    "analytics.ts": "6e731204de8fc16687e7ad78c32baaa8368956562a67bddd1be1aa315d24afb0",
+    "analytics.ts": "f432a54cb44ef71106880cbcb4cf7001aec6ad54a9de23e62823259a04dba9dd",
     "approvals.ts": "314e00dba05380e375430dc755d91a8999bf4a3cdc2e6ee60e6beab31cf17b9e",
     "archive.ts": "ba0bf7922d211d339b30130c544ee9e99c4b31423d7be5b49a39ccbb9f3c9aae",
     "beacon.ts": "3264b357ae3eeef766a1312e9dd6cce39d4a9dd7e47a03987a53563c411b8b70",

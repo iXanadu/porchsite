@@ -71,13 +71,6 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    copies-on 304s get the full saving.
 
 
-6. **AN-2** OPEN (Hand, hosted on porchsite.dev 2026-10-18 on 3f0141a): a
-   visitor's capped (201st and later) page view still reads about 206 rows
-   in 11 queries, so about 24,000 rejected views a day from one visitor
-   would use the account's free 5 million reads. And /collect CPU measured
-   a mean of 8.6-10 ms (max 22) against the free plan's 10 ms. Make the cap
-   check read one per-visitor-per-day counter row instead of counting
-   views, and measure /collect CPU locally against 315dc35.
 7. **RA-9L** OPEN (Hand, 2026-10-18): every Worker upload resets
    `observability.redact_query_string` to false, so an owner's update
    silently drops the log redaction RA-9 set at install. The update path's
@@ -107,8 +100,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    about half its requests over the free plan's 10 ms limit (no errors
    seen yet). A request past the limit can be stopped, which loses that
    view's stats; pages are a separate request. AN-2 adds up to about 1 ms
-   locally (owner chose to ship with a hosted check). Attribute /collect
-   CPU by phase and cut it.
+   locally; the owner chose to ship it with a hosted check (roll back to
+   f343361 if /collect is more than 0.5 ms slower across an interleaved
+   pair, or on any CPU-limit 1102). Attribute /collect CPU by phase and
+   cut it.
 
 14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
    archived a55686c and earlier copies still compare timing fields, so the

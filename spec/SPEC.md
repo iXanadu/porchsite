@@ -2427,8 +2427,8 @@ instead. No button: the assistant updates, when the owner says so.
 
 **Release write-operation row cells (GATE-2a, Cloudflare edition).** Extend
 GATE-2's local D1 gate, not the product API. Keep its 78 public-page cells
-and add exactly seven operation cells with prepared copies off and `1`
-(14 added cells, 92 per artifact). Measure the candidate and immediately
+and add exactly eight operation cells with prepared copies off and `1`
+(16 added cells, 94 per artifact). Measure the candidate and immediately
 preceding published archived Worker on the same versioned fixtures and
 method. This is not a server/PostgreSQL row-cost or hosted billing claim;
 both editions' existing correctness, parity and upgrade gates remain.
@@ -2456,6 +2456,7 @@ clock/fixture changes require an explicit comparison rebase.
 | --- | --- | --- |
 | `collect/first_day` | `POST /collect`, valid new `pv` id; no salt for the clock day, previous-day maintenance watermark, one previous-day salt, two pageviews at day minus 91 for one visitor, one retained pageview at day minus 1, no prior daily aggregate for the expired rows. | One new view recorded. Assert daily salt, expired-row aggregation/deletion and monotonic completed-day watermark; include all cleanup/index writes and reads. |
 | `collect/repeat` | `POST /collect`, different valid `pv` id for the same daily visitor as one pre-existing current-day view; current salt and completed-day marker present. | Exactly one new view, original unchanged; no repeated retention mutation. This is a new page view, not a duplicate-id cell. |
+| `collect/existing_counter` | `POST /collect`, distinct valid `pv` id after one same-day source view; matching valid views=1 counter seeded only if that artifact schema contains the counter table. The predecessor has identical source rows without invented schema. Setup is outside measurement. | Exactly two source views, original unchanged, candidate counter=2. Measure actual accepted-event writes against AN-1; at most +1 or reject the optimization. |
 | `collect/at_cap` | `POST /collect`, distinct valid id for the same existing daily hash after exactly 200 current-day views; salt and completed-day marker present. | Cap-aware candidate/archive admit none; 200 stored views remain, attempted id absent. Count all denial reads and any writes; never infer a denial from wire 204 or zero writes. |
 | `collect/heartbeat` | `POST /collect`, `hb` on one admitted id, created one second before the fixed clock, initial engagement and scroll zero; request `e=1000,d=25`. | Same view count; that row becomes engaged 1000 ms and scroll 25. Count actual read and progress-update writes; no other view changes. |
 | `approval/one` | Authenticated same-origin `POST /review/<id>`, real form `all=approve` and valid CSRF, one pending request for exactly one new valid entry/version. | Exactly that shown entry is published with its intended data/version; pending request decided, receipts/history/invalidation consistent with the existing contract. |
@@ -2481,7 +2482,7 @@ For analytics use a fixed synthetic browser user-agent, RFC 5737 address,
 salt and paths that the real beacon accepts. Derive the existing day/visitor
 hash identically; never supply a client-chosen visitor or change the hash.
 Old cleanup rows have distinct valid ids and fixed payloads; the two expired
-rows share their old day's visitor, so audit views=2 and visits=1. All four
+rows share their old day's visitor, so audit views=2 and visits=1. All five
 beacon responses remain empty 204 with the existing no-store policy and no
 count, cookie or retry oracle. A swallowed database error or no-op does not
 satisfy an expected insertion, heartbeat, approval or import.
@@ -2578,13 +2579,14 @@ only and requires review before implementation or use.
 Version the expanded record format and measurement-input fingerprint.
 Keep the original published predecessor record. For the introducing
 extension explicitly remeasure its exact archived bundle with its own
-migrations and all 92 matching cells, retaining the old 78-cell record and
+migrations and all 94 matching cells, retaining the old 78-cell and 92-cell
+records and
 the labelled expanded comparison. The extension is not the old no-record
 bootstrap exception. Verify release id/artifact manifest as in GATE-2;
 missing/malformed old record or missing archive still fails. Subsequent
 releases use the preceding published expanded record without silent rebase.
 
-The committed JSON identifies all 92 unique cells, their operation kind,
+The committed JSON identifies all 94 unique cells, their operation kind,
 mode and nonnegative integer row totals, plus the pinned expected outcome
 manifest; exact key-set validation rejects missing/extra/duplicated cells.
 No fabricated historical write totals or automatic baseline promotion.
@@ -3351,6 +3353,305 @@ and show the concurrent tests fail. Preserve original assertions and
 negative-control evidence. Full two-edition gates, real public/private
 HTTP, actual previous-release rollback/return and independent acceptance
 remain required. No schema/runtime implementation before spec review.
+
+### AN-2: cheap saturated-visitor refusal without trusting legacy counters
+
+**Scope and target.** Both editions retain AN-1's identity, input, privacy,
+200-view cap, test/non-test sharing, report and heartbeat rules. Reduce the
+repeated capped-visitor scan; do not replace a proven cap with an unchecked
+cache. The observed deployed cost was about 206 D1 rows in 11 statements
+for a denied view, and hosted mean collector CPU 8.6–10 ms (maximum 22).
+These are supplied observations, not measurements of this proposal. A
+single indexed counter lookup is a cap-proof target, not a promise that
+all of `/collect` becomes one statement or one row.
+
+**Legacy-writer constraint.** Supported old runtimes insert pageviews but
+know nothing about a new counter. Counter value below 200 cannot prove
+that fewer than 200 views exist. No request may admit a view merely because
+that cached value is below 200. A pageviews trigger that writes a counter
+would change native D1 `meta.changes`, breaking the released collector's
+`=== 1` result contract. Add no such trigger, view replacement, binding
+metadata adapter or old-test exception. Preserve every old statement and
+archived assertion. This phase therefore optimizes saturated refusals;
+it does not promise constant-row under-cap admission with legacy writers.
+
+**Additive state.** Add an analytics visitor-count table keyed by the existing
+`(day, visitor)` values, with a checked integer `views` in 0..200. It stores
+no IP, UA, extra identity, timestamps, path or cross-day identifier. One
+primary-key lookup returns at most one row. The row is a conservative
+admission witness: below 200 it can lag old writes; at 200 it certifies
+that at least 200 distinct stored pageview ids existed for that key. It is
+not a count used in reports. Retain all shipped migrations, the id primary
+key, pageviews_day and the 0026 pageviews_day_visitor index. Do not drop an
+index or reinterpret an old migration to claim flat writes.
+
+**Admission transaction.** Keep the existing pre-validation and derivation
+of the site's day and daily visitor hash; a client cannot supply either.
+After normal maintenance/salt work, a valid saturated row permits refusal
+without any pageview scan or count write. Missing, malformed or non-saturated
+state cannot authorize admission and takes the reconciliation path:
+
+1. In the same serialized admission batch/transaction, derive the bounded
+   actual count from the existing indexed `(day, visitor)` pageview range,
+   including test rows, stopping at 200. Initialize or advance the counter
+   to that count, saturated at 200. Use a SQL current read, never a host
+   count captured before serialization. Do not decrease a valid counter
+   within an active retained day. A duplicate id must not create a new
+   zero-count key for an unrelated visitor or consume a slot.
+2. Insert the pageview only when the reconciled count is below 200 and
+   the random pageview id is absent. All fields, referrer categorization,
+   ownership of a duplicate id and validation remain the released rules.
+   Existing historical over-cap rows are preserved; initialize their count
+   to 200 and refuse further views.
+3. Increment the same key only if THIS pageview insert actually inserted
+   one row. D1 uses the immediately preceding direct SQL `changes()` proof,
+   not a previously selected value or aggregate batch metadata. PostgreSQL
+   uses the inserted row/result inside the same transaction. Duplicate,
+   conflict and rejected insert never increment or reserve a slot. Every
+   required statement failure rolls back pageview and counter together.
+
+SQLite/D1's transaction batch must serialize the count, source insert and
+counter increment with old single-statement AN-1 inserts; no check-then-write
+across independent batches. PostgreSQL keeps the exact released AN-1
+per-key advisory lock, acquired in a separate statement before current
+reads, so supported old AN-1 writers and new writers serialize together.
+Retain READ COMMITTED visibility of the preceding lock holder's commit.
+No new in-memory mutex or process-local counter substitutes for this.
+An uncapped pre-AN-1 executable is not a concurrent cap-aware writer: its
+ability to store historical excess remains an explicit archive/control
+case. Returning to the new runtime must reconcile and refuse excess;
+never relabel an uncapped old write as denied.
+
+On the normal path all 200 admitted views populate the counter, so the
+201st and repeated later views use one counter row for the cap decision.
+After legacy writes made a counter stale, one request may need a bounded
+reconciliation before the subsequent cheap denials. Record that transition
+separately. Do not describe it as one-row on every first post-upgrade view.
+Deleting the counter safely forces reconciliation; there is no zero/default
+admission. Administrative forging of counters or deletion of source rows
+is outside ordinary DML and requires the existing maintenance discipline.
+
+**Retention and failure.** Delete expired counter rows with the existing
+conditional, marker-last retention transaction, not on every beacon. Apply
+the same monotonic day predicate, rollback and backwards-clock rules.
+Counter cleanup may not precede retained source deletion outside that
+transaction. Old maintenance does not know this table: retain a documented
+retirement check against the existing maintenance horizon so a surviving
+counter for a day whose raw rows could already have been retired is not
+used as a fresh saturation certificate. A request for such a retired day
+uses the original complete AN-1 admission path without counter optimization
+or a same-epoch counter reset. No stale counter may invent a reported view, resurrect a
+salt or link visitors across days. Measure retention storage and work.
+Missing new schema must fail safely or use the existing complete AN-1 cap
+path, never an uncapped fallback. No D1/storage errors are swallowed inside
+the admission transaction to commit half its work.
+
+HTTP remains empty 204, no-store, without cookie, count, retry, billing or
+cap oracle, for accepted/capped/invalid and ordinary storage-error cases.
+This does not suppress CO-1's existing Cloudflare native daily-limit
+classification: that edition retains its fixed visitor 503 when a required
+D1 operation exhausts the free allowance. No new classification or quota
+query is added. No heartbeat for a rejected pageview is created. Already-admitted heartbeats remain
+uncapped and retain max-progress/no-progress-write rules. This does not
+solve rotating identity, account quotas or read/heartbeat floods globally.
+
+**Costs and gate disclosure.** Keeping 0026 means the ordinary pageview's
+index-write cost remains. A new admitted view normally adds a counter
+update; key initialization and legacy reconciliation can add more writes.
+This phase claims no flat/falling accepted-view write total. SQL statements,
+reads/writes, key/index storage, first-day and retention overhead must be
+measured, including duplicates with another key, rotating UA, one-key
+1000-event flood and normal 1-/200-view admission. Steady saturated denial
+must write zero rows and scan no pageviews; trace the actual PK plan and
+report the rest of the request's work separately. Compare both editions'
+behavior; PostgreSQL rows/buffers are separate from D1 accounting.
+
+Use GATE-2a's actual beacon cells when available, without removing page,
+approval or import cells or extending its budget. Otherwise provide explicit
+collector diagnostics in addition to the unchanged page gate; absence of
+beacon coverage cannot justify a cost increase. Any release metric increase
+needs a plain newest-entry rows_justification and owner approval. Quote the
+write-only daily allowance impact, not a universal pageview capacity.
+
+**Acceptance before implementation freeze.** Both editions require complete
+existing collector/report tests, final-slot eight-way race (exactly one
+insert), parallel distinct/duplicate ids and test/normal sharing; malformed
+or missing counters; zero insert/conflict/DB fault rollback; old writer
+inserts before/after new initialization and mixed old/new final-slot race;
+historical 201+ rows; private/opt-out/bot/malformed no-work paths; heartbeat
+progress; clock reversal, once-per-day retention and old maintenance followed
+by return. Counter/guard bypass scratch mutations must fail original cap
+assertions. Actual supported published old tests and bundles on the new
+schema plus populated rollback/return remain unchanged and must pass. Audit
+native metadata checks on every affected old statement; no new trigger
+writes on a checked statement. No source result guard may be loosened.
+
+**One-write amendment (supersedes the admission ordering and cost allowance
+above).** The preliminary reconciliation upsert followed by a separate
+increment is rejected. Its cold accepted-view fixtures add three native D1
+writes. This amendment permits at most ONE additional native D1 row write
+per accepted event versus released AN-1, including a new visitor whose
+counter does not exist. A lower read count never waives this limit. Any
+accepted-event cell above +1 makes this optimization WONTFIX; retain the
+measured evidence and the released collector instead of requesting a
+higher write allowance.
+
+The Cloudflare table's exact proposed definition is:
+
+```sql
+CREATE TABLE analytics_visitor_counts (
+ day TEXT NOT NULL,
+ visitor TEXT NOT NULL,
+ views INTEGER NOT NULL CHECK (typeof(views) = 'integer' AND views BETWEEN 0 AND 200),
+ PRIMARY KEY (day, visitor)
+) WITHOUT ROWID;
+```
+
+There is no secondary index. WITHOUT ROWID makes the composite primary key
+the storage tree, avoiding an ordinary rowid table's separate primary-key
+index. This is a storage-design hypothesis, not D1 support or accounting
+proof. Prove this exact definition with the local native D1 binding and
+measure native rows_written for initialization and update. No hosted
+account operation is authorized. PostgreSQL retains its checked composite
+primary key; D1 write accounting is not inferred from PostgreSQL results.
+Only the new, unshipped counter migration may change. Retain every shipped
+migration and index, including 0026; no pageviews trigger or result rewrite.
+
+Keep the existing validation, retirement-horizon check and single counter
+lookup. A valid retained 200 certificate still refuses immediately. For a
+missing or unsaturated usable counter, the D1 admission batch has exactly
+TWO statements, in this order:
+
+1. The released AN-1 source INSERT OR IGNORE INTO pageviews, with all
+   existing fields and the exact actual-source cap guard:
+   `NOT EXISTS (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 1 OFFSET 199)`.
+   The host must not choose admission from a counter below 200. This
+   statement's native result retains `meta.changes === 1` as the success
+   proof; do not use the aggregate batch result or the counter's metadata.
+2. One post-insert counter reconciliation, with parameters respectively
+   derived day, derived visitor, derived day, derived visitor:
+
+```sql
+INSERT INTO analytics_visitor_counts (day, visitor, views)
+SELECT ?, ?, actual.n
+FROM (
+ SELECT COUNT(*) AS n
+ FROM (SELECT 1 FROM pageviews WHERE day = ? AND visitor = ? LIMIT 200)
+) AS actual
+WHERE changes() = 1 OR actual.n = 200
+ON CONFLICT (day, visitor) DO UPDATE SET views = excluded.views
+WHERE analytics_visitor_counts.views < excluded.views;
+```
+
+The immediately preceding source INSERT is the ONLY DML whose direct SQL
+changes() this statement may observe. No intervening salt, maintenance or
+counter statement is allowed. The SQL current count includes this newly
+inserted view, so initialization or advancement needs no extra increment.
+Do not obtain the count on the host. The batch serializes with old AN-1
+single-statement inserts and rolls both statements back on any required
+failure. An old writer before the batch is included in the source guard
+and post-insert count; an old writer after it keeps its own cap guard.
+Neither a stale counter nor a pre-batch read may admit the 201st view.
+
+If the source inserted one row, the bounded count produces that key's
+new certificate with one counter write. Otherwise a current count of 200
+may initialize or advance ONLY a saturation certificate. An under-cap
+duplicate does not allocate or advance a counter, even if its event id
+belongs to another visitor. A saturated duplicate may certify its actual
+saturated key, but never counts as an accepted view. Historical excess
+saturates at 200 and remains stored. Valid counters never decrease during
+an active retained day. Malformed state, retired days and missing schema
+keep the complete AN-1 fallback above, not this optimized branch with
+unchecked state. Deletion of a counter causes a guarded source insert and
+post-insert reconciliation; it cannot enable counter-only admission.
+
+PostgreSQL implements the same post-insert reconciliation ordering inside
+the existing AN-1 per-key advisory-lock transaction. Acquire that exact
+lock before current source reads; insert under the actual-source cap,
+then perform at most one counter upsert using the current bounded count
+and the real inserted-row result. Do not emulate SQLite changes() with
+batch totals. Duplicate, historical-excess, maintenance, rollback and
+privacy/CO-1 response invariants above remain binding in both editions.
+
+**Gate extension and hard cost proof.** Keep all existing GATE-2a page and
+operation cells and assertions. The existing collect/first_day and
+collect/repeat cells keep their missing-counter seeds: they prove new-key
+initialization, not steady existing-counter cost. Add exactly one named
+operation, `collect/existing_counter`, in copies OFF and ON. It starts
+with one real admitted source view for the derived day/visitor and, only
+when the schema contains the counter table, a matching valid views=1 row
+outside measurement. The released predecessor gets identical source rows
+and no invented schema. Submit a second distinct real /collect event;
+assert actual source count=2, one accepted event, candidate counter=2,
+unchanged empty 204/no-store/no-oracle behavior and complete background
+settlement. The additional operation uses a fresh isolate/database per
+mode like every existing operation. Do not seed a saturated certificate
+into an accepted-event case or change the original cold fixtures.
+
+This explicit method amendment changes 7 operations to 8, 92 cells per
+artifact to 94, and 184 expanded current/archive cells to 188. Version the
+operation manifest/input fingerprint; preserve the old committed record
+and remeasure the exact newest published predecessor for every matching
+cell. Do not copy old partial numbers or compare unlike fixtures. The
+WHOLE gate remains bounded by 120 seconds including setup/build, both
+matrices, audits and cleanup. No old cell, negative control or settlement
+work may be dropped to fit. Failure to fit requires review, not extension.
+
+Native acceptance requires first_day, missing-counter repeat and
+existing_counter, each OFF/ON, to add at most ONE rows_written versus the
+same released AN-1 outcome; retain the full native numeric vectors.
+Measure additional accepted-event diagnostic variants including final
+slot, new/missing counter, existing counter and reconciliation after old
+writes. A failed/refused insert must not be mislabeled accepted to avoid
+the limit. First cold saturated denial and subsequent steady denials are
+reported separately; steady denial still writes zero and scans no
+pageviews. The rest of /collect is never claimed to be one query.
+
+Retain all earlier race, old-runtime, rollback, malformed/missing schema,
+retention, exclusion, heartbeat, 204/visitor-503 and CPU obligations. Add
+negative controls that remove the actual-source guard, insert unrelated
+DML between source and changes(), skip counter reconciliation, or split
+the batch: the relevant original cap/atomicity/counter assertions must
+fail. Prove exact local D1 WITHOUT ROWID support and rows_written through
+the native GATE-2a operation path, not a host SQLite estimate, a fake
+metadata adapter or a source-only SQL inspection. Passing +1 is only the
+optimization's cost bar; any release increase still needs newest-entry
+rows_justification and the owner's separate approval. This specification
+claims no new native measurement, CPU result, implementation or release.
+
+**Preregistered diagnostic CPU comparison.** Before any timing, fix exact
+315dc35 (before AN-1), 3f0141a (AN-1) and the accepted main revision a55686c46d61db26a27813ae4c71bb1626e4f71c
+captured with this spec; build each normal production artifact once and retain its
+SHA, own migrations and same toolchain/lock identity. Any changed toolchain
+must be labeled, not treated as an isolated AN-1 effect. Both public caches
+OFF. No profiling, query observer, GC injection or instrumented bundle in
+timed processes. Use eight interleaved triplets per each of two request
+classes, rotating the three revision orders in a fixed schedule: 48 fresh
+Worker processes TOTAL. One measured normal HTTP POST /collect per fresh
+process after fixture/setup has settled. Classes: one pre-existing same-day
+view plus one new unique admitted view; and 200 existing views plus event
+201. Match the same day/salt/IP/UA/site/event bytes, setting only a revision's
+real migration/maintenance differences outside the timed request.
+
+The pre-AN-1 revision accepts event 201; the other two must deny it. Label
+that outcome difference explicitly and never claim its paired CPU difference
+is an equivalent-work optimization. Certify actual counts, identity/hash,
+204/body/full application headers except Date, no new cookie/retry oracle
+and background settlement. Preserve the original 20 ms completion window
+and separately a bounded quiet-drain CPU delta; report workerd CPU and
+startup separately, with raw vectors. Do not time SQL diagnostic queries.
+Measure main-minus-AN-1 and AN-1-minus-pre-AN-1 paired medians within each
+triplet/class; fixed two-sided sign-order interval [minimum, maximum] for
+eight differences has 99.21875% coverage. The wide interval is disclosed;
+spanning zero is inconclusive, not zero overhead. Flag a diagnostic HOLD
+on a comparison if its equivalent-outcome paired median exceeds +0.5 ms
+or its interval is wholly positive. This is an attribution stop/decision
+bar, not a hosted free-tier proof. No sample deletion, tuning or rerun.
+Stop on first unexpected outcome/failure; preserve partial vectors. Native
+measurement needs its own bounded PM allocation and direct handoff after
+offline wrapper/typecheck/mode/path/fixture preflight. No native result is
+claimed by this spec; a later AN-2 product cohort needs a separate declared
+candidate comparison after the design passes review.
 
 ## 9. Edition extras
 
