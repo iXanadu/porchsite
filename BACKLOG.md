@@ -84,9 +84,17 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    JSON-LD is WebPage or CollectionPage (cloudflare/src/structured-data.ts).
    Entries should be Article or BlogPosting with headline, author,
    datePublished, dateModified and image, both editions.
+   IN-PROGRESS: spec e95829c (visible fields only, invariant 23). The
+   first build cost entry pages +8.2 ms (a separate template parse cache);
+   4c1f190 shares the warmed cache and entry pages now measure +0.25 ms
+   (no HOLD). Ships alone as an AF-9-only candidate (cards off) once all
+   four CPU classes pass.
 12. **AF-10** OPEN (owner, 2026-10-18, same test): in a list page's Markdown
    copy (index.md), cards run together as long link labels. Each card
    should be its own list item: `- [Title](url): summary`.
+   HELD 2026-10-19: card projection costs home +2.9 ms (CI above zero)
+   and Markdown +8.1 ms, about 800 extra template dispatches per home
+   page. Redesign so the card work runs once per page, then measure.
 
 13. **PERF-12** OPEN (Hand, hosted on porchsite.dev, a55686c, 2026-10-18):
    cold page GET CPU averages 10.2-10.4 ms (p50 8-8.5), at the free
