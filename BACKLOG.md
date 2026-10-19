@@ -114,7 +114,10 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    cheap (about 8-9 reads, no writes). The local row fixtures only cover
    visitors with a few views. Find the per-visitor scan on the recorded
    path, make it read a bounded number of rows, and add a many-views cell
-   to the row gate.
+   to the row gate. A counter trigger would end the scan, but older
+   releases check meta.changes === 1 on the pageview insert, so it needs
+   two releases: first accept changes >= 1 and drop the recount, then add
+   the trigger once that release is the rollback target.
 
 14. **TEST-1** OPEN (fixed in the current test 2026-10-18, 291a7b9; the
    archived a55686c and earlier copies still compare timing fields, so the
