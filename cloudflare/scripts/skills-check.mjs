@@ -66,3 +66,31 @@ test('the skills build refuses a short commit, a release naming another commit, 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('the publish check passes only when GitHub, every host and the install path agree', async () => {
+  const { check, REPO, TEMPLATE, TEMPLATE_NAME } = await import('./skills-publish-check.mjs');
+  const skill = Buffer.from('---\nname: porchsite-website-helper\n---\n');
+  const manifest = Buffer.from(JSON.stringify({ version: RELEASE, skills: [{ name: 'porchsite-website-helper', url: `${SKILLS_URL}/porchsite-website-helper/SKILL.md`, sha256: sha(skill) }] }));
+  const site = (over = {}) => ({
+    [`${REPO}/releases/download/release/${RELEASE}/skills-manifest.json`]: manifest,
+    [`${REPO}/releases/download/release/${RELEASE}/porchsite-website-helper.SKILL.md`]: skill,
+    'https://porchsite.dev/skills/manifest.json': manifest,
+    'https://porchsite.dev/skills/porchsite-website-helper/SKILL.md': skill,
+    'https://get.porchsite.dev/skills/manifest.json': manifest,
+    'https://get.porchsite.dev/skills/porchsite-website-helper/SKILL.md': skill,
+    'https://get.porchsite.dev/assistants.md': Buffer.from(`Install it from ${TEMPLATE}`),
+    [TEMPLATE]: Buffer.from(`<title>${TEMPLATE_NAME}</title>`),
+    ...over,
+  });
+  const fetcher = (files) => async (url) => (files[url] ? new Response(files[url]) : new Response('', { status: 404 }));
+  assert.deepEqual(await check(RELEASE, undefined, fetcher(site())), []);
+  // porchsite.dev still on an older manifest: named, and only that host.
+  const old = Buffer.from(JSON.stringify({ version: '2025.12.31-0000000', skills: [] }));
+  const stale = await check(RELEASE, undefined, fetcher(site({ 'https://porchsite.dev/skills/manifest.json': old })));
+  assert.deepEqual(stale, ['porchsite.dev/skills: manifest.json differs from GitHub\'s (it says version 2025.12.31-0000000)']);
+  assert.deepEqual(await check(RELEASE, ['get.porchsite.dev'], fetcher(site({ 'https://porchsite.dev/skills/manifest.json': old }))), []);
+  // A changed skill, a missing GitHub copy, a lost template link.
+  assert.match((await check(RELEASE, ['get.porchsite.dev'], fetcher(site({ 'https://get.porchsite.dev/skills/porchsite-website-helper/SKILL.md': Buffer.from('x') })))).join(), /get.porchsite.dev porchsite-website-helper: SKILL.md hashes to/);
+  assert.match((await check(RELEASE, undefined, fetcher(site({ [`${REPO}/releases/download/release/${RELEASE}/skills-manifest.json`]: undefined })))).join(), /GitHub: .*answered 404/);
+  assert.match((await check(RELEASE, undefined, fetcher(site({ 'https://get.porchsite.dev/assistants.md': Buffer.from('gone') })))).join(), /no longer links/);
+});

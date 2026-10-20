@@ -26,6 +26,10 @@
 # releases-themes (and of the skills) (scripts/archive-restore.sh reads it back). If the push or
 # the upload can't happen, the build still stands: a warning says so and
 # prints the commands to run later, in order.
+# A release is NOT done until, after the deploy, the skills publish check
+# passes in full against porchsite.dev: node scripts/skills-publish-check.mjs
+# <id> (the skills on the GitHub release, on porchsite.dev/skills and
+# get.porchsite.dev/skills, and the template's install link).
 # Needs PORCHSITE_TEST_DSN and PYTHON (the server edition's interpreter) for
 # the server tests, conformance and the upgrade check.
 set -eu
@@ -302,3 +306,4 @@ elif gh release create "$TAG" "$UP"/* --verify-tag --prerelease --title "$VERSIO
 else
   later "gh release create failed" "  $UPLOAD"
 fi
+echo "after the deploy, the release is done only when this passes (from cloudflare/): node scripts/skills-publish-check.mjs $VERSION"
