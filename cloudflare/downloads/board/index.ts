@@ -609,6 +609,29 @@ async function docs(req: Request, env: Env): Promise<Response | null> {
   return docPage(doc[2], `<h1>${doc[2]}</h1><pre>${docBody(await file.text())}</pre><p><a href="https://get.porchsite.dev/${doc[1]}">The plain file</a></p>`);
 }
 
+// The Grok Bot template's skills, built with each release (scripts/skills.mjs),
+// at porchsite.dev/skills/, where the template is updated from. /skills and
+// /skills/ answer the manifest; read-only, readable from any page.
+const SKILL_PATH = /^\/skills(?:\/?|\/manifest\.json|\/([a-z][a-z0-9-]{0,63})\/SKILL\.md)$/;
+export async function skills(req: Request, env: Env): Promise<Response | null> {
+  const u = new URL(req.url);
+  if (u.pathname !== "/skills" && !u.pathname.startsWith("/skills/")) return null;
+  const notFound = () => new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain" } });
+  const m = SKILL_PATH.exec(u.pathname);
+  if (!m || (req.method !== "GET" && req.method !== "HEAD")) return notFound();
+  const file = m[1] ? `/skills/${m[1]}/SKILL.md` : "/skills/manifest.json";
+  const r = await env.ASSETS.fetch(new Request(new URL(file, "https://get.porchsite.dev/")));
+  if (!r.ok) return notFound();
+  return new Response(req.method === "HEAD" ? null : r.body, {
+    headers: {
+      "Content-Type": m[1] ? "text/markdown; charset=utf-8" : "application/json; charset=utf-8",
+      "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 /**
  * The old downloads address sends everything to the new one until it lapses
  * at the end of 2026: 301 for reads, 308 for the rest (a site's request keeps
@@ -625,6 +648,6 @@ export function movedFrom(req: Request): Response | null {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    return movedFrom(req) ?? (await installer(req, env)) ?? (await handleBoard(req, env)) ?? (await docs(req, env)) ?? env.ASSETS.fetch(req);
+    return movedFrom(req) ?? (await installer(req, env)) ?? (await handleBoard(req, env)) ?? (await skills(req, env)) ?? (await docs(req, env)) ?? env.ASSETS.fetch(req);
   },
 } satisfies ExportedHandler<Env>;

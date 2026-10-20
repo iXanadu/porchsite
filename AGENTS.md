@@ -78,5 +78,13 @@ release id; it refuses otherwise. After the build it tags the commit
 GitHub tag on another commit stops it), and copies the release's files to a
 GitHub release on that tag (`cloudflare/scripts/archive-restore.sh`
 restores the archive from those). If the push or upload fails, the build
-still stands and the commands to run later are printed. No site ever
+still stands and the commands to run later are printed. The build also pins
+the Grok Bot template's skills (`cloudflare/downloads/skills/`) to the release
+and serves them at porchsite.dev/skills/, which the template is updated from;
+edit the skills there, never on a live host. A release is NOT done until,
+after the downloads deploy, `node cloudflare/scripts/skills-publish-check.mjs
+<id>` passes in full: the skills on the GitHub release, byte-identical on
+porchsite.dev/skills and get.porchsite.dev/skills, and the template's install
+link. `--host get.porchsite.dev` passes a release only while porchsite.dev/skills
+is still on another Worker; it does not make the release done. No site ever
 updates itself (spec §4 Updates).
