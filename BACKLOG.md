@@ -217,6 +217,11 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **TEST-2** OPEN (found 2026-10-20): the release build runs vitest
+  directly, so the node checks in `npm test` (beacon, heading, recovery,
+  alerts page, theme version, skills) are not release gates. The skills
+  build itself still runs and refuses on bad input. Fix: run `npm test`
+  (or those checks) in downloads.sh.
 - **DEP-2** OPEN: moving the agents package to its current major version
   changes the MCP runtime the Worker ships (it pulls a newer MCP server).
   Needs its own spec, security review and an MCP parity check; keep it
