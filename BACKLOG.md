@@ -132,16 +132,14 @@ Prefixes: `CF-` Cloudflare edition, `SV-` server edition, `TH-` themes,
    upgrade check can still flake until they age out of the window).
 
 ## BLOCKING
-- **RA-12** IN-PROGRESS (found 2026-10-19; branch ra12-skills): the Grok Bot template's skills are
-  stuck at 2026.10.13-7bde887, 43 releases behind, 4 of them security
-  releases. They also lack the required free-limit counseling and the
-  AI-training choice. They live in the template and in a separate,
-  hand-deployed skills Worker on porchsite.dev/skills. Neither is in this
-  repo or in any release step, so new owners get stale guidance. Fix
-  staged: the skills live in cloudflare/downloads/skills/, every release
-  pins and publishes them, and the downloads Worker serves
-  porchsite.dev/skills/. Left: the owner's yes, a release, then moving the
-  route off the hand-deployed Worker.
+- **RA-12** IN-PROGRESS (found 2026-10-19): the Grok Bot template's skills
+  were stuck at 2026.10.13-7bde887. Since 2026.10.20-2e7a1a8 every release
+  pins and publishes them (cloudflare/downloads/skills/, GitHub release,
+  get.porchsite.dev/skills). Left: the template's new check goes live,
+  then porchsite.dev/skills* moves to the downloads Worker (one route
+  update, then the route in the local deploy config), then the
+  hand-deployed Worker is retired. Until then the skills publish check
+  fails on porchsite.dev, as expected.
 
 ## STAGE 4 (2026-10-15, after S3-6/S3-7): what a real listing site needs
 Found building a single-property listing site on the live release.
