@@ -217,6 +217,20 @@ crawl, agents.json, ai.txt. No demonstrated consumers for small sites.
   diaries don't crowd the home page.
 
 ## DEGRADING
+- **OPS-1** OPEN (found 2026-11-07): nothing retires worktrees. Every
+  review, test and baseline run made its own (`porchsite-<item>-<role>`,
+  about 640 MB each with node_modules and build output). 434 had piled up
+  (46 GB) before a manual cleanup removed 426. Rule, at each sprint close
+  and before each release: the PM removes every worktree that is clean,
+  or holds only untracked build output, and whose HEAD is on origin/main
+  or on a branch (`git worktree remove`, then `git worktree prune`). A
+  detached HEAD that no branch contains gets a local
+  `refs/archive/wt/<name>` ref first. Keep anything with uncommitted
+  edits, and name it in the sprint report. Reviewers use one worktree per
+  seat, reset to each SHA under review, not one per SHA. Pre-deploy
+  database dumps (`<site>.<UTC>.sql`) stay for 30 days after the next
+  good release, then go. Done when the rule is in the PM close steps and
+  a sprint closes with no stale worktrees left.
 - **TEST-2** OPEN (found 2026-10-20): the release build runs vitest
   directly, so the node checks in `npm test` (beacon, heading, recovery,
   alerts page, theme version, skills) are not release gates. The skills
