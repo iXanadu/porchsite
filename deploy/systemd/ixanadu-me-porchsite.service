@@ -1,0 +1,37 @@
+# /etc/systemd/system/ixanadu-me-porchsite.service
+# ixanadu.me, Porchsite server edition (iXanadu/porchsite). Renders per request.
+# Prepared 2026-10-10 by admin@webone; nginx switch is a separate HOST step.
+# The app reads PORCHSITE_* from the environment, so EnvironmentFile is correct here
+# (unlike the old ixanadu-me unit, whose app loaded .env itself).
+[Unit]
+Description=ixanadu.me Porchsite server
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ixanadu_me_user
+Group=www-data
+UMask=0027
+WorkingDirectory=/var/www/ixanadu.me/porchsite
+# EnvironmentFile: injected by site-ctl unit-apply as a root-owned snapshot of porchsite/.env
+# ([units] env_file); site-ctl writes PORCHSITE_RELEASE=<deployed short SHA> into that snapshot.
+Environment=PATH=/usr/local/pyenv/versions/3.13.0/envs/porchsite-3.13/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/ixanadu_me_user
+ExecStart=/usr/local/pyenv/versions/3.13.0/envs/porchsite-3.13/bin/uvicorn server.app.main:app --host 127.0.0.1 --port 8032 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ixanadu-me-porchsite
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
