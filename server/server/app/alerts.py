@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import secrets
 import time
 from datetime import UTC, datetime
@@ -15,6 +16,8 @@ from . import owner
 from . import push_crypto as wire
 from .db import dumps, transaction
 from .errors import ApiError
+
+log = logging.getLogger(__name__)
 
 DEVICE_COOKIE = "__Host-sk_alertdevice"
 _tasks = set()
@@ -229,8 +232,10 @@ def schedule(db, request_id):
     async def safe():
         try:
             await send_approval(db, request_id)
-        except Exception:
-            pass
+        except Exception as error:
+            # The owner is never asked to approve, so say so. Only the error's
+            # type: never the endpoint, keys or content.
+            log.warning("approval alert for request %s failed: %s", request_id, type(error).__name__)
 
     coroutine = safe()
     try:

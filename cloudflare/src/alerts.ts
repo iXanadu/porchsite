@@ -273,7 +273,11 @@ export async function sendApproval(
 }
 const tasks = new Set<Promise<void>>();
 export function schedule(db: D1Database, requestId: string) {
-  const pending = optionalD1(() => sendApproval(db, requestId)).catch(() => {});
+  const pending = optionalD1(() => sendApproval(db, requestId)).catch((error) => {
+    // The owner is never asked to approve, so say so. Only the error's name:
+    // never the endpoint, keys or content.
+    console.warn(`approval alert for request ${requestId} failed: ${error instanceof Error ? error.name : "error"}`);
+  });
   tasks.add(pending);
   void pending.finally(() => tasks.delete(pending));
   try {
